@@ -9,34 +9,66 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/leaflet/leaflet.css">
     <style>
+        :root {
+            color-scheme: light;
+            --bg: #f2f5f8;
+            --surface: rgba(255, 255, 255, 0.92);
+            --surface-strong: #ffffff;
+            --ink: #101820;
+            --muted: #5e6a75;
+            --accent: #0f6ccf;
+            --accent-strong: #0a4e9a;
+            --line: #e2e8f0;
+            --shadow: 0 20px 40px rgba(16, 24, 32, 0.08);
+            --radius-lg: 22px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            background: radial-gradient(circle at 15% 20%, #f0f6ff, #f9fbff 40%, #f4f6f8 100%);
-            color: #1f2733;
+            background: radial-gradient(circle at 12% 15%, #eef5ff 0%, #f7f9fb 40%, #eef2f7 100%);
+            color: var(--ink);
+            line-height: 1.5;
+            min-height: 100vh;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.7) 1px, transparent 1px);
+            background-size: 18px 18px;
+            opacity: 0.35;
+            pointer-events: none;
         }
         .container {
             max-width: 1400px;
             margin: 24px auto 48px;
             padding: 0 20px;
+            position: relative;
+            z-index: 1;
         }
         .header {
-            background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
-            color: #fff;
-            padding: 28px;
-            border-radius: 18px 18px 0 0;
-            box-shadow: 0 12px 30px rgba(15, 76, 117, 0.28);
+            background: linear-gradient(135deg, rgba(15, 108, 207, 0.95) 0%, rgba(9, 71, 150, 0.96) 100%);
+            color: #f9fbff;
+            padding: 28px 32px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            box-shadow: var(--shadow);
             text-align: center;
+            animation: fadeUp 520ms ease both;
         }
-        .header h1 { font-size: 30px; letter-spacing: -0.02em; }
+        .header h1 { font-size: clamp(24px, 2.6vw, 34px); letter-spacing: -0.02em; }
         .header p { margin-top: 8px; opacity: 0.9; font-size: 15px; }
 
         .map-card {
-            background: #fff;
-            border-radius: 0 0 18px 18px;
-            box-shadow: 0 18px 40px rgba(0,0,0,0.08);
+            background: var(--surface);
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            box-shadow: var(--shadow);
             overflow: hidden;
-            border: 1px solid #e8edf3;
+            border: 1px solid var(--line);
+            backdrop-filter: blur(14px);
+            animation: fadeUp 520ms ease 120ms both;
         }
         #map {
             width: 100%;
@@ -47,24 +79,25 @@
         }
         .legend h3 {
             text-align: center;
-            color: #0f4c75;
-            font-size: 20px;
+            color: var(--accent-strong);
+            font-size: clamp(18px, 2vw, 22px);
             margin-bottom: 18px;
         }
         .legend-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 12px;
+            gap: 14px;
             margin-bottom: 18px;
         }
         .legend-item {
             display: flex;
             align-items: center;
-            padding: 12px 12px;
-            background: #f6f8fb;
-            border-radius: 10px;
-            border-left: 5px solid #0f4c75;
-            box-shadow: 0 4px 12px rgba(15, 76, 117, 0.05);
+            padding: 12px 14px;
+            background: var(--surface-strong);
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(15, 108, 207, 0.12);
+            box-shadow: 0 8px 18px rgba(15, 24, 32, 0.06);
+            animation: fadeUp 480ms ease var(--delay, 0ms) both;
         }
         .legend-icon {
             width: 24px;
@@ -74,61 +107,65 @@
             border: 2px solid rgba(0,0,0,0.12);
             flex-shrink: 0;
         }
-        .legend-text strong { display: block; font-size: 14px; color: #122332; }
-        .legend-text small { color: #5a6573; font-size: 12px; }
+        .legend-text strong { display: block; font-size: 14px; color: #101820; }
+        .legend-text small { color: var(--muted); font-size: 12px; }
 
         .hotel-badge {
-            background: linear-gradient(135deg, #f8e287 0%, #f5c14d 100%);
+            background: linear-gradient(135deg, #fbe7a6 0%, #f6c35c 100%);
             color: #513200;
-            padding: 14px;
-            border-radius: 12px;
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
             text-align: center;
             font-weight: 700;
-            border: 2px solid #f0b93a;
-            box-shadow: 0 6px 18px rgba(240, 185, 58, 0.35);
+            border: 1px solid rgba(240, 185, 58, 0.6);
+            box-shadow: 0 10px 20px rgba(240, 185, 58, 0.24);
             margin-top: 10px;
+            animation: fadeUp 500ms ease 200ms both;
         }
 
         .optimization-box {
-            background: linear-gradient(135deg, #e6f7ed 0%, #d3f0e1 100%);
+            background: linear-gradient(135deg, #e8f6ef 0%, #d7efe5 100%);
             padding: 20px;
-            border-radius: 12px;
-            border-left: 5px solid #2e8b57;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(46, 139, 87, 0.2);
             margin-top: 22px;
+            animation: fadeUp 520ms ease 220ms both;
         }
-        .optimization-box h4 { color: #1f6a3f; margin-bottom: 12px; }
+        .optimization-box h4 { color: #1f6a3f; margin-bottom: 12px; font-size: 16px; }
         .optimization-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 10px;
         }
         .opt-item {
-            background: #fff;
-            padding: 12px;
-            border-radius: 10px;
+            background: var(--surface-strong);
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
             font-size: 13px;
             line-height: 1.5;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+            animation: fadeUp 480ms ease var(--delay, 0ms) both;
         }
-        .opt-item strong { display: block; color: #0f4c75; margin-bottom: 4px; }
+        .opt-item strong { display: block; color: var(--accent-strong); margin-bottom: 4px; }
 
         .instructions {
-            background: #fff4e5;
+            background: #fff6e7;
             padding: 18px;
-            border-radius: 10px;
-            border-left: 4px solid #ff9800;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(255, 152, 0, 0.35);
             margin-top: 18px;
             color: #5f4200;
+            animation: fadeUp 520ms ease 260ms both;
         }
         .instructions h4 { margin-bottom: 8px; color: #e06a00; }
         .instructions p { font-size: 14px; line-height: 1.6; }
 
         .map-note {
             padding: 14px 20px;
-            background: #eef4ff;
+            background: #edf3ff;
             color: #1f3461;
             font-size: 14px;
-            border-left: 4px solid #3d5af1;
+            border-left: 4px solid var(--accent);
         }
         .hotel-pin {
             width: 26px;
@@ -143,6 +180,21 @@
             font-weight: 800;
             border: 2px solid #b98500;
             box-shadow: 0 0 0 3px rgba(247,201,72,0.3);
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .header,
+            .map-card,
+            .legend-item,
+            .opt-item,
+            .hotel-badge,
+            .optimization-box,
+            .instructions {
+                animation: none;
+            }
         }
         @media (max-width: 768px) {
             .header h1 { font-size: 22px; }
@@ -302,7 +354,7 @@
         const optimizationGrid = document.getElementById('optimization-grid');
         const hotelBadge = document.getElementById('hotel-badge');
 
-        days.forEach((day) => {
+        days.forEach((day, index) => {
             const latlngs = day.stops.map((s) => [s.lat, s.lng]);
             if (latlngs.length > 1) {
                 L.polyline(latlngs, {
@@ -335,6 +387,7 @@
             const item = document.createElement('div');
             item.className = 'legend-item';
             item.style.borderColor = day.color;
+            item.style.setProperty('--delay', `${index * 70}ms`);
             item.innerHTML = `
                 <div class="legend-icon" style="background:${day.color};"></div>
                 <div class="legend-text">
@@ -346,6 +399,7 @@
 
             const opt = document.createElement('div');
             opt.className = 'opt-item';
+            opt.style.setProperty('--delay', `${index * 70}ms`);
             opt.innerHTML = `<strong>${day.name}</strong>${day.summary}`;
             optimizationGrid.appendChild(opt);
         });
