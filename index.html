@@ -84,7 +84,7 @@
         const days = [
             {
                 name: 'Dia 1 (Sab 22) - Ginza + Planets',
-                color: '#e74c3c',
+                color: '#ef4444',  // Rojo brillante
                 summary: 'Tsukiji, TeamLab Planets, Ginza, Nissan Crossing',
                 stops: [
                     { name: 'Tsukiji Outer Market', lat: 35.6655, lng: 139.7708, note: 'Street food y mercado' },
@@ -95,7 +95,7 @@
             },
             {
                 name: 'Dia 2 (Dom 23) - Borderless + Tower',
-                color: '#9b59b6',
+                color: '#a855f7',  // Púrpura vibrante
                 summary: 'TeamLab Borderless, Tokyo Tower, Zojoji',
                 stops: [
                     { name: 'TeamLab Borderless (Azabudai Hills)', lat: 35.6641, lng: 139.7414, note: 'Museo digital' },
@@ -105,7 +105,7 @@
             },
             {
                 name: 'Dia 3 (Lun 24) - Noreste',
-                color: '#3498db',
+                color: '#3b82f6',  // Azul eléctrico
                 summary: 'Asakusa, Ueno, Akihabara',
                 stops: [
                     { name: 'Senso-ji (Asakusa)', lat: 35.7148, lng: 139.7967, note: 'Templo y Nakamise' },
@@ -115,7 +115,7 @@
             },
             {
                 name: 'Dia 4 (Mar 25) - Shibuya / Harajuku',
-                color: '#e67e22',
+                color: '#f97316',  // Naranja intenso
                 summary: 'Meiji, Harajuku, Omotesando, Shibuya',
                 stops: [
                     { name: 'Santuario Meiji', lat: 35.6764, lng: 139.6993, note: 'Bosque urbano' },
@@ -126,7 +126,7 @@
             },
             {
                 name: 'Dia 5 (Mie 26) - Museos + Base',
-                color: '#16a085',
+                color: '#10b981',  // Verde esmeralda
                 summary: 'Palacio, NACT, 21_21, Hie, Hikawa',
                 stops: [
                     { name: 'Jardines Palacio Imperial', lat: 35.6852, lng: 139.7528, note: 'Campos verdes' },
@@ -138,7 +138,7 @@
             },
             {
                 name: 'Dia 6 (Jue 27) - Norte literario',
-                color: '#8e44ad',
+                color: '#ec4899',  // Rosa fuerte
                 summary: 'Koishikawa, Kagurazaka, Jinbocho',
                 stops: [
                     { name: 'Koishikawa Korakuen', lat: 35.7077, lng: 139.7519, note: 'Jardin clasico' },
@@ -148,7 +148,7 @@
             },
             {
                 name: 'Dia 7 (Vie 28) - Shinjuku',
-                color: '#f39c12',
+                color: '#eab308',  // Amarillo dorado
                 summary: 'Shinjuku Gyoen, ciudad, Golden Gai',
                 stops: [
                     { name: 'Shinjuku Gyoen', lat: 35.6852, lng: 139.71, note: 'Parque mixto' },
@@ -158,7 +158,7 @@
             },
             {
                 name: 'Dia 8 (Sab 1) - Sur trendy',
-                color: '#27ae60',
+                color: '#14b8a6',  // Turquesa
                 summary: 'Institute, Ebisu, Daikanyama, Nakameguro',
                 stops: [
                     { name: 'Teien Art Museum (Institute)', lat: 35.6362, lng: 139.7144, note: 'Arte y jardines' },
@@ -197,26 +197,38 @@
             if (latlngs.length > 1) {
                 L.polyline(latlngs, {
                     color: day.color,
-                    weight: 3,
-                    opacity: 0.55,
-                    dashArray: '6 4'
+                    weight: 4,
+                    opacity: 0.6,
+                    dashArray: '10 6'
                 }).addTo(map);
             }
 
-            day.stops.forEach((stop) => {
-                const marker = L.circleMarker([stop.lat, stop.lng], {
-                    radius: 9,
-                    color: '#fff',
-                    weight: 2,
-                    fillColor: day.color,
-                    fillOpacity: 0.95
+            day.stops.forEach((stop, stopIndex) => {
+                const stopNumber = stopIndex + 1;
+
+                // Marcador con número
+                const marker = L.marker([stop.lat, stop.lng], {
+                    icon: L.divIcon({
+                        className: 'numbered-marker',
+                        html: `<div class="marker-number" style="background: ${day.color};">${stopNumber}</div>`,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16],
+                        popupAnchor: [0, -16]
+                    })
                 });
 
                 marker.bindPopup(`
-                    <strong>${stop.name}</strong><br>
-                    ${day.name}<br>
-                    ${stop.note || ''}<br>
-                    <a href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}" target="_blank" rel="noopener">Abrir en Google Maps</a>
+                    <div style="min-width: 200px;">
+                        <strong style="color: ${day.color}; font-size: 16px;">${stop.name}</strong><br>
+                        <span style="color: #64748b; font-size: 13px;">${day.name} - Parada ${stopNumber}</span><br>
+                        <span style="color: #475569; margin-top: 8px; display: block;">${stop.note || ''}</span><br>
+                        <a href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}"
+                           target="_blank"
+                           rel="noopener"
+                           style="color: #3b82f6; text-decoration: none; margin-top: 8px; display: inline-block;">
+                            📍 Abrir en Google Maps →
+                        </a>
+                    </div>
                 `);
                 marker.addTo(map);
                 bounds.push([stop.lat, stop.lng]);
@@ -245,13 +257,24 @@
         L.marker([hotel.lat, hotel.lng], {
             icon: L.divIcon({
                 className: 'hotel-icon',
-                html: '<div class="hotel-pin">&#9733;</div>',
-                iconSize: [26, 26],
-                iconAnchor: [13, 26],
-                popupAnchor: [0, -20]
+                html: '<div class="hotel-pin">⭐</div>',
+                iconSize: [36, 36],
+                iconAnchor: [18, 18],
+                popupAnchor: [0, -18]
             })
         }).addTo(map)
-          .bindPopup(`<strong>${hotel.name}</strong><br>${hotel.note}<br><a href="https://www.google.com/maps/search/?api=1&query=${hotel.lat},${hotel.lng}" target="_blank" rel="noopener">Abrir en Google Maps</a>`);
+          .bindPopup(`
+            <div style="min-width: 220px;">
+                <strong style="color: #f59e0b; font-size: 17px;">🏨 ${hotel.name}</strong><br>
+                <span style="color: #475569; margin-top: 8px; display: block; font-size: 13px;">${hotel.note}</span><br>
+                <a href="https://www.google.com/maps/search/?api=1&query=${hotel.lat},${hotel.lng}"
+                   target="_blank"
+                   rel="noopener"
+                   style="color: #3b82f6; text-decoration: none; margin-top: 8px; display: inline-block;">
+                    📍 Abrir en Google Maps →
+                </a>
+            </div>
+          `);
 
         hotelBadge.textContent = `${hotel.name} - ${hotel.note}`;
 
