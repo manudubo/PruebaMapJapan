@@ -3,9 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kyoto | Itinerario 2026</title>
+    <meta name="description" content="Itinerario en Kyoto, Japón - 8-14 marzo 2026. Mapa interactivo con alojamiento y puntos de interés.">
+    <meta name="keywords" content="Kyoto, Japón, itinerario, viaje, mapa interactivo, turismo">
+    <meta name="author" content="Itinerario Japón 2026">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Itinerario Kyoto - Japón 2026">
+    <meta property="og:description" content="Mapa interactivo del itinerario en Kyoto">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Itinerario Kyoto - Japón 2026">
+    <meta name="twitter:description" content="Mapa interactivo del itinerario en Kyoto">
+
+    <title>Kyoto | Itinerario Japón 2026</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+
+    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Styles -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/leaflet/leaflet.css">
     <link rel="stylesheet" href="styles.css">
@@ -85,7 +106,10 @@
     </div>
 
     <script src="assets/leaflet/leaflet.js"></script>
+    <script src="assets/js/simple-map.js"></script>
+    <script src="assets/js/navigation.js"></script>
     <script>
+        // Hotel data for Kyoto
         const hotel = {
             name: "アマネク京都河原町五条",
             address: "XQW8+PJ Kioto, Prefectura de Kioto, Japan",
@@ -93,49 +117,9 @@
             lng: 135.7665297
         };
 
-        const map = L.map('map', {
-            scrollWheelZoom: true,
-            worldCopyJump: true
-        });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        const hotelBadge = document.getElementById('hotel-badge');
-        hotelBadge.textContent = hotel.name ? (hotel.name + ' - ' + hotel.address) : 'Alojamiento pendiente de confirmar';
-
-        if (hotel.lat && hotel.lng) {
-            L.marker([hotel.lat, hotel.lng], {
-                icon: L.divIcon({
-                    className: 'hotel-icon',
-                    html: '<div class="hotel-pin">&#9733;</div>',
-                    iconSize: [26, 26],
-                    iconAnchor: [13, 26],
-                    popupAnchor: [0, -20]
-                })
-            })
-            .addTo(map)
-            .bindPopup(
-                '<strong>' + hotel.name + '</strong><br>' +
-                hotel.address + '<br>' +
-                '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(hotel.address) + '" target="_blank" rel="noopener">Abrir en Google Maps</a>'
-            );
-
-            map.setView([hotel.lat, hotel.lng], 14);
-        } else {
-            map.fitWorld();
-            map.setZoom(2);
-        }
-    </script>
-    <script>
-        const activePath = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-        document.querySelectorAll('.top-nav a').forEach((link) => {
-            const target = link.getAttribute('href').toLowerCase();
-            if (target === activePath) {
-                link.classList.add('is-active');
-            }
+        // Initialize map when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initSimpleMap(hotel);
         });
     </script>
 </body>
