@@ -1,0 +1,143 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Takayama | Itinerario 2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/leaflet/leaflet.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="top-nav">
+            <a href="index.html">Tokyo</a>
+            <a href="nagoya.html">Nagoya</a>
+            <a href="takayama.html">Takayama</a>
+            <a href="kyoto.html">Kyoto</a>
+            <a href="osaka.html">Osaka</a>
+            <a href="tamano-naoshima.html">Tamano / Naoshima</a>
+            <a href="hakone.html">Hakone</a>
+        </nav>
+        <div class="header">
+            <h1>Takayama</h1>
+            <p>4-8 marzo 2026</p>
+        </div>
+
+        <div class="map-card">
+            <div id="map" class="city-map" aria-label="Mapa interactivo del itinerario"></div>
+            <div class="map-note">Alojamiento marcado con estrella. Completar despues con areas y marcadores.</div>
+
+            <div class="legend">
+                <h3>Resumen y areas</h3>
+                <div class="legend-grid">
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background:#0f6ccf;"></div>
+                        <div class="legend-text">
+                            <strong>Area 1</strong>
+                            <small>Completar despues.</small>
+                        </div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background:#2e8b57;"></div>
+                        <div class="legend-text">
+                            <strong>Area 2</strong>
+                            <small>Completar despues.</small>
+                        </div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background:#f39c12;"></div>
+                        <div class="legend-text">
+                            <strong>Area 3</strong>
+                            <small>Completar despues.</small>
+                        </div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background:#8e44ad;"></div>
+                        <div class="legend-text">
+                            <strong>Area 4</strong>
+                            <small>Completar despues.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hotel-badge" id="hotel-badge"></div>
+
+                <div class="optimization-box">
+                    <h4>Notas</h4>
+                    <div class="optimization-grid">
+                        <div class="opt-item"><strong>Nota</strong>Completar despues.</div>
+                    </div>
+                </div>
+
+                <div class="instructions">
+                    <h4>Como usar este mapa</h4>
+                    <p>
+                        - Click en el marcador para ver el alojamiento y abrirlo en Google Maps.<br>
+                        - Usa zoom + / - o scroll para acercar; arrastra para moverte.<br>
+                        - Completa cada area con tus ideas y rutas.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/leaflet/leaflet.js"></script>
+    <script>
+        const hotel = {
+            name: "ホテルアマネク飛騨高山",
+            address: "4 Chome-７５番地３ Hanasatomachi, Takayama, Gifu 506-0026, Japan",
+            lat: 36.1390468,
+            lng: 137.2527336
+        };
+
+        const map = L.map('map', {
+            scrollWheelZoom: true,
+            worldCopyJump: true
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        const hotelBadge = document.getElementById('hotel-badge');
+        hotelBadge.textContent = hotel.name ? (hotel.name + ' - ' + hotel.address) : 'Alojamiento pendiente de confirmar';
+
+        if (hotel.lat && hotel.lng) {
+            L.marker([hotel.lat, hotel.lng], {
+                icon: L.divIcon({
+                    className: 'hotel-icon',
+                    html: '<div class="hotel-pin">&#9733;</div>',
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 26],
+                    popupAnchor: [0, -20]
+                })
+            })
+            .addTo(map)
+            .bindPopup(
+                '<strong>' + hotel.name + '</strong><br>' +
+                hotel.address + '<br>' +
+                '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(hotel.address) + '" target="_blank" rel="noopener">Abrir en Google Maps</a>'
+            );
+
+            map.setView([hotel.lat, hotel.lng], 14);
+        } else {
+            map.fitWorld();
+            map.setZoom(2);
+        }
+    </script>
+    <script>
+        const activePath = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+        document.querySelectorAll('.top-nav a').forEach((link) => {
+            const target = link.getAttribute('href').toLowerCase();
+            if (target === activePath) {
+                link.classList.add('is-active');
+            }
+        });
+    </script>
+</body>
+</html>
+
