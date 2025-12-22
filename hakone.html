@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hakone | Itinerario 2026</title>
+    <meta name="description" content="Itinerario en Hakone, Japón - 20-22 marzo 2026. Onsen, jardines y vistas del Monte Fuji.">
+    <meta name="keywords" content="Hakone, Japón, onsen, Monte Fuji, itinerario">
+    <meta name="author" content="Itinerario Japón 2026">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Itinerario Hakone - Japón 2026">
+    <meta property="og:description" content="Mapa interactivo del itinerario en Hakone">
+    <title>Hakone | Itinerario Japón 2026</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
@@ -85,6 +92,8 @@
     </div>
 
     <script src="assets/leaflet/leaflet.js"></script>
+    <script src="assets/js/simple-map.js"></script>
+    <script src="assets/js/navigation.js"></script>
     <script>
         const hotel = {
             name: "Asante Inn",
@@ -92,50 +101,8 @@
             lat: 35.2515733,
             lng: 139.0546293
         };
-
-        const map = L.map('map', {
-            scrollWheelZoom: true,
-            worldCopyJump: true
-        });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        const hotelBadge = document.getElementById('hotel-badge');
-        hotelBadge.textContent = hotel.name ? (hotel.name + ' - ' + hotel.address) : 'Alojamiento pendiente de confirmar';
-
-        if (hotel.lat && hotel.lng) {
-            L.marker([hotel.lat, hotel.lng], {
-                icon: L.divIcon({
-                    className: 'hotel-icon',
-                    html: '<div class="hotel-pin">&#9733;</div>',
-                    iconSize: [26, 26],
-                    iconAnchor: [13, 26],
-                    popupAnchor: [0, -20]
-                })
-            })
-            .addTo(map)
-            .bindPopup(
-                '<strong>' + hotel.name + '</strong><br>' +
-                hotel.address + '<br>' +
-                '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(hotel.address) + '" target="_blank" rel="noopener">Abrir en Google Maps</a>'
-            );
-
-            map.setView([hotel.lat, hotel.lng], 14);
-        } else {
-            map.fitWorld();
-            map.setZoom(2);
-        }
-    </script>
-    <script>
-        const activePath = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-        document.querySelectorAll('.top-nav a').forEach((link) => {
-            const target = link.getAttribute('href').toLowerCase();
-            if (target === activePath) {
-                link.classList.add('is-active');
-            }
+        document.addEventListener('DOMContentLoaded', function() {
+            initSimpleMap(hotel);
         });
     </script>
 </body>

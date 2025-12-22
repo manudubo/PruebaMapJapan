@@ -3,170 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Itinerario Tokyo 8 dias</title>
+    <meta name="description" content="Itinerario completo de 8 días en Tokyo, Japón - 22 febrero al 1 marzo 2025. Mapa interactivo con recorridos optimizados por zonas.">
+    <meta name="keywords" content="Tokyo, Japón, itinerario, viaje, mapa interactivo, turismo">
+    <meta name="author" content="Itinerario Japón 2025">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Itinerario Tokyo 8 días - Japón 2025">
+    <meta property="og:description" content="Mapa interactivo del itinerario optimizado por zonas en Tokyo">
+    <meta property="og:url" content="https://tudominio.com/">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Itinerario Tokyo 8 días - Japón 2025">
+    <meta name="twitter:description" content="Mapa interactivo del itinerario optimizado por zonas en Tokyo">
+
+    <title>Mapa Itinerario Tokyo 8 días - Japón 2025</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+
+    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Styles -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/leaflet/leaflet.css">
     <link rel="stylesheet" href="styles.css">
-    <style>
-        .header {
-            background: linear-gradient(135deg, rgba(15, 108, 207, 0.95) 0%, rgba(9, 71, 150, 0.96) 100%);
-            color: #f9fbff;
-            padding: 28px 32px;
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-            box-shadow: var(--shadow);
-            text-align: center;
-            animation: fadeUp 520ms ease both;
-        }
-        .header h1 { font-size: clamp(24px, 2.6vw, 34px); letter-spacing: -0.02em; }
-        .header p { margin-top: 8px; opacity: 0.9; font-size: 15px; }
-
-        .map-card {
-            background: var(--surface);
-            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-            border: 1px solid var(--line);
-            backdrop-filter: blur(14px);
-            animation: fadeUp 520ms ease 120ms both;
-        }
-        #map {
-            width: 100%;
-            min-height: 540px;
-        }
-        .legend {
-            padding: 28px;
-        }
-        .legend h3 {
-            text-align: center;
-            color: var(--accent-strong);
-            font-size: clamp(18px, 2vw, 22px);
-            margin-bottom: 18px;
-        }
-        .legend-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 14px;
-            margin-bottom: 18px;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            padding: 12px 14px;
-            background: var(--surface-strong);
-            border-radius: var(--radius-sm);
-            border: 1px solid rgba(15, 108, 207, 0.12);
-            box-shadow: 0 8px 18px rgba(15, 24, 32, 0.06);
-            animation: fadeUp 480ms ease var(--delay, 0ms) both;
-        }
-        .legend-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            margin-right: 12px;
-            border: 2px solid rgba(0,0,0,0.12);
-            flex-shrink: 0;
-        }
-        .legend-text strong { display: block; font-size: 14px; color: #101820; }
-        .legend-text small { color: var(--muted); font-size: 12px; }
-
-        .hotel-badge {
-            background: linear-gradient(135deg, #fbe7a6 0%, #f6c35c 100%);
-            color: #513200;
-            padding: 14px 16px;
-            border-radius: var(--radius-md);
-            text-align: center;
-            font-weight: 700;
-            border: 1px solid rgba(240, 185, 58, 0.6);
-            box-shadow: 0 10px 20px rgba(240, 185, 58, 0.24);
-            margin-top: 10px;
-            animation: fadeUp 500ms ease 200ms both;
-        }
-
-        .optimization-box {
-            background: linear-gradient(135deg, #e8f6ef 0%, #d7efe5 100%);
-            padding: 20px;
-            border-radius: var(--radius-md);
-            border: 1px solid rgba(46, 139, 87, 0.2);
-            margin-top: 22px;
-            animation: fadeUp 520ms ease 220ms both;
-        }
-        .optimization-box h4 { color: #1f6a3f; margin-bottom: 12px; font-size: 16px; }
-        .optimization-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 10px;
-        }
-        .opt-item {
-            background: var(--surface-strong);
-            padding: 12px 14px;
-            border-radius: var(--radius-sm);
-            font-size: 13px;
-            line-height: 1.5;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.06);
-            animation: fadeUp 480ms ease var(--delay, 0ms) both;
-        }
-        .opt-item strong { display: block; color: var(--accent-strong); margin-bottom: 4px; }
-
-        .instructions {
-            background: #fff6e7;
-            padding: 18px;
-            border-radius: var(--radius-md);
-            border: 1px solid rgba(255, 152, 0, 0.35);
-            margin-top: 18px;
-            color: #5f4200;
-            animation: fadeUp 520ms ease 260ms both;
-        }
-        .instructions h4 { margin-bottom: 8px; color: #e06a00; }
-        .instructions p { font-size: 14px; line-height: 1.6; }
-
-        .map-note {
-            padding: 14px 20px;
-            background: #edf3ff;
-            color: #1f3461;
-            font-size: 14px;
-            border-left: 4px solid var(--accent);
-        }
-        .hotel-pin {
-            width: 26px;
-            height: 26px;
-            border-radius: 50%;
-            background: #f7c948;
-            color: #1f2733;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: 800;
-            border: 2px solid #b98500;
-            box-shadow: 0 0 0 3px rgba(247,201,72,0.3);
-        }
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .header,
-            .map-card,
-            .legend-item,
-            .opt-item,
-            .hotel-badge,
-            .optimization-box,
-            .instructions {
-                animation: none;
-            }
-        }
-        @media (max-width: 768px) {
-            .header h1 { font-size: 22px; }
-            .legend-grid, .optimization-grid { grid-template-columns: 1fr; }
-            #map { min-height: 420px; }
-        }
-    </style>
 </head>
 <body>
     <div class="container">
-                <nav class="top-nav">
+        <nav class="top-nav" aria-label="Navegación principal">
             <a href="index.html">Tokyo</a>
             <a href="nagoya.html">Nagoya</a>
             <a href="takayama.html">Takayama</a>
@@ -175,12 +43,12 @@
             <a href="tamano-naoshima.html">Tamano / Naoshima</a>
             <a href="hakone.html">Hakone</a>
         </nav>
-        <div class="header">
-            <h1>Mapa Itinerario Tokyo - 8 dias</h1>
+        <header class="header" role="banner">
+            <h1>Mapa Itinerario Tokyo - 8 días</h1>
             <p>22 febrero - 1 marzo 2025 | Recorrido optimizado por zonas</p>
-        </div>
+        </header>
 
-        <div class="map-card">
+        <main id="main-content" class="map-card" role="main">
             <div id="map" aria-label="Mapa interactivo del itinerario"></div>
             <div class="map-note">
                 Marcadores por dia, rutas sugeridas y enlace directo a Google Maps en cada popup.
@@ -208,7 +76,7 @@
                     </p>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <script src="assets/leaflet/leaflet.js"></script>
@@ -393,15 +261,7 @@
             map.setView([35.6762, 139.6503], 12);
         }
     </script>
-    <script>
-        const activePath = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-        document.querySelectorAll('.top-nav a').forEach((link) => {
-            const target = link.getAttribute('href').toLowerCase();
-            if (target === activePath) {
-                link.classList.add('is-active');
-            }
-        });
-    </script>
+    <script src="assets/js/navigation.js"></script>
 </body>
 </html>
 
