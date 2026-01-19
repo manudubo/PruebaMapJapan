@@ -3,273 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Itinerario completo de 8 días en Tokyo, Japón - 22 febrero al 1 marzo 2025. Mapa interactivo con recorridos optimizados por zonas.">
-    <meta name="keywords" content="Tokyo, Japón, itinerario, viaje, mapa interactivo, turismo">
-    <meta name="author" content="Itinerario Japón 2025">
-    <title>Mapa Itinerario Tokyo 8 días - Japón 2025</title>
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <title>Japón 2025 - Itinerario de Viaje</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/leaflet/leaflet.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="styles.css">
-    <style>
-        .numbered-marker {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 16px;
-            color: white;
-            border: 3px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            font-family: 'Space Grotesk', sans-serif;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
-        <nav class="top-nav" aria-label="Navegación principal">
-            <a href="index.html">Tokyo</a>
-            <a href="nagoya.html">Nagoya</a>
-            <a href="takayama.html">Takayama</a>
-            <a href="kyoto.html">Kyoto</a>
-            <a href="osaka.html">Osaka</a>
-            <a href="tamano-naoshima.html">Tamano / Naoshima</a>
-            <a href="hakone.html">Hakone</a>
+        <nav class="top-nav">
+            <a href="index.html" class="is-active"><span>🗾 General</span></a>
+            <a href="tokyo.html"><span>🗼 Tokyo</span></a>
+            <a href="nagoya.html"><span>🎬 Nagoya</span></a>
+            <a href="takayama.html"><span>🏔️ Takayama</span></a>
+            <a href="kyoto.html"><span>⛩️ Kyoto</span></a>
+            <a href="osaka.html"><span>🏯 Osaka</span></a>
         </nav>
-        <header class="header" role="banner">
-            <h1>Mapa Itinerario Tokyo - 8 días</h1>
-            <p>22 febrero - 1 marzo 2025 | Rutas optimizadas sin backtracking</p>
-        </header>
-        <main id="main-content" class="map-card" role="main">
-            <div id="map" aria-label="Mapa interactivo del itinerario"></div>
-            <div class="map-note">
-                Rutas optimizadas mediante análisis de distancias reales. Orden verificado para minimizar backtracking.
-            </div>
+
+        <div class="page-card">
+            <header class="header">
+                <h1>🇯🇵 Japón 2025</h1>
+                <p>22 Febrero - 17 Marzo • 5 ciudades • 24 días de aventura</p>
+            </header>
+
+            <div id="map" data-city="overview"></div>
+
             <div class="legend">
-                <h3>Leyenda y resumen por día</h3>
-                <div id="legend-grid" class="legend-grid"></div>
-                <div class="hotel-badge" id="hotel-badge"></div>
-                <div class="optimization-box">
-                    <h4>Análisis de optimización geográfica</h4>
-                    <div id="optimization-grid" class="optimization-grid"></div>
+                <h3>Ruta del Viaje</h3>
+                <div class="legend-grid">
+                    <a href="tokyo.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
+                        <div class="legend-icon" style="background:#ef4444; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">1</div>
+                        <div class="legend-text">
+                            <strong>Tokyo</strong>
+                            <small>22 Feb - 1 Mar • 8 días</small>
+                        </div>
+                    </a>
+                    <a href="nagoya.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
+                        <div class="legend-icon" style="background:#f97316; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">2</div>
+                        <div class="legend-text">
+                            <strong>Nagoya</strong>
+                            <small>2-4 Mar • 3 días • Ghibli Park</small>
+                        </div>
+                    </a>
+                    <a href="takayama.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
+                        <div class="legend-icon" style="background:#22c55e; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">3</div>
+                        <div class="legend-text">
+                            <strong>Takayama</strong>
+                            <small>4-7 Mar • 4 días • Shirakawa-go</small>
+                        </div>
+                    </a>
+                    <a href="kyoto.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
+                        <div class="legend-icon" style="background:#3b82f6; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">4</div>
+                        <div class="legend-text">
+                            <strong>Kyoto</strong>
+                            <small>8-13 Mar • 6 días • Templos y cultura</small>
+                        </div>
+                    </a>
+                    <a href="osaka.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
+                        <div class="legend-icon" style="background:#8b5cf6; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">5</div>
+                        <div class="legend-text">
+                            <strong>Osaka</strong>
+                            <small>14-17 Mar • 4 días • Universal Studios</small>
+                        </div>
+                    </a>
                 </div>
-                <div class="instructions">
-                    <h4>Cómo usar este mapa</h4>
-                    <p>
-                        - Click en cada marcador para ver detalles y abrir en Google Maps.<br>
-                        - Los números dentro de los círculos indican el orden óptimo verificado.<br>
-                        - Cada color representa un día; las líneas punteadas muestran la ruta optimizada.<br>
-                        - Marcador dorado (★) = hotel base (Akasaka).<br>
-                        - Órdenes ajustados tras análisis de distancias para eliminar backtracking.
-                    </p>
+
+                <div class="info-box">
+                    <h4>📌 Información del viaje</h4>
+                    <p>Itinerario para 2 personas. Incluye reservas confirmadas para Ghibli Park (2 Mar), Nintendo Museum (11 Mar), y TeamLab Planets (24 Feb). Considerar JR Pass de 21 días para transporte entre ciudades.</p>
                 </div>
             </div>
-        </main>
+        </div>
     </div>
-    <script src="assets/leaflet/leaflet.js"></script>
-    <script>
-        const days = [
-            {
-                name: 'Día 1 (Sáb 22) - Ginza + Planets',
-                color: '#e74c3c',
-                summary: 'OPTIMIZADO: Tsukiji → Ginza → Okuno → Planets (evita backtracking)',
-                stops: [
-                    { name: '1. Tsukiji Outer Market', lat: 35.6651, lng: 139.7705, note: 'Mercado pescado, llegar 7:30 AM' },
-                    { name: '2. Ginza 4-chome', lat: 35.6716, lng: 139.7640, note: 'Cruce principal shopping (regreso desde Tsukiji)' },
-                    { name: '3. Okuno Building', lat: 35.6728, lng: 139.7672, note: 'Edificio 1932, 5 min walk desde Ginza' },
-                    { name: '4. TeamLab Planets', lat: 35.6491, lng: 139.7876, note: 'Reserva PM, punto más lejano al final' }
-                ]
-            },
-            {
-                name: 'Día 2 (Dom 23) - Borderless + Tower',
-                color: '#e91e63',
-                summary: '100% caminable: Borderless → Zojoji → Tower (ya óptimo)',
-                stops: [
-                    { name: '1. TeamLab Borderless', lat: 35.6606, lng: 139.7420, note: 'Azabudai Hills (nuevo 2024), reservar AM' },
-                    { name: '2. Zojoji Temple', lat: 35.6575, lng: 139.7484, note: 'Templo 12 min walk desde Borderless' },
-                    { name: '3. Tokyo Tower', lat: 35.6586, lng: 139.7454, note: 'Adyacente a Zojoji, mejor al atardecer' }
-                ]
-            },
-            {
-                name: 'Día 3 (Lun 24) - Noreste Lineal',
-                color: '#3498db',
-                summary: 'Arco noreste → sur: Senso-ji/Nakamise → Kappabashi → Ueno → Akihabara',
-                stops: [
-                    { name: '1. Senso-ji + Nakamise', lat: 35.7147, lng: 139.7968, note: 'Templo + calle 250m = 1 visita, 8 AM' },
-                    { name: '2. Kappabashi', lat: 35.7168, lng: 139.7892, note: 'Utensilios cocina, 12 min walk norte' },
-                    { name: '3. Ueno Park', lat: 35.7141, lng: 139.7741, note: 'Parque, waypoint oeste' },
-                    { name: '4. Akihabara', lat: 35.6982, lng: 139.7737, note: 'Electrónica, regreso sur hacia hotel' }
-                ]
-            },
-            {
-                name: 'Día 4 (Mar 25) - Corredor Shibuya',
-                color: '#ff5722',
-                summary: '100% caminable norte-sur: Meiji → Harajuku → Omotesando → Cat → Shibuya',
-                stops: [
-                    { name: '1. Meiji Shrine', lat: 35.6762, lng: 139.6993, note: 'Santuario bosque, 9 AM' },
-                    { name: '2. Takeshita Street', lat: 35.6713, lng: 139.7048, note: 'Harajuku, 4 min walk desde Meiji' },
-                    { name: '3. Omotesando', lat: 35.6651, lng: 139.7125, note: 'Bulevar lujo, 8 min walk sureste' },
-                    { name: '4. Cat Street', lat: 35.6680, lng: 139.7060, note: 'Cruza Omotesando, waypoint natural' },
-                    { name: '5. Shibuya Crossing', lat: 35.6595, lng: 139.7005, note: 'Punto final sur, noche' }
-                ]
-            },
-            {
-                name: 'Día 5 (Mié 26) - Palacio + Museos',
-                color: '#00bcd4',
-                summary: 'REORDENADO: Palace primero → loop Hie/Hikawa → Roppongi (ahorra 25 min)',
-                stops: [
-                    { name: '1. Imperial Palace East Gardens', lat: 35.6875, lng: 139.7540, note: 'Abre 9 AM, punto más lejano primero' },
-                    { name: '2. Hie Shrine', lat: 35.6747, lng: 139.7396, note: 'Regreso sur, túnel 90 torii' },
-                    { name: '3. Akasaka Hikawa Shrine', lat: 35.6683, lng: 139.7357, note: '15 min walk sur, 500m del hotel' },
-                    { name: '4. 21_21 Design Sight', lat: 35.6675, lng: 139.7304, note: '12 min walk, Tokyo Midtown' },
-                    { name: '5. National Art Center Tokyo', lat: 35.6653, lng: 139.7263, note: '8 min walk, cluster Roppongi' }
-                ]
-            },
-            {
-                name: 'Día 6 (Jue 27) - Norte Literario',
-                color: '#673ab7',
-                summary: 'OPTIMIZADO: Kagurazaka → Koishikawa → Jinbocho (evita Z-pattern)',
-                stops: [
-                    { name: '1. Kagurazaka', lat: 35.7022, lng: 139.7414, note: 'Distrito geisha, waypoint entre hotel y botanical' },
-                    { name: '2. Koishikawa Botanical Garden', lat: 35.7167, lng: 139.7500, note: 'PEAK plum blossoms, continuar norte' },
-                    { name: '3. Jinbocho', lat: 35.6955, lng: 139.7581, note: 'Librerías, regreso sureste' }
-                ]
-            },
-            {
-                name: 'Día 7 (Vie 28) - Shinjuku',
-                color: '#ffc107',
-                summary: 'Gyoen día (cierra 4:30 PM) → Observatorio sunset → Yokocho/Golden Gai noche',
-                stops: [
-                    { name: '1. Shinjuku Gyoen', lat: 35.6853, lng: 139.7094, note: 'Jardín hasta 3:30 PM max (cierra 4:30 PM)' },
-                    { name: '2. Tokyo Metro Govt Building', lat: 35.6872, lng: 139.6887, note: 'Observatorio 4-5:30 PM (sunset ~4:45 PM)' },
-                    { name: '3. Omoide Yokocho', lat: 35.6930, lng: 139.6995, note: 'Yakitori 5:30-7:30 PM' },
-                    { name: '4. Golden Gai', lat: 35.6940, lng: 139.7047, note: 'Bares 8 PM+, 12 min walk desde Omoide' }
-                ]
-            },
-            {
-                name: 'Día 8 (Sáb 1) - Sur Trendy',
-                color: '#4caf50',
-                summary: 'OPTIMIZADO: Institute → Nakameguro → Daikanyama → Yebisu (mejor regreso)',
-                stops: [
-                    { name: '1. Institute for Nature Study', lat: 35.6360, lng: 139.7213, note: 'Reserva natural 9 AM, punto más sur' },
-                    { name: '2. Nakameguro', lat: 35.6443, lng: 139.6992, note: 'Río Meguro, Starbucks Reserve' },
-                    { name: '3. Daikanyama T-Site', lat: 35.6488, lng: 139.7032, note: 'Librería Tsutaya, 13 min walk norte' },
-                    { name: '4. Yebisu Garden Place', lat: 35.6464, lng: 139.7134, note: 'Final, Ebisu Station regreso directo hotel' }
-                ]
-            }
-        ];
 
-        const hotel = {
-            name: 'Hotel base: Via Inn Prime Akasaka',
-            lat: 35.6729,
-            lng: 139.7357,
-            note: '6 líneas metro en 10 min | Central estratégico'
-        };
-
-        const map = L.map('map', {
-            scrollWheelZoom: true,
-            worldCopyJump: true
-        });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        const bounds = [];
-        const legendGrid = document.getElementById('legend-grid');
-        const optimizationGrid = document.getElementById('optimization-grid');
-        const hotelBadge = document.getElementById('hotel-badge');
-
-        days.forEach((day, dayIndex) => {
-            const latlngs = day.stops.map((s) => [s.lat, s.lng]);
-            if (latlngs.length > 1) {
-                L.polyline(latlngs, {
-                    color: day.color,
-                    weight: 3,
-                    opacity: 0.55,
-                    dashArray: '6 4'
-                }).addTo(map);
-            }
-
-            day.stops.forEach((stop, stopIndex) => {
-                const orderNumber = stopIndex + 1;
-                
-                const marker = L.marker([stop.lat, stop.lng], {
-                    icon: L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div class="numbered-marker" style="background-color: ${day.color};">${orderNumber}</div>`,
-                        iconSize: [32, 32],
-                        iconAnchor: [16, 16],
-                        popupAnchor: [0, -16]
-                    })
-                });
-
-                marker.bindPopup(`
-                    <strong>${stop.name}</strong><br>
-                    ${day.name}<br>
-                    ${stop.note || ''}<br>
-                    <a href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}" target="_blank" rel="noopener">Abrir en Google Maps</a>
-                `);
-                marker.addTo(map);
-                bounds.push([stop.lat, stop.lng]);
-            });
-
-            const item = document.createElement('div');
-            item.className = 'legend-item';
-            item.style.borderColor = day.color;
-            item.style.setProperty('--delay', `${dayIndex * 70}ms`);
-            item.innerHTML = `
-                <div class="legend-icon" style="background:${day.color};"></div>
-                <div class="legend-text">
-                    <strong>${day.name}</strong>
-                    <small>${day.summary}</small>
-                </div>
-            `;
-            legendGrid.appendChild(item);
-
-            const opt = document.createElement('div');
-            opt.className = 'opt-item';
-            opt.style.setProperty('--delay', `${dayIndex * 70}ms`);
-            
-            let optNote = '';
-            if (dayIndex === 0) optNote = 'AHORRO 14 min: Ginza/Okuno entre Tsukiji y Planets elimina backtracking';
-            else if (dayIndex === 1) optNote = 'YA ÓPTIMO: 3 puntos en 1.3 km, todo sur del hotel, 100% caminable';
-            else if (dayIndex === 2) optNote = 'YA ÓPTIMO: Arco natural noreste → sur, regreso directo hotel';
-            else if (dayIndex === 3) optNote = 'YA ÓPTIMO: Corredor lineal norte-sur sin backtracking';
-            else if (dayIndex === 4) optNote = 'AHORRO 25 min + 0.9 km: Palace primero, loop shrines, museos al final';
-            else if (dayIndex === 5) optNote = 'AHORRO 13 min: Kagurazaka waypoint elimina Z-pattern';
-            else if (dayIndex === 6) optNote = 'YA ÓPTIMO: Timing crítico Gyoen (cierra 4:30 PM) + gap hasta noche';
-            else if (dayIndex === 7) optNote = 'AHORRO 8 min: Terminar en Ebisu Station = regreso directo hotel';
-            
-            opt.innerHTML = `<strong>${day.name}</strong>${optNote}`;
-            optimizationGrid.appendChild(opt);
-        });
-
-        L.marker([hotel.lat, hotel.lng], {
-            icon: L.divIcon({
-                className: 'hotel-icon',
-                html: '<div class="hotel-pin">&#9733;</div>',
-                iconSize: [26, 26],
-                iconAnchor: [13, 26],
-                popupAnchor: [0, -20]
-            })
-        }).addTo(map)
-          .bindPopup(`<strong>${hotel.name}</strong><br>${hotel.note}<br><a href="https://www.google.com/maps/search/?api=1&query=${hotel.lat},${hotel.lng}" target="_blank" rel="noopener">Abrir en Google Maps</a>`);
-
-        hotelBadge.textContent = `${hotel.name} - ${hotel.note}`;
-
-        if (bounds.length) {
-            map.fitBounds(bounds, { padding: [32, 32] });
-        } else {
-            map.setView([35.6762, 139.6503], 12);
-        }
-    </script>
-    <script src="assets/js/navigation.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="assets/js/main.js"></script>
 </body>
 </html>
