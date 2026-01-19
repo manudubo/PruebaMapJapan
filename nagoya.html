@@ -1,111 +1,53 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Itinerario en Nagoya, Japón - 2-4 marzo 2026. Visita al Ghibli Park y más.">
-    <meta name="keywords" content="Nagoya, Japón, Ghibli Park, itinerario, viaje">
-    <meta name="author" content="Itinerario Japón 2026">
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="Itinerario Nagoya - Japón 2026">
-    <meta property="og:description" content="Mapa interactivo del itinerario en Nagoya con Ghibli Park">
-    <title>Nagoya | Itinerario Japón 2026</title>
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <title>Nagoya - Japón 2025</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/leaflet/leaflet.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <nav class="top-nav">
-            <a href="index.html">Tokyo</a>
-            <a href="nagoya.html">Nagoya</a>
-            <a href="takayama.html">Takayama</a>
-            <a href="kyoto.html">Kyoto</a>
-            <a href="osaka.html">Osaka</a>
-            <a href="tamano-naoshima.html">Tamano / Naoshima</a>
-            <a href="hakone.html">Hakone</a>
+            <a href="index.html"><span>🗾 General</span></a>
+            <a href="tokyo.html"><span>🗼 Tokyo</span></a>
+            <a href="nagoya.html" class="is-active"><span>🎬 Nagoya</span></a>
+            <a href="takayama.html"><span>🏔️ Takayama</span></a>
+            <a href="kyoto.html"><span>⛩️ Kyoto</span></a>
+            <a href="osaka.html"><span>🏯 Osaka</span></a>
         </nav>
-        <div class="header">
-            <h1>Nagoya</h1>
-            <p>2-4 marzo 2026</p>
-        </div>
 
-        <div class="map-card">
-            <div id="map" class="city-map" aria-label="Mapa interactivo del itinerario"></div>
-            <div class="map-note">Alojamiento marcado con estrella. Completar despues con areas y marcadores.</div>
+        <div class="page-card">
+            <header class="header">
+                <h1>🎬 Nagoya</h1>
+                <p>2 - 4 Marzo 2025 • 3 días • Ghibli Park</p>
+            </header>
+
+            <div class="day-selector" id="day-selector"></div>
+
+            <div id="map" data-city="nagoya"></div>
 
             <div class="legend">
-                <h3>Resumen y areas</h3>
-                <div class="legend-grid">
-                    <div class="legend-item">
-                        <div class="legend-icon" style="background:#0f6ccf;"></div>
-                        <div class="legend-text">
-                            <strong>Area 1</strong>
-                            <small>Completar despues.</small>
-                        </div>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-icon" style="background:#2e8b57;"></div>
-                        <div class="legend-text">
-                            <strong>Area 2</strong>
-                            <small>Completar despues.</small>
-                        </div>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-icon" style="background:#f39c12;"></div>
-                        <div class="legend-text">
-                            <strong>Area 3</strong>
-                            <small>Completar despues.</small>
-                        </div>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-icon" style="background:#8e44ad;"></div>
-                        <div class="legend-text">
-                            <strong>Area 4</strong>
-                            <small>Completar despues.</small>
-                        </div>
-                    </div>
+                <h3>Actividades por Día</h3>
+                <div class="legend-grid" id="legend-grid"></div>
+                <div class="hotel-badge" id="hotel-badge">
+                    🏨 Hotel por definir
                 </div>
 
-                <div class="hotel-badge" id="hotel-badge"></div>
-
-                <div class="optimization-box">
-                    <h4>Notas</h4>
-                    <div class="optimization-grid">
-                        <div class="opt-item"><strong>Nota</strong>Ghibli Park el 2 marzo 2026, 2:00 PM - 10:00 PM.</div>
-                        <div class="opt-item"><strong>Nota</strong>Train Tokyo-Nagoya el 2 marzo 2026, 10:00 AM - 11:40 AM.</div>
-                    </div>
-                </div>
-
-                <div class="instructions">
-                    <h4>Como usar este mapa</h4>
-                    <p>
-                        - Click en el marcador para ver el alojamiento y abrirlo en Google Maps.<br>
-                        - Usa zoom + / - o scroll para acercar; arrastra para moverte.<br>
-                        - Completa cada area con tus ideas y rutas.
-                    </p>
+                <div class="info-box">
+                    <h4>📌 Reservas confirmadas</h4>
+                    <p><strong>Ghibli Park:</strong> 2 de Marzo, slot de las 11:00 AM<br>
+                    <strong>Transporte:</strong> Tren desde Tokyo sale a las 7:00 AM<br>
+                    <strong>Nota:</strong> Reservar trenes a Kyoto en westjr.co.jp - Asientos C y D al fondo</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="assets/leaflet/leaflet.js"></script>
-    <script src="assets/js/simple-map.js"></script>
-    <script src="assets/js/navigation.js"></script>
-    <script>
-        const hotel = {
-            name: "Hotel Trusty Nagoya Shirakawa",
-            address: "Japan, 〒460-0008 Aichi, Nagoya, Naka Ward, Sakae, 2 Chome−7−13 サンメンバーズ名古屋白川",
-            lat: 35.1669445,
-            lng: 136.9010643
-        };
-        document.addEventListener('DOMContentLoaded', function() {
-            initSimpleMap(hotel);
-        });
-    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="assets/js/main.js"></script>
 </body>
 </html>
-
