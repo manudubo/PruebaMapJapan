@@ -1,53 +1,59 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Takayama - Japón 2025</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Takayama – Japón 2025</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <nav class="top-nav">
-            <a href="index.html"><span>🗾 General</span></a>
-            <a href="tokyo.html"><span>🗼 Tokyo</span></a>
-            <a href="nagoya.html"><span>🎬 Nagoya</span></a>
-            <a href="takayama.html" class="is-active"><span>🏔️ Takayama</span></a>
-            <a href="kyoto.html"><span>⛩️ Kyoto</span></a>
-            <a href="osaka.html"><span>🏯 Osaka</span></a>
-        </nav>
+  <div class="container">
+    <nav class="top-nav">
+      <a href="index.html">General</a>
+      <a href="tokyo.html">Tokyo</a>
+      <a href="nagoya.html">Nagoya</a>
+      <a href="takayama.html" class="is-active">Takayama</a>
+      <a href="kyoto.html">Kyoto</a>
+      <a href="osaka.html">Osaka</a>
+      <button class="theme-toggle" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <span>Dark</span>
+      </button>
+    </nav>
 
-        <div class="page-card">
-            <header class="header">
-                <h1>🏔️ Takayama</h1>
-                <p>4 - 7 Marzo 2025 • 4 días • Alpes Japoneses</p>
-            </header>
+    <div class="page-card">
+      <header class="header">
+        <h1>Takayama</h1>
+        <p>4 – 7 Marzo 2025 · 4 días</p>
+      </header>
 
-            <div class="day-selector" id="day-selector"></div>
+      <div class="day-selector" id="day-selector"></div>
 
-            <div id="map" data-city="takayama"></div>
+      <div id="map" data-city="takayama"></div>
 
-            <div class="legend">
-                <h3>Actividades por Día</h3>
-                <div class="legend-grid" id="legend-grid"></div>
-                <div class="hotel-badge" id="hotel-badge">
-                    🏨 Amanek Takayama Hotel
-                </div>
-
-                <div class="info-box">
-                    <h4>📌 Información importante</h4>
-                    <p><strong>Shirakawa-go:</strong> Buses en nouhibus.co.jp - Investigar lugares para comer<br>
-                    <strong>Ski (opcional):</strong> Mont Deus - 14km de Takayama, depende de la nieve<br>
-                    <strong>Shinhotaka Ropeway:</strong> Consultar horarios de bus</p>
-                </div>
-            </div>
+      <div class="legend">
+        <h3>Actividades</h3>
+        <div class="legend-grid" id="legend-grid"></div>
+        
+        <div class="hotel-info" id="hotel-info">
+          <div class="marker">H</div>
+          <span>Amanek Takayama Hotel</span>
         </div>
-    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/js/main.js"></script>
+        <div class="info-box">
+          <h4>Notas</h4>
+          <p>
+            Shirakawa-go: Bus info en nouhibus.co.jp<br>
+            Ski: Opcional según condiciones de nieve<br>
+            7 Mar: Solo 1 opcional (Ski, Ropeway o Gokayama)
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="assets/js/main.js"></script>
 </body>
 </html>
