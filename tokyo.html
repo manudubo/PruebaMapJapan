@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tokyo – Japón 2025</title>
+  <title>Tokyo – Japón 2026</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,6 +16,9 @@
       <a href="takayama.html">Takayama</a>
       <a href="kyoto.html">Kyoto</a>
       <a href="osaka.html">Osaka</a>
+      <a href="naoshima.html">Naoshima</a>
+      <a href="hakone.html">Hakone</a>
+      <a href="tokyo2.html">Tokyo 2</a>
       <button class="theme-toggle" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
         <span>Dark</span>
@@ -25,12 +28,15 @@
     <div class="page-card">
       <header class="header">
         <h1>Tokyo</h1>
-        <p>22 Febrero – 1 Marzo 2025 · 8 días</p>
+        <p>22 Febrero – 1 Marzo 2026 · 8 días</p>
       </header>
 
       <div class="day-selector" id="day-selector"></div>
 
-      <div id="map" data-city="tokyo"></div>
+      <div class="map-container">
+        <div id="map" data-city="tokyo"></div>
+        <button class="hotel-btn" id="hotel-btn" title="Ir al hotel">H</button>
+      </div>
 
       <div class="legend">
         <h3>Actividades</h3>
@@ -38,16 +44,16 @@
         
         <div class="hotel-info" id="hotel-info">
           <div class="marker">H</div>
-          <span>Hotel por definir</span>
+          <span>Via Inn Prime Akasaka</span>
         </div>
 
         <div class="info-box">
           <h4>Reservas</h4>
           <p>
             TeamLab Planets: 24 Feb 19:00<br>
-            Walking Tour Shibuya: 26 Feb 10:00 (Estatua Hachiko)<br>
+            Walking Tour Shibuya: 26 Feb 10:00<br>
             R32 Ichioku Tours: 26 Feb 10:45<br>
-            Walking Tour Shinjuku: 27 Feb 17:45 (Tochomae A4)
+            Walking Tour Shinjuku: 27 Feb 17:45
           </p>
         </div>
       </div>

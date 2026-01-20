@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Osaka – Japón 2025</title>
+  <title>Osaka – Japón 2026</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,6 +16,9 @@
       <a href="takayama.html">Takayama</a>
       <a href="kyoto.html">Kyoto</a>
       <a href="osaka.html" class="is-active">Osaka</a>
+      <a href="naoshima.html">Naoshima</a>
+      <a href="hakone.html">Hakone</a>
+      <a href="tokyo2.html">Tokyo 2</a>
       <button class="theme-toggle" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
         <span>Dark</span>
@@ -25,12 +28,15 @@
     <div class="page-card">
       <header class="header">
         <h1>Osaka</h1>
-        <p>14 – 17 Marzo 2025 · 4 días</p>
+        <p>14 – 17 Marzo 2026 · 4 días</p>
       </header>
 
       <div class="day-selector" id="day-selector"></div>
 
-      <div id="map" data-city="osaka"></div>
+      <div class="map-container">
+        <div id="map" data-city="osaka"></div>
+        <button class="hotel-btn" id="hotel-btn" title="Ir al hotel">H</button>
+      </div>
 
       <div class="legend">
         <h3>Actividades</h3>
@@ -45,9 +51,8 @@
           <h4>Notas</h4>
           <p>
             Walking Tour Osaka Castle: 15 Mar 09:00<br>
-            Punto de encuentro: Lawson S Otemae Rest House<br>
             Universal Studios: 16 Mar día completo<br>
-            17 Mar: Opcional (Katsuo-ji + Minoh Falls)
+            17 Mar: Opción A (Katsuo-ji + Minoh) o B (Día libre)
           </p>
         </div>
       </div>
