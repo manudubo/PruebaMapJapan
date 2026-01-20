@@ -1,53 +1,60 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Osaka - Japón 2025</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Osaka – Japón 2025</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <nav class="top-nav">
-            <a href="index.html"><span>🗾 General</span></a>
-            <a href="tokyo.html"><span>🗼 Tokyo</span></a>
-            <a href="nagoya.html"><span>🎬 Nagoya</span></a>
-            <a href="takayama.html"><span>🏔️ Takayama</span></a>
-            <a href="kyoto.html"><span>⛩️ Kyoto</span></a>
-            <a href="osaka.html" class="is-active"><span>🏯 Osaka</span></a>
-        </nav>
+  <div class="container">
+    <nav class="top-nav">
+      <a href="index.html">General</a>
+      <a href="tokyo.html">Tokyo</a>
+      <a href="nagoya.html">Nagoya</a>
+      <a href="takayama.html">Takayama</a>
+      <a href="kyoto.html">Kyoto</a>
+      <a href="osaka.html" class="is-active">Osaka</a>
+      <button class="theme-toggle" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <span>Dark</span>
+      </button>
+    </nav>
 
-        <div class="page-card">
-            <header class="header">
-                <h1>🏯 Osaka</h1>
-                <p>14 - 17 Marzo 2025 • 4 días • Universal Studios</p>
-            </header>
+    <div class="page-card">
+      <header class="header">
+        <h1>Osaka</h1>
+        <p>14 – 17 Marzo 2025 · 4 días</p>
+      </header>
 
-            <div class="day-selector" id="day-selector"></div>
+      <div class="day-selector" id="day-selector"></div>
 
-            <div id="map" data-city="osaka"></div>
+      <div id="map" data-city="osaka"></div>
 
-            <div class="legend">
-                <h3>Actividades por Día</h3>
-                <div class="legend-grid" id="legend-grid"></div>
-                <div class="hotel-badge" id="hotel-badge">
-                    🏨 Shizutetsu Hotel Prezio Shinsaibashi
-                </div>
-
-                <div class="info-box">
-                    <h4>📌 Información importante</h4>
-                    <p><strong>Universal Studios:</strong> 16 de Marzo - Día completo para Super Nintendo World<br>
-                    <strong>Walking Tour Osaka Castle:</strong> 15 de Marzo 09:00 AM - Punto de encuentro: Lawson S Otemae Rest House<br>
-                    <strong>Día 17 (opcional):</strong> Templo Katsuo-ji y Minoh Falls - Ir temprano en taxi</p>
-                </div>
-            </div>
+      <div class="legend">
+        <h3>Actividades</h3>
+        <div class="legend-grid" id="legend-grid"></div>
+        
+        <div class="hotel-info" id="hotel-info">
+          <div class="marker">H</div>
+          <span>Shizutetsu Hotel Prezio Shinsaibashi</span>
         </div>
-    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/js/main.js"></script>
+        <div class="info-box">
+          <h4>Notas</h4>
+          <p>
+            Walking Tour Osaka Castle: 15 Mar 09:00<br>
+            Punto de encuentro: Lawson S Otemae Rest House<br>
+            Universal Studios: 16 Mar día completo<br>
+            17 Mar: Opcional (Katsuo-ji + Minoh Falls)
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="assets/js/main.js"></script>
 </body>
 </html>
