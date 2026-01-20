@@ -1,55 +1,75 @@
-/* Japan Itinerary - Liquid Glass Minimalist Design */
+/* Japan Itinerary - Enhanced Liquid Glass Design */
 /* Font: Inter (similar to Helvetica Neue) */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
   /* Light Mode (default) */
-  --bg-primary: #fafafa;
+  --bg-primary: #f5f5f7;
   --bg-secondary: #ffffff;
-  --bg-glass: rgba(255, 255, 255, 0.72);
-  --bg-glass-strong: rgba(255, 255, 255, 0.88);
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.12);
-  --text-primary: #0a0a0a;
-  --text-secondary: #525252;
-  --text-tertiary: #737373;
-  --accent: #0066cc;
-  --accent-hover: #0052a3;
-  --accent-subtle: rgba(0, 102, 204, 0.08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.04), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-  --blur: 20px;
-  --marker-1: #dc2626;
-  --marker-2: #ea580c;
-  --marker-3: #ca8a04;
-  --marker-4: #16a34a;
-  --marker-5: #0891b2;
-  --marker-6: #2563eb;
-  --marker-7: #7c3aed;
-  --marker-8: #db2777;
-  --hotel: #d97706;
+  --bg-glass: rgba(255, 255, 255, 0.65);
+  --bg-glass-strong: rgba(255, 255, 255, 0.85);
+  --bg-glass-subtle: rgba(255, 255, 255, 0.45);
+  --border-color: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.1);
+  --border-glass: rgba(255, 255, 255, 0.7);
+  --text-primary: #1d1d1f;
+  --text-secondary: #515154;
+  --text-tertiary: #86868b;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-subtle: rgba(0, 113, 227, 0.08);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.06), 
+                  inset 0 1px 0 rgba(255, 255, 255, 0.8),
+                  inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+  --shadow-glass-hover: 0 12px 48px rgba(0, 0, 0, 0.1),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --blur: 24px;
+  --blur-strong: 40px;
+  --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
+  --gradient-shine: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 50%);
+  
+  /* Colors */
+  --marker-1: #ff3b30;
+  --marker-2: #ff9500;
+  --marker-3: #ffcc00;
+  --marker-4: #34c759;
+  --marker-5: #5ac8fa;
+  --marker-6: #007aff;
+  --marker-7: #af52de;
+  --marker-8: #ff2d55;
+  --hotel: #ff9500;
+  --optional: #af52de;
 }
 
 [data-theme="dark"] {
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #141414;
-  --bg-glass: rgba(20, 20, 20, 0.72);
-  --bg-glass-strong: rgba(28, 28, 28, 0.88);
+  --bg-primary: #000000;
+  --bg-secondary: #1c1c1e;
+  --bg-glass: rgba(28, 28, 30, 0.7);
+  --bg-glass-strong: rgba(44, 44, 46, 0.85);
+  --bg-glass-subtle: rgba(28, 28, 30, 0.5);
   --border-color: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.12);
-  --text-primary: #fafafa;
-  --text-secondary: #a3a3a3;
-  --text-tertiary: #737373;
-  --accent: #3b9eff;
-  --accent-hover: #60b0ff;
-  --accent-subtle: rgba(59, 158, 255, 0.12);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --border-glass: rgba(255, 255, 255, 0.1);
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #6e6e73;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-subtle: rgba(10, 132, 255, 0.15);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                  inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  --shadow-glass-hover: 0 12px 48px rgba(0, 0, 0, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 100%);
+  --gradient-shine: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 50%);
 }
 
 * {
@@ -70,7 +90,7 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   min-height: 100vh;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 /* Container */
@@ -78,6 +98,28 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
+}
+
+/* Glass Panel Base */
+.glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-glass);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--gradient-shine);
+  pointer-events: none;
 }
 
 /* Navigation */
@@ -89,11 +131,23 @@ body {
   background: var(--bg-glass);
   backdrop-filter: blur(var(--blur));
   -webkit-backdrop-filter: blur(var(--blur));
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-glass);
   margin-bottom: 24px;
   position: relative;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.top-nav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+  pointer-events: none;
 }
 
 .top-nav a {
@@ -105,6 +159,7 @@ body {
   white-space: nowrap;
   transition: all 0.2s ease;
   border: 1px solid transparent;
+  position: relative;
 }
 
 .top-nav a:hover {
@@ -115,15 +170,17 @@ body {
 .top-nav a.is-active {
   color: var(--accent);
   background: var(--accent-subtle);
-  border-color: var(--accent);
+  border-color: rgba(0, 113, 227, 0.2);
 }
 
 /* Theme Toggle */
 .theme-toggle {
   margin-left: auto;
-  padding: 8px 12px;
-  background: transparent;
-  border: 1px solid var(--border-color);
+  padding: 8px 14px;
+  background: var(--bg-glass-subtle);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass);
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
@@ -136,8 +193,9 @@ body {
 }
 
 .theme-toggle:hover {
-  border-color: var(--border-strong);
+  background: var(--bg-glass);
   color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .theme-toggle svg {
@@ -148,11 +206,23 @@ body {
 /* Main Card */
 .page-card {
   background: var(--bg-glass);
-  backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
-  border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--blur-strong));
+  -webkit-backdrop-filter: blur(var(--blur-strong));
+  border: 1px solid var(--border-glass);
   box-shadow: var(--shadow-glass);
   overflow: hidden;
+  position: relative;
+}
+
+.page-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-glass), transparent);
+  pointer-events: none;
 }
 
 /* Header */
@@ -160,12 +230,23 @@ body {
   padding: 48px 40px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-glass-strong);
+  position: relative;
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 40px;
+  right: 40px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-color), transparent);
 }
 
 .header h1 {
   font-size: 32px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   margin-bottom: 8px;
 }
 
@@ -173,6 +254,67 @@ body {
   color: var(--text-secondary);
   font-size: 15px;
   font-weight: 400;
+}
+
+/* Countdown */
+.countdown-container {
+  margin-top: 32px;
+  padding: 24px;
+  background: var(--bg-glass-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+
+.countdown-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--gradient-shine);
+  pointer-events: none;
+}
+
+.countdown-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+.countdown {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.countdown-unit {
+  text-align: center;
+  min-width: 70px;
+}
+
+.countdown-value {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-text {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  margin-top: 6px;
 }
 
 /* Day Selector */
@@ -188,16 +330,19 @@ body {
 .day-btn {
   padding: 8px 14px;
   border: 1px solid var(--border-color);
-  background: transparent;
+  background: var(--bg-glass-subtle);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .day-btn:hover {
+  background: var(--bg-glass);
   border-color: var(--border-strong);
   color: var(--text-primary);
 }
@@ -206,13 +351,67 @@ body {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.3);
 }
 
-/* Map */
+/* Optional Day Button */
+.day-btn.has-options {
+  border-style: dashed;
+  border-color: var(--optional);
+  color: var(--optional);
+}
+
+.day-btn.has-options:hover {
+  background: rgba(175, 82, 222, 0.1);
+}
+
+.day-btn.has-options.active {
+  background: var(--optional);
+  border-style: solid;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(175, 82, 222, 0.3);
+}
+
+/* Map Container */
+.map-container {
+  position: relative;
+}
+
 #map {
   width: 100%;
   height: 500px;
   background: var(--bg-secondary);
+}
+
+/* Hotel Button */
+.hotel-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  width: 44px;
+  height: 44px;
+  background: var(--bg-glass-strong);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hotel);
+  font-weight: 700;
+  font-size: 16px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.hotel-btn:hover {
+  background: var(--hotel);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+  transform: scale(1.05);
 }
 
 /* Legend */
@@ -239,16 +438,40 @@ body {
   align-items: flex-start;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--bg-glass);
+  background: var(--bg-glass-subtle);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
   text-decoration: none;
   color: inherit;
+  position: relative;
 }
 
 .legend-item:hover {
+  background: var(--bg-glass);
   border-color: var(--border-strong);
-  background: var(--bg-glass-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Optional Legend Item */
+.legend-item.is-optional {
+  border-style: dashed;
+  border-color: var(--optional);
+}
+
+.legend-item.is-optional::before {
+  content: 'Opcional';
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: var(--optional);
+  padding: 2px 6px;
 }
 
 .legend-marker {
@@ -276,15 +499,79 @@ body {
   line-height: 1.4;
 }
 
+/* Options Group */
+.options-group {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(175, 82, 222, 0.05);
+  border: 1px dashed var(--optional);
+  position: relative;
+}
+
+.options-group-label {
+  position: absolute;
+  top: -10px;
+  left: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--optional);
+  background: var(--bg-secondary);
+  padding: 0 8px;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.option-card {
+  padding: 16px;
+  background: var(--bg-glass-subtle);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.option-card:hover {
+  background: var(--bg-glass);
+  border-color: var(--optional);
+}
+
+.option-card h5 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.option-card p {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 /* Hotel Badge */
 .hotel-info {
   margin-top: 20px;
   padding: 16px;
-  background: rgba(217, 119, 6, 0.08);
-  border: 1px solid rgba(217, 119, 6, 0.2);
+  background: rgba(255, 149, 0, 0.08);
+  border: 1px solid rgba(255, 149, 0, 0.2);
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hotel-info::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 149, 0, 0.3), transparent);
 }
 
 .hotel-info .marker {
@@ -308,15 +595,26 @@ body {
 .info-box {
   margin-top: 20px;
   padding: 16px 20px;
-  background: var(--bg-glass);
+  background: var(--bg-glass-subtle);
   border-left: 2px solid var(--accent);
+  position: relative;
+}
+
+.info-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 2px;
+  right: 0;
+  height: 1px;
+  background: var(--gradient-shine);
 }
 
 .info-box h4 {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-tertiary);
   margin-bottom: 8px;
 }
@@ -332,7 +630,7 @@ body {
   background: var(--bg-glass-strong) !important;
   backdrop-filter: blur(var(--blur)) !important;
   -webkit-backdrop-filter: blur(var(--blur)) !important;
-  border: 1px solid var(--border-color) !important;
+  border: 1px solid var(--border-glass) !important;
   border-radius: 0 !important;
   box-shadow: var(--shadow-lg) !important;
   padding: 0 !important;
@@ -359,12 +657,24 @@ body {
 }
 
 .leaflet-popup-content .day-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--accent);
   margin-bottom: 8px;
+}
+
+.leaflet-popup-content .optional-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: var(--optional);
+  padding: 2px 6px;
+  margin-left: 8px;
 }
 
 .leaflet-popup-tip {
@@ -395,6 +705,10 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+.numbered-marker.optional {
+  border: 2px dashed rgba(255,255,255,0.6);
+}
+
 .hotel-marker {
   width: 32px;
   height: 32px;
@@ -411,47 +725,69 @@ body {
 /* Route Overview */
 .route-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .route-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
-  background: var(--bg-glass);
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-glass-subtle);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
   text-decoration: none;
   color: inherit;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.route-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--gradient-shine);
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
 .route-item:hover {
+  background: var(--bg-glass);
   border-color: var(--accent);
-  background: var(--accent-subtle);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.route-item:hover::before {
+  opacity: 1;
 }
 
 .route-number {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
 }
 
 .route-info h4 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   margin-bottom: 2px;
 }
 
 .route-info span {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-tertiary);
 }
 
@@ -483,6 +819,18 @@ body {
     font-size: 14px;
   }
 
+  .countdown {
+    gap: 12px;
+  }
+
+  .countdown-unit {
+    min-width: 60px;
+  }
+
+  .countdown-value {
+    font-size: 28px;
+  }
+
   #map {
     height: 400px;
   }
@@ -502,11 +850,11 @@ body {
 
   .day-btn {
     padding: 6px 10px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .route-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -521,6 +869,18 @@ body {
 
   .header h1 {
     font-size: 22px;
+  }
+
+  .countdown-container {
+    padding: 16px;
+  }
+
+  .countdown-value {
+    font-size: 24px;
+  }
+
+  .countdown-unit {
+    min-width: 50px;
   }
 
   #map {
@@ -538,6 +898,16 @@ body {
   .theme-toggle span {
     display: none;
   }
+
+  .route-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hotel-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
 }
 
 /* Animations */
@@ -545,12 +915,34 @@ body {
   .page-card {
     animation: fadeIn 0.4s ease;
   }
+
+  .route-item {
+    animation: fadeInUp 0.4s ease backwards;
+  }
+
+  .route-item:nth-child(1) { animation-delay: 0.05s; }
+  .route-item:nth-child(2) { animation-delay: 0.1s; }
+  .route-item:nth-child(3) { animation-delay: 0.15s; }
+  .route-item:nth-child(4) { animation-delay: 0.2s; }
+  .route-item:nth-child(5) { animation-delay: 0.25s; }
+  .route-item:nth-child(6) { animation-delay: 0.3s; }
+  .route-item:nth-child(7) { animation-delay: 0.35s; }
+  .route-item:nth-child(8) { animation-delay: 0.4s; }
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -562,7 +954,9 @@ body {
 @media print {
   .top-nav,
   .theme-toggle,
-  .day-selector {
+  .day-selector,
+  .hotel-btn,
+  .countdown-container {
     display: none;
   }
 

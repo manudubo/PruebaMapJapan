@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Japón 2025</title>
+  <title>Japón 2026</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,6 +16,9 @@
       <a href="takayama.html">Takayama</a>
       <a href="kyoto.html">Kyoto</a>
       <a href="osaka.html">Osaka</a>
+      <a href="naoshima.html">Naoshima</a>
+      <a href="hakone.html">Hakone</a>
+      <a href="tokyo2.html">Tokyo 2</a>
       <button class="theme-toggle" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
         <span>Dark</span>
@@ -24,8 +27,30 @@
 
     <div class="page-card">
       <header class="header">
-        <h1>Japón 2025</h1>
-        <p>22 Febrero – 17 Marzo · 5 ciudades · 24 días</p>
+        <h1>Japón 2026</h1>
+        <p>22 Febrero – 23 Marzo · 8 ciudades · 30 días</p>
+        
+        <div class="countdown-container">
+          <div class="countdown-label">Tiempo para el viaje</div>
+          <div class="countdown" id="countdown">
+            <div class="countdown-unit">
+              <div class="countdown-value">--</div>
+              <div class="countdown-text">Días</div>
+            </div>
+            <div class="countdown-unit">
+              <div class="countdown-value">--</div>
+              <div class="countdown-text">Horas</div>
+            </div>
+            <div class="countdown-unit">
+              <div class="countdown-value">--</div>
+              <div class="countdown-text">Min</div>
+            </div>
+            <div class="countdown-unit">
+              <div class="countdown-value">--</div>
+              <div class="countdown-text">Seg</div>
+            </div>
+          </div>
+        </div>
       </header>
 
       <div id="map" data-city="overview"></div>
@@ -34,38 +59,59 @@
         <h3>Ruta</h3>
         <div class="route-grid">
           <a href="tokyo.html" class="route-item">
-            <div class="route-number" style="background:#dc2626">1</div>
+            <div class="route-number" style="background:#ff3b30">1</div>
             <div class="route-info">
               <h4>Tokyo</h4>
-              <span>22 Feb – 1 Mar · 8 días</span>
+              <span>22 Feb – 1 Mar</span>
             </div>
           </a>
           <a href="nagoya.html" class="route-item">
-            <div class="route-number" style="background:#ea580c">2</div>
+            <div class="route-number" style="background:#ff9500">2</div>
             <div class="route-info">
               <h4>Nagoya</h4>
-              <span>2–3 Mar · 2 días</span>
+              <span>2–3 Mar</span>
             </div>
           </a>
           <a href="takayama.html" class="route-item">
-            <div class="route-number" style="background:#16a34a">3</div>
+            <div class="route-number" style="background:#ffcc00">3</div>
             <div class="route-info">
               <h4>Takayama</h4>
-              <span>4–7 Mar · 4 días</span>
+              <span>4–7 Mar</span>
             </div>
           </a>
           <a href="kyoto.html" class="route-item">
-            <div class="route-number" style="background:#2563eb">4</div>
+            <div class="route-number" style="background:#34c759">4</div>
             <div class="route-info">
               <h4>Kyoto</h4>
-              <span>8–13 Mar · 6 días</span>
+              <span>8–13 Mar</span>
             </div>
           </a>
           <a href="osaka.html" class="route-item">
-            <div class="route-number" style="background:#7c3aed">5</div>
+            <div class="route-number" style="background:#5ac8fa">5</div>
             <div class="route-info">
               <h4>Osaka</h4>
-              <span>14–17 Mar · 4 días</span>
+              <span>14–17 Mar</span>
+            </div>
+          </a>
+          <a href="naoshima.html" class="route-item">
+            <div class="route-number" style="background:#007aff">6</div>
+            <div class="route-info">
+              <h4>Naoshima</h4>
+              <span>18–19 Mar</span>
+            </div>
+          </a>
+          <a href="hakone.html" class="route-item">
+            <div class="route-number" style="background:#af52de">7</div>
+            <div class="route-info">
+              <h4>Hakone</h4>
+              <span>20–21 Mar</span>
+            </div>
+          </a>
+          <a href="tokyo2.html" class="route-item">
+            <div class="route-number" style="background:#ff2d55">8</div>
+            <div class="route-info">
+              <h4>Tokyo</h4>
+              <span>22–23 Mar</span>
             </div>
           </a>
         </div>
@@ -75,7 +121,8 @@
           <p>
             TeamLab Planets: 24 Feb 19:00<br>
             Ghibli Park: 2 Mar 11:00<br>
-            Nintendo Museum: 11 Mar 14:00
+            Nintendo Museum: 11 Mar 14:00<br>
+            Universal Studios: 16 Mar
           </p>
         </div>
       </div>
