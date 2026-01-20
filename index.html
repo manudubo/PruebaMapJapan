@@ -1,82 +1,88 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Japón 2025 - Itinerario de Viaje</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Japón 2025</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <nav class="top-nav">
-            <a href="index.html" class="is-active"><span>🗾 General</span></a>
-            <a href="tokyo.html"><span>🗼 Tokyo</span></a>
-            <a href="nagoya.html"><span>🎬 Nagoya</span></a>
-            <a href="takayama.html"><span>🏔️ Takayama</span></a>
-            <a href="kyoto.html"><span>⛩️ Kyoto</span></a>
-            <a href="osaka.html"><span>🏯 Osaka</span></a>
-        </nav>
+  <div class="container">
+    <nav class="top-nav">
+      <a href="index.html" class="is-active">General</a>
+      <a href="tokyo.html">Tokyo</a>
+      <a href="nagoya.html">Nagoya</a>
+      <a href="takayama.html">Takayama</a>
+      <a href="kyoto.html">Kyoto</a>
+      <a href="osaka.html">Osaka</a>
+      <button class="theme-toggle" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <span>Dark</span>
+      </button>
+    </nav>
 
-        <div class="page-card">
-            <header class="header">
-                <h1>🇯🇵 Japón 2025</h1>
-                <p>22 Febrero - 17 Marzo • 5 ciudades • 24 días de aventura</p>
-            </header>
+    <div class="page-card">
+      <header class="header">
+        <h1>Japón 2025</h1>
+        <p>22 Febrero – 17 Marzo · 5 ciudades · 24 días</p>
+      </header>
 
-            <div id="map" data-city="overview"></div>
+      <div id="map" data-city="overview"></div>
 
-            <div class="legend">
-                <h3>Ruta del Viaje</h3>
-                <div class="legend-grid">
-                    <a href="tokyo.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
-                        <div class="legend-icon" style="background:#ef4444; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">1</div>
-                        <div class="legend-text">
-                            <strong>Tokyo</strong>
-                            <small>22 Feb - 1 Mar • 8 días</small>
-                        </div>
-                    </a>
-                    <a href="nagoya.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
-                        <div class="legend-icon" style="background:#f97316; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">2</div>
-                        <div class="legend-text">
-                            <strong>Nagoya</strong>
-                            <small>2-4 Mar • 3 días • Ghibli Park</small>
-                        </div>
-                    </a>
-                    <a href="takayama.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
-                        <div class="legend-icon" style="background:#22c55e; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">3</div>
-                        <div class="legend-text">
-                            <strong>Takayama</strong>
-                            <small>4-7 Mar • 4 días • Shirakawa-go</small>
-                        </div>
-                    </a>
-                    <a href="kyoto.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
-                        <div class="legend-icon" style="background:#3b82f6; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">4</div>
-                        <div class="legend-text">
-                            <strong>Kyoto</strong>
-                            <small>8-13 Mar • 6 días • Templos y cultura</small>
-                        </div>
-                    </a>
-                    <a href="osaka.html" class="legend-item" style="text-decoration:none; cursor:pointer;">
-                        <div class="legend-icon" style="background:#8b5cf6; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">5</div>
-                        <div class="legend-text">
-                            <strong>Osaka</strong>
-                            <small>14-17 Mar • 4 días • Universal Studios</small>
-                        </div>
-                    </a>
-                </div>
-
-                <div class="info-box">
-                    <h4>📌 Información del viaje</h4>
-                    <p>Itinerario para 2 personas. Incluye reservas confirmadas para Ghibli Park (2 Mar), Nintendo Museum (11 Mar), y TeamLab Planets (24 Feb). Considerar JR Pass de 21 días para transporte entre ciudades.</p>
-                </div>
+      <div class="legend">
+        <h3>Ruta</h3>
+        <div class="route-grid">
+          <a href="tokyo.html" class="route-item">
+            <div class="route-number" style="background:#dc2626">1</div>
+            <div class="route-info">
+              <h4>Tokyo</h4>
+              <span>22 Feb – 1 Mar · 8 días</span>
             </div>
+          </a>
+          <a href="nagoya.html" class="route-item">
+            <div class="route-number" style="background:#ea580c">2</div>
+            <div class="route-info">
+              <h4>Nagoya</h4>
+              <span>2–3 Mar · 2 días</span>
+            </div>
+          </a>
+          <a href="takayama.html" class="route-item">
+            <div class="route-number" style="background:#16a34a">3</div>
+            <div class="route-info">
+              <h4>Takayama</h4>
+              <span>4–7 Mar · 4 días</span>
+            </div>
+          </a>
+          <a href="kyoto.html" class="route-item">
+            <div class="route-number" style="background:#2563eb">4</div>
+            <div class="route-info">
+              <h4>Kyoto</h4>
+              <span>8–13 Mar · 6 días</span>
+            </div>
+          </a>
+          <a href="osaka.html" class="route-item">
+            <div class="route-number" style="background:#7c3aed">5</div>
+            <div class="route-info">
+              <h4>Osaka</h4>
+              <span>14–17 Mar · 4 días</span>
+            </div>
+          </a>
         </div>
-    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/js/main.js"></script>
+        <div class="info-box">
+          <h4>Reservas confirmadas</h4>
+          <p>
+            TeamLab Planets: 24 Feb 19:00<br>
+            Ghibli Park: 2 Mar 11:00<br>
+            Nintendo Museum: 11 Mar 14:00
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="assets/js/main.js"></script>
 </body>
 </html>

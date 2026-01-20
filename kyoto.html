@@ -1,54 +1,59 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kyoto - Japón 2025</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kyoto – Japón 2025</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <nav class="top-nav">
-            <a href="index.html"><span>🗾 General</span></a>
-            <a href="tokyo.html"><span>🗼 Tokyo</span></a>
-            <a href="nagoya.html"><span>🎬 Nagoya</span></a>
-            <a href="takayama.html"><span>🏔️ Takayama</span></a>
-            <a href="kyoto.html" class="is-active"><span>⛩️ Kyoto</span></a>
-            <a href="osaka.html"><span>🏯 Osaka</span></a>
-        </nav>
+  <div class="container">
+    <nav class="top-nav">
+      <a href="index.html">General</a>
+      <a href="tokyo.html">Tokyo</a>
+      <a href="nagoya.html">Nagoya</a>
+      <a href="takayama.html">Takayama</a>
+      <a href="kyoto.html" class="is-active">Kyoto</a>
+      <a href="osaka.html">Osaka</a>
+      <button class="theme-toggle" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <span>Dark</span>
+      </button>
+    </nav>
 
-        <div class="page-card">
-            <header class="header">
-                <h1>⛩️ Kyoto</h1>
-                <p>8 - 13 Marzo 2025 • 6 días • Templos y tradición</p>
-            </header>
+    <div class="page-card">
+      <header class="header">
+        <h1>Kyoto</h1>
+        <p>8 – 13 Marzo 2025 · 6 días</p>
+      </header>
 
-            <div class="day-selector" id="day-selector"></div>
+      <div class="day-selector" id="day-selector"></div>
 
-            <div id="map" data-city="kyoto"></div>
+      <div id="map" data-city="kyoto"></div>
 
-            <div class="legend">
-                <h3>Actividades por Día</h3>
-                <div class="legend-grid" id="legend-grid"></div>
-                <div class="hotel-badge" id="hotel-badge">
-                    🏨 Amanek Kyoto Kawaramachi Gojo
-                </div>
-
-                <div class="info-box">
-                    <h4>📌 Reservas confirmadas</h4>
-                    <p><strong>Nintendo Museum:</strong> 11 de Marzo, 14:00-14:30 - Entradas ya compradas<br>
-                    <strong>Fushimi Inari:</strong> Recomendado ir a la noche para fotos<br>
-                    <strong>Ninenzaka:</strong> ¡Muchísima gente! Ir temprano<br>
-                    <strong>Arashiyama:</strong> Día completo recomendado</p>
-                </div>
-            </div>
+      <div class="legend">
+        <h3>Actividades</h3>
+        <div class="legend-grid" id="legend-grid"></div>
+        
+        <div class="hotel-info" id="hotel-info">
+          <div class="marker">H</div>
+          <span>Amanek Kyoto Kawaramachi Gojo</span>
         </div>
-    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/js/main.js"></script>
+        <div class="info-box">
+          <h4>Reservas</h4>
+          <p>
+            Nintendo Museum: 11 Mar 14:00–14:30<br>
+            Fushimi Inari: Recomendado a la noche<br>
+            Ninenzaka: Ir temprano (muy concurrido)
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="assets/js/main.js"></script>
 </body>
 </html>
