@@ -1,5 +1,140 @@
 // Japan Itinerary - Feb/Mar 2026
-// Updated from latest Excel with all cities and features
+// Updated with real Google Maps URLs
+
+// URL mappings from Excel
+const MAPS_URLS = {
+  // Tokyo
+  "Via Inn Prime Akasaka": "https://maps.app.goo.gl/FJ2AmEECHEvtAf1B9",
+  "Imperial Palace": "https://maps.app.goo.gl/V5gwBaj5LM7DdZ4w8",
+  "Palacio Imperial (Kōkyo)": "https://maps.app.goo.gl/V5gwBaj5LM7DdZ4w8",
+  "Hie-jinja Shrine": "https://maps.app.goo.gl/P1ZPEG3Wq8LHUJLr5",
+  "Santuario Hie": "https://maps.app.goo.gl/P1ZPEG3Wq8LHUJLr5",
+  "Akasaka Hikawa Shrine": "https://maps.app.goo.gl/MMZoWfnhJbg4LFZk7",
+  "The National Art Center, Tokyo": "https://maps.app.goo.gl/rfcQgvweqZeqt5GS8",
+  "National Art Center Tokyo": "https://maps.app.goo.gl/rfcQgvweqZeqt5GS8",
+  "21_21 Design Sight": "https://maps.app.goo.gl/YS6jGMYPqHBN8yb8A",
+  "teamLab Planets TOKYO DMM": "https://maps.app.goo.gl/JadxgYPibYbcEaCNA",
+  "TeamLab Planets": "https://maps.app.goo.gl/JadxgYPibYbcEaCNA",
+  "Fish Market Tsukiji Outer Market": "https://maps.app.goo.gl/RbauhHqFirrokYNf9",
+  "Tsukiji Fish Market": "https://maps.app.goo.gl/RbauhHqFirrokYNf9",
+  "Okuno Building": "https://maps.app.goo.gl/BRwNHiAWWjBu3irXA",
+  "Hamarikyu Gardens": "https://maps.app.goo.gl/uxUiGuVj8XUHthwg6",
+  "Jardines Hamarikyu": "https://maps.app.goo.gl/uxUiGuVj8XUHthwg6",
+  "Institute for Nature Study": "https://maps.app.goo.gl/zzY3qRvUpq7uuuWh8",
+  "2 Chome-1 Dogenzaka": "https://maps.app.goo.gl/zjRcWPMfx4dbw7J16",
+  "Walking Tour Shibuya": "https://maps.app.goo.gl/zjRcWPMfx4dbw7J16",
+  "Meiji Jingu": "https://maps.app.goo.gl/P9AHzT2FpTsfnirx7",
+  "Santuario Meiji": "https://maps.app.goo.gl/P9AHzT2FpTsfnirx7",
+  "Yoyogi Park": "https://maps.app.goo.gl/azkhRgb5w24ai8bs5",
+  "1 Chome-16-9 Shibuya": "https://maps.app.goo.gl/3x3Us6dSboMzmHHx6",
+  "R32 Ichioku Tours": "https://maps.app.goo.gl/3x3Us6dSboMzmHHx6",
+  "Hanazono Shrine": "https://maps.app.goo.gl/51qUuoaWjyHhjZJC9",
+  "Omoide Yokocho Memory Lane": "https://maps.app.goo.gl/ypmbomBkweFSFZPM7",
+  "Omoide Yokocho": "https://maps.app.goo.gl/ypmbomBkweFSFZPM7",
+  "Shinjuku Golden-Gai": "https://maps.app.goo.gl/zZP451VFmtGaru1j6",
+  "Golden-Gai": "https://maps.app.goo.gl/zZP451VFmtGaru1j6",
+  "Shinjuku Gyoen National Garden": "https://maps.app.goo.gl/VuoxugzTZJjRqnCt8",
+  "Shinjuku Gyoen": "https://maps.app.goo.gl/VuoxugzTZJjRqnCt8",
+  "Walking Tour Shinjuku": "https://maps.app.goo.gl/SGww3HoLXAXtdQbf6",
+  "Koishikawa Botanical Garden": "https://maps.app.goo.gl/kPFsJ9VV8ay6xFqAA",
+  "Jardín Botánico Koishikawa": "https://maps.app.goo.gl/kPFsJ9VV8ay6xFqAA",
+  "Tokyo City Flea Market": "https://maps.app.goo.gl/5hQDTrh1LspvjuZ6A",
+  "Shimokitazawa": "https://maps.app.goo.gl/EvKWWttKi1ahhw4H8",
+  
+  // Nagoya
+  "Hotel Trusty Nagoya Shirakawa": "https://maps.app.goo.gl/Yoia569FJnB1up5MA",
+  "Ghibli Park": "https://maps.app.goo.gl/sY8BZo8bQPQtds199",
+  
+  // Takayama
+  "Amanek Takayama Hotel": "https://maps.app.goo.gl/9mjsh3fECxZhohNj8",
+  "Check-in Amanek Takayama": "https://maps.app.goo.gl/9mjsh3fECxZhohNj8",
+  "Hida no Sato Folk Village Museum": "https://maps.app.goo.gl/5dKbgcizZrAxkyLZ9",
+  "Hida no Sato Folk Village": "https://maps.app.goo.gl/5dKbgcizZrAxkyLZ9",
+  "Shirakawa": "https://maps.app.goo.gl/H9waF7h4BjHUHQ818",
+  "Shirakawa-go": "https://maps.app.goo.gl/H9waF7h4BjHUHQ818",
+  "Hounoki Daira Winter Resort": "https://maps.app.goo.gl/kRw9xcPJPpQ7xkEd8",
+  "Hounokidaira Ski Area": "https://maps.app.goo.gl/kRw9xcPJPpQ7xkEd8",
+  "Hounokidaira Ski (día 2)": "https://maps.app.goo.gl/kRw9xcPJPpQ7xkEd8",
+  "Shinhotaka Ropeway": "https://maps.app.goo.gl/gVdzn5NgvUrB7oYf9",
+  "Gokayama": "https://maps.app.goo.gl/nxV8cAcb8QHiTMd37",
+  
+  // Kyoto
+  "Hotel Amanek Kyoto Kawaramachi Gojo": "https://maps.app.goo.gl/r6dyhYeh6dS8q7HN7",
+  "Check-in Amanek Kyoto": "https://maps.app.goo.gl/r6dyhYeh6dS8q7HN7",
+  "Gion": "https://maps.app.goo.gl/xQxMxRgCMwfYqQCh7",
+  "Hanamikoji-dori": "https://maps.app.goo.gl/NiWVBsDLMBk5gGQ27",
+  "Maruyama Park": "https://maps.app.goo.gl/LzkLiQGg37kFtFeY8",
+  "Parque Maruyama": "https://maps.app.goo.gl/LzkLiQGg37kFtFeY8",
+  "Yasaka Shrine": "https://maps.app.goo.gl/8jDHiGJbKwBE2XHn7",
+  "Santuario Yasaka": "https://maps.app.goo.gl/8jDHiGJbKwBE2XHn7",
+  "Shijō Bridge": "https://maps.app.goo.gl/xmmFimdV5ZkgVSmLA",
+  "Puente Shijo": "https://maps.app.goo.gl/xmmFimdV5ZkgVSmLA",
+  "Pontocho Alley": "https://maps.app.goo.gl/RwLEEbKuWjSubqAZ7",
+  "Nishiki Market": "https://maps.app.goo.gl/J8twELbyYxsBoTKz8",
+  "Mercado Nishiki": "https://maps.app.goo.gl/J8twELbyYxsBoTKz8",
+  "Uji Station": "https://maps.app.goo.gl/M8gVetzanqaQpTYE9",
+  "Uji": "https://maps.app.goo.gl/M8gVetzanqaQpTYE9",
+  "Nintendo Museum": "https://maps.app.goo.gl/8azBeVxi7ERnmtWf6",
+  "Fushimi Inari Taisha": "https://maps.app.goo.gl/vMAcsJ4shHcjyMpr5",
+  "Komyo-in Temple": "https://maps.app.goo.gl/hP2Q71nBcidg4DqC9",
+  "Templo Komyo-in": "https://maps.app.goo.gl/hP2Q71nBcidg4DqC9",
+  "Kamo River": "https://maps.app.goo.gl/Rp53QtCaUnobA4rQ8",
+  "Río Kamo": "https://maps.app.goo.gl/Rp53QtCaUnobA4rQ8",
+  "Kiyomizu-dera": "https://maps.app.goo.gl/WUG1VfDvHcwNcucK8",
+  "Ishibe kōji road": "https://maps.app.goo.gl/MwZRNsHu1MvZivaUA",
+  "Ishibe Alley": "https://maps.app.goo.gl/MwZRNsHu1MvZivaUA",
+  "Ninenzaka": "https://maps.app.goo.gl/GYYNnsUT7FTUsmG39",
+  "Ninenzaka & Sanneizaka": "https://maps.app.goo.gl/GYYNnsUT7FTUsmG39",
+  "Yasaka Kōshin-dō Temple": "https://maps.app.goo.gl/V2UNGnrmNcxKv7Pk7",
+  "Yasaka Koshindo": "https://maps.app.goo.gl/V2UNGnrmNcxKv7Pk7",
+  "Kawai Kanjiro's House": "https://maps.app.goo.gl/kj5YSweNsWaDD6ub9",
+  "Arashiyama Bamboo Forest": "https://maps.app.goo.gl/KNxwUwf77bTSX5ck8",
+  "Okochi Sanso Garden": "https://maps.app.goo.gl/MrANoJGdUbcNTvsF7",
+  "Arashiyama Park Kameyama Area": "https://maps.app.goo.gl/Vf5ogK3C4mNTvsTK7",
+  "Arashiyama Park Kameyama": "https://maps.app.goo.gl/Vf5ogK3C4mNTvsTK7",
+  "Tenryu-ji": "https://maps.app.goo.gl/XkwZJ6UdwyLygDHs6",
+  "Templo Tenryu-ji": "https://maps.app.goo.gl/XkwZJ6UdwyLygDHs6",
+  "Arashiyama Monkey Park Iwatayama": "https://maps.app.goo.gl/pSwPiRxab3QRMR846",
+  "Monkey Park Iwatayama": "https://maps.app.goo.gl/pSwPiRxab3QRMR846",
+  "Arashiyama East Park": "https://maps.app.goo.gl/j5YnsXn62zbBJ5TB8",
+  
+  // Osaka
+  "Shizutetsu Hotel Prezio Osaka-Shinsaibashi": "https://maps.app.goo.gl/WJi1sYEh9JjN5NVr5",
+  "Shizutetsu Hotel Prezio Shinsaibashi": "https://maps.app.goo.gl/WJi1sYEh9JjN5NVr5",
+  "Check-in Shizutetsu Hotel": "https://maps.app.goo.gl/WJi1sYEh9JjN5NVr5",
+  "Dotonbori": "https://maps.app.goo.gl/4kGeKczmbLFaqFM67",
+  "Hozen-ji Temple": "https://maps.app.goo.gl/zK5dVoxbWhraBfb59",
+  "Kuromon Market": "https://maps.app.goo.gl/XvoYPDDPxahuqHRS7",
+  "Namba Yasaka Jinja": "https://maps.app.goo.gl/EDwmdQ7qkCictkEh6",
+  "Namba Yasaka Shrine": "https://maps.app.goo.gl/EDwmdQ7qkCictkEh6",
+  "Lawson S Otemae Rest House": "https://maps.app.goo.gl/NsiEymJJ1JJf5gKU8",
+  "Osaka Castle Walking Tour": "https://maps.app.goo.gl/NsiEymJJ1JJf5gKU8",
+  "Tenma": "https://maps.app.goo.gl/G91Bc3NZ2w7upjZD8",
+  "Tenma & Tenmabashi": "https://maps.app.goo.gl/G91Bc3NZ2w7upjZD8",
+  "Osaka Tenmangu Shrine": "https://maps.app.goo.gl/gFn9M9wssSBX9uSKA",
+  "Osaka Tenmangu": "https://maps.app.goo.gl/gFn9M9wssSBX9uSKA",
+  "Nakazaki": "https://maps.app.goo.gl/f49RFKnLK2y2wQUi9",
+  "Universal Studio Japan": "https://maps.app.goo.gl/pmZG7kpWyJS8ppscA",
+  "Universal Studios Japan": "https://maps.app.goo.gl/pmZG7kpWyJS8ppscA",
+  "Katsuoji": "https://maps.app.goo.gl/C8iQvpVAjXFi26kX9",
+  "Templo Katsuo-ji + Minoh Falls": "https://maps.app.goo.gl/C8iQvpVAjXFi26kX9",
+  "Minoh Falls": "https://maps.app.goo.gl/cRcu4xrQstb44Xdy5",
+  
+  // Naoshima
+  "UNO HOTEL": "https://maps.app.goo.gl/XC3h5EcEoRbGZmtZ9",
+  "UNO Hotel": "https://maps.app.goo.gl/XC3h5EcEoRbGZmtZ9",
+  "Check-in UNO Hotel": "https://maps.app.goo.gl/XC3h5EcEoRbGZmtZ9",
+  "Naoshima": "https://maps.app.goo.gl/DvSaukjSE9cPhET39",
+  "Naoshima Island": "https://maps.app.goo.gl/DvSaukjSE9cPhET39",
+  
+  // Hakone
+  "Asante Inn": "https://maps.app.goo.gl/UgR6g5cmUjvzSNnd6",
+  "Check-in Asante Inn": "https://maps.app.goo.gl/UgR6g5cmUjvzSNnd6",
+  
+  // Tokyo check-ins
+  "Check-in Via Inn Prime Akasaka": "https://maps.app.goo.gl/FJ2AmEECHEvtAf1B9",
+  "Check-in Hotel Trusty": "https://maps.app.goo.gl/Yoia569FJnB1up5MA"
+};
 
 const ITINERARY = {
   tokyo: {
@@ -33,7 +168,7 @@ const ITINERARY = {
           { name: "TeamLab Planets", coords: [35.6491, 139.7876], notes: "Reservado 19:00" },
           { name: "Tsukiji Fish Market", coords: [35.6651, 139.7705], notes: null },
           { name: "Okuno Building", coords: [35.6728, 139.7672], notes: null },
-          { name: "Ginza", coords: [35.6716, 139.7640], notes: null },
+          { name: "Ginza", coords: [35.6716, 139.7640], notes: null, isGeneric: true },
           { name: "Jardines Hamarikyu", coords: [35.6596, 139.7636], notes: null }
         ]
       },
@@ -41,21 +176,21 @@ const ITINERARY = {
         label: "Mié 25",
         color: "#34c759",
         activities: [
-          { name: "Ebisu", coords: [35.6464, 139.7134], notes: null },
+          { name: "Ebisu", coords: [35.6464, 139.7134], notes: null, isGeneric: true },
           { name: "Institute for Nature Study", coords: [35.6360, 139.7213], notes: "Comprar entrada en el lugar" },
-          { name: "Nakameguro", coords: [35.6443, 139.6992], notes: null },
-          { name: "Daikanyamacho", coords: [35.6488, 139.7032], notes: null }
+          { name: "Nakameguro", coords: [35.6443, 139.6992], notes: null, isGeneric: true },
+          { name: "Daikanyamacho", coords: [35.6488, 139.7032], notes: null, isGeneric: true }
         ]
       },
       "2026-02-26": {
         label: "Jue 26",
         color: "#5ac8fa",
         activities: [
-          { name: "Shibuya", coords: [35.6595, 139.7005], notes: null },
+          { name: "Shibuya", coords: [35.6595, 139.7005], notes: null, isGeneric: true },
           { name: "Walking Tour Shibuya", coords: [35.6595, 139.7005], notes: "10:00-12:00 · Estatua Hachiko, salida A8" },
           { name: "Santuario Meiji", coords: [35.6762, 139.6993], notes: null },
           { name: "Yoyogi Park", coords: [35.6713, 139.6948], notes: null },
-          { name: "Harajuku", coords: [35.6713, 139.7048], notes: null },
+          { name: "Harajuku", coords: [35.6713, 139.7048], notes: null, isGeneric: true },
           { name: "R32 Ichioku Tours", coords: [35.6595, 139.7037], notes: "Reserva 10:45" }
         ]
       },
@@ -63,7 +198,7 @@ const ITINERARY = {
         label: "Vie 27",
         color: "#007aff",
         activities: [
-          { name: "Shinjuku", coords: [35.6896, 139.6918], notes: null },
+          { name: "Shinjuku", coords: [35.6896, 139.6918], notes: null, isGeneric: true },
           { name: "Hanazono Shrine", coords: [35.6932, 139.7067], notes: null },
           { name: "Omoide Yokocho", coords: [35.6930, 139.6995], notes: null },
           { name: "Golden-Gai", coords: [35.6940, 139.7047], notes: null },
@@ -75,9 +210,9 @@ const ITINERARY = {
         label: "Sáb 28",
         color: "#af52de",
         activities: [
-          { name: "Jinbocho", coords: [35.6955, 139.7581], notes: null },
-          { name: "Kagurazaka", coords: [35.7022, 139.7414], notes: null },
-          { name: "Hakusan", coords: [35.7212, 139.7525], notes: null },
+          { name: "Jinbocho", coords: [35.6955, 139.7581], notes: null, isGeneric: true },
+          { name: "Kagurazaka", coords: [35.7022, 139.7414], notes: null, isGeneric: true },
+          { name: "Hakusan", coords: [35.7212, 139.7525], notes: null, isGeneric: true },
           { name: "Jardín Botánico Koishikawa", coords: [35.7167, 139.7500], notes: "Comprar en el lugar · No abre lunes" }
         ]
       },
@@ -109,7 +244,7 @@ const ITINERARY = {
         label: "Mar 3",
         color: "#007aff",
         activities: [
-          { name: "Explorar Nagoya", coords: [35.1706, 136.8816], notes: "Día libre" }
+          { name: "Explorar Nagoya", coords: [35.1706, 136.8816], notes: "Día libre", isGeneric: true }
         ]
       }
     }
@@ -140,8 +275,8 @@ const ITINERARY = {
         color: "#007aff",
         hasOptions: true,
         activities: [
-          { name: "Mont Deus Ski Park", coords: [36.0864, 137.3181], notes: "14km de Takayama", optional: "A" },
-          { name: "Hirayu Onsen Ski Area", coords: [36.2261, 137.6000], notes: "Pocas pistas, poca dificultad", optional: "B" },
+          { name: "Mont Deus Ski Park", coords: [36.0864, 137.3181], notes: "14km de Takayama", optional: "A", isGeneric: true },
+          { name: "Hirayu Onsen Ski Area", coords: [36.2261, 137.6000], notes: "Pocas pistas, poca dificultad", optional: "B", isGeneric: true },
           { name: "Hounokidaira Ski Area", coords: [36.2300, 137.5800], notes: "~75 USD con equipo", optional: "C" }
         ]
       },
@@ -187,7 +322,7 @@ const ITINERARY = {
         label: "Mar 10",
         color: "#ffcc00",
         activities: [
-          { name: "Día libre", coords: [35.0000, 135.7600], notes: "A definir" }
+          { name: "Día libre", coords: [35.0000, 135.7600], notes: "A definir", isGeneric: true }
         ]
       },
       "2026-03-11": {
@@ -266,7 +401,7 @@ const ITINERARY = {
         hasOptions: true,
         activities: [
           { name: "Templo Katsuo-ji + Minoh Falls", coords: [34.8781, 135.4869], notes: "Ir temprano, taxi a Dainichi Parking", optional: "A" },
-          { name: "Día libre", coords: [34.6900, 135.5000], notes: "Explorar Osaka a tu ritmo", optional: "B" }
+          { name: "Día libre", coords: [34.6900, 135.5000], notes: "Explorar Osaka a tu ritmo", optional: "B", isGeneric: true }
         ]
       }
     }
@@ -289,7 +424,7 @@ const ITINERARY = {
         color: "#34c759",
         activities: [
           { name: "Naoshima Island", coords: [34.4600, 133.9950], notes: "Isla del arte" },
-          { name: "Museos de Arte", coords: [34.4550, 133.9900], notes: "Chichu Art Museum, Benesse House, etc." }
+          { name: "Museos de Arte", coords: [34.4550, 133.9900], notes: "Chichu Art Museum, Benesse House, etc.", isGeneric: true }
         ]
       }
     }
@@ -311,7 +446,7 @@ const ITINERARY = {
         label: "Sáb 21",
         color: "#34c759",
         activities: [
-          { name: "Recorrer Hakone", coords: [35.2330, 139.1070], notes: "Onsen, vistas del Fuji" }
+          { name: "Recorrer Hakone", coords: [35.2330, 139.1070], notes: "Onsen, vistas del Fuji", isGeneric: true }
         ]
       }
     }
@@ -333,12 +468,29 @@ const ITINERARY = {
         label: "Lun 23",
         color: "#34c759",
         activities: [
-          { name: "Última recorrida y compras", coords: [35.6762, 139.7050], notes: "Check-out 10:00 · Dejar bolsos en hotel" }
+          { name: "Última recorrida y compras", coords: [35.6762, 139.7050], notes: "Check-out 10:00 · Dejar bolsos en hotel", isGeneric: true }
         ]
       }
     }
   }
 };
+
+// Helper function to get Google Maps URL from mappings
+function getMapsUrl(name) {
+  if (MAPS_URLS[name]) {
+    return MAPS_URLS[name];
+  }
+  return null;
+}
+
+function getDirectionsUrl(name) {
+  const mapsUrl = getMapsUrl(name);
+  if (mapsUrl) {
+    // Google Maps short URLs redirect to full URLs and can be used for directions
+    return mapsUrl;
+  }
+  return null;
+}
 
 // Theme Management
 function initTheme() {
@@ -373,8 +525,6 @@ function initCountdown() {
   const countdownEl = document.getElementById('countdown');
   if (!countdownEl) return;
 
-  // Target: Sun, 22 Feb 2026 07:55 AM Tokyo time (JST = UTC+9)
-  // Convert to UTC: 22 Feb 2026 07:55 JST = 21 Feb 2026 22:55 UTC
   const targetDate = new Date('2026-02-21T22:55:00Z');
 
   function updateCountdown() {
@@ -413,6 +563,22 @@ function initCountdown() {
 
   updateCountdown();
   setInterval(updateCountdown, 1000);
+}
+
+// Center navbar on active item
+function centerNavOnActive() {
+  const nav = document.querySelector('.top-nav');
+  const activeItem = nav?.querySelector('.is-active');
+  if (!nav || !activeItem) return;
+
+  const navRect = nav.getBoundingClientRect();
+  const activeRect = activeItem.getBoundingClientRect();
+  const scrollLeft = activeItem.offsetLeft - (navRect.width / 2) + (activeRect.width / 2);
+  
+  nav.scrollTo({
+    left: Math.max(0, scrollLeft),
+    behavior: 'smooth'
+  });
 }
 
 // Map initialization
@@ -475,10 +641,20 @@ function initCityMap(city) {
           })
         });
 
+        // Build popup content with Google Maps links
         let popup = `<div class="day-label">${day.label}${isOptional ? '<span class="optional-badge">Opción ' + activity.optional + '</span>' : ''}</div>`;
         popup += `<h4>${activity.name}</h4>`;
         if (activity.notes) {
           popup += `<p>${activity.notes}</p>`;
+        }
+        
+        // Add Google Maps links (unless generic location)
+        const mapsUrl = getMapsUrl(activity.name);
+        if (!activity.isGeneric && mapsUrl) {
+          popup += `<div class="popup-links">`;
+          popup += `<a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Ver en Maps</a>`;
+          popup += `<a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link directions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg> Cómo llegar</a>`;
+          popup += `</div>`;
         }
 
         marker.bindPopup(popup);
@@ -490,6 +666,16 @@ function initCityMap(city) {
 
   // Add hotel marker
   if (data.hotel && data.hotel.coords) {
+    const hotelMapsUrl = getMapsUrl(data.hotel.name);
+    
+    let hotelPopup = `<h4>${data.hotel.name}</h4><p>Alojamiento</p>`;
+    if (hotelMapsUrl) {
+      hotelPopup += `<div class="popup-links">`;
+      hotelPopup += `<a href="${hotelMapsUrl}" target="_blank" rel="noopener" class="popup-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> Ver en Maps</a>`;
+      hotelPopup += `<a href="${hotelMapsUrl}" target="_blank" rel="noopener" class="popup-link directions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg> Cómo llegar</a>`;
+      hotelPopup += `</div>`;
+    }
+    
     const hotelMarker = L.marker(data.hotel.coords, {
       icon: L.divIcon({
         className: 'custom-marker',
@@ -497,7 +683,7 @@ function initCityMap(city) {
         iconSize: [32, 32],
         iconAnchor: [16, 16]
       })
-    }).bindPopup(`<h4>${data.hotel.name}</h4><p>Alojamiento</p>`);
+    }).bindPopup(hotelPopup);
     hotelMarker.addTo(map);
   }
 
@@ -518,6 +704,9 @@ function initCityMap(city) {
         document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
         allMarkers.forEach(m => m.addTo(map));
         map.setView(data.center, data.zoom);
+        
+        // Show all day groups in legend
+        document.querySelectorAll('.day-group').forEach(g => g.style.display = 'block');
         return;
       }
 
@@ -532,6 +721,11 @@ function initCityMap(city) {
         const group = L.featureGroup(markersByDay[selectedDay]);
         map.fitBounds(group.getBounds().pad(0.3));
       }
+      
+      // Filter day groups in legend
+      document.querySelectorAll('.day-group').forEach(g => {
+        g.style.display = g.dataset.day === selectedDay ? 'block' : 'none';
+      });
     });
   }
 
@@ -543,13 +737,13 @@ function initCityMap(city) {
     });
   }
 
-  // Generate legend
-  generateLegend(data);
+  // Generate legend grouped by day
+  generateLegendByDay(data);
 
   return map;
 }
 
-function generateLegend(data) {
+function generateLegendByDay(data) {
   const legendGrid = document.getElementById('legend-grid');
   if (!legendGrid) return;
 
@@ -557,6 +751,25 @@ function generateLegend(data) {
 
   Object.keys(data.days).forEach((dateKey) => {
     const day = data.days[dateKey];
+    
+    // Create day group container
+    const dayGroup = document.createElement('div');
+    dayGroup.className = 'day-group' + (day.hasOptions ? ' has-options' : '');
+    dayGroup.dataset.day = dateKey;
+    
+    // Day header
+    const dayHeader = document.createElement('div');
+    dayHeader.className = 'day-group-header';
+    dayHeader.innerHTML = `
+      <div class="day-group-color" style="background:${day.color}"></div>
+      <span class="day-group-label">${day.label}</span>
+      ${day.hasOptions ? '<span class="day-group-badge">Opciones</span>' : ''}
+    `;
+    dayGroup.appendChild(dayHeader);
+    
+    // Activities list
+    const activitiesList = document.createElement('div');
+    activitiesList.className = 'day-activities';
     
     day.activities.forEach((activity, idx) => {
       const isOptional = !!activity.optional;
@@ -572,24 +785,68 @@ function generateLegend(data) {
 
       const markerLabel = isOptional ? activity.optional : (idx + 1);
       const markerColor = isOptional ? '#af52de' : day.color;
+      
+      // Build action buttons
+      const mapsUrl = getMapsUrl(activity.name);
+      const directionsUrl = activity.coords 
+        ? `https://www.google.com/maps/dir/?api=1&destination=${activity.coords[0]},${activity.coords[1]}&travelmode=transit`
+        : null;
+      
+      let actionsHtml = '';
+      if (!activity.isGeneric && mapsUrl) {
+        actionsHtml = `
+          <div class="legend-actions">
+            <a href="${mapsUrl}" target="_blank" rel="noopener" class="legend-action-btn" title="Ver en Google Maps">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </a>
+            ${directionsUrl ? `<a href="${directionsUrl}" target="_blank" rel="noopener" class="legend-action-btn directions" title="Cómo llegar (transporte público)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+            </a>` : ''}
+          </div>
+        `;
+      }
 
       item.innerHTML = `
         <div class="legend-marker" style="background:${markerColor}">${markerLabel}</div>
         <div class="legend-content">
           <strong>${activity.name}</strong>
-          <small>${day.label}${noteText ? ' · ' + noteText : ''}</small>
+          ${noteText ? '<small>' + noteText + '</small>' : ''}
         </div>
+        ${actionsHtml}
       `;
-      legendGrid.appendChild(item);
+      activitiesList.appendChild(item);
     });
+    
+    dayGroup.appendChild(activitiesList);
+    legendGrid.appendChild(dayGroup);
   });
 
   // Hotel info
   const hotelInfo = document.getElementById('hotel-info');
   if (hotelInfo && data.hotel) {
+    const hotelMapsUrl = getMapsUrl(data.hotel.name);
+    const hotelDirectionsUrl = data.hotel.coords 
+      ? `https://www.google.com/maps/dir/?api=1&destination=${data.hotel.coords[0]},${data.hotel.coords[1]}&travelmode=transit`
+      : null;
+    
+    let actionsHtml = '';
+    if (hotelMapsUrl) {
+      actionsHtml = `
+        <div class="legend-actions">
+          <a href="${hotelMapsUrl}" target="_blank" rel="noopener" class="legend-action-btn" title="Ver en Google Maps">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </a>
+          ${hotelDirectionsUrl ? `<a href="${hotelDirectionsUrl}" target="_blank" rel="noopener" class="legend-action-btn directions" title="Cómo llegar (transporte público)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+          </a>` : ''}
+        </div>
+      `;
+    }
+    
     hotelInfo.innerHTML = `
       <div class="marker">H</div>
       <span>${data.hotel.name}</span>
+      ${actionsHtml}
     `;
   }
 }
@@ -662,6 +919,9 @@ function updateMapTheme() {
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initCountdown();
+  
+  // Center nav on active item after a small delay
+  setTimeout(centerNavOnActive, 100);
 
   const themeBtn = document.querySelector('.theme-toggle');
   if (themeBtn) {
