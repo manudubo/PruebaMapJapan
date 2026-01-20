@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Takayama – Japón 2025</title>
+  <title>Takayama – Japón 2026</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,6 +16,9 @@
       <a href="takayama.html" class="is-active">Takayama</a>
       <a href="kyoto.html">Kyoto</a>
       <a href="osaka.html">Osaka</a>
+      <a href="naoshima.html">Naoshima</a>
+      <a href="hakone.html">Hakone</a>
+      <a href="tokyo2.html">Tokyo 2</a>
       <button class="theme-toggle" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
         <span>Dark</span>
@@ -25,12 +28,15 @@
     <div class="page-card">
       <header class="header">
         <h1>Takayama</h1>
-        <p>4 – 7 Marzo 2025 · 4 días</p>
+        <p>4 – 7 Marzo 2026 · 4 días</p>
       </header>
 
       <div class="day-selector" id="day-selector"></div>
 
-      <div id="map" data-city="takayama"></div>
+      <div class="map-container">
+        <div id="map" data-city="takayama"></div>
+        <button class="hotel-btn" id="hotel-btn" title="Ir al hotel">H</button>
+      </div>
 
       <div class="legend">
         <h3>Actividades</h3>
@@ -45,8 +51,8 @@
           <h4>Notas</h4>
           <p>
             Shirakawa-go: Bus info en nouhibus.co.jp<br>
-            Ski: Opcional según condiciones de nieve<br>
-            7 Mar: Solo 1 opcional (Ski, Ropeway o Gokayama)
+            6 Mar: Opciones de ski (A, B o C)<br>
+            7 Mar: Solo 1 opcional (1, 2 o 3)
           </p>
         </div>
       </div>
