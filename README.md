@@ -28,6 +28,30 @@ Aplicación web minimalista con diseño Liquid Glass para visualizar el itinerar
 - Sin emojis, tipografía Inter
 - Compatible con GitHub Pages (100% client-side)
 
+## Nuevas Funcionalidades (v2)
+
+### Links a Google Maps en Popups
+- Cada actividad en el mapa muestra un popup con:
+  - **"Ver en Maps"**: Abre la ubicación exacta en Google Maps (nueva pestaña)
+  - **"Cómo llegar"**: Abre direcciones desde tu ubicación con transporte público preseleccionado
+- Las actividades genéricas (días libres, etc.) no muestran estos links
+
+### Navbar Mejorada para Mobile
+- Scrollbar horizontal siempre visible para indicar navegación
+- Al cargar, la navbar se centra automáticamente en la ciudad activa
+
+### Actividades Agrupadas por Día
+- La sección inferior de cada página ahora agrupa las actividades por día
+- Header con color del día y nombre
+- Los días con opciones tienen indicador visual
+- Filtrar por día también filtra la lista de actividades
+
+### Botones de Acción en Cards de Actividades
+- Cada actividad tiene dos botones:
+  - **Ícono de ubicación**: Ver en Google Maps
+  - **Ícono de flecha**: Cómo llegar (transporte público)
+- En mobile los botones se expanden para mejor usabilidad
+
 ## Opcionales
 
 Algunos días tienen actividades opcionales (no todas se pueden hacer):
@@ -76,3 +100,12 @@ Los días con opciones se muestran con borde punteado morado.
 - Inter (Google Fonts)
 - CSS Variables + Backdrop Filter
 - JavaScript vanilla (sin dependencias)
+
+## Notas sobre Google Maps
+
+Los links de Google Maps usan URLs cortas reales de `maps.app.goo.gl` extraídas del Excel de planificación. Cada ubicación tiene su URL específica que:
+- Abre directamente la ubicación correcta en Google Maps
+- En móviles, abre la app de Google Maps si está instalada
+- Permite obtener direcciones fácilmente desde la ubicación actual
+
+Los links "Cómo llegar" usan la misma URL corta que al hacer click en Google Maps permite elegir el modo de transporte (recomendado: transporte público).

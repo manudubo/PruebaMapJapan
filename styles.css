@@ -43,6 +43,7 @@
   --marker-8: #ff2d55;
   --hotel: #ff9500;
   --optional: #af52de;
+  --directions: #34c759;
 }
 
 [data-theme="dark"] {
@@ -122,7 +123,7 @@ body {
   pointer-events: none;
 }
 
-/* Navigation */
+/* Navigation - Always visible scrollbar on mobile */
 .top-nav {
   display: flex;
   align-items: center;
@@ -136,7 +137,32 @@ body {
   margin-bottom: 24px;
   position: relative;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  /* Always show scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-tertiary) transparent;
+}
+
+/* Custom scrollbar for webkit browsers */
+.top-nav::-webkit-scrollbar {
+  height: 6px;
+  display: block;
+}
+
+.top-nav::-webkit-scrollbar-track {
+  background: var(--bg-glass-subtle);
+  border-radius: 3px;
+}
+
+.top-nav::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+  border-radius: 3px;
+  min-width: 40px;
+}
+
+.top-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
 }
 
 .top-nav::before {
@@ -160,6 +186,7 @@ body {
   transition: all 0.2s ease;
   border: 1px solid transparent;
   position: relative;
+  flex-shrink: 0;
 }
 
 .top-nav a:hover {
@@ -190,6 +217,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .theme-toggle:hover {
@@ -428,50 +456,104 @@ body {
 }
 
 .legend-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
+/* Day Group Styles */
+.day-group {
+  background: var(--bg-glass-subtle);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.day-group.has-options {
+  border-style: dashed;
+  border-color: var(--optional);
+}
+
+.day-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-glass);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.day-group.has-options .day-group-header {
+  border-bottom-style: dashed;
+  border-bottom-color: var(--optional);
+}
+
+.day-group-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.day-group-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.day-group-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: var(--optional);
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-left: auto;
+}
+
+.day-activities {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Legend Items */
 .legend-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--bg-glass-subtle);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border-bottom: 1px solid var(--border-color);
   transition: all 0.2s ease;
   text-decoration: none;
   color: inherit;
   position: relative;
 }
 
+.legend-item:last-child {
+  border-bottom: none;
+}
+
 .legend-item:hover {
   background: var(--bg-glass);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
 }
 
 /* Optional Legend Item */
 .legend-item.is-optional {
-  border-style: dashed;
-  border-color: var(--optional);
+  background: rgba(175, 82, 222, 0.05);
 }
 
 .legend-item.is-optional::before {
   content: 'Opcional';
   position: absolute;
-  top: -8px;
+  top: 4px;
   right: 12px;
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #fff;
-  background: var(--optional);
-  padding: 2px 6px;
+  color: var(--optional);
 }
 
 .legend-marker {
@@ -484,6 +566,12 @@ body {
   font-weight: 600;
   color: #fff;
   flex-shrink: 0;
+  border-radius: 6px;
+}
+
+.legend-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .legend-content strong {
@@ -497,58 +585,51 @@ body {
   font-size: 12px;
   color: var(--text-tertiary);
   line-height: 1.4;
+  display: block;
 }
 
-/* Options Group */
-.options-group {
-  margin-top: 20px;
-  padding: 20px;
-  background: rgba(175, 82, 222, 0.05);
-  border: 1px dashed var(--optional);
-  position: relative;
+/* Legend Action Buttons */
+.legend-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
-.options-group-label {
-  position: absolute;
-  top: -10px;
-  left: 16px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--optional);
-  background: var(--bg-secondary);
-  padding: 0 8px;
-}
-
-.options-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-}
-
-.option-card {
-  padding: 16px;
-  background: var(--bg-glass-subtle);
-  backdrop-filter: blur(8px);
+.legend-action-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-glass);
   border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--accent);
+  text-decoration: none;
   transition: all 0.2s ease;
 }
 
-.option-card:hover {
-  background: var(--bg-glass);
-  border-color: var(--optional);
+.legend-action-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  transform: scale(1.05);
 }
 
-.option-card h5 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 4px;
+.legend-action-btn.directions {
+  color: var(--directions);
 }
 
-.option-card p {
-  font-size: 12px;
-  color: var(--text-tertiary);
+.legend-action-btn.directions:hover {
+  background: var(--directions);
+  border-color: var(--directions);
+  color: #fff;
+}
+
+.legend-action-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 /* Hotel Badge */
@@ -584,11 +665,14 @@ body {
   color: #fff;
   font-weight: 700;
   font-size: 14px;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
-.hotel-info span {
+.hotel-info > span {
   font-size: 14px;
   font-weight: 500;
+  flex: 1;
 }
 
 /* Info Box */
@@ -625,13 +709,13 @@ body {
   line-height: 1.6;
 }
 
-/* Leaflet Customization */
+/* Leaflet Popup Customization */
 .leaflet-popup-content-wrapper {
   background: var(--bg-glass-strong) !important;
   backdrop-filter: blur(var(--blur)) !important;
   -webkit-backdrop-filter: blur(var(--blur)) !important;
   border: 1px solid var(--border-glass) !important;
-  border-radius: 0 !important;
+  border-radius: 12px !important;
   box-shadow: var(--shadow-lg) !important;
   padding: 0 !important;
 }
@@ -639,7 +723,7 @@ body {
 .leaflet-popup-content {
   margin: 16px 20px !important;
   font-family: 'Inter', sans-serif !important;
-  min-width: 200px;
+  min-width: 220px;
 }
 
 .leaflet-popup-content h4 {
@@ -663,6 +747,9 @@ body {
   letter-spacing: 0.04em;
   color: var(--accent);
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .leaflet-popup-content .optional-badge {
@@ -674,7 +761,48 @@ body {
   color: #fff;
   background: var(--optional);
   padding: 2px 6px;
-  margin-left: 8px;
+  border-radius: 4px;
+}
+
+/* Popup Links */
+.popup-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.popup-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.popup-link:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.popup-link.directions {
+  color: var(--directions);
+}
+
+.popup-link.directions:hover {
+  background: var(--directions);
+  border-color: var(--directions);
+  color: #fff;
 }
 
 .leaflet-popup-tip {
@@ -683,8 +811,14 @@ body {
 
 .leaflet-popup-close-button {
   color: var(--text-tertiary) !important;
-  font-size: 18px !important;
-  padding: 8px !important;
+  font-size: 20px !important;
+  padding: 8px 12px !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: var(--text-primary) !important;
 }
 
 .leaflet-container {
@@ -703,6 +837,7 @@ body {
   color: #fff;
   font-family: 'Inter', sans-serif;
   box-shadow: var(--shadow-md);
+  border-radius: 6px;
 }
 
 .numbered-marker.optional {
@@ -720,6 +855,7 @@ body {
   font-weight: 700;
   font-size: 14px;
   box-shadow: var(--shadow-md);
+  border-radius: 8px;
 }
 
 /* Route Overview */
@@ -778,6 +914,7 @@ body {
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
+  border-radius: 8px;
 }
 
 .route-info h4 {
@@ -800,6 +937,7 @@ body {
   .top-nav {
     gap: 2px;
     padding: 6px;
+    padding-bottom: 12px; /* Extra padding for scrollbar */
   }
 
   .top-nav a {
@@ -839,10 +977,6 @@ body {
     padding: 24px 20px;
   }
 
-  .legend-grid {
-    grid-template-columns: 1fr;
-  }
-
   .day-selector {
     padding: 12px 16px;
     gap: 6px;
@@ -855,6 +989,31 @@ body {
 
   .route-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  
+  /* Legend items stack on mobile */
+  .legend-item {
+    flex-wrap: wrap;
+  }
+  
+  .legend-actions {
+    width: 100%;
+    margin-top: 10px;
+    margin-left: 40px;
+  }
+  
+  .legend-action-btn {
+    flex: 1;
+    width: auto;
+  }
+  
+  /* Popup links stack on mobile */
+  .popup-links {
+    flex-direction: column;
+  }
+  
+  .popup-link {
+    justify-content: center;
   }
 }
 
@@ -908,6 +1067,11 @@ body {
     height: 40px;
     font-size: 14px;
   }
+  
+  .legend-actions {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
 }
 
 /* Animations */
@@ -928,6 +1092,19 @@ body {
   .route-item:nth-child(6) { animation-delay: 0.3s; }
   .route-item:nth-child(7) { animation-delay: 0.35s; }
   .route-item:nth-child(8) { animation-delay: 0.4s; }
+  
+  .day-group {
+    animation: fadeInUp 0.3s ease backwards;
+  }
+  
+  .day-group:nth-child(1) { animation-delay: 0.05s; }
+  .day-group:nth-child(2) { animation-delay: 0.1s; }
+  .day-group:nth-child(3) { animation-delay: 0.15s; }
+  .day-group:nth-child(4) { animation-delay: 0.2s; }
+  .day-group:nth-child(5) { animation-delay: 0.25s; }
+  .day-group:nth-child(6) { animation-delay: 0.3s; }
+  .day-group:nth-child(7) { animation-delay: 0.35s; }
+  .day-group:nth-child(8) { animation-delay: 0.4s; }
 }
 
 @keyframes fadeIn {
@@ -956,7 +1133,8 @@ body {
   .theme-toggle,
   .day-selector,
   .hotel-btn,
-  .countdown-container {
+  .countdown-container,
+  .legend-actions {
     display: none;
   }
 
