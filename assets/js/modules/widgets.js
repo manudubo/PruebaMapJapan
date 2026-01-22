@@ -1,9 +1,35 @@
 // Enhanced Widgets Module - Weather with Max/Min, News, Events
+// Uses LocalStorage for persistence across page loads
 import { ITINERARY } from './config.js';
 
-const cache = { weather: { data: null, timestamp: 0, key: null }, news: { data: null, timestamp: 0, key: null }, events: { data: null, timestamp: 0, key: null } };
-const CACHE_DURATION = 30 * 60 * 1000;
-function isCacheValid(key, cacheKey) { return cache[key].data && cache[key].key === cacheKey && (Date.now() - cache[key].timestamp < CACHE_DURATION); }
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutos
+
+function getCache(key) {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.warn('Cache read error', e);
+    return null;
+  }
+}
+
+function setCache(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+  } catch (e) {
+    console.warn('LocalStorage full or disabled', e);
+  }
+}
 
 export function initWidgets(cityKey) {
   const cityData = ITINERARY[cityKey];
@@ -11,6 +37,9 @@ export function initWidgets(cityKey) {
 
   const pageCard = document.querySelector('.page-card');
   if (!pageCard) return;
+
+  // Evitar duplicar widgets si ya existen (por si se llama dos veces)
+  if (pageCard.querySelector('.widgets-section')) return;
 
   const widgetsSection = document.createElement('div');
   widgetsSection.className = 'widgets-section';
@@ -42,13 +71,18 @@ async function fetchWeather(lat, lon) {
   const container = document.querySelector('#widget-weather .widget-content');
   if (!container) return;
   const cacheKey = `weather_${lat}_${lon}`;
-  if (isCacheValid('weather', cacheKey)) { renderWeather(container, cache.weather.data); return; }
+  
+  const cachedData = getCache(cacheKey);
+  if (cachedData) { 
+    renderWeather(container, cachedData); 
+    return; 
+  }
 
   try {
     const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo&forecast_days=5`);
     if (!response.ok) throw new Error('API error');
     const data = await response.json();
-    cache.weather = { data, timestamp: Date.now(), key: cacheKey };
+    setCache(cacheKey, data);
     renderWeather(container, data);
   } catch (e) {
     container.innerHTML = `<div class="widget-error"><p style="color:var(--text-tertiary)">No se pudo cargar el clima</p><button onclick="location.reload()" class="widget-retry-btn">Reintentar</button></div>`;
@@ -120,7 +154,12 @@ async function fetchNews(city) {
   const container = document.querySelector('#widget-news .widget-content');
   if (!container) return;
   const cacheKey = `news_${city}`;
-  if (isCacheValid('news', cacheKey)) { renderNews(container, cache.news.data); return; }
+  
+  const cachedData = getCache(cacheKey);
+  if (cachedData) { 
+    renderNews(container, cachedData); 
+    return; 
+  }
 
   try {
     const query = `${city} Japan tourism culture`;
@@ -128,7 +167,7 @@ async function fetchNews(city) {
     const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
     const data = await response.json();
     if (data.status !== 'ok' || !data.items?.length) throw new Error('No news');
-    cache.news = { data: data.items, timestamp: Date.now(), key: cacheKey };
+    setCache(cacheKey, data.items);
     renderNews(container, data.items);
   } catch (e) {
     container.innerHTML = `<p style="color:var(--text-tertiary); font-size:13px;">No se encontraron noticias recientes.</p><p style="color:var(--text-tertiary); font-size:12px; margin-top:8px;"><a href="https://news.google.com/search?q=${encodeURIComponent(city + ' Japan')}" target="_blank" rel="noopener" style="color:var(--accent);">Buscar en Google News →</a></p>`;
@@ -150,7 +189,12 @@ async function fetchEvents(city) {
   const container = document.querySelector('#widget-events .widget-content');
   if (!container) return;
   const cacheKey = `events_${city}`;
-  if (isCacheValid('events', cacheKey)) { renderEvents(container, cache.events.data, city); return; }
+  
+  const cachedData = getCache(cacheKey);
+  if (cachedData) { 
+    renderEvents(container, cachedData, city); 
+    return; 
+  }
 
   try {
     const query = `Events festivals ${city} Japan ${new Date().getFullYear()}`;
@@ -158,7 +202,7 @@ async function fetchEvents(city) {
     const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
     const data = await response.json();
     if (data.status !== 'ok' || !data.items?.length) throw new Error('No events');
-    cache.events = { data: data.items, timestamp: Date.now(), key: cacheKey };
+    setCache(cacheKey, data.items);
     renderEvents(container, data.items, city);
   } catch (e) {
     container.innerHTML = `<p style="color:var(--text-tertiary); font-size:13px;">Información no disponible temporalmente.</p><p style="color:var(--text-tertiary); font-size:12px; margin-top:8px;"><a href="https://www.japan-guide.com/e/e2063.html" target="_blank" rel="noopener" style="color:var(--accent);">Ver eventos en Japan Guide →</a></p>`;
