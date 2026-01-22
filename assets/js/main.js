@@ -1,5 +1,6 @@
 // Japan Itinerary - Feb/Mar 2026
-// Updated with real Google Maps URLs
+// Updated with Widgets for Weather, News, and Events
+// Fixes: Hotel location, Events calendar, Widget padding
 
 // URL mappings from Excel
 const MAPS_URLS = {
@@ -138,6 +139,7 @@ const MAPS_URLS = {
 
 const ITINERARY = {
   tokyo: {
+    name: "Tokyo",
     center: [35.6762, 139.7050],
     zoom: 12,
     hotel: { name: "Via Inn Prime Akasaka", coords: [35.6747, 139.7371] },
@@ -227,6 +229,7 @@ const ITINERARY = {
     }
   },
   nagoya: {
+    name: "Nagoya",
     center: [35.1700, 136.9000],
     zoom: 11,
     hotel: { name: "Hotel Trusty Nagoya Shirakawa", coords: [35.1658, 136.8987] },
@@ -250,6 +253,7 @@ const ITINERARY = {
     }
   },
   takayama: {
+    name: "Takayama",
     center: [36.1400, 137.2500],
     zoom: 10,
     hotel: { name: "Amanek Takayama Hotel", coords: [36.1390, 137.2527] },
@@ -293,6 +297,7 @@ const ITINERARY = {
     }
   },
   kyoto: {
+    name: "Kyoto",
     center: [35.0000, 135.7600],
     zoom: 12,
     hotel: { name: "Hotel Amanek Kyoto Kawaramachi Gojo", coords: [34.9968, 135.7665] },
@@ -362,6 +367,7 @@ const ITINERARY = {
     }
   },
   osaka: {
+    name: "Osaka",
     center: [34.6900, 135.5000],
     zoom: 12,
     hotel: { name: "Shizutetsu Hotel Prezio Shinsaibashi", coords: [34.6789, 135.4983] },
@@ -407,6 +413,7 @@ const ITINERARY = {
     }
   },
   naoshima: {
+    name: "Naoshima",
     center: [34.4600, 133.9950],
     zoom: 13,
     hotel: { name: "UNO Hotel", coords: [34.4893, 133.9496] },
@@ -430,6 +437,7 @@ const ITINERARY = {
     }
   },
   hakone: {
+    name: "Hakone",
     center: [35.2330, 139.1070],
     zoom: 12,
     hotel: { name: "Asante Inn", coords: [35.2330, 139.1070] },
@@ -452,6 +460,7 @@ const ITINERARY = {
     }
   },
   tokyo2: {
+    name: "Tokyo",
     center: [35.6762, 139.7050],
     zoom: 12,
     hotel: { name: "Via Inn Prime Akasaka", coords: [35.6747, 139.7371] },
@@ -581,12 +590,240 @@ function centerNavOnActive() {
   });
 }
 
+// WIDGETS FUNCTIONALITY
+function initWidgets(cityKey) {
+  const cityData = ITINERARY[cityKey];
+  if (!cityData || !cityData.center) return;
+
+  // Create Container inside page-card
+  const pageCard = document.querySelector('.page-card');
+  const widgetsSection = document.createElement('div');
+  widgetsSection.className = 'widgets-section';
+  widgetsSection.innerHTML = `
+    <h3 class="widgets-title">Información Local: ${cityData.name}</h3>
+    <div class="widgets-grid">
+      <div class="widget-card" id="widget-weather">
+        <div class="widget-header">
+          <h4>Clima & Pronóstico</h4>
+        </div>
+        <div class="widget-content widget-loading">Cargando clima...</div>
+      </div>
+      
+      <div class="widget-card" id="widget-news">
+        <div class="widget-header">
+          <h4>Noticias Locales</h4>
+        </div>
+        <div class="widget-content widget-loading">Cargando noticias...</div>
+      </div>
+      
+      <div class="widget-card" id="widget-events">
+        <div class="widget-header">
+          <h4>Próximos Eventos</h4>
+        </div>
+        <div class="widget-content widget-loading">Buscando eventos...</div>
+      </div>
+    </div>
+  `;
+  
+  pageCard.appendChild(widgetsSection);
+
+  // 1. Weather Widget (OpenMeteo API - Free, No Key)
+  fetchWeather(cityData.center[0], cityData.center[1]);
+
+  // 2. News Widget (Google News RSS via RSS2JSON Proxy)
+  fetchNews(cityData.name);
+
+  // 3. Events Widget (Google News RSS filtered for Events)
+  fetchEvents(cityData.name);
+}
+
+// Weather Fetcher
+async function fetchWeather(lat, lon) {
+  try {
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo`);
+    const data = await response.json();
+    
+    const currentTemp = Math.round(data.current.temperature_2m);
+    const currentCode = data.current.weather_code;
+    const condition = getWeatherCondition(currentCode);
+    
+    // Generate Forecast HTML
+    let forecastHtml = '';
+    for(let i = 1; i <= 4; i++) {
+      const dayData = {
+        date: new Date(data.daily.time[i]).toLocaleDateString('es-ES', {weekday: 'short'}),
+        min: Math.round(data.daily.temperature_2m_min[i]),
+        max: Math.round(data.daily.temperature_2m_max[i]),
+        code: data.daily.weather_code[i]
+      };
+      
+      forecastHtml += `
+        <div class="forecast-day">
+          <div class="forecast-date">${dayData.date}</div>
+          <div class="forecast-icon">${getWeatherIcon(dayData.code)}</div>
+          <div class="forecast-temp">${dayData.max}°</div>
+        </div>
+      `;
+    }
+
+    document.querySelector('#widget-weather .widget-content').innerHTML = `
+      <div class="weather-current">
+        <div class="weather-temp">${currentTemp}°</div>
+        <div class="weather-condition">
+          <div class="weather-icon-large">${getWeatherIcon(currentCode)}</div>
+          <span>${condition}</span>
+        </div>
+      </div>
+      <div class="weather-forecast">
+        ${forecastHtml}
+      </div>
+    `;
+
+  } catch (e) {
+    document.querySelector('#widget-weather .widget-content').innerHTML = '<p style="color:var(--text-tertiary)">No disponible</p>';
+  }
+}
+
+function getWeatherCondition(code) {
+  if (code === 0) return 'Despejado';
+  if (code <= 3) return 'Nublado';
+  if (code <= 48) return 'Niebla';
+  if (code <= 67) return 'Lluvia';
+  if (code <= 77) return 'Nieve';
+  if (code <= 82) return 'Chubascos';
+  if (code <= 99) return 'Tormenta';
+  return 'Variable';
+}
+
+function getWeatherIcon(code) {
+  if (code === 0) return '☀️';
+  if (code <= 3) return '⛅';
+  if (code <= 48) return '🌫️';
+  if (code <= 67) return '🌧️';
+  if (code <= 77) return '❄️';
+  if (code <= 82) return '🌦️';
+  if (code <= 99) return '⚡';
+  return '☁️';
+}
+
+// News Fetcher
+async function fetchNews(city) {
+  try {
+    const query = `${city} Japan tourism culture`;
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+    
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+    
+    if (data.status === 'ok' && data.items.length > 0) {
+      const newsItems = data.items.slice(0, 4); // Top 4
+      
+      let html = '<ul class="widget-list">';
+      newsItems.forEach(item => {
+        const cleanTitle = item.title.split(' - ')[0];
+        const date = new Date(item.pubDate).toLocaleDateString('es-ES', {month: 'short', day: 'numeric'});
+        const source = item.author || 'News';
+        
+        html += `
+          <li class="widget-list-item">
+            <div class="widget-text-content">
+              <a href="${item.link}" target="_blank" rel="noopener" class="widget-link">
+                <div class="widget-link-title">${cleanTitle}</div>
+                <div class="widget-meta">
+                  <span>${source}</span>
+                  <span>${date}</span>
+                </div>
+              </a>
+            </div>
+          </li>
+        `;
+      });
+      html += '</ul>';
+      document.querySelector('#widget-news .widget-content').innerHTML = html;
+    } else {
+      throw new Error('No news');
+    }
+  } catch (e) {
+    document.querySelector('#widget-news .widget-content').innerHTML = '<p style="color:var(--text-tertiary); font-size:13px;">No se encontraron noticias recientes.</p>';
+  }
+}
+
+// Events Fetcher
+async function fetchEvents(city) {
+  try {
+    const query = `Events in ${city} Japan ${new Date().getFullYear()}`;
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+    
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+    
+    if (data.status === 'ok' && data.items.length > 0) {
+      const items = data.items.slice(0, 4);
+      
+      let html = '<ul class="widget-list">';
+      items.forEach(item => {
+        // Clean title (remove source at end if present)
+        let cleanTitle = item.title.split(' - ')[0];
+        const date = new Date(item.pubDate).toLocaleDateString('es-ES', {month: 'short', day: 'numeric'});
+        
+        // Create Calendar Link
+        const calUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(cleanTitle)}&details=${encodeURIComponent(item.link)}`;
+
+        html += `
+          <li class="widget-list-item">
+            <div class="widget-text-content">
+              <a href="${item.link}" target="_blank" rel="noopener" class="widget-link">
+                <div class="widget-link-title">${cleanTitle}</div>
+                <div class="widget-meta">
+                  <span>Publicado: ${date}</span>
+                </div>
+              </a>
+            </div>
+            <a href="${calUrl}" target="_blank" rel="noopener" class="calendar-btn" title="Agregar a Google Calendar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+                <line x1="12" y1="14" x2="12" y2="18"></line>
+                <line x1="10" y1="16" x2="14" y2="16"></line>
+              </svg>
+            </a>
+          </li>
+        `;
+      });
+      html += '</ul>';
+      document.querySelector('#widget-events .widget-content').innerHTML = html;
+    } else {
+      throw new Error('No events');
+    }
+  } catch (e) {
+    document.querySelector('#widget-events .widget-content').innerHTML = '<p style="color:var(--text-tertiary); font-size:13px;">Información no disponible temporalmente.</p>';
+  }
+}
+
+// MOVE HOTEL INFO FUNCTION
+function moveHotelInfo() {
+  const legend = document.querySelector('.legend');
+  const hotelInfo = document.getElementById('hotel-info');
+  
+  if (legend && hotelInfo) {
+    // Insert Hotel Info as the first child of Legend, pushing "Actividades" title down
+    legend.insertBefore(hotelInfo, legend.firstChild);
+  }
+}
+
 // Map initialization
 let currentHotelCoords = null;
 
 function initCityMap(city) {
   const data = ITINERARY[city];
   if (!data) return;
+
+  // Initialize Widgets for this city
+  initWidgets(city);
 
   const theme = document.documentElement.getAttribute('data-theme');
   const tileUrl = theme === 'dark' 
@@ -641,14 +878,13 @@ function initCityMap(city) {
           })
         });
 
-        // Build popup content with Google Maps links
+        // Build popup content
         let popup = `<div class="day-label">${day.label}${isOptional ? '<span class="optional-badge">Opción ' + activity.optional + '</span>' : ''}</div>`;
         popup += `<h4>${activity.name}</h4>`;
         if (activity.notes) {
           popup += `<p>${activity.notes}</p>`;
         }
         
-        // Add Google Maps links (unless generic location)
         const mapsUrl = getMapsUrl(activity.name);
         if (!activity.isGeneric && mapsUrl) {
           popup += `<div class="popup-links">`;
@@ -690,9 +926,8 @@ function initCityMap(city) {
   // Show all markers
   allMarkers.forEach(m => m.addTo(map));
 
-  // Day filter
+  // Day filter logic
   let activeDay = null;
-  
   if (daySelector) {
     daySelector.addEventListener('click', (e) => {
       if (!e.target.classList.contains('day-btn')) return;
@@ -704,8 +939,6 @@ function initCityMap(city) {
         document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
         allMarkers.forEach(m => m.addTo(map));
         map.setView(data.center, data.zoom);
-        
-        // Show all day groups in legend
         document.querySelectorAll('.day-group').forEach(g => g.style.display = 'block');
         return;
       }
@@ -722,7 +955,6 @@ function initCityMap(city) {
         map.fitBounds(group.getBounds().pad(0.3));
       }
       
-      // Filter day groups in legend
       document.querySelectorAll('.day-group').forEach(g => {
         g.style.display = g.dataset.day === selectedDay ? 'block' : 'none';
       });
@@ -737,8 +969,11 @@ function initCityMap(city) {
     });
   }
 
-  // Generate legend grouped by day
+  // Generate legend
   generateLegendByDay(data);
+  
+  // MOVE HOTEL INFO AFTER RENDER
+  moveHotelInfo();
 
   return map;
 }
@@ -752,12 +987,10 @@ function generateLegendByDay(data) {
   Object.keys(data.days).forEach((dateKey) => {
     const day = data.days[dateKey];
     
-    // Create day group container
     const dayGroup = document.createElement('div');
     dayGroup.className = 'day-group' + (day.hasOptions ? ' has-options' : '');
     dayGroup.dataset.day = dateKey;
     
-    // Day header
     const dayHeader = document.createElement('div');
     dayHeader.className = 'day-group-header';
     dayHeader.innerHTML = `
@@ -767,7 +1000,6 @@ function generateLegendByDay(data) {
     `;
     dayGroup.appendChild(dayHeader);
     
-    // Activities list
     const activitiesList = document.createElement('div');
     activitiesList.className = 'day-activities';
     
@@ -786,7 +1018,6 @@ function generateLegendByDay(data) {
       const markerLabel = isOptional ? activity.optional : (idx + 1);
       const markerColor = isOptional ? '#af52de' : day.color;
       
-      // Build action buttons
       const mapsUrl = getMapsUrl(activity.name);
       const directionsUrl = activity.coords 
         ? `https://www.google.com/maps/dir/?api=1&destination=${activity.coords[0]},${activity.coords[1]}&travelmode=transit`
@@ -821,7 +1052,7 @@ function generateLegendByDay(data) {
     legendGrid.appendChild(dayGroup);
   });
 
-  // Hotel info
+  // Hotel info is generated in HTML by default, then moved by moveHotelInfo()
   const hotelInfo = document.getElementById('hotel-info');
   if (hotelInfo && data.hotel) {
     const hotelMapsUrl = getMapsUrl(data.hotel.name);
