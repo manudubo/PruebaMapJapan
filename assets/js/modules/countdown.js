@@ -1,4 +1,3 @@
-// Countdown Timer Module
 export function initCountdown() {
   const countdownEl = document.getElementById('countdown');
   if (!countdownEl) return;
