@@ -149,7 +149,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue'
 .widgets-section { margin-top: 40px; padding: 30px 40px 40px 40px; border-top: 1px solid var(--border-color); background: var(--bg-glass-subtle); }
 .widgets-title { font-size: 18px; font-weight: 600; margin-bottom: 24px; letter-spacing: -0.01em; }
 .widgets-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
-.widget-card { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 24px; border-radius: 0; display: flex; flex-direction: column; height: 100%; }
+.widget-card { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 24px; border-radius: 0; display: flex; flex-direction: column; height: 100%; min-height: 250px; }
 .widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); }
 .widget-header h4 { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
 
@@ -170,9 +170,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue'
 .forecast-min { color: var(--text-tertiary); font-weight: 400; }
 .forecast-precip { font-size: 10px; color: var(--accent); margin-top: 4px; }
 
-.widget-error { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; text-align: center; }
-.widget-retry-btn { padding: 8px 16px; font-size: 12px; font-weight: 500; font-family: inherit; color: var(--accent); background: transparent; border: 1px solid var(--accent); cursor: pointer; transition: all 0.2s ease; border-radius: 0; }
-.widget-retry-btn:hover { background: var(--accent); color: #fff; }
+/* Loader Style */
+.loader { border: 2px solid var(--bg-glass-subtle); border-top: 2px solid var(--accent); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 40px auto; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.widget-empty { color: var(--text-tertiary); font-size: 13px; text-align: center; margin-top: 40px; }
 
 .widget-list { list-style: none; display: flex; flex-direction: column; gap: 16px; text-align: left; }
 .widget-list-item { border-bottom: 1px solid var(--border-color); padding-bottom: 16px; text-align: left; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
@@ -184,7 +186,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue'
 .widget-meta { font-size: 11px; color: var(--text-tertiary); display: flex; gap: 8px; font-weight: 500; }
 .calendar-btn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: var(--bg-glass); border: 1px solid var(--border-color); color: var(--accent); border-radius: 0; flex-shrink: 0; transition: all 0.2s; }
 .calendar-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
-.widget-loading { text-align: left; color: var(--text-tertiary); font-size: 13px; padding: 10px 0; }
 
 .leaflet-popup-content-wrapper { background: var(--bg-glass-strong) !important; backdrop-filter: blur(var(--blur)) !important; -webkit-backdrop-filter: blur(var(--blur)) !important; border: 1px solid var(--border-glass) !important; border-radius: 0 !important; box-shadow: var(--shadow-lg) !important; padding: 0 !important; }
 .leaflet-popup-content { margin: 16px 20px !important; font-family: 'Inter', sans-serif !important; min-width: 220px; }
