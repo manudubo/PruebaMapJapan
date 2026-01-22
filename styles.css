@@ -1,7 +1,4 @@
 /* Japan Itinerary - Enhanced Liquid Glass Design */
-/* Font: Inter (similar to Helvetica Neue) */
-/* Modified: No border-radius, Responsive fixes, Widgets padding fixed, Hotel info moved */
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
@@ -161,7 +158,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue'
 .weather-condition { display: flex; flex-direction: column; align-items: flex-start; font-size: 15px; color: var(--text-secondary); }
 .weather-icon-large { font-size: 32px; margin-bottom: 4px; line-height: 1; }
 
-/* NEW: Weather Details Row */
 .weather-details { display: flex; gap: 16px; font-size: 12px; color: var(--text-tertiary); margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
 
 .weather-forecast { display: flex; justify-content: space-between; gap: 8px; }
@@ -170,12 +166,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue'
 .forecast-icon { font-size: 20px; margin-bottom: 6px; display: block; }
 .forecast-temp { font-size: 13px; font-weight: 600; display: flex; flex-direction: column; gap: 2px; }
 
-/* NEW: Max/Min Temperature Styling */
 .forecast-max { color: var(--text-primary); }
 .forecast-min { color: var(--text-tertiary); font-weight: 400; }
 .forecast-precip { font-size: 10px; color: var(--accent); margin-top: 4px; }
 
-/* NEW: Widget Error State */
 .widget-error { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; text-align: center; }
 .widget-retry-btn { padding: 8px 16px; font-size: 12px; font-weight: 500; font-family: inherit; color: var(--accent); background: transparent; border: 1px solid var(--accent); cursor: pointer; transition: all 0.2s ease; border-radius: 0; }
 .widget-retry-btn:hover { background: var(--accent); color: #fff; }
@@ -192,7 +186,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue'
 .calendar-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
 .widget-loading { text-align: left; color: var(--text-tertiary); font-size: 13px; padding: 10px 0; }
 
-/* Leaflet */
 .leaflet-popup-content-wrapper { background: var(--bg-glass-strong) !important; backdrop-filter: blur(var(--blur)) !important; -webkit-backdrop-filter: blur(var(--blur)) !important; border: 1px solid var(--border-glass) !important; border-radius: 0 !important; box-shadow: var(--shadow-lg) !important; padding: 0 !important; }
 .leaflet-popup-content { margin: 16px 20px !important; font-family: 'Inter', sans-serif !important; min-width: 220px; }
 .leaflet-popup-content h4 { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
@@ -222,7 +215,6 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue'
 .route-info h4 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
 .route-info span { font-size: 12px; color: var(--text-tertiary); }
 
-/* Responsive */
 @media (max-width: 768px) {
   .container { padding: 16px; }
   .widgets-section { padding: 24px; }

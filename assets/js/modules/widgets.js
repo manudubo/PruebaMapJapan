@@ -1,49 +1,15 @@
-// Enhanced Widgets Module - Weather with Max/Min, News, Events
-// Uses LocalStorage for persistence across page loads
-import { ITINERARY } from './config.js';
-
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutos
-
-function getCache(key) {
-  try {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp > CACHE_DURATION) {
-      localStorage.removeItem(key);
-      return null;
-    }
-    return data;
-  } catch (e) {
-    console.warn('Cache read error', e);
-    return null;
-  }
-}
-
-function setCache(key, data) {
-  try {
-    localStorage.setItem(key, JSON.stringify({
-      data,
-      timestamp: Date.now()
-    }));
-  } catch (e) {
-    console.warn('LocalStorage full or disabled', e);
-  }
-}
+import { getCache, setCache, createElement } from './utils.js';
+import { ITINERARY } from '../data/itinerary.js';
 
 export function initWidgets(cityKey) {
   const cityData = ITINERARY[cityKey];
   if (!cityData || !cityData.center) return;
 
   const pageCard = document.querySelector('.page-card');
-  if (!pageCard) return;
+  if (!pageCard || pageCard.querySelector('.widgets-section')) return;
 
-  // Evitar duplicar widgets si ya existen (por si se llama dos veces)
-  if (pageCard.querySelector('.widgets-section')) return;
-
-  const widgetsSection = document.createElement('div');
-  widgetsSection.className = 'widgets-section';
-  widgetsSection.innerHTML = `
+  const section = createElement('div', 'widgets-section');
+  section.innerHTML = `
     <h3 class="widgets-title">Información Local: ${cityData.name}</h3>
     <div class="widgets-grid">
       <div class="widget-card" id="widget-weather">
@@ -60,11 +26,12 @@ export function initWidgets(cityKey) {
       </div>
     </div>
   `;
-  pageCard.appendChild(widgetsSection);
+  pageCard.appendChild(section);
 
+  // Lazy loading logic could go here, but setTimeout is fine for simple stagger
   fetchWeather(cityData.center[0], cityData.center[1]);
-  setTimeout(() => fetchNews(cityData.name), 200);
-  setTimeout(() => fetchEvents(cityData.name), 400);
+  setTimeout(() => fetchNews(cityData.name), 300);
+  setTimeout(() => fetchEvents(cityData.name), 600);
 }
 
 async function fetchWeather(lat, lon) {
@@ -72,46 +39,35 @@ async function fetchWeather(lat, lon) {
   if (!container) return;
   const cacheKey = `weather_${lat}_${lon}`;
   
-  const cachedData = getCache(cacheKey);
-  if (cachedData) { 
-    renderWeather(container, cachedData); 
-    return; 
-  }
+  const cached = getCache(cacheKey);
+  if (cached) return renderWeather(container, cached);
 
   try {
-    const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo&forecast_days=5`);
-    if (!response.ok) throw new Error('API error');
-    const data = await response.json();
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo&forecast_days=5`);
+    if (!res.ok) throw new Error('API Error');
+    const data = await res.json();
     setCache(cacheKey, data);
     renderWeather(container, data);
   } catch (e) {
-    container.innerHTML = `<div class="widget-error"><p style="color:var(--text-tertiary)">No se pudo cargar el clima</p><button onclick="location.reload()" class="widget-retry-btn">Reintentar</button></div>`;
+    container.innerHTML = `<div class="widget-error"><p>No disponible</p></div>`;
   }
 }
 
 function renderWeather(container, data) {
-  const currentTemp = Math.round(data.current.temperature_2m);
-  const feelsLike = Math.round(data.current.apparent_temperature);
-  const humidity = data.current.relative_humidity_2m;
-  const windSpeed = Math.round(data.current.wind_speed_10m);
-  const currentCode = data.current.weather_code;
-  const condition = getWeatherCondition(currentCode);
+  const { current, daily } = data;
+  const currentTemp = Math.round(current.temperature_2m);
+  const condition = getWeatherCondition(current.weather_code);
 
   let forecastHtml = '';
   for (let i = 1; i <= 4; i++) {
-    const d = {
-      date: new Date(data.daily.time[i]).toLocaleDateString('es-ES', { weekday: 'short' }),
-      min: Math.round(data.daily.temperature_2m_min[i]),
-      max: Math.round(data.daily.temperature_2m_max[i]),
-      code: data.daily.weather_code[i],
-      precip: data.daily.precipitation_probability_max[i]
-    };
+    const date = new Date(daily.time[i]).toLocaleDateString('es-ES', { weekday: 'short' });
+    const min = Math.round(daily.temperature_2m_min[i]);
+    const max = Math.round(daily.temperature_2m_max[i]);
     forecastHtml += `
       <div class="forecast-day">
-        <div class="forecast-date">${d.date}</div>
-        <div class="forecast-icon">${getWeatherIcon(d.code)}</div>
-        <div class="forecast-temp"><span class="forecast-max">${d.max}°</span><span class="forecast-min">${d.min}°</span></div>
-        ${d.precip > 20 ? `<div class="forecast-precip">${d.precip}%</div>` : ''}
+        <div class="forecast-date">${date}</div>
+        <div class="forecast-icon">${getWeatherIcon(daily.weather_code[i])}</div>
+        <div class="forecast-temp"><span class="forecast-max">${max}°</span><span class="forecast-min">${min}°</span></div>
       </div>
     `;
   }
@@ -120,33 +76,24 @@ function renderWeather(container, data) {
     <div class="weather-current">
       <div class="weather-temp">${currentTemp}°</div>
       <div class="weather-condition">
-        <div class="weather-icon-large">${getWeatherIcon(currentCode)}</div>
+        <div class="weather-icon-large">${getWeatherIcon(current.weather_code)}</div>
         <span>${condition}</span>
       </div>
-    </div>
-    <div class="weather-details">
-      <span>Sensación ${feelsLike}°</span>
-      <span>Humedad ${humidity}%</span>
-      <span>Viento ${windSpeed} km/h</span>
     </div>
     <div class="weather-forecast">${forecastHtml}</div>
   `;
 }
 
 function getWeatherCondition(code) {
-  const c = { 0: 'Despejado', 1: 'Mayormente despejado', 2: 'Parcialmente nublado', 3: 'Nublado', 45: 'Niebla', 48: 'Niebla helada', 51: 'Llovizna ligera', 53: 'Llovizna', 55: 'Llovizna intensa', 61: 'Lluvia ligera', 63: 'Lluvia', 65: 'Lluvia intensa', 71: 'Nieve ligera', 73: 'Nieve', 75: 'Nieve intensa', 80: 'Chubascos', 81: 'Chubascos moderados', 82: 'Chubascos fuertes', 95: 'Tormenta', 96: 'Tormenta con granizo', 99: 'Tormenta fuerte' };
-  return c[code] || 'Variable';
+  const codes = { 0: 'Despejado', 1: 'Poco nuboso', 2: 'Parcial nublado', 3: 'Nublado', 45: 'Niebla', 61: 'Lluvia', 71: 'Nieve', 95: 'Tormenta' };
+  return codes[code] || 'Variable';
 }
 
 function getWeatherIcon(code) {
   if (code === 0) return '☀️';
   if (code <= 3) return '⛅';
   if (code <= 48) return '🌫️';
-  if (code <= 57) return '🌧️';
   if (code <= 67) return '🌧️';
-  if (code <= 77) return '❄️';
-  if (code <= 82) return '🌦️';
-  if (code <= 99) return '⚡';
   return '☁️';
 }
 
@@ -155,34 +102,20 @@ async function fetchNews(city) {
   if (!container) return;
   const cacheKey = `news_${city}`;
   
-  const cachedData = getCache(cacheKey);
-  if (cachedData) { 
-    renderNews(container, cachedData); 
-    return; 
-  }
+  const cached = getCache(cacheKey);
+  if (cached) return renderList(container, cached, 'news');
 
   try {
-    const query = `${city} Japan tourism culture`;
-    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-    const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
-    const data = await response.json();
-    if (data.status !== 'ok' || !data.items?.length) throw new Error('No news');
-    setCache(cacheKey, data.items);
-    renderNews(container, data.items);
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(city + ' Japan tourism')}&hl=en-US&gl=US&ceid=US:en`;
+    const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      setCache(cacheKey, data.items);
+      renderList(container, data.items, 'news');
+    } else throw new Error();
   } catch (e) {
-    container.innerHTML = `<p style="color:var(--text-tertiary); font-size:13px;">No se encontraron noticias recientes.</p><p style="color:var(--text-tertiary); font-size:12px; margin-top:8px;"><a href="https://news.google.com/search?q=${encodeURIComponent(city + ' Japan')}" target="_blank" rel="noopener" style="color:var(--accent);">Buscar en Google News →</a></p>`;
+    container.innerHTML = '<p class="widget-loading">No se encontraron noticias.</p>';
   }
-}
-
-function renderNews(container, items) {
-  let html = '<ul class="widget-list">';
-  items.slice(0, 4).forEach(item => {
-    const cleanTitle = item.title.split(' - ')[0];
-    const date = new Date(item.pubDate).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
-    const source = item.author || item.title.split(' - ').pop() || 'News';
-    html += `<li class="widget-list-item"><div class="widget-text-content"><a href="${item.link}" target="_blank" rel="noopener" class="widget-link"><div class="widget-link-title">${cleanTitle}</div><div class="widget-meta"><span>${source}</span><span>${date}</span></div></a></div></li>`;
-  });
-  container.innerHTML = html + '</ul>';
 }
 
 async function fetchEvents(city) {
@@ -190,32 +123,44 @@ async function fetchEvents(city) {
   if (!container) return;
   const cacheKey = `events_${city}`;
   
-  const cachedData = getCache(cacheKey);
-  if (cachedData) { 
-    renderEvents(container, cachedData, city); 
-    return; 
-  }
+  const cached = getCache(cacheKey);
+  if (cached) return renderList(container, cached, 'events', city);
 
   try {
-    const query = `Events festivals ${city} Japan ${new Date().getFullYear()}`;
-    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-    const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
-    const data = await response.json();
-    if (data.status !== 'ok' || !data.items?.length) throw new Error('No events');
-    setCache(cacheKey, data.items);
-    renderEvents(container, data.items, city);
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent('Events festivals ' + city + ' Japan ' + new Date().getFullYear())}&hl=en-US&gl=US&ceid=US:en`;
+    const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      setCache(cacheKey, data.items);
+      renderList(container, data.items, 'events', city);
+    } else throw new Error();
   } catch (e) {
-    container.innerHTML = `<p style="color:var(--text-tertiary); font-size:13px;">Información no disponible temporalmente.</p><p style="color:var(--text-tertiary); font-size:12px; margin-top:8px;"><a href="https://www.japan-guide.com/e/e2063.html" target="_blank" rel="noopener" style="color:var(--accent);">Ver eventos en Japan Guide →</a></p>`;
+    container.innerHTML = '<p class="widget-loading">Información no disponible.</p>';
   }
 }
 
-function renderEvents(container, items, city) {
+function renderList(container, items, type, city = '') {
   let html = '<ul class="widget-list">';
   items.slice(0, 4).forEach(item => {
-    const cleanTitle = item.title.split(' - ')[0];
+    const title = item.title.split(' - ')[0];
     const date = new Date(item.pubDate).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
-    const calUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(cleanTitle)}&details=${encodeURIComponent(item.link)}&location=${encodeURIComponent(city + ', Japan')}`;
-    html += `<li class="widget-list-item"><div class="widget-text-content"><a href="${item.link}" target="_blank" rel="noopener" class="widget-link"><div class="widget-link-title">${cleanTitle}</div><div class="widget-meta"><span>Publicado: ${date}</span></div></a></div><a href="${calUrl}" target="_blank" rel="noopener" class="calendar-btn" title="Agregar a Google Calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="12" y1="14" x2="12" y2="18"></line><line x1="10" y1="16" x2="14" y2="16"></line></svg></a></li>`;
+    let extraBtn = '';
+    
+    if (type === 'events') {
+      const calUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(item.link)}&location=${encodeURIComponent(city + ', Japan')}`;
+      extraBtn = `<a href="${calUrl}" target="_blank" class="calendar-btn" title="Agendar">📅</a>`;
+    }
+
+    html += `
+      <li class="widget-list-item">
+        <div class="widget-text-content">
+          <a href="${item.link}" target="_blank" class="widget-link">
+            <div class="widget-link-title">${title}</div>
+            <div class="widget-meta"><span>${date}</span></div>
+          </a>
+        </div>
+        ${extraBtn}
+      </li>`;
   });
   container.innerHTML = html + '</ul>';
 }
