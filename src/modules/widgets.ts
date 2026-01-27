@@ -94,33 +94,129 @@ function renderWeather(container: HTMLElement, data: WeatherData): void {
     const min = Math.round(daily.temperature_2m_min[idx]);
     const max = Math.round(daily.temperature_2m_max[idx]);
     const icon = getWeatherIcon(daily.weather_code[idx]);
-    return `<div class="forecast-day" role="listitem"><div class="forecast-date">${date}</div><div class="forecast-icon" aria-hidden="true">${icon}</div><div class="forecast-temp"><span class="forecast-max">${max}°</span><span class="forecast-min">${min}°</span></div></div>`;
+    return `<div class="forecast-day" role="listitem">
+      <div class="forecast-date">${date}</div>
+      <div class="forecast-icon" aria-hidden="true">${icon}</div>
+      <div class="forecast-temp">
+        <span class="forecast-max">${max}°</span>
+        <span class="forecast-min">${min}°</span>
+      </div>
+    </div>`;
   }).join('');
 
   container.setAttribute('aria-busy', 'false');
   container.innerHTML = `
     <div class="weather-current">
       <div class="weather-temp" aria-label="Temperatura actual">${currentTemp}°</div>
-      <div class="weather-condition"><div class="weather-icon-large" aria-hidden="true">${getWeatherIcon(current.weather_code)}</div><span>${condition}</span></div>
+      <div class="weather-condition">
+        <div class="weather-icon-large" aria-hidden="true">${getWeatherIcon(current.weather_code)}</div>
+        <span>${condition}</span>
+      </div>
     </div>
     <div class="weather-forecast" role="list" aria-label="Pronóstico de 4 días">${forecastDays}</div>`;
 }
 
 const WEATHER_CONDITIONS: Record<number, string> = {
   0: 'Despejado', 1: 'Poco nuboso', 2: 'Parcial nublado', 3: 'Nublado',
-  45: 'Niebla', 51: 'Llovizna', 61: 'Lluvia', 71: 'Nieve', 95: 'Tormenta'
+  45: 'Niebla', 48: 'Niebla helada', 51: 'Llovizna ligera', 53: 'Llovizna', 55: 'Llovizna intensa',
+  61: 'Lluvia ligera', 63: 'Lluvia', 65: 'Lluvia intensa',
+  71: 'Nieve ligera', 73: 'Nieve', 75: 'Nieve intensa',
+  80: 'Chubascos', 81: 'Chubascos moderados', 82: 'Chubascos fuertes',
+  95: 'Tormenta', 96: 'Tormenta con granizo', 99: 'Tormenta severa'
 };
 
 function getWeatherCondition(code: number): string {
   return WEATHER_CONDITIONS[code] ?? 'Variable';
 }
 
+/**
+ * Minimalist SVG weather icons
+ * Clean, modern line-art style
+ */
 function getWeatherIcon(code: number): string {
-  if (code === 0) return '☀️';
-  if (code <= 3) return '⛅';
-  if (code <= 48) return '🌫️';
-  if (code <= 67) return '🌧️';
-  return '☁️';
+  // Clear / Sunny
+  if (code === 0) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2"/>
+      <path d="M12 20v2"/>
+      <path d="M4.93 4.93l1.41 1.41"/>
+      <path d="M17.66 17.66l1.41 1.41"/>
+      <path d="M2 12h2"/>
+      <path d="M20 12h2"/>
+      <path d="M6.34 17.66l-1.41 1.41"/>
+      <path d="M19.07 4.93l-1.41 1.41"/>
+    </svg>`;
+  }
+  
+  // Partly cloudy (1-3)
+  if (code >= 1 && code <= 3) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2v2"/>
+      <path d="M4.93 4.93l1.41 1.41"/>
+      <path d="M2 12h2"/>
+      <circle cx="12" cy="10" r="4"/>
+      <path d="M8 18h10a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 10.5v.5A4 4 0 0 0 8 18z"/>
+    </svg>`;
+  }
+  
+  // Fog (45-48)
+  if (code >= 45 && code <= 48) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 12h16"/>
+      <path d="M4 8h12"/>
+      <path d="M8 16h12"/>
+      <path d="M6 20h8"/>
+      <path d="M10 4h4"/>
+    </svg>`;
+  }
+  
+  // Drizzle (51-55)
+  if (code >= 51 && code <= 55) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 14h10a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 6.5v.5A4 4 0 0 0 8 14z"/>
+      <path d="M8 18v1"/>
+      <path d="M12 18v1"/>
+      <path d="M16 18v1"/>
+    </svg>`;
+  }
+  
+  // Rain (61-65, 80-82)
+  if ((code >= 61 && code <= 65) || (code >= 80 && code <= 82)) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 13h10a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 5.5v.5A4 4 0 0 0 8 13z"/>
+      <path d="M8 17v2"/>
+      <path d="M12 17v2"/>
+      <path d="M16 17v2"/>
+      <path d="M10 21v1"/>
+      <path d="M14 21v1"/>
+    </svg>`;
+  }
+  
+  // Snow (71-75)
+  if (code >= 71 && code <= 75) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 13h10a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 5.5v.5A4 4 0 0 0 8 13z"/>
+      <path d="M8 17l.5.5m-.5-.5l-.5.5"/>
+      <path d="M12 18l.5.5m-.5-.5l-.5.5"/>
+      <path d="M16 17l.5.5m-.5-.5l-.5.5"/>
+      <path d="M10 21l.5.5m-.5-.5l-.5.5"/>
+      <path d="M14 21l.5.5m-.5-.5l-.5.5"/>
+    </svg>`;
+  }
+  
+  // Thunderstorm (95-99)
+  if (code >= 95 && code <= 99) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 11h10a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 3.5v.5A4 4 0 0 0 8 11z"/>
+      <path d="M13 11l-2 5h3l-2 5"/>
+    </svg>`;
+  }
+  
+  // Default: Cloudy
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 18h10a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 10.5v.5A4 4 0 0 0 8 18z"/>
+  </svg>`;
 }
 
 async function loadDynamicData(city: string, type: 'news' | 'events'): Promise<void> {

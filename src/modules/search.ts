@@ -40,6 +40,7 @@ export function buildSearchIndex(): void {
     });
     
     // Add hotel
+    const hotelUrl = buildUrl(cityKey, undefined, cityData.hotel.coords);
     searchIndex.push({
       type: 'hotel',
       title: cityData.hotel.name,
@@ -47,12 +48,13 @@ export function buildSearchIndex(): void {
       city: cityData.name,
       cityKey,
       coords: cityData.hotel.coords,
-      url: `${cityKey}.html`
+      url: hotelUrl
     });
     
     // Add days and activities
     Object.entries(cityData.days).forEach(([dateKey, day]) => {
       // Add day
+      const dayUrl = buildUrl(cityKey, dateKey);
       searchIndex.push({
         type: 'day',
         title: `${day.label} - ${cityData.name}`,
@@ -61,13 +63,14 @@ export function buildSearchIndex(): void {
         cityKey,
         date: dateKey,
         color: day.color,
-        url: `${cityKey}.html`
+        url: dayUrl
       });
       
       // Add activities
       day.activities.forEach(activity => {
         if (activity.isGeneric) return; // Skip generic activities
         
+        const activityUrl = buildUrl(cityKey, dateKey, activity.coords);
         searchIndex.push({
           type: 'activity',
           title: activity.name,
@@ -77,11 +80,29 @@ export function buildSearchIndex(): void {
           date: dateKey,
           color: day.color,
           coords: activity.coords,
-          url: `${cityKey}.html`
+          url: activityUrl
         });
       });
     });
   });
+}
+
+/**
+ * Build URL with optional day and coords params
+ */
+function buildUrl(cityKey: string, date?: string, coords?: [number, number]): string {
+  const params = new URLSearchParams();
+  
+  if (date) {
+    params.set('day', date);
+  }
+  
+  if (coords) {
+    params.set('focus', `${coords[0]},${coords[1]}`);
+  }
+  
+  const queryString = params.toString();
+  return queryString ? `${cityKey}.html?${queryString}` : `${cityKey}.html`;
 }
 
 /**
