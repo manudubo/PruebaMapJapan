@@ -1,4 +1,3 @@
-import type { Activity, Day, CityData } from '@/types';
 import { ITINERARY } from '@/data/itinerary';
 
 // ============================================
@@ -147,7 +146,6 @@ function calculateScore(item: SearchResult, terms: string[], fullQuery: string):
   const titleNorm = normalizeText(item.title);
   const subtitleNorm = normalizeText(item.subtitle);
   const cityNorm = normalizeText(item.city);
-  const combined = `${titleNorm} ${subtitleNorm} ${cityNorm}`;
   
   let score = 0;
   
