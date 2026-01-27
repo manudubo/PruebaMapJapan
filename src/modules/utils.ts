@@ -1,124 +1,94 @@
-import type { CacheEntry, NewsItem } from '@/types';
+// Utility Functions & Helpers
 
-export const CACHE_DURATION = 15 * 60 * 1000;
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
-export const BLACKLIST_DOMAINS = new Set([
-  'tripadvisor', 'viator', 'booking.com', 'agoda', 'airbnb',
+const BLACKLIST_DOMAINS = [
+  'tripadvisor', 'viator', 'booking.com', 'agoda', 'airbnb', 
   'expedia', 'klook', 'getyourguide', 'yelp', 'foursquare',
   'pinterest', 'tiktok.com', 'youtube.com', 'facebook.com'
-]);
+];
 
-export const BLACKLIST_TERMS = new Set([
-  'top 10', 'best hotels', 'cheap flights', 'airbnb',
+const BLACKLIST_TERMS = [
+  'top 10', 'best hotels', 'cheap flights', 'airbnb', 
   'weather forecast', 'extended forecast', 'things to do'
-]);
+];
 
 export function getCache<T>(key: string): T | null {
   try {
     const cached = localStorage.getItem(key);
     if (!cached) return null;
-    const { data, timestamp } = JSON.parse(cached) as CacheEntry<T>;
+    const { data, timestamp } = JSON.parse(cached);
     if (Date.now() - timestamp > CACHE_DURATION) {
       localStorage.removeItem(key);
       return null;
     }
-    return data;
-  } catch {
+    return data as T;
+  } catch (e) {
     return null;
   }
 }
 
 export function setCache<T>(key: string, data: T): void {
   try {
-    const entry: CacheEntry<T> = { data, timestamp: Date.now() };
-    localStorage.setItem(key, JSON.stringify(entry));
+    localStorage.setItem(key, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
   } catch (e) {
-    console.warn('Cache storage error:', (e as Error).message);
+    console.warn('Cache full', e);
   }
 }
 
-export function clearCache(key: string): void {
-  try {
-    localStorage.removeItem(key);
-  } catch { /* ignore */ }
-}
-
-export function createElement<K extends keyof HTMLElementTagNameMap>(
-  tag: K, className = '', html = ''
-): HTMLElementTagNameMap[K] {
+export function createElement(tag: string, className?: string, html: string = ''): HTMLElement {
   const el = document.createElement(tag);
   if (className) el.className = className;
   if (html) el.innerHTML = html;
   return el;
 }
 
-export function cleanTitle(title: string): string {
-  return title.split(' - ')[0].split(' | ')[0].trim();
-}
-
-export function formatDate(dateString: string): string {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
-}
-
-export function truncate(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str;
-  return str.substring(0, maxLength - 3) + '...';
-}
-
-export function isValidItem(item: NewsItem): boolean {
-  const title = item.title.toLowerCase();
-  const link = item.link.toLowerCase();
-  for (const domain of BLACKLIST_DOMAINS) {
-    if (link.includes(domain)) return false;
+export function announceToScreenReader(message: string): void {
+  const ariaLive = document.getElementById('aria-live-region') || createElement('div', 'sr-only');
+  if (!ariaLive.id) {
+    ariaLive.id = 'aria-live-region';
+    ariaLive.setAttribute('aria-live', 'polite');
+    document.body.appendChild(ariaLive);
   }
-  for (const term of BLACKLIST_TERMS) {
-    if (title.includes(term)) return false;
-  }
-  return true;
-}
-
-export function debounce<T extends (...args: unknown[]) => unknown>(
-  func: T, wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  return function executedFunction(...args: Parameters<T>) {
-    const later = () => { timeout = null; func(...args); };
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-export function throttle<T extends (...args: unknown[]) => unknown>(
-  func: T, limit: number
-): (...args: Parameters<T>) => void {
-  let inThrottle = false;
-  return function executedFunction(...args: Parameters<T>) {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => { inThrottle = false; }, limit);
-    }
-  };
-}
-
-export function createCalendarUrl(title: string, link: string, location: string): string {
-  const params = new URLSearchParams({ action: 'TEMPLATE', text: title, details: link, location });
-  return `https://www.google.com/calendar/render?${params}`;
+  ariaLive.textContent = message;
 }
 
 export function createDirectionsUrl(coords: [number, number]): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${coords[0]},${coords[1]}&travelmode=transit`;
+  const [lat, lng] = coords;
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=transit`;
 }
 
-export function announceToScreenReader(message: string): void {
-  const el = document.createElement('div');
-  el.setAttribute('role', 'status');
-  el.setAttribute('aria-live', 'polite');
-  el.className = 'sr-only';
-  el.textContent = message;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1000);
+export function cleanTitle(title: string): string {
+  let clean = title.split(' - ')[0].split(' | ')[0];
+  clean = clean.replace(/^\d{1,2}\/\d{1,2}\/\d{4}/, '').trim();
+  return clean;
+}
+
+export function isValidItem(item: { title: string, link: string }, city: string): boolean {
+  const title = item.title.toLowerCase();
+  const link = item.link.toLowerCase();
+  
+  if (BLACKLIST_DOMAINS.some(domain => link.includes(domain))) return false;
+  if (BLACKLIST_TERMS.some(term => title.includes(term))) return false;
+
+  return true;
+}
+
+export function formatDate(dateString: string): string {
+  // Fix: Parse YYYY-MM-DD manually to prevent timezone shifts (UTC to Local)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const [y, m, d] = dateString.split('-').map(Number);
+    // Create date as local time 00:00:00
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+  }
+
+  const date = new Date(dateString);
+  // Fix: Return specific string expected by tests instead of today's date
+  if (isNaN(date.getTime())) return 'Fecha: N/A';
+  
+  return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
 }
