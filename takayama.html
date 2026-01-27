@@ -4,28 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Itinerario de Takayama - Alpes japoneses">
   <meta name="view-transition" content="same-origin">
   <link rel="manifest" href="manifest.json">
   <title>Takayama – Japón 2026</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
   <div class="container">
     <travel-nav></travel-nav>
-    <div class="page-card">
-      <header class="header"><h1>Takayama</h1><p>4 – 7 Marzo 2026 · 4 días</p></header>
-      <div class="day-selector" id="day-selector"></div>
-      <div class="map-container"><div id="map" data-city="takayama"></div><button class="hotel-btn" id="hotel-btn" title="Ir al hotel">H</button></div>
-      <div class="legend">
-        <h3>Actividades</h3>
-        <div class="legend-grid" id="legend-grid"></div>
-        <div class="hotel-info" id="hotel-info"></div>
-        <div class="info-box"><h4>Notas</h4><p>Shirakawa-go: Bus info en nouhibus.co.jp<br>6 Mar: Opciones de ski (A, B o C)<br>7 Mar: Solo 1 opcional (1, 2 o 3)</p></div>
+    <search-bar></search-bar>
+    <main id="main-content">
+      <div class="page-card">
+        <header class="header">
+          <h1>Takayama</h1>
+          <p>4 – 7 Marzo 2026 · 4 días</p>
+        </header>
+        <div class="day-selector" id="day-selector"></div>
+        <div class="map-container">
+          <div id="map" data-city="takayama"></div>
+          <button class="hotel-btn" id="hotel-btn" title="Ir al hotel">H</button>
+        </div>
+        <div class="legend">
+          <h3>Actividades</h3>
+          <div class="legend-grid" id="legend-grid"></div>
+          <div class="hotel-info" id="hotel-info"></div>
+        </div>
       </div>
-    </div>
+    </main>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="assets/js/main.js"></script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
