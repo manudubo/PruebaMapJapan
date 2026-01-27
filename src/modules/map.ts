@@ -5,7 +5,6 @@ import { getMapsUrl } from '@/data/maps';
 import { getTheme, getThemeConfig } from './theme';
 import { createDirectionsUrl, announceToScreenReader } from './utils';
 
-let currentMap: L.Map | null = null;
 let currentTileLayer: L.TileLayer | null = null;
 
 export function centerNavOnActive(): void {
@@ -68,11 +67,10 @@ export function initCityMap(city: string): L.Map | null {
   if (!data) return null;
 
   const themeConfig = getThemeConfig();
-  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true, tap: true })
+  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true })
     .setView(data.center, data.zoom);
   
   currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
-  currentMap = map;
   window.currentMap = map;
   window.currentTileLayer = currentTileLayer;
 
@@ -233,7 +231,6 @@ export function initOverviewMap(): void {
     .setView([35.5, 137.0], 6);
   
   currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
-  currentMap = map;
   window.currentMap = map;
   window.currentTileLayer = currentTileLayer;
 
