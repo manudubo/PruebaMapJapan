@@ -1,188 +1,118 @@
+import type { NewsItem, WeatherData } from '@/types';
+import { ITINERARY } from '@/data/itinerary';
 import { getCache, setCache, createElement, cleanTitle, formatDate, isValidItem, createCalendarUrl } from './utils';
-import { ITINERARY } from '../data/itinerary'; 
 
-interface WidgetItem {
-  title: string;
-  link: string;
-  pubDate: string;
-  source: string;
-}
+const MAX_ITEMS = 4;
 
 export function initWidgets(cityKey: string): void {
   const cityData = ITINERARY[cityKey];
-  if (!cityData || !cityData.center) return;
+  if (!cityData?.center) return;
 
   const pageCard = document.querySelector('.page-card');
   if (!pageCard || pageCard.querySelector('.widgets-section')) return;
 
-  const section = createElement('div', 'widgets-section');
-  section.innerHTML = `
-    <h3 class="widgets-title">Información Local: ${cityData.name}</h3>
-    <div class="widgets-grid">
-      <div class="widget-card" id="widget-weather">
-        <div class="widget-header"><h4>Clima & Pronóstico</h4></div>
-        <div class="widget-content"><div class="loader"></div></div>
-      </div>
-      <div class="widget-card" id="widget-news">
-        <div class="widget-header"><h4>Noticias</h4></div>
-        <div class="widget-content"><div class="loader"></div></div>
-      </div>
-      <div class="widget-card" id="widget-events">
-        <div class="widget-header"><h4>Eventos</h4></div>
-        <div class="widget-content"><div class="loader"></div></div>
-      </div>
-    </div>
-  `;
+  const section = createWidgetsSection(cityData.name);
   pageCard.appendChild(section);
 
-  fetchWeather(cityData.center[0], cityData.center[1]);
-  setTimeout(() => loadDynamicData(cityData.name, 'news'), 100);
-  setTimeout(() => loadDynamicData(cityData.name, 'events'), 300);
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          loadWidgets(cityData.center, cityData.name);
+          observer.disconnect();
+        }
+      });
+    },
+    { rootMargin: '100px' }
+  );
+  observer.observe(section);
 }
 
-async function loadDynamicData(city: string, type: 'news' | 'events'): Promise<void> {
-  const container = document.querySelector(`#widget-${type} .widget-content`);
-  if (!container) return;
-  
-  const cacheKey = `${type}_v6_${city}`; 
-  
-  const cached = getCache<WidgetItem[]>(cacheKey);
-  if (cached && cached.length > 0) {
-    renderList(container, cached, type, city);
-    return;
-  }
-
-  try {
-    let query = type === 'news' ? `"${city}" Japan tourism` : `${city} Japan festival event`;
-    
-    // INTENTO 1: AllOrigins
-    let items = await fetchWithProxy(query, 'allorigins');
-    
-    // Si falla o viene vacío, esperar 1s e INTENTO 2: CorsProxy
-    if (!items || items.length === 0) {
-      console.info(`[${city}] Reintentando ${type} con proxy de respaldo...`);
-      items = await fetchWithProxy(query, 'corsproxy');
-    }
-
-    const filteredItems = items ? items.filter(item => isValidItem(item, city)) : [];
-
-    if (filteredItems.length > 0) {
-      const finalItems = filteredItems.slice(0, 4);
-      setCache(cacheKey, finalItems);
-      renderList(container, finalItems, type, city);
-    } else {
-      container.innerHTML = `<p class="widget-loading" style="font-size:13px; color:var(--text-tertiary)">No se encontraron ${type === 'news' ? 'noticias' : 'eventos'} recientes.</p>`;
-    }
-
-  } catch (e) {
-    console.warn(e);
-    container.innerHTML = `<p class="widget-loading" style="font-size:13px; color:var(--text-tertiary)">Conexión inestable. <a href="#" onclick="location.reload();return false;" style="color:var(--accent)">Recargar</a></p>`;
-  }
+function createWidgetsSection(cityName: string): HTMLElement {
+  const section = createElement('section', 'widgets-section');
+  section.setAttribute('aria-label', `Información local de ${cityName}`);
+  section.innerHTML = `
+    <h3 class="widgets-title">Información Local: ${cityName}</h3>
+    <div class="widgets-grid" role="region" aria-live="polite">
+      <article class="widget-card" id="widget-weather" aria-labelledby="weather-title">
+        <div class="widget-header"><h4 id="weather-title">Clima & Pronóstico</h4></div>
+        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Cargando clima...</span></div></div>
+      </article>
+      <article class="widget-card" id="widget-news" aria-labelledby="news-title">
+        <div class="widget-header"><h4 id="news-title">Noticias</h4></div>
+        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Cargando noticias...</span></div></div>
+      </article>
+      <article class="widget-card" id="widget-events" aria-labelledby="events-title">
+        <div class="widget-header"><h4 id="events-title">Eventos</h4></div>
+        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Cargando eventos...</span></div></div>
+      </article>
+    </div>`;
+  return section;
 }
 
-async function fetchWithProxy(query: string, proxyType: 'allorigins' | 'corsproxy'): Promise<WidgetItem[]> {
-  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-  let fetchUrl = '';
-
-  if (proxyType === 'allorigins') {
-    fetchUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}&_=${Date.now()}`;
-  } else {
-    fetchUrl = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
-  }
-
-  try {
-    const response = await fetch(fetchUrl);
-    if (!response.ok) return [];
-    
-    let xmlText = '';
-    if (proxyType === 'allorigins') {
-      const json = await response.json();
-      xmlText = json.contents;
-    } else {
-      xmlText = await response.text();
-    }
-
-    if (!xmlText) return [];
-
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-    const items = Array.from(xmlDoc.querySelectorAll("item"));
-
-    return items.map(item => ({
-      title: item.querySelector("title")?.textContent || "",
-      link: item.querySelector("link")?.textContent || "",
-      pubDate: item.querySelector("pubDate")?.textContent || "",
-      source: item.querySelector("source")?.textContent || "Web"
-    }));
-  } catch (e) {
-    return [];
-  }
-}
-
-function renderList(container: Element, items: WidgetItem[], type: 'news' | 'events', city: string): void {
-  let html = '<ul class="widget-list">';
-  items.forEach(item => {
-    const title = cleanTitle(item.title);
-    const date = formatDate(item.pubDate);
-    const source = item.source;
-    let actionBtn = '';
-    
-    if (type === 'events') {
-      const details = `${item.link}`;
-      const location = `${city}, Japan`;
-      const calUrl = createCalendarUrl(title, location, details);
-      actionBtn = `<a href="${calUrl}" target="_blank" rel="noopener" class="calendar-btn" title="Agendar">📅</a>`;
-    }
-
-    html += `
-      <li class="widget-list-item">
-        <div class="widget-text-content">
-          <a href="${item.link}" target="_blank" rel="noopener" class="widget-link">
-            <div class="widget-link-title">${title}</div>
-            <div class="widget-meta"><span style="opacity:0.7">${source}</span><span>${date}</span></div>
-          </a>
-        </div>
-        ${actionBtn}
-      </li>`;
-  });
-  container.innerHTML = html + '</ul>';
+async function loadWidgets(center: [number, number], cityName: string): Promise<void> {
+  await Promise.all([
+    fetchWeather(center[0], center[1]),
+    loadDynamicData(cityName, 'news'),
+    loadDynamicData(cityName, 'events')
+  ]);
 }
 
 async function fetchWeather(lat: number, lon: number): Promise<void> {
-  const container = document.querySelector('#widget-weather .widget-content');
+  const container = document.querySelector('#widget-weather .widget-content') as HTMLElement;
   if (!container) return;
-  const cacheKey = `weather_${lat}_${lon}`;
   
-  const cached = getCache<any>(cacheKey);
+  const cacheKey = `weather_${lat}_${lon}`;
+  const cached = getCache<WeatherData>(cacheKey);
   if (cached) { renderWeather(container, cached); return; }
 
   try {
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo&forecast_days=5`);
-    const data = await res.json();
+    const params = new URLSearchParams({
+      latitude: String(lat), longitude: String(lon),
+      current: 'temperature_2m,weather_code',
+      daily: 'weather_code,temperature_2m_max,temperature_2m_min',
+      timezone: 'Asia/Tokyo', forecast_days: '5'
+    });
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+    if (!res.ok) throw new Error('Weather fetch failed');
+    const data = await res.json() as WeatherData;
     setCache(cacheKey, data);
     renderWeather(container, data);
-  } catch (e) {
-    container.innerHTML = `<p class="widget-loading">Clima no disponible</p>`;
+  } catch {
+    renderError(container, 'Clima no disponible');
   }
 }
 
-function renderWeather(container: Element, data: any): void {
+function renderWeather(container: HTMLElement, data: WeatherData): void {
   const { current, daily } = data;
   const currentTemp = Math.round(current.temperature_2m);
   const condition = getWeatherCondition(current.weather_code);
-  let forecastHtml = '';
-  for (let i = 1; i <= 4; i++) {
-    const date = new Date(daily.time[i]).toLocaleDateString('es-ES', { weekday: 'short' });
-    const min = Math.round(daily.temperature_2m_min[i]);
-    const max = Math.round(daily.temperature_2m_max[i]);
-    forecastHtml += `<div class="forecast-day"><div class="forecast-date">${date}</div><div class="forecast-icon">${getWeatherIcon(daily.weather_code[i])}</div><div class="forecast-temp"><span class="forecast-max">${max}°</span><span class="forecast-min">${min}°</span></div></div>`;
-  }
-  container.innerHTML = `<div class="weather-current"><div class="weather-temp">${currentTemp}°</div><div class="weather-condition"><div class="weather-icon-large">${getWeatherIcon(current.weather_code)}</div><span>${condition}</span></div></div><div class="weather-forecast">${forecastHtml}</div>`;
+  
+  const forecastDays = daily.time.slice(1, 5).map((time, i) => {
+    const idx = i + 1;
+    const date = new Date(time).toLocaleDateString('es-ES', { weekday: 'short' });
+    const min = Math.round(daily.temperature_2m_min[idx]);
+    const max = Math.round(daily.temperature_2m_max[idx]);
+    const icon = getWeatherIcon(daily.weather_code[idx]);
+    return `<div class="forecast-day" role="listitem"><div class="forecast-date">${date}</div><div class="forecast-icon" aria-hidden="true">${icon}</div><div class="forecast-temp"><span class="forecast-max">${max}°</span><span class="forecast-min">${min}°</span></div></div>`;
+  }).join('');
+
+  container.setAttribute('aria-busy', 'false');
+  container.innerHTML = `
+    <div class="weather-current">
+      <div class="weather-temp" aria-label="Temperatura actual">${currentTemp}°</div>
+      <div class="weather-condition"><div class="weather-icon-large" aria-hidden="true">${getWeatherIcon(current.weather_code)}</div><span>${condition}</span></div>
+    </div>
+    <div class="weather-forecast" role="list" aria-label="Pronóstico de 4 días">${forecastDays}</div>`;
 }
 
+const WEATHER_CONDITIONS: Record<number, string> = {
+  0: 'Despejado', 1: 'Poco nuboso', 2: 'Parcial nublado', 3: 'Nublado',
+  45: 'Niebla', 51: 'Llovizna', 61: 'Lluvia', 71: 'Nieve', 95: 'Tormenta'
+};
+
 function getWeatherCondition(code: number): string {
-  const c: Record<number, string> = { 0: 'Despejado', 1: 'Poco nuboso', 2: 'Parcial nublado', 3: 'Nublado', 45: 'Niebla', 51: 'Llovizna', 61: 'Lluvia', 71: 'Nieve', 95: 'Tormenta' };
-  return c[code] || 'Variable';
+  return WEATHER_CONDITIONS[code] ?? 'Variable';
 }
 
 function getWeatherIcon(code: number): string {
@@ -191,4 +121,79 @@ function getWeatherIcon(code: number): string {
   if (code <= 48) return '🌫️';
   if (code <= 67) return '🌧️';
   return '☁️';
+}
+
+async function loadDynamicData(city: string, type: 'news' | 'events'): Promise<void> {
+  const container = document.querySelector(`#widget-${type} .widget-content`) as HTMLElement;
+  if (!container) return;
+  
+  const cacheKey = `${type}_v5_${city}`;
+  const cached = getCache<NewsItem[]>(cacheKey);
+  if (cached?.length) { renderList(container, cached, type, city); return; }
+
+  try {
+    const query = type === 'news' ? `"${city}" Japan tourism` : `${city} Japan festival event`;
+    let items = await fetchWithProxy(query, 'allorigins');
+    if (!items?.length) items = await fetchWithProxy(query, 'corsproxy');
+    
+    const filteredItems = items?.filter(isValidItem) ?? [];
+    if (filteredItems.length > 0) {
+      const finalItems = filteredItems.slice(0, MAX_ITEMS);
+      setCache(cacheKey, finalItems);
+      renderList(container, finalItems, type, city);
+    } else {
+      renderEmptyState(container, type);
+    }
+  } catch {
+    renderError(container, 'Recarga para ver contenido');
+  }
+}
+
+async function fetchWithProxy(query: string, proxyType: 'allorigins' | 'corsproxy'): Promise<NewsItem[]> {
+  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+  const fetchUrl = proxyType === 'allorigins'
+    ? `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}&_=${Date.now()}`
+    : `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
+
+  try {
+    const response = await fetch(fetchUrl);
+    if (!response.ok) return [];
+    const xmlText = proxyType === 'allorigins'
+      ? (await response.json() as { contents: string }).contents
+      : await response.text();
+    if (!xmlText) return [];
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+    return Array.from(xmlDoc.querySelectorAll('item')).map(item => ({
+      title: item.querySelector('title')?.textContent ?? '',
+      link: item.querySelector('link')?.textContent ?? '',
+      pubDate: item.querySelector('pubDate')?.textContent ?? '',
+      source: item.querySelector('source')?.textContent ?? 'Web'
+    }));
+  } catch { return []; }
+}
+
+function renderList(container: HTMLElement, items: NewsItem[], type: 'news' | 'events', city: string): void {
+  const listItems = items.map(item => {
+    const title = cleanTitle(item.title);
+    const date = formatDate(item.pubDate);
+    let actionBtn = '';
+    if (type === 'events') {
+      const calUrl = createCalendarUrl(title, item.link, `${city}, Japan`);
+      actionBtn = `<a href="${calUrl}" target="_blank" rel="noopener" class="calendar-btn" title="Agregar al calendario" aria-label="Agregar ${title} al calendario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg></a>`;
+    }
+    return `<li class="widget-list-item"><div class="widget-text-content"><a href="${item.link}" target="_blank" rel="noopener" class="widget-link"><span class="widget-link-title">${title}</span><span class="widget-meta"><span>${item.source}</span><time datetime="${item.pubDate}">${date}</time></span></a></div>${actionBtn}</li>`;
+  }).join('');
+  container.setAttribute('aria-busy', 'false');
+  container.innerHTML = `<ul class="widget-list" role="list">${listItems}</ul>`;
+}
+
+function renderEmptyState(container: HTMLElement, type: 'news' | 'events'): void {
+  container.setAttribute('aria-busy', 'false');
+  container.innerHTML = `<p class="widget-empty" role="status">No se encontraron ${type === 'news' ? 'noticias' : 'eventos'} recientes.</p>`;
+}
+
+function renderError(container: HTMLElement, message: string): void {
+  container.setAttribute('aria-busy', 'false');
+  container.innerHTML = `<p class="widget-empty widget-error" role="alert">${message}</p>`;
 }

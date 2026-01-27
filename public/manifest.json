@@ -1,19 +1,25 @@
 {
   "name": "Japón 2026 Itinerario",
   "short_name": "Japón 2026",
+  "description": "Itinerario interactivo de viaje a Japón - 30 días, 8 ciudades",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f5f5f7",
   "theme_color": "#0071e3",
   "orientation": "portrait-primary",
-  "id": "/index.html",
-  "description": "Itinerario de viaje interactivo para Japón 2026",
+  "categories": ["travel", "navigation"],
+  "lang": "es",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/197/197604.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "src": "https://cdn-icons-png.flaticon.com/128/197/197604.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/256/197/197604.png",
+      "sizes": "256x256",
+      "type": "image/png"
     },
     {
       "src": "https://cdn-icons-png.flaticon.com/512/197/197604.png",
@@ -22,20 +28,9 @@
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "https://images.unsplash.com/photo-1542051841857-5f90071e7989?q=80&w=1200&auto=format&fit=crop",
-      "sizes": "1200x800",
-      "type": "image/jpg",
-      "form_factor": "wide",
-      "label": "Vista de Escritorio"
-    },
-    {
-      "src": "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=600&auto=format&fit=crop",
-      "sizes": "600x1200",
-      "type": "image/jpg",
-      "form_factor": "narrow",
-      "label": "Vista Móvil"
-    }
+  "shortcuts": [
+    { "name": "Tokyo", "url": "./tokyo.html" },
+    { "name": "Kyoto", "url": "./kyoto.html" },
+    { "name": "Osaka", "url": "./osaka.html" }
   ]
 }

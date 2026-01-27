@@ -5,7 +5,6 @@ import { getMapsUrl } from '@/data/maps';
 import { getTheme, getThemeConfig } from './theme';
 import { createDirectionsUrl, announceToScreenReader } from './utils';
 
-let currentMap: L.Map | null = null;
 let currentTileLayer: L.TileLayer | null = null;
 
 export function centerNavOnActive(): void {
@@ -68,18 +67,12 @@ export function initCityMap(city: string): L.Map | null {
   if (!data) return null;
 
   const themeConfig = getThemeConfig();
-  const map = L.map('map', { 
-    zoomControl: true, 
-    attributionControl: false, 
-    keyboard: true
-  }).setView(data.center, data.zoom);
+  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true })
+    .setView(data.center, data.zoom);
   
   currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
-  currentMap = map;
-  
-  // Expose to window for global access
-  (window as unknown as { currentMap: L.Map }).currentMap = map;
-  (window as unknown as { currentTileLayer: L.TileLayer }).currentTileLayer = currentTileLayer;
+  window.currentMap = map;
+  window.currentTileLayer = currentTileLayer;
 
   const markersByDay: Record<string, L.Marker[]> = {};
   const allMarkers: L.Marker[] = [];
@@ -234,18 +227,12 @@ function updateHotelInfo(hotel: Hotel): void {
 export function initOverviewMap(): void {
   const theme = getTheme();
   const themeConfig = getThemeConfig(theme);
-  const map = L.map('map', { 
-    zoomControl: true, 
-    attributionControl: false, 
-    keyboard: true 
-  }).setView([35.5, 137.0], 6);
+  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true })
+    .setView([35.5, 137.0], 6);
   
   currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
-  currentMap = map;
-  
-  // Expose to window for global access
-  (window as unknown as { currentMap: L.Map }).currentMap = map;
-  (window as unknown as { currentTileLayer: L.TileLayer }).currentTileLayer = currentTileLayer;
+  window.currentMap = map;
+  window.currentTileLayer = currentTileLayer;
 
   const cities: CityMarker[] = [
     { name: 'Tokyo', coords: [35.6762, 139.7050], dates: '22 Feb – 1 Mar', color: '#ff3b30', link: 'tokyo.html' },
@@ -278,12 +265,8 @@ export function initOverviewMap(): void {
 }
 
 export function updateMapTheme(): void {
-  const currentMapRef = (window as unknown as { currentMap?: L.Map }).currentMap;
-  const currentTileRef = (window as unknown as { currentTileLayer?: L.TileLayer }).currentTileLayer;
-  
-  if (!currentMapRef || !currentTileRef) return;
+  if (!window.currentMap || !window.currentTileLayer) return;
   const themeConfig = getThemeConfig();
-  currentMapRef.removeLayer(currentTileRef);
-  const newTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(currentMapRef);
-  (window as unknown as { currentTileLayer: L.TileLayer }).currentTileLayer = newTileLayer;
+  window.currentMap.removeLayer(window.currentTileLayer);
+  window.currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(window.currentMap);
 }

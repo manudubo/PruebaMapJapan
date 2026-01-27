@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ['main', 'test'] # Agregado 'test' para que dispare en esta rama también
+    branches: ['main']
   workflow_dispatch:
 
 permissions:

@@ -377,8 +377,8 @@ class SearchBar extends HTMLElement {
     if (!this.input || !this.dropdown || !container) return;
     
     // Debounced search
-    const debouncedSearch = debounce((query: string) => {
-      this.performSearch(query);
+    const debouncedSearch = debounce((query: unknown) => {
+      this.performSearch(query as string);
     }, 150);
     
     // Focus to expand
