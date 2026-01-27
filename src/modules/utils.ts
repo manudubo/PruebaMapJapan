@@ -61,6 +61,10 @@ export function createDirectionsUrl(coords: [number, number]): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=transit`;
 }
 
+export function createCalendarUrl(title: string, location: string, details: string): string {
+  return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(location)}`;
+}
+
 export function cleanTitle(title: string): string {
   let clean = title.split(' - ')[0].split(' | ')[0];
   clean = clean.replace(/^\d{1,2}\/\d{1,2}\/\d{4}/, '').trim();
@@ -78,16 +82,13 @@ export function isValidItem(item: { title: string, link: string }, city: string)
 }
 
 export function formatDate(dateString: string): string {
-  // Fix: Parse YYYY-MM-DD manually to prevent timezone shifts (UTC to Local)
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     const [y, m, d] = dateString.split('-').map(Number);
-    // Create date as local time 00:00:00
     const date = new Date(y, m - 1, d);
     return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
   }
 
   const date = new Date(dateString);
-  // Fix: Return specific string expected by tests instead of today's date
   if (isNaN(date.getTime())) return 'Fecha: N/A';
   
   return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
