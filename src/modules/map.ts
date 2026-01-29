@@ -125,8 +125,57 @@ export function initCityMap(city: string): L.Map | null {
 
   generateLegendByDay(data);
   moveHotelInfo();
+  
+  // Check URL parameters for auto-focus and day selection
+  const urlParams = new URLSearchParams(window.location.search);
+  const dayParam = urlParams.get('day');
+  const activityParam = urlParams.get('activity');
+  
+  if (dayParam && activityParam) {
+    // Wait for map to be fully initialized
+    setTimeout(() => {
+      selectDayAndFocusActivity(dayParam, activityParam, daySelector, map, data, markersByDay);
+    }, 300);
+  }
+  
   announceToScreenReader(`Mapa de ${data.name} cargado con ${allMarkers.length} ubicaciones`);
   return map;
+}
+
+function selectDayAndFocusActivity(
+  dayKey: string, 
+  activityName: string, 
+  daySelector: HTMLElement | null,
+  map: L.Map,
+  data: CityData,
+  markersByDay: Record<string, L.Marker[]>
+): void {
+  if (!daySelector || !markersByDay[dayKey]) return;
+  
+  // Find and click the day button
+  const dayBtn = daySelector.querySelector(`[data-day="${dayKey}"]`) as HTMLElement;
+  if (dayBtn) {
+    dayBtn.click();
+  }
+  
+  // Find the activity marker and open its popup
+  const dayData = data.days[dayKey];
+  if (dayData) {
+    const activityIndex = dayData.activities.findIndex(a => a.name === activityName);
+    if (activityIndex >= 0 && markersByDay[dayKey][activityIndex]) {
+      const marker = markersByDay[dayKey][activityIndex];
+      
+      // Focus on the marker
+      setTimeout(() => {
+        map.setView(marker.getLatLng(), 15);
+        marker.openPopup();
+        
+        // Clean URL (remove parameters)
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+      }, 500);
+    }
+  }
 }
 
 function setupDayFilter(

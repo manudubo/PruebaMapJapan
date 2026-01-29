@@ -482,7 +482,7 @@ class SearchBar extends HTMLElement {
       
       return `
         <li>
-          <a href="${result.url}" 
+          <a href="#" 
              class="search-result${index === this.selectedIndex ? ' selected' : ''}"
              role="option"
              aria-selected="${index === this.selectedIndex}"
@@ -512,10 +512,29 @@ class SearchBar extends HTMLElement {
     
     // Add click handlers to results
     list.querySelectorAll('.search-result').forEach(item => {
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        const index = parseInt((item as HTMLElement).dataset.index || '0');
+        this.handleResultClick(this.results[index]);
         this.closeDropdown();
       });
     });
+  }
+
+  private handleResultClick(result: SearchResult): void {
+    // Build URL with parameters for map focus and day selection
+    let url = result.url;
+    
+    // For activities, add parameters to focus on the map and select the day
+    if (result.type === 'activity' && result.date) {
+      const params = new URLSearchParams({
+        day: result.date,
+        activity: result.title
+      });
+      url = `${result.url}?${params.toString()}`;
+    }
+    
+    window.location.href = url;
   }
 
   private highlightMatch(text: string): string {
@@ -552,7 +571,7 @@ class SearchBar extends HTMLElement {
       case 'Enter':
         e.preventDefault();
         if (this.selectedIndex >= 0 && this.results[this.selectedIndex]) {
-          window.location.href = this.results[this.selectedIndex].url;
+          this.handleResultClick(this.results[this.selectedIndex]);
         }
         break;
         

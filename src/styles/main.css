@@ -81,6 +81,140 @@
 }
 
 /* ============================================
+   Cities Grid - Homepage
+   ============================================ */
+.quick-links {
+  padding: 40px;
+  background: var(--bg-secondary);
+}
+
+.quick-links h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  letter-spacing: -0.01em;
+}
+
+.cities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.city-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--bg-glass-subtle);
+  border: 1px solid var(--border-color);
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.city-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-glass), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.city-card:hover {
+  background: var(--bg-glass);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.city-card:hover::before {
+  opacity: 1;
+}
+
+.city-marker {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.city-info strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.city-info small {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+/* ============================================
+   Countdown Section
+   ============================================ */
+.countdown-section {
+  padding: 40px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.countdown-grid {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.countdown-item {
+  text-align: center;
+  min-width: 80px;
+}
+
+.countdown-value {
+  display: block;
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  margin-top: 8px;
+}
+
+/* ============================================
+   Map Section
+   ============================================ */
+.map-section {
+  padding: 0;
+}
+
+.map-section h2 {
+  padding: 0 40px;
+  margin: 32px 0 16px;
+}
+
+/* ============================================
    Base Styles
    ============================================ */
 *,
