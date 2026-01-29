@@ -22,18 +22,21 @@ class TravelNav extends HTMLElement {
         :host { display: block; --accent: #0071e3; --bg-primary: #fff; --bg-glass: rgba(255,255,255,0.8); --text-primary: #1d1d1f; --text-secondary: #6e6e73; --border-color: rgba(0,0,0,0.1); }
         :host-context([data-theme="dark"]) { --bg-primary: #1c1c1e; --bg-glass: rgba(28,28,30,0.9); --text-primary: #f5f5f7; --text-secondary: #a1a1a6; --border-color: rgba(255,255,255,0.1); --accent: #0a84ff; }
         nav { background: var(--bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 100; }
-        .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; height: 56px; }
-        .nav-brand { font-weight: 600; font-size: 15px; color: var(--text-primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 12px; height: 56px; }
+        .nav-brand { font-weight: 600; font-size: 15px; color: var(--text-primary); text-decoration: none; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
         .nav-brand:hover { color: var(--accent); }
         .nav-brand span { display: none; }
         @media (min-width: 640px) { .nav-brand span { display: inline; } }
-        .top-nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding: 4px; margin: 0 8px; flex: 1; justify-content: center; }
-        .top-nav::-webkit-scrollbar { display: none; }
-        .nav-link { padding: 8px 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; white-space: nowrap; border-radius: 8px; transition: all 0.2s ease; }
+        .top-nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--text-secondary) transparent; -ms-overflow-style: auto; padding: 4px; flex: 1; }
+        .top-nav::-webkit-scrollbar { height: 8px; display: block; }
+        .top-nav::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        .top-nav::-webkit-scrollbar-thumb { background: var(--text-secondary); border-radius: 4px; }
+        .top-nav::-webkit-scrollbar-thumb:hover { background: var(--text-primary); }
+        .nav-link { padding: 8px 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; white-space: nowrap; transition: all 0.2s ease; flex-shrink: 0; }
         .nav-link:hover { color: var(--text-primary); background: var(--border-color); }
         .nav-link.is-active { color: var(--accent); background: rgba(0,113,227,0.1); }
         :host-context([data-theme="dark"]) .nav-link.is-active { background: rgba(10,132,255,0.15); }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s ease; flex-shrink: 0; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--text-secondary); }
         .theme-toggle svg { width: 16px; height: 16px; }
         .theme-toggle span { display: none; }
@@ -57,7 +60,7 @@ class TravelNav extends HTMLElement {
       { key: 'osaka', label: 'Osaka', href: 'osaka.html' },
       { key: 'naoshima', label: 'Naoshima', href: 'naoshima.html' },
       { key: 'hakone', label: 'Hakone', href: 'hakone.html' },
-      { key: 'tokyo2', label: 'Tokyo ②', href: 'tokyo2.html' }
+      { key: 'tokyo2', label: 'Tokyo 2', href: 'tokyo2.html' }
     ];
     return cities.map(city => {
       const isActive = currentPage === city.key;
@@ -80,7 +83,15 @@ class TravelNav extends HTMLElement {
 
   private setupEventListeners(): void {
     const themeBtn = this.shadow.querySelector('.theme-toggle');
-    themeBtn?.addEventListener('click', () => { toggleTheme(); this.render(); });
+    if (!themeBtn) return;
+    
+    // Usar event delegation para evitar problemas con re-render
+    themeBtn.addEventListener('click', () => {
+      toggleTheme();
+      // Actualizar solo el botón, no todo el componente
+      const currentTheme = getTheme();
+      themeBtn.innerHTML = `${this.getThemeIcon(currentTheme)}<span>${currentTheme === 'dark' ? 'Light' : 'Dark'}</span>`;
+    });
   }
 }
 

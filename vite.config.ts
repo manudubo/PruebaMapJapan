@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  // Base URL para GitHub Pages
   base: '/PruebaMapJapan/',
   
   resolve: {

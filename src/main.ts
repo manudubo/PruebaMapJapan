@@ -24,9 +24,6 @@ import { initCountdown } from '@/modules/countdown';
 import { initWidgets } from '@/modules/widgets';
 import { initCityMap, initOverviewMap, updateMapTheme, centerNavOnActive } from '@/modules/map';
 
-// Check if we're in production
-const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
-
 // ============================================
 // Application Initialization
 // ============================================
@@ -54,6 +51,11 @@ function init(): void {
 
   // Initialize map based on current page
   initializeMap();
+  
+  // Log initialization complete
+  if (import.meta.env.DEV) {
+    console.log('🇯🇵 Japan Itinerary 2026 initialized');
+  }
 }
 
 /**
@@ -63,10 +65,12 @@ function registerServiceWorker(): void {
   if (!('serviceWorker' in navigator)) return;
 
   // Only register in production
-  if (isProduction) {
+  if (import.meta.env.PROD) {
     navigator.serviceWorker.register('./sw.js')
-      .then(() => {
-        // Service worker registered successfully
+      .then(registration => {
+        if (import.meta.env.DEV) {
+          console.log('SW registered:', registration.scope);
+        }
       })
       .catch(err => {
         console.warn('Service Worker registration failed:', err.message);
