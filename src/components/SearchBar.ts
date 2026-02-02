@@ -87,7 +87,7 @@ class SearchBar extends HTMLElement {
           padding: 0 12px 0 42px;
           border: none;
           background: transparent;
-          font-size: 14px;
+          font-size: 16px;
           color: var(--text-primary, #1d1d1f);
           outline: none;
         }
