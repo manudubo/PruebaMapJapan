@@ -5,6 +5,9 @@ import { debounce } from '@/modules/utils';
 /**
  * Global Search Bar Component
  * Fixed position, always visible search with dropdown results
+ * 
+ * Usa CSS custom properties del documento principal que se heredan al Shadow DOM,
+ * en lugar de :host-context() que no funciona en Safari/iOS
  */
 class SearchBar extends HTMLElement {
   private shadow: ShadowRoot;
@@ -29,28 +32,11 @@ class SearchBar extends HTMLElement {
     this.shadow.innerHTML = `
       <style>
         :host {
-          --search-bg: #fff;
-          --search-border: #d1d1d6;
-          --search-text: #1d1d1f;
-          --search-placeholder: #86868b;
-          --search-hover: #f5f5f7;
-          --search-shadow: 0 4px 24px rgba(0,0,0,0.12);
-          --accent: #0071e3;
           position: fixed;
           top: 68px;
           right: 16px;
           z-index: 1000;
           font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
-        }
-        
-        :host-context([data-theme="dark"]) {
-          --search-bg: #2c2c2e;
-          --search-border: #3a3a3c;
-          --search-text: #f5f5f7;
-          --search-placeholder: #98989d;
-          --search-hover: #3a3a3c;
-          --search-shadow: 0 4px 24px rgba(0,0,0,0.4);
-          --accent: #0a84ff;
         }
         
         .search-container {
@@ -75,15 +61,14 @@ class SearchBar extends HTMLElement {
           position: relative;
           display: flex;
           align-items: center;
-          background: var(--search-bg);
-          border: 1px solid var(--search-border);
-          border-radius: 0;
+          background: var(--bg-secondary, #fff);
+          border: 1px solid var(--border-strong, #d1d1d6);
           overflow: hidden;
           transition: all 0.2s ease;
         }
         
         .search-container.expanded .search-input-wrapper {
-          box-shadow: var(--search-shadow);
+          box-shadow: var(--shadow-lg, 0 4px 24px rgba(0,0,0,0.12));
         }
         
         .search-icon {
@@ -91,7 +76,7 @@ class SearchBar extends HTMLElement {
           left: 12px;
           width: 18px;
           height: 18px;
-          color: var(--search-placeholder);
+          color: var(--text-tertiary, #86868b);
           pointer-events: none;
           flex-shrink: 0;
         }
@@ -103,12 +88,12 @@ class SearchBar extends HTMLElement {
           border: none;
           background: transparent;
           font-size: 14px;
-          color: var(--search-text);
+          color: var(--text-primary, #1d1d1f);
           outline: none;
         }
         
         .search-input::placeholder {
-          color: var(--search-placeholder);
+          color: var(--text-tertiary, #86868b);
         }
         
         .search-container:not(.expanded) .search-input {
@@ -122,19 +107,18 @@ class SearchBar extends HTMLElement {
           height: 28px;
           padding: 0;
           border: none;
-          background: var(--search-hover);
-          border-radius: 0;
+          background: var(--bg-glass-subtle, #f5f5f7);
           cursor: pointer;
           display: none;
           align-items: center;
           justify-content: center;
-          color: var(--search-placeholder);
+          color: var(--text-tertiary, #86868b);
           transition: all 0.15s ease;
         }
         
         .clear-btn:hover {
-          background: var(--search-border);
-          color: var(--search-text);
+          background: var(--border-color, #d1d1d6);
+          color: var(--text-primary, #1d1d1f);
         }
         
         .search-container.has-value .clear-btn {
@@ -152,10 +136,9 @@ class SearchBar extends HTMLElement {
           top: calc(100% + 4px);
           left: 0;
           right: 0;
-          background: var(--search-bg);
-          border: 1px solid var(--search-border);
-          border-radius: 0;
-          box-shadow: var(--search-shadow);
+          background: var(--bg-secondary, #fff);
+          border: 1px solid var(--border-strong, #d1d1d6);
+          box-shadow: var(--shadow-lg, 0 4px 24px rgba(0,0,0,0.12));
           max-height: 400px;
           overflow-y: auto;
           display: none;
@@ -171,7 +154,7 @@ class SearchBar extends HTMLElement {
         }
         
         .search-dropdown::-webkit-scrollbar-thumb {
-          background: var(--search-border);
+          background: var(--border-strong, #d1d1d6);
         }
         
         /* Results */
@@ -190,7 +173,7 @@ class SearchBar extends HTMLElement {
           transition: background 0.1s ease;
           text-decoration: none;
           color: inherit;
-          border-bottom: 1px solid var(--search-border);
+          border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.06));
         }
         
         .search-result:last-child {
@@ -199,11 +182,11 @@ class SearchBar extends HTMLElement {
         
         .search-result:hover,
         .search-result.selected {
-          background: var(--search-hover);
+          background: var(--bg-glass-subtle, #f5f5f7);
         }
         
         .search-result:focus {
-          outline: 2px solid var(--accent);
+          outline: 2px solid var(--accent, #0071e3);
           outline-offset: -2px;
         }
         
@@ -213,10 +196,9 @@ class SearchBar extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: var(--search-hover);
-          border-radius: 0;
+          background: var(--bg-glass-subtle, #f5f5f7);
           flex-shrink: 0;
-          color: var(--search-placeholder);
+          color: var(--text-tertiary, #86868b);
         }
         
         .result-icon svg {
@@ -236,7 +218,7 @@ class SearchBar extends HTMLElement {
         .result-title {
           font-size: 14px;
           font-weight: 500;
-          color: var(--search-text);
+          color: var(--text-primary, #1d1d1f);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -244,7 +226,7 @@ class SearchBar extends HTMLElement {
         
         .result-subtitle {
           font-size: 12px;
-          color: var(--search-placeholder);
+          color: var(--text-tertiary, #86868b);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -257,9 +239,8 @@ class SearchBar extends HTMLElement {
           text-transform: uppercase;
           letter-spacing: 0.5px;
           padding: 2px 6px;
-          background: var(--search-hover);
-          color: var(--search-placeholder);
-          border-radius: 0;
+          background: var(--bg-glass-subtle, #f5f5f7);
+          color: var(--text-tertiary, #86868b);
           flex-shrink: 0;
         }
         
@@ -267,7 +248,7 @@ class SearchBar extends HTMLElement {
         .search-empty {
           padding: 24px 16px;
           text-align: center;
-          color: var(--search-placeholder);
+          color: var(--text-tertiary, #86868b);
           font-size: 13px;
         }
         
@@ -285,18 +266,18 @@ class SearchBar extends HTMLElement {
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          color: var(--search-placeholder);
-          background: var(--search-hover);
-          border-bottom: 1px solid var(--search-border);
+          color: var(--text-tertiary, #86868b);
+          background: var(--bg-glass-subtle, #f5f5f7);
+          border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.06));
         }
         
         /* Keyboard hint */
         .keyboard-hint {
           padding: 8px 16px;
           font-size: 11px;
-          color: var(--search-placeholder);
-          background: var(--search-hover);
-          border-top: 1px solid var(--search-border);
+          color: var(--text-tertiary, #86868b);
+          background: var(--bg-glass-subtle, #f5f5f7);
+          border-top: 1px solid var(--border-color, rgba(0,0,0,0.06));
           display: flex;
           gap: 16px;
         }
@@ -310,8 +291,8 @@ class SearchBar extends HTMLElement {
           padding: 0 4px;
           font-family: inherit;
           font-size: 10px;
-          background: var(--search-bg);
-          border: 1px solid var(--search-border);
+          background: var(--bg-secondary, #fff);
+          border: 1px solid var(--border-color, rgba(0,0,0,0.06));
           border-radius: 2px;
           margin-right: 4px;
         }

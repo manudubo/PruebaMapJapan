@@ -17,34 +17,162 @@ class TravelNav extends HTMLElement {
     const currentPage = this.getCurrentPage();
     const theme = getTheme();
     
+    // Usamos CSS custom properties del documento que SÍ se heredan al Shadow DOM
+    // en lugar de :host-context() que no funciona en Safari/iOS
     this.shadow.innerHTML = `
       <style>
-        :host { display: block; --accent: #0071e3; --bg-primary: #fff; --bg-glass: rgba(255,255,255,0.8); --text-primary: #1d1d1f; --text-secondary: #6e6e73; --border-color: rgba(0,0,0,0.1); }
-        :host-context([data-theme="dark"]) { --bg-primary: #1c1c1e; --bg-glass: rgba(28,28,30,0.9); --text-primary: #f5f5f7; --text-secondary: #a1a1a6; --border-color: rgba(255,255,255,0.1); --accent: #0a84ff; }
-        nav { background: var(--bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 100; }
-        .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 12px; height: 56px; }
-        .nav-brand { font-weight: 600; font-size: 15px; color: var(--text-primary); text-decoration: none; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-        .nav-brand:hover { color: var(--accent); }
-        .nav-brand span { display: none; }
-        @media (min-width: 640px) { .nav-brand span { display: inline; } }
-        .top-nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--text-secondary) transparent; -ms-overflow-style: auto; padding: 4px; flex: 1; }
-        .top-nav::-webkit-scrollbar { height: 8px; display: block; }
-        .top-nav::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
-        .top-nav::-webkit-scrollbar-thumb { background: var(--text-secondary); border-radius: 4px; }
-        .top-nav::-webkit-scrollbar-thumb:hover { background: var(--text-primary); }
-        .nav-link { padding: 8px 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; white-space: nowrap; transition: all 0.2s ease; flex-shrink: 0; }
-        .nav-link:hover { color: var(--text-primary); background: var(--border-color); }
-        .nav-link.is-active { color: var(--accent); background: rgba(0,113,227,0.1); }
-        :host-context([data-theme="dark"]) .nav-link.is-active { background: rgba(10,132,255,0.15); }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s ease; flex-shrink: 0; }
-        .theme-toggle:hover { color: var(--text-primary); border-color: var(--text-secondary); }
-        .theme-toggle svg { width: 16px; height: 16px; }
-        .theme-toggle span { display: none; }
-        @media (min-width: 480px) { .theme-toggle span { display: inline; } }
+        :host {
+          display: block;
+        }
+        
+        nav {
+          background: var(--bg-glass, rgba(255,255,255,0.8));
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.1));
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+        
+        .nav-inner {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          height: 56px;
+        }
+        
+        .nav-brand {
+          font-weight: 600;
+          font-size: 15px;
+          color: var(--text-primary, #1d1d1f);
+          text-decoration: none;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+          padding: 8px 12px;
+          transition: all 0.2s ease;
+        }
+        
+        .nav-brand:hover {
+          color: var(--accent, #0071e3);
+          background: var(--accent-subtle, rgba(0, 113, 227, 0.08));
+        }
+        
+        .nav-brand svg {
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+        }
+        
+        .nav-brand span {
+          display: none;
+        }
+        
+        @media (min-width: 640px) {
+          .nav-brand span {
+            display: inline;
+          }
+        }
+        
+        .top-nav {
+          display: flex;
+          gap: 4px;
+          overflow-x: auto;
+          scrollbar-width: thin;
+          scrollbar-color: var(--text-tertiary, #86868b) transparent;
+          -ms-overflow-style: auto;
+          padding: 4px;
+          flex: 1;
+        }
+        
+        .top-nav::-webkit-scrollbar {
+          height: 8px;
+          display: block;
+        }
+        
+        .top-nav::-webkit-scrollbar-track {
+          background: rgba(0,0,0,0.05);
+        }
+        
+        .top-nav::-webkit-scrollbar-thumb {
+          background: var(--text-tertiary, #86868b);
+        }
+        
+        .top-nav::-webkit-scrollbar-thumb:hover {
+          background: var(--text-primary, #1d1d1f);
+        }
+        
+        .nav-link {
+          padding: 8px 12px;
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-secondary, #515154);
+          text-decoration: none;
+          white-space: nowrap;
+          transition: all 0.2s ease;
+          flex-shrink: 0;
+        }
+        
+        .nav-link:hover {
+          color: var(--text-primary, #1d1d1f);
+          background: var(--border-color, rgba(0,0,0,0.1));
+        }
+        
+        .nav-link.is-active {
+          color: var(--accent, #0071e3);
+          background: var(--accent-subtle, rgba(0,113,227,0.1));
+        }
+        
+        .theme-toggle {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 12px;
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-secondary, #515154);
+          background: transparent;
+          border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+          cursor: pointer;
+          transition: all 0.2s ease;
+          flex-shrink: 0;
+          font-family: inherit;
+        }
+        
+        .theme-toggle:hover {
+          color: var(--text-primary, #1d1d1f);
+          border-color: var(--text-secondary, #515154);
+        }
+        
+        .theme-toggle svg {
+          width: 16px;
+          height: 16px;
+        }
+        
+        .theme-toggle span {
+          display: none;
+        }
+        
+        @media (min-width: 480px) {
+          .theme-toggle span {
+            display: inline;
+          }
+        }
       </style>
       <nav role="navigation" aria-label="Navegación principal">
         <div class="nav-inner">
-          <a href="index.html" class="nav-brand" aria-label="Ir al inicio">🇯🇵 <span>Japón 2026</span></a>
+          <a href="index.html" class="nav-brand" aria-label="Ir al inicio">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span>Home</span>
+          </a>
           <div class="top-nav" role="tablist" aria-label="Ciudades del itinerario">${this.renderNavLinks(currentPage)}</div>
           <button class="theme-toggle" type="button" aria-label="Cambiar tema">${this.getThemeIcon(theme)}<span>${theme === 'dark' ? 'Light' : 'Dark'}</span></button>
         </div>
@@ -85,10 +213,8 @@ class TravelNav extends HTMLElement {
     const themeBtn = this.shadow.querySelector('.theme-toggle');
     if (!themeBtn) return;
     
-    // Usar event delegation para evitar problemas con re-render
     themeBtn.addEventListener('click', () => {
       toggleTheme();
-      // Actualizar solo el botón, no todo el componente
       const currentTheme = getTheme();
       themeBtn.innerHTML = `${this.getThemeIcon(currentTheme)}<span>${currentTheme === 'dark' ? 'Light' : 'Dark'}</span>`;
     });

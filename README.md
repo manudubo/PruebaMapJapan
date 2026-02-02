@@ -8,16 +8,23 @@ Interactive travel itinerary web app for a 30-day trip to Japan (Feb-Mar 2026).
 - 🔍 **Global Search** - Search across all activities, cities, days, and hotels
 - 🌤️ **Live Weather** - Current conditions and 5-day forecast via Open-Meteo
 - 📰 **News & Events** - Curated news and events from Google RSS
-- 🌓 **Dark Mode** - System-aware theme with manual toggle
+- 🌓 **Dark Mode** - System-aware theme with manual toggle (works on all browsers including Safari/iOS)
 - 📱 **PWA Support** - Install as app, works offline
 - ♿ **Accessible** - WCAG 2.1 compliant
 
+## Recent Changes (v2.1.0)
+
+- **Fixed**: Navbar theme now works correctly on mobile Safari/iOS
+- **Fixed**: Home logo is now consistent across all devices (SVG icon instead of emoji)
+- **Updated**: Dependencies to latest stable versions
+- **Improved**: CSS custom properties used for theme support in Shadow DOM components
+
 ## Tech Stack
 
-- **Build**: Vite + TypeScript
-- **Maps**: Leaflet
-- **Testing**: Vitest
-- **Deployment**: GitHub Pages
+- **Build**: Vite 5 + TypeScript 5.6
+- **Maps**: Leaflet 1.9
+- **Testing**: Vitest 2.1
+- **Deployment**: GitHub Pages (Node 22)
 
 ## Getting Started
 
