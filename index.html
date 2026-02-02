@@ -15,6 +15,25 @@
   
   <title>Japón 2026 – Itinerario de Viaje</title>
   
+  <!-- Critical CSS to prevent FOUC -->
+  <style>
+    html { background: #f5f5f7; }
+    html[data-theme="dark"] { background: #000; }
+    body { opacity: 0; transition: opacity 0.15s ease; }
+    body.ready { opacity: 1; }
+  </style>
+  <script>
+    // Apply theme immediately to prevent flash
+    (function() {
+      var theme = localStorage.getItem('theme');
+      if (theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
@@ -127,5 +146,15 @@
   
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="/src/main.ts"></script>
+  <script>
+    // Mark body as ready when styles are loaded
+    document.fonts.ready.then(function() {
+      document.body.classList.add('ready');
+    });
+    // Fallback for browsers without font loading API
+    window.addEventListener('load', function() {
+      document.body.classList.add('ready');
+    });
+  </script>
 </body>
 </html>
