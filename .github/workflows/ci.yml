@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --workspace=frontend
+      - run: npm run typecheck --workspace=frontend
+
+  typecheck-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --workspace=backend
+      - run: npx tsc --noEmit
+        working-directory: backend
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --workspace=frontend
+      - run: npm run test:run --workspace=frontend
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [typecheck-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm ci
+        working-directory: tests
+      - run: npx playwright install --with-deps chromium
+        working-directory: tests
+      - name: Build and preview frontend
+        run: npm run build:frontend && npm run preview:frontend &
+        env:
+          VITE_API_URL: http://localhost:8787
+          VITE_KEYCLOAK_URL: http://localhost:8080
+          VITE_KEYCLOAK_REALM: japan-trip
+          VITE_KEYCLOAK_CLIENT_ID: japan-trip-frontend
+      - name: Run E2E tests (chromium only)
+        run: npx playwright test --project=chromium
+        working-directory: tests
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: tests/playwright-report/
+          retention-days: 7

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Detalle de viaje – itinerario interactivo">
+  <meta name="view-transition" content="same-origin">
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
+
+  <title>Viaje – Itinerario</title>
+
+  <!-- Critical CSS to prevent FOUC -->
+  <style>
+    html { background: #f5f5f7; }
+    html[data-theme="dark"] { background: #000; }
+    body { opacity: 0; transition: opacity 0.15s ease; }
+    body.ready { opacity: 1; }
+  </style>
+  <script>
+    (function() {
+      var theme = localStorage.getItem('theme');
+      if (theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    /* Destination tabs */
+    .dest-tabs {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      padding: 8px 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--text-tertiary, #86868b) transparent;
+    }
+
+    .dest-tabs::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .dest-tabs::-webkit-scrollbar-thumb {
+      background: var(--text-tertiary, #86868b);
+      border-radius: 3px;
+    }
+
+    .dest-tab {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border-strong, #d1d1d6);
+      background: var(--bg-secondary, #fff);
+      color: var(--text-secondary, #515154);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+
+    .dest-tab:hover {
+      color: var(--text-primary, #1d1d1f);
+      border-color: var(--text-secondary, #515154);
+    }
+
+    .dest-tab.is-active {
+      background: var(--accent, #0071e3);
+      color: #fff;
+      border-color: var(--accent, #0071e3);
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <div class="container">
+    <travel-nav></travel-nav>
+    <search-bar></search-bar>
+
+    <main id="main-content">
+      <div class="page-card">
+        <header class="header">
+          <h1 id="trip-title">Cargando viaje…</h1>
+          <p id="trip-subtitle"></p>
+        </header>
+
+        <!-- Destination tabs (rendered by tripDetail.ts) -->
+        <div class="dest-tabs" id="dest-tabs" role="tablist" aria-label="Destinos del viaje"></div>
+
+        <!-- Day selector (populated by tripDetail.ts via initMap) -->
+        <div class="day-selector" id="day-selector" role="tablist" aria-label="Filtrar por día"></div>
+
+        <!-- Map -->
+        <div class="map-container">
+          <div id="map" role="application" aria-label="Mapa del destino"></div>
+          <button class="hotel-btn" id="hotel-btn" title="Ir al hotel" aria-label="Centrar mapa en hotel">H</button>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend" aria-label="Leyenda de actividades">
+          <h3>Actividades</h3>
+          <div class="legend-grid" id="legend-grid" role="list"></div>
+          <div class="hotel-info" id="hotel-info"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="/src/pages/tripDetail.ts"></script>
+  <script>
+    document.fonts.ready.then(function() { document.body.classList.add('ready'); });
+    window.addEventListener('load', function() { document.body.classList.add('ready'); });
+  </script>
+</body>
+</html>

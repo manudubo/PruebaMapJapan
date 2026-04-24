@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Mis viajes – Itinerario interactivo de viaje">
+  <meta name="view-transition" content="same-origin">
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
+
+  <title>Mis viajes</title>
+
+  <!-- Critical CSS to prevent FOUC -->
+  <style>
+    html { background: #f5f5f7; }
+    html[data-theme="dark"] { background: #000; }
+    body { opacity: 0; transition: opacity 0.15s ease; }
+    body.ready { opacity: 1; }
+  </style>
+  <script>
+    (function() {
+      var theme = localStorage.getItem('theme');
+      if (theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <style>
+    /* Dashboard-specific styles */
+    .dashboard-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 24px 0 16px;
+    }
+
+    .dashboard-header h1 {
+      margin: 0;
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 700;
+      color: var(--text-primary, #1d1d1f);
+    }
+
+    .dashboard-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+      font-family: inherit;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--accent, #0071e3);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #0077ed;
+    }
+
+    .btn-secondary {
+      background: var(--bg-secondary, #fff);
+      border: 1px solid var(--border-strong, #d1d1d6);
+      color: var(--text-primary, #1d1d1f);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-secondary, #515154);
+    }
+
+    /* Trip grid */
+    .trips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      padding: 16px 0 32px;
+    }
+
+    .trip-card {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary, #fff);
+      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      border-radius: 12px;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .trip-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .trip-card-cover {
+      position: relative;
+      height: 140px;
+      background: linear-gradient(135deg, var(--accent-subtle, #e8f0fe) 0%, var(--border-color, #e5e5ea) 100%);
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 8px;
+    }
+
+    .trip-card-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      background: rgba(0,0,0,0.45);
+      color: #fff;
+      border-radius: 20px;
+      backdrop-filter: blur(4px);
+    }
+
+    .trip-card-badge--public {
+      background: rgba(52, 199, 89, 0.8);
+    }
+
+    .trip-card-body {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .trip-card-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary, #1d1d1f);
+      line-height: 1.3;
+    }
+
+    .trip-card-desc {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-secondary, #515154);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .trip-card-meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: auto;
+      padding-top: 8px;
+    }
+
+    .trip-card-dates,
+    .trip-card-dests {
+      font-size: 12px;
+      color: var(--text-tertiary, #86868b);
+    }
+
+    /* Empty / error states */
+    .trips-empty,
+    .trips-error {
+      grid-column: 1 / -1;
+      padding: 32px;
+      text-align: center;
+      color: var(--text-secondary, #515154);
+      font-size: 15px;
+    }
+
+    /* Create-trip overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      backdrop-filter: blur(4px);
+    }
+
+    .overlay[hidden] { display: none; }
+
+    .modal {
+      background: var(--bg-primary, #f5f5f7);
+      border-radius: 16px;
+      padding: 28px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+    }
+
+    .modal h2 {
+      margin: 0 0 20px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary, #515154);
+    }
+
+    .form-group input,
+    .form-group textarea {
+      padding: 10px 12px;
+      border: 1px solid var(--border-strong, #d1d1d6);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: var(--bg-secondary, #fff);
+      color: var(--text-primary, #1d1d1f);
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      border-color: var(--accent, #0071e3);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    .error-msg {
+      color: #ff3b30;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+
+  <div class="container">
+    <travel-nav></travel-nav>
+    <search-bar></search-bar>
+
+    <main id="main-content">
+      <div class="page-card">
+        <div class="dashboard-header">
+          <h1 id="dashboard-greeting">Mis viajes</h1>
+          <div class="dashboard-actions">
+            <button id="auth-login-btn" class="btn btn-secondary" hidden>Iniciar sesión</button>
+            <button id="auth-logout-btn" class="btn btn-secondary" hidden>Cerrar sesión</button>
+            <button id="new-trip-btn" class="btn btn-primary" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Nuevo viaje
+            </button>
+          </div>
+        </div>
+
+        <div class="trips-grid" id="trips-grid">
+          <!-- Trip cards rendered by dashboard.ts -->
+          <div class="trips-empty">Cargando viajes…</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create-trip overlay -->
+  <div class="overlay" id="create-trip-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="create-trip-title">
+    <div class="modal">
+      <h2 id="create-trip-title">Crear nuevo viaje</h2>
+      <form id="create-trip-form" novalidate>
+        <div class="form-group">
+          <label for="trip-name">Nombre del viaje *</label>
+          <input type="text" id="trip-name" name="name" required placeholder="ej. Japón 2027" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="trip-description">Descripción</label>
+          <textarea id="trip-description" name="description" rows="2" placeholder="Descripción opcional"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="trip-start">Fecha de inicio</label>
+            <input type="date" id="trip-start" name="start_date">
+          </div>
+          <div class="form-group">
+            <label for="trip-end">Fecha de fin</label>
+            <input type="date" id="trip-end" name="end_date">
+          </div>
+        </div>
+        <p class="error-msg" id="create-trip-error"></p>
+        <div class="form-actions">
+          <button type="button" id="create-trip-cancel" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear viaje</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/src/pages/dashboard.ts"></script>
+  <script>
+    document.fonts.ready.then(function() { document.body.classList.add('ready'); });
+    window.addEventListener('load', function() { document.body.classList.add('ready'); });
+  </script>
+</body>
+</html>

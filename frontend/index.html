@@ -35,16 +35,64 @@
   </script>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    /* Auth/dashboard nav area */
+    .index-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 0 0;
+    }
+    .index-topbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+      text-decoration: none;
+    }
+    .index-topbar-btn--primary {
+      background: var(--accent, #0071e3);
+      color: #fff;
+      border: none;
+    }
+    .index-topbar-btn--primary:hover { background: #0077ed; }
+    .index-topbar-btn--secondary {
+      background: var(--bg-secondary, #fff);
+      border: 1px solid var(--border-strong, #d1d1d6);
+      color: var(--text-primary, #1d1d1f);
+    }
+    .index-topbar-btn--secondary:hover { border-color: var(--text-secondary, #515154); }
+  </style>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
-  
+
   <div class="container">
     <travel-nav></travel-nav>
     <search-bar></search-bar>
-    
+
     <main id="main-content">
       <div class="page-card">
+        <!-- Auth / My Trips bar -->
+        <div class="index-topbar" id="index-topbar">
+          <a href="dashboard.html" class="index-topbar-btn index-topbar-btn--secondary" id="my-trips-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            Mis viajes
+          </a>
+          <button id="index-login-btn" class="index-topbar-btn index-topbar-btn--primary" hidden>Iniciar sesión</button>
+          <button id="index-logout-btn" class="index-topbar-btn index-topbar-btn--secondary" hidden>Cerrar sesión</button>
+        </div>
+
         <header class="header">
           <h1>Japón 2026</h1>
           <p>22 Febrero – 23 Marzo · 30 días · 8 ciudades</p>
@@ -146,6 +194,24 @@
   
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="/src/main.ts"></script>
+  <script type="module">
+    // Optional auth state — never redirect, just show/hide buttons
+    import { initKeycloak, isAuthenticated, login, logout } from '/src/auth/keycloak.ts';
+    try {
+      await initKeycloak();
+    } catch { /* Keycloak not available */ }
+    const authed = isAuthenticated();
+    const loginBtn = document.getElementById('index-login-btn');
+    const logoutBtn = document.getElementById('index-logout-btn');
+    if (loginBtn) {
+      if (authed) { loginBtn.setAttribute('hidden', ''); }
+      else { loginBtn.removeAttribute('hidden'); loginBtn.addEventListener('click', () => login()); }
+    }
+    if (logoutBtn) {
+      if (authed) { logoutBtn.removeAttribute('hidden'); logoutBtn.addEventListener('click', () => logout(window.location.origin + '/index.html')); }
+      else { logoutBtn.setAttribute('hidden', ''); }
+    }
+  </script>
   <script>
     // Mark body as ready when styles are loaded
     document.fonts.ready.then(function() {
