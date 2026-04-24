@@ -590,7 +590,7 @@ async function seed() {
       description: 'Japan trip — Feb 22 to Mar 23, 2026',
       start_date: '2026-02-22',
       end_date: '2026-03-23',
-      is_public: false,
+      is_public: true,
     })
     .returning({ id: schema.trips.id });
 
