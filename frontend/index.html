@@ -4,17 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
-  <meta name="description" content="Itinerario interactivo de viaje a Japón 2026 - 30 días, 8 ciudades">
+  <meta name="description" content="Travel Planner — Planificá tu próximo viaje con mapas interactivos, días y actividades.">
   <meta name="view-transition" content="same-origin">
-  
-  <link rel="preconnect" href="https://unpkg.com">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  
+
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
-  
-  <title>Japón 2026 – Itinerario de Viaje</title>
-  
+
+  <title>Travel Planner</title>
+
   <!-- Critical CSS to prevent FOUC -->
   <style>
     html { background: #f5f5f7; }
@@ -33,42 +32,123 @@
       }
     })();
   </script>
-  
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
   <style>
-    /* Auth/dashboard nav area */
-    .index-topbar {
+    /* Landing page hero */
+    .landing-hero {
+      min-height: calc(100vh - 56px);
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      padding: 12px 0 0;
+      justify-content: center;
+      text-align: center;
+      padding: 48px 24px;
+      gap: 0;
     }
-    .index-topbar-btn {
+
+    .landing-eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent, #0071e3);
+      margin-bottom: 16px;
+    }
+
+    .landing-title {
+      font-size: clamp(32px, 6vw, 56px);
+      font-weight: 700;
+      color: var(--text-primary, #1d1d1f);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin: 0 0 20px;
+    }
+
+    .landing-tagline {
+      font-size: clamp(15px, 2.5vw, 18px);
+      color: var(--text-secondary, #515154);
+      max-width: 520px;
+      line-height: 1.6;
+      margin: 0 0 40px;
+    }
+
+    .landing-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .landing-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
+      justify-content: center;
+      gap: 7px;
+      padding: 11px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      border-radius: 4px;
       cursor: pointer;
       transition: all 0.15s ease;
-      font-family: inherit;
       text-decoration: none;
+      border: 1px solid transparent;
+      line-height: 1;
     }
-    .index-topbar-btn--primary {
+
+    .landing-btn--primary {
       background: var(--accent, #0071e3);
       color: #fff;
-      border: none;
+      border-color: var(--accent, #0071e3);
     }
-    .index-topbar-btn--primary:hover { background: #0077ed; }
-    .index-topbar-btn--secondary {
-      background: var(--bg-secondary, #fff);
-      border: 1px solid var(--border-strong, #d1d1d6);
+
+    .landing-btn--primary:hover {
+      background: var(--accent-hover, #0077ed);
+      border-color: var(--accent-hover, #0077ed);
+    }
+
+    .landing-btn--secondary {
+      background: transparent;
       color: var(--text-primary, #1d1d1f);
+      border-color: var(--border-strong, rgba(0,0,0,0.1));
     }
-    .index-topbar-btn--secondary:hover { border-color: var(--text-secondary, #515154); }
+
+    .landing-btn--secondary:hover {
+      border-color: var(--text-secondary, #515154);
+    }
+
+    /* Loading state */
+    .landing-loading {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 56px);
+      gap: 12px;
+      color: var(--text-secondary, #515154);
+      font-size: 14px;
+    }
+
+    .landing-loading.is-visible {
+      display: flex;
+    }
+
+    .landing-hero.is-hidden {
+      display: none;
+    }
+
+    .loading-spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-strong, rgba(0,0,0,0.1));
+      border-top-color: var(--accent, #0071e3);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -79,137 +159,58 @@
     <search-bar></search-bar>
 
     <main id="main-content">
-      <div class="page-card">
-        <!-- Auth / My Trips bar -->
-        <div class="index-topbar" id="index-topbar">
-          <a href="dashboard.html" class="index-topbar-btn index-topbar-btn--secondary" id="my-trips-link">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            Mis viajes
-          </a>
-          <button id="index-login-btn" class="index-topbar-btn index-topbar-btn--primary" hidden>Iniciar sesión</button>
-          <button id="index-logout-btn" class="index-topbar-btn index-topbar-btn--secondary" hidden>Cerrar sesión</button>
-        </div>
-
-        <header class="header">
-          <h1>Japón 2026</h1>
-          <p>22 Febrero – 23 Marzo · 30 días · 8 ciudades</p>
-        </header>
-        
-        <section class="countdown-section" id="countdown" aria-label="Cuenta regresiva">
-          <h2 class="sr-only">Tiempo restante para el viaje</h2>
-          <div class="countdown-grid">
-            <div class="countdown-item">
-              <span class="countdown-value" id="countdown-days">--</span>
-              <span class="countdown-label">días</span>
-            </div>
-            <div class="countdown-item">
-              <span class="countdown-value" id="countdown-hours">--</span>
-              <span class="countdown-label">horas</span>
-            </div>
-            <div class="countdown-item">
-              <span class="countdown-value" id="countdown-minutes">--</span>
-              <span class="countdown-label">min</span>
-            </div>
-            <div class="countdown-item">
-              <span class="countdown-value" id="countdown-seconds">--</span>
-              <span class="countdown-label">seg</span>
-            </div>
-          </div>
-        </section>
-        
-        <section class="map-section" aria-label="Mapa del itinerario">
-          <h2 class="sr-only">Mapa de las ciudades a visitar</h2>
-          <div class="map-container">
-            <div id="map" data-city="overview" role="application" aria-label="Mapa interactivo de Japón"></div>
-          </div>
-        </section>
-        
-        <section class="quick-links" aria-label="Acceso rápido a ciudades">
-          <h3>Ciudades</h3>
-          <div class="cities-grid">
-            <a href="tokyo.html" class="city-card">
-              <span class="city-marker" style="background:#ff3b30">1</span>
-              <div class="city-info">
-                <strong>Tokyo</strong>
-                <small>22 Feb – 1 Mar</small>
-              </div>
-            </a>
-            <a href="nagoya.html" class="city-card">
-              <span class="city-marker" style="background:#ff9500">2</span>
-              <div class="city-info">
-                <strong>Nagoya</strong>
-                <small>2–3 Mar</small>
-              </div>
-            </a>
-            <a href="takayama.html" class="city-card">
-              <span class="city-marker" style="background:#ffcc00">3</span>
-              <div class="city-info">
-                <strong>Takayama</strong>
-                <small>4–7 Mar</small>
-              </div>
-            </a>
-            <a href="kyoto.html" class="city-card">
-              <span class="city-marker" style="background:#34c759">4</span>
-              <div class="city-info">
-                <strong>Kyoto</strong>
-                <small>8–13 Mar</small>
-              </div>
-            </a>
-            <a href="osaka.html" class="city-card">
-              <span class="city-marker" style="background:#5ac8fa">5</span>
-              <div class="city-info">
-                <strong>Osaka</strong>
-                <small>14–17 Mar</small>
-              </div>
-            </a>
-            <a href="naoshima.html" class="city-card">
-              <span class="city-marker" style="background:#007aff">6</span>
-              <div class="city-info">
-                <strong>Naoshima</strong>
-                <small>18–19 Mar</small>
-              </div>
-            </a>
-            <a href="hakone.html" class="city-card">
-              <span class="city-marker" style="background:#af52de">7</span>
-              <div class="city-info">
-                <strong>Hakone</strong>
-                <small>20–21 Mar</small>
-              </div>
-            </a>
-            <a href="tokyo2.html" class="city-card">
-              <span class="city-marker" style="background:#ff2d55">8</span>
-              <div class="city-info">
-                <strong>Tokyo</strong>
-                <small>22–23 Mar</small>
-              </div>
-            </a>
-          </div>
-        </section>
+      <!-- Loading state while auth check runs -->
+      <div class="landing-loading" id="landing-loading" aria-live="polite">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <span>Cargando...</span>
       </div>
+
+      <!-- Hero — shown to unauthenticated users -->
+      <section class="landing-hero" id="landing-hero" aria-label="Bienvenida">
+        <p class="landing-eyebrow">Travel Planner</p>
+        <h1 class="landing-title">Tu próximo viaje,<br>perfectamente planificado.</h1>
+        <p class="landing-tagline">Planificá tu próximo viaje. Días, destinos y actividades, todo en un mapa interactivo.</p>
+        <div class="landing-actions">
+          <button id="landing-login-btn" class="landing-btn landing-btn--primary" type="button">
+            Iniciar sesión
+          </button>
+          <a href="tokyo.html" class="landing-btn landing-btn--secondary">
+            Ver demo
+          </a>
+        </div>
+      </section>
     </main>
   </div>
-  
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script type="module" src="/src/main.ts"></script>
   <script type="module">
-    // Optional auth state — never redirect, just show/hide buttons
-    import { initKeycloak, isAuthenticated, login, logout } from '/src/auth/keycloak.ts';
+    import { initKeycloak, isAuthenticated, login } from '/src/auth/keycloak.ts';
+
+    const hero = document.getElementById('landing-hero');
+    const loading = document.getElementById('landing-loading');
+
+    // Show loading while auth check runs
+    if (loading) loading.classList.add('is-visible');
+    if (hero) hero.classList.add('is-hidden');
+
     try {
       await initKeycloak();
-    } catch { /* Keycloak not available */ }
-    const authed = isAuthenticated();
-    const loginBtn = document.getElementById('index-login-btn');
-    const logoutBtn = document.getElementById('index-logout-btn');
-    if (loginBtn) {
-      if (authed) { loginBtn.setAttribute('hidden', ''); }
-      else { loginBtn.removeAttribute('hidden'); loginBtn.addEventListener('click', () => login()); }
+    } catch {
+      // Keycloak not available — show landing to everyone
     }
-    if (logoutBtn) {
-      if (authed) { logoutBtn.removeAttribute('hidden'); logoutBtn.addEventListener('click', () => logout(window.location.origin + '/index.html')); }
-      else { logoutBtn.setAttribute('hidden', ''); }
+
+    if (isAuthenticated()) {
+      // Authenticated: redirect to dashboard
+      window.location.replace('dashboard.html');
+    } else {
+      // Unauthenticated: reveal the landing hero
+      if (loading) loading.classList.remove('is-visible');
+      if (hero) hero.classList.remove('is-hidden');
+
+      const loginBtn = document.getElementById('landing-login-btn');
+      if (loginBtn) {
+        loginBtn.addEventListener('click', () => login(window.location.origin + '/dashboard.html'));
+      }
     }
   </script>
   <script>

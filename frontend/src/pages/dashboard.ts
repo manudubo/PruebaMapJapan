@@ -267,6 +267,19 @@ function setupAuthButtons(authenticated: boolean): void {
       logoutBtn.setAttribute('hidden', '');
     }
   }
+
+  // Inline login prompt inside the grid area
+  const loginPrompt = document.getElementById('dashboard-login-prompt');
+  const tripsGrid = document.getElementById('trips-grid');
+  const promptLoginBtn = document.getElementById('auth-login-prompt-btn');
+
+  if (!authenticated && loginPrompt && tripsGrid) {
+    loginPrompt.removeAttribute('hidden');
+    tripsGrid.setAttribute('hidden', '');
+    if (promptLoginBtn) {
+      promptLoginBtn.addEventListener('click', () => login(window.location.href));
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -323,9 +336,8 @@ async function init(): Promise<void> {
         grid.innerHTML = `<p class="trips-error">No se pudieron cargar los viajes: ${(err as Error).message}</p>`;
     }
   } else {
-    // Guest mode — show demo trip and the static Japan pages
+    // Guest mode — show login prompt (grid is hidden by setupAuthButtons)
     renderUserGreeting(null);
-    renderGrid([DEMO_TRIP], true);
   }
 
   document.body.classList.add('ready');

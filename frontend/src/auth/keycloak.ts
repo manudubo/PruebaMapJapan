@@ -34,9 +34,15 @@ let initPromise: Promise<boolean> | null = null;
 export async function initKeycloak(): Promise<boolean> {
   if (initPromise) return initPromise;
 
+  // Build the silent-check-sso URI using Vite's BASE_URL so it works on
+  // GitHub Pages (/PruebaMapJapan/) as well as localhost (/).
+  const base = (import.meta.env.BASE_URL as string | undefined) ?? '/';
+  const silentCheckSsoRedirectUri =
+    window.location.origin + base.replace(/\/$/, '') + '/silent-check-sso.html';
+
   initPromise = keycloak.init({
     onLoad: 'check-sso',
-    silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
+    silentCheckSsoRedirectUri,
     pkceMethod: 'S256',
     responseMode: 'fragment',
     checkLoginIframe: false,

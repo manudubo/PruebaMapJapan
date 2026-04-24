@@ -117,7 +117,7 @@ export class AuthGuard extends HTMLElement {
           background: #e63946;
           color: white;
           border: none;
-          border-radius: 6px;
+          border-radius: 0;
           cursor: pointer;
           font-size: 0.9rem;
         }

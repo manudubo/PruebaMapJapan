@@ -60,7 +60,7 @@
       align-items: center;
       gap: 6px;
       padding: 8px 16px;
-      border-radius: 8px;
+      border-radius: 4px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
@@ -102,7 +102,7 @@
       flex-direction: column;
       background: var(--bg-secondary, #fff);
       border: 1px solid var(--border-color, rgba(0,0,0,0.1));
-      border-radius: 12px;
+      border-radius: 0;
       overflow: hidden;
       text-decoration: none;
       color: inherit;
@@ -130,7 +130,7 @@
       padding: 3px 8px;
       background: rgba(0,0,0,0.45);
       color: #fff;
-      border-radius: 20px;
+      border-radius: 2px;
       backdrop-filter: blur(4px);
     }
 
@@ -206,7 +206,7 @@
 
     .modal {
       background: var(--bg-primary, #f5f5f7);
-      border-radius: 16px;
+      border-radius: 4px;
       padding: 28px;
       width: 100%;
       max-width: 480px;
@@ -236,7 +236,7 @@
     .form-group textarea {
       padding: 10px 12px;
       border: 1px solid var(--border-strong, #d1d1d6);
-      border-radius: 8px;
+      border-radius: 4px;
       font-size: 14px;
       font-family: inherit;
       background: var(--bg-secondary, #fff);
@@ -292,6 +292,12 @@
               Nuevo viaje
             </button>
           </div>
+        </div>
+
+        <!-- Login prompt shown to unauthenticated users (managed by dashboard.ts) -->
+        <div id="dashboard-login-prompt" hidden style="padding:32px 0;text-align:center;">
+          <p style="color:var(--text-secondary,#515154);margin-bottom:16px;">Iniciá sesión para ver y gestionar tus viajes.</p>
+          <button id="auth-login-prompt-btn" class="btn btn-primary" type="button">Iniciar sesión</button>
         </div>
 
         <div class="trips-grid" id="trips-grid">

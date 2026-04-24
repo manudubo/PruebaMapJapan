@@ -24,7 +24,8 @@ function calculateCountdown(): CountdownValues {
 function updateDisplay(elements: Record<string, HTMLElement | null>): void {
   const { days, hours, minutes, seconds, total } = calculateCountdown();
   if (total <= 0) {
-    Object.values(elements).forEach(el => { if (el) el.textContent = '🎉'; });
+    const section = document.getElementById('countdown');
+    if (section) section.style.display = 'none';
     return;
   }
   if (elements.days) elements.days.textContent = String(days);
@@ -36,6 +37,11 @@ function updateDisplay(elements: Record<string, HTMLElement | null>): void {
 export function initCountdown(): void {
   const container = document.getElementById('countdown');
   if (!container) return;
+  // Hide immediately if trip has already started
+  if (hasTripStarted()) {
+    container.style.display = 'none';
+    return;
+  }
   const elements = {
     days: document.getElementById('countdown-days'),
     hours: document.getElementById('countdown-hours'),

@@ -465,6 +465,22 @@ async function init(): Promise<void> {
   buildDestTabs(trip, destIndex);
   loadDestination(trip, destIndex);
 
+  // Update navbar with this trip's destinations
+  const navbar = document.querySelector('travel-nav');
+  if (navbar && 'setDestinations' in navbar) {
+    (navbar as any).setDestinations(
+      trip.destinations
+        .slice()
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((d, i) => ({
+          id: d.id,
+          label: d.city_name,
+          tripId: trip.id,
+          index: i,
+        }))
+    );
+  }
+
   document.body.classList.add('ready');
 }
 

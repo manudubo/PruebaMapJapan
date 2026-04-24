@@ -1,7 +1,16 @@
 import { toggleTheme, getTheme } from '@/modules/theme';
+import { initKeycloak, isAuthenticated, getUserInfo, login, logout } from '@/auth/keycloak';
+
+export interface NavDestination {
+  id: string | number;
+  label: string; // city_name
+  tripId: string | number;
+  index?: number;
+}
 
 class TravelNav extends HTMLElement {
   private shadow: ShadowRoot;
+  private destinations: NavDestination[] = [];
 
   constructor() {
     super();
@@ -9,22 +18,74 @@ class TravelNav extends HTMLElement {
   }
 
   connectedCallback(): void {
+    // Parse destinations from attribute if provided
+    const attr = this.getAttribute('destinations');
+    if (attr) {
+      try {
+        this.destinations = JSON.parse(attr) as NavDestination[];
+      } catch {
+        this.destinations = [];
+      }
+    }
+
     this.render();
     this.setupEventListeners();
+
+    // Silently check auth state and update nav auth UI
+    initKeycloak()
+      .then(() => {
+        this.updateAuthUI();
+      })
+      .catch(() => {
+        this.updateAuthUI();
+      });
+  }
+
+  /**
+   * Set the destination list dynamically (called after trip loads).
+   */
+  public setDestinations(destinations: NavDestination[]): void {
+    this.destinations = destinations;
+    this.render();
+    this.setupEventListeners();
+    // Re-run auth UI update after re-render
+    this.updateAuthUI();
+  }
+
+  private updateAuthUI(): void {
+    const authed = isAuthenticated();
+    const loginBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-login');
+    const logoutBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-logout');
+    const userLabel = this.shadow.querySelector<HTMLElement>('.nav-auth-user');
+
+    if (loginBtn) {
+      loginBtn.hidden = authed;
+    }
+    if (logoutBtn) {
+      logoutBtn.hidden = !authed;
+    }
+    if (userLabel) {
+      if (authed) {
+        const info = getUserInfo();
+        const name = info?.name?.split(' ')[0] ?? info?.preferredUsername ?? '';
+        userLabel.textContent = name;
+        userLabel.hidden = !name;
+      } else {
+        userLabel.hidden = true;
+      }
+    }
   }
 
   private render(): void {
     const currentPage = this.getCurrentPage();
     const theme = getTheme();
-    
-    // Usamos CSS custom properties del documento que SÍ se heredan al Shadow DOM
-    // en lugar de :host-context() que no funciona en Safari/iOS
+
     this.shadow.innerHTML = `
       <style>
         :host {
           display: block;
         }
-        
+
         nav {
           background: var(--bg-glass, rgba(255,255,255,0.8));
           backdrop-filter: blur(20px);
@@ -34,7 +95,7 @@ class TravelNav extends HTMLElement {
           top: 0;
           z-index: 100;
         }
-        
+
         .nav-inner {
           max-width: 1200px;
           margin: 0 auto;
@@ -44,7 +105,7 @@ class TravelNav extends HTMLElement {
           gap: 12px;
           height: 56px;
         }
-        
+
         .nav-brand {
           font-weight: 600;
           font-size: 15px;
@@ -57,28 +118,28 @@ class TravelNav extends HTMLElement {
           padding: 8px 12px;
           transition: all 0.2s ease;
         }
-        
+
         .nav-brand:hover {
           color: var(--accent, #0071e3);
           background: var(--accent-subtle, rgba(0, 113, 227, 0.08));
         }
-        
+
         .nav-brand svg {
           width: 18px;
           height: 18px;
           flex-shrink: 0;
         }
-        
+
         .nav-brand span {
           display: none;
         }
-        
+
         @media (min-width: 640px) {
           .nav-brand span {
             display: inline;
           }
         }
-        
+
         .top-nav {
           display: flex;
           gap: 4px;
@@ -89,24 +150,24 @@ class TravelNav extends HTMLElement {
           padding: 4px;
           flex: 1;
         }
-        
+
         .top-nav::-webkit-scrollbar {
           height: 8px;
           display: block;
         }
-        
+
         .top-nav::-webkit-scrollbar-track {
           background: rgba(0,0,0,0.05);
         }
-        
+
         .top-nav::-webkit-scrollbar-thumb {
           background: var(--text-tertiary, #86868b);
         }
-        
+
         .top-nav::-webkit-scrollbar-thumb:hover {
           background: var(--text-primary, #1d1d1f);
         }
-        
+
         .nav-link {
           padding: 8px 12px;
           font-size: 13px;
@@ -117,17 +178,67 @@ class TravelNav extends HTMLElement {
           transition: all 0.2s ease;
           flex-shrink: 0;
         }
-        
+
         .nav-link:hover {
           color: var(--text-primary, #1d1d1f);
           background: var(--border-color, rgba(0,0,0,0.1));
         }
-        
+
         .nav-link.is-active {
           color: var(--accent, #0071e3);
           background: var(--accent-subtle, rgba(0,113,227,0.1));
         }
-        
+
+        .nav-auth {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-shrink: 0;
+        }
+
+        .nav-auth-user {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-secondary, #515154);
+          padding: 0 4px;
+        }
+
+        .nav-auth-btn {
+          display: inline-flex;
+          align-items: center;
+          padding: 6px 14px;
+          font-size: 13px;
+          font-weight: 500;
+          font-family: inherit;
+          border-radius: 0;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .nav-auth-login {
+          background: var(--accent, #0071e3);
+          color: #fff;
+          border: 1px solid var(--accent, #0071e3);
+        }
+
+        .nav-auth-login:hover {
+          background: var(--accent-hover, #0077ed);
+          border-color: var(--accent-hover, #0077ed);
+        }
+
+        .nav-auth-logout {
+          background: transparent;
+          color: var(--text-secondary, #515154);
+          border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+        }
+
+        .nav-auth-logout:hover {
+          color: var(--text-primary, #1d1d1f);
+          border-color: var(--text-secondary, #515154);
+        }
+
         .theme-toggle {
           display: flex;
           align-items: center;
@@ -143,21 +254,21 @@ class TravelNav extends HTMLElement {
           flex-shrink: 0;
           font-family: inherit;
         }
-        
+
         .theme-toggle:hover {
           color: var(--text-primary, #1d1d1f);
           border-color: var(--text-secondary, #515154);
         }
-        
+
         .theme-toggle svg {
           width: 16px;
           height: 16px;
         }
-        
+
         .theme-toggle span {
           display: none;
         }
-        
+
         @media (min-width: 480px) {
           .theme-toggle span {
             display: inline;
@@ -173,27 +284,44 @@ class TravelNav extends HTMLElement {
             </svg>
             <span>Home</span>
           </a>
-          <div class="top-nav" role="tablist" aria-label="Ciudades del itinerario">${this.renderNavLinks(currentPage)}</div>
+          <div class="top-nav" role="tablist" aria-label="Navegación">${this.renderNavLinks(currentPage)}</div>
+          <div class="nav-auth">
+            <span class="nav-auth-user" hidden></span>
+            <button type="button" class="nav-auth-btn nav-auth-login" hidden>Iniciar sesión</button>
+            <button type="button" class="nav-auth-btn nav-auth-logout" hidden>Cerrar sesión</button>
+          </div>
           <button class="theme-toggle" type="button" aria-label="Cambiar tema">${this.getThemeIcon(theme)}<span>${theme === 'dark' ? 'Light' : 'Dark'}</span></button>
         </div>
       </nav>`;
   }
 
   private renderNavLinks(currentPage: string): string {
-    const cities = [
-      { key: 'tokyo', label: 'Tokyo', href: 'tokyo.html' },
-      { key: 'nagoya', label: 'Nagoya', href: 'nagoya.html' },
-      { key: 'takayama', label: 'Takayama', href: 'takayama.html' },
-      { key: 'kyoto', label: 'Kyoto', href: 'kyoto.html' },
-      { key: 'osaka', label: 'Osaka', href: 'osaka.html' },
-      { key: 'naoshima', label: 'Naoshima', href: 'naoshima.html' },
-      { key: 'hakone', label: 'Hakone', href: 'hakone.html' },
-      { key: 'tokyo2', label: 'Tokyo 2', href: 'tokyo2.html' }
-    ];
-    return cities.map(city => {
-      const isActive = currentPage === city.key;
-      return `<a href="${city.href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${isActive}">${city.label}</a>`;
-    }).join('');
+    // Default links always present
+    const indexActive = currentPage === 'index' || currentPage === '';
+    const dashboardActive = currentPage === 'dashboard';
+
+    let links = `<a href="index.html" class="nav-link${indexActive ? ' is-active' : ''}" ${indexActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${indexActive}">Inicio</a>`;
+    links += `<a href="dashboard.html" class="nav-link${dashboardActive ? ' is-active' : ''}" ${dashboardActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${dashboardActive}">Mis viajes</a>`;
+
+    // Dynamic destination links
+    if (this.destinations.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const currentTripId = params.get('tripId');
+      const currentDestIndex = parseInt(params.get('destIndex') ?? '-1', 10);
+
+      for (let i = 0; i < this.destinations.length; i++) {
+        const dest = this.destinations[i]!;
+        const idx = dest.index !== undefined ? dest.index : i;
+        const href = `trip.html?tripId=${dest.tripId}&destIndex=${idx}`;
+        const isActive =
+          currentPage === 'trip' &&
+          currentTripId === String(dest.tripId) &&
+          currentDestIndex === idx;
+        links += `<a href="${href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${isActive}">${dest.label}</a>`;
+      }
+    }
+
+    return links;
   }
 
   private getCurrentPage(): string {
@@ -211,13 +339,27 @@ class TravelNav extends HTMLElement {
 
   private setupEventListeners(): void {
     const themeBtn = this.shadow.querySelector('.theme-toggle');
-    if (!themeBtn) return;
-    
-    themeBtn.addEventListener('click', () => {
-      toggleTheme();
-      const currentTheme = getTheme();
-      themeBtn.innerHTML = `${this.getThemeIcon(currentTheme)}<span>${currentTheme === 'dark' ? 'Light' : 'Dark'}</span>`;
-    });
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        toggleTheme();
+        const currentTheme = getTheme();
+        themeBtn.innerHTML = `${this.getThemeIcon(currentTheme)}<span>${currentTheme === 'dark' ? 'Light' : 'Dark'}</span>`;
+      });
+    }
+
+    const loginBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-login');
+    if (loginBtn) {
+      loginBtn.addEventListener('click', () => {
+        login(window.location.origin + '/dashboard.html');
+      });
+    }
+
+    const logoutBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-logout');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        logout(window.location.origin + '/index.html');
+      });
+    }
   }
 }
 
