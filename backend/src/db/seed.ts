@@ -8,21 +8,17 @@
  * and skips the insert if so.
  */
 
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import * as schema from './schema';
+import { createDb } from './index';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getDb(databaseUrl: string) {
-  const sql = neon(databaseUrl);
-  return drizzle(sql, { schema });
-}
-
-type Db = ReturnType<typeof getDb>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Db = any;
 
 // ---------------------------------------------------------------------------
 // Google Maps URL lookup (inline copy to avoid frontend import)
@@ -533,7 +529,7 @@ async function seed() {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  const db = getDb(databaseUrl);
+  const db = createDb(databaseUrl);
 
   console.log('Seeding database...');
 

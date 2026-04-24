@@ -1,30 +1,34 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
 // ---------------------------------------------------------------------------
-// Database factory
+// Dual-driver database factory
+// Connects to local PostgreSQL (pg) or Neon serverless (neon-http) based on URL
 // ---------------------------------------------------------------------------
 
-/**
- * Creates a Drizzle ORM instance connected to Neon.
- *
- * Call this once per request inside your Worker handler so that the connection
- * string is read from the live binding:
- *
- * ```ts
- * const db = createDb(env.DATABASE_URL);
- * ```
- */
-export function createDb(databaseUrl: string) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function createDb(databaseUrl: string): any {
+  const isLocal =
+    databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
+
+  if (isLocal) {
+    // Local dev: use node-postgres (works in Node.js / wrangler dev with nodejs_compat)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { drizzle } = require('drizzle-orm/node-postgres');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: databaseUrl });
+    return drizzle(pool, { schema });
+  }
+
+  // Production: Neon serverless HTTP (Cloudflare Workers compatible)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { neon } = require('@neondatabase/serverless');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { drizzle } = require('drizzle-orm/neon-http');
   const sql = neon(databaseUrl);
   return drizzle(sql, { schema });
 }
 
-/**
- * Convenience alias — identical to `createDb` but named to be self-documenting
- * in contexts where the URL is already in scope.
- */
 export const getDb = createDb;
 
 export type Db = ReturnType<typeof createDb>;
