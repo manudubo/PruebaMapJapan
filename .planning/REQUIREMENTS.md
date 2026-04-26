@@ -68,11 +68,25 @@
 
 ## Traceability
 
-*(Filled by roadmapper)*
-
-| REQ-ID | Phase |
-|--------|-------|
-| SEC-01–05 | — |
-| TRIP-01–08 | — |
-| SHARE-01–04 | — |
-| PASS-01–03 | — |
+| REQ-ID | Phase | Status |
+|--------|-------|--------|
+| SEC-01 | Phase 1 | Pending |
+| SEC-02 | Phase 1 | Pending |
+| SEC-03 | Phase 1 | Pending |
+| SEC-04 | Phase 1 | Pending |
+| SEC-05 | Phase 1 | Pending |
+| TRIP-01 | Phase 2 | Pending |
+| TRIP-02 | Phase 2 | Pending |
+| TRIP-03 | Phase 2 | Pending |
+| TRIP-04 | Phase 2 | Pending |
+| TRIP-05 | Phase 2 | Pending |
+| TRIP-06 | Phase 2 | Pending |
+| TRIP-07 | Phase 2 | Pending |
+| TRIP-08 | Phase 2 | Pending |
+| SHARE-01 | Phase 2 | Pending |
+| SHARE-02 | Phase 3 | Pending |
+| SHARE-03 | Phase 3 | Pending |
+| SHARE-04 | Phase 3 | Pending |
+| PASS-01 | Phase 4 | Pending |
+| PASS-02 | Phase 4 | Pending |
+| PASS-03 | Phase 4 | Pending |
