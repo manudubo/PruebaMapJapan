@@ -1,75 +1,90 @@
-# Research Summary
+# Research Summary — TravelMap v1.0
 
-**Project:** TravelMap (PruebaMapJapan)
-**Date:** 2026-04-25
-**Sources:** STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md
+**Milestone:** Trip Builder + Security Hardening + Passkeys + Public Sharing
+**Researched:** 2026-04-26
+**Confidence:** HIGH
+
+## Executive Summary
+
+v1.0 is almost entirely frontend work on top of a complete backend API. The only new dependency is `dompurify@3.4.1` for Leaflet popup sanitization. Security hardening must go first — 11+ live XSS injection sites become a public exploit the moment trip sharing ships.
+
+The highest-risk non-security item is `webAuthnPolicyPasswordlessRpId = ""` in `realm-export.json`. Must be set before any user registers a passkey in production; cannot be changed retroactively.
+
+## Stack Additions
+
+| Item | Change |
+|------|--------|
+| `dompurify@3.4.1` | New frontend runtime dep — Leaflet popup HTML only |
+| `@types/dompurify@3.2.0` | Dev dep |
+| Backend | None |
+| Infrastructure | None |
+| Keycloak | Config only (RP ID, audience mapper) |
+
+All other XSS surfaces use a new `dom.ts` DOM construction helper (zero library weight).
+
+## Feature Table Stakes
+
+### Trip Builder Edit Page
+- `trip-edit.html?tripId=X` entry point; open from dashboard card
+- Edit trip metadata (name, description, dates, `is_public` toggle)
+- Add/edit/delete destinations (city, country, dates, lat/lng)
+- Add/edit/delete hotel per destination (name, URL, check-in/out)
+- Add/edit/delete days (label, date, color)
+- Add/edit/delete activities (name, notes, lat/lng); reorder via up/down buttons
+- Multi-step form: create parent → persist → add children against server-assigned ID
+
+### Security Hardening
+- New `dom.ts` helper replacing all template-literal `innerHTML` with DOM construction
+- `DOMPurify.sanitize()` for Leaflet popup strings only (`buildPopup`, `buildHotelPopup`)
+- Fix inline style injection: `cover_image_url` → `.style.backgroundImage` with `https://` validation; `day.color` → regex `#[0-9a-fA-F]{3,8}`
+- CORS: remove `credentials: true`; fix `origin ?? '*'` fallback → `null`
+- JWT: remove `'account'` from `validAudiences`; add audience mapper on Keycloak client
+- Remove stale D1 binding from `wrangler.toml`
+
+### Public Trip Sharing
+- `is_public` toggle on trip edit page (covered by trip builder phase)
+- "Compartir" + copy-link button on trip detail (owner-only)
+- `public_slug uuid` column for share URLs — prevents integer ID enumeration
+- Backend route: `/api/public/trips/:slug` (replaces `:id`)
+- Read-only guest view: hide edit controls when not authenticated or not owner
+
+### Passkeys Functional
+- Fix `registerPasskey` action string → `'webauthn-register-passwordless'`
+- Set `webAuthnPolicyPasswordlessRpId` in `realm-export.json`
+- Delete passkey: `DELETE /realms/{realm}/account/credentials/{id}`
+- Rename passkey: `PUT /account/credentials/{id}/label`
+- Session refresh (`keycloak.updateToken(60)`) before registration
+
+## Key Architectural Points
+
+- **`dom.ts`** — new shared module built in Phase 1; consumed by dashboard, tripDetail, map, widgets, SearchBar, profile, tripEdit
+- **Trip edit page** — `tripEdit.ts` uses surgical DOM updates keyed by entity ID; no auto-save; explicit save buttons per section
+- **Share URL** uses `public_slug` (UUID), not integer PK
+
+## Critical Pitfalls
+
+| # | Pitfall | Severity | Phase |
+|---|---------|----------|-------|
+| 1 | `webAuthnPolicyPasswordlessRpId = ""` — defaults to Keycloak hostname, not frontend domain | CRITICAL | 4 |
+| 2 | `cover_image_url` / `day.color` inline style injection bypasses innerHTML-only fix | HIGH | 1 |
+| 3 | Leaflet `bindPopup` calls innerHTML internally — needs DOMPurify, not `dom.ts` | HIGH | 1 |
+| 4 | Integer trip IDs enumerable in share URLs | HIGH | 3 |
+| 5 | Serial nested entity creation with no rollback | HIGH | 2 |
+| 6 | `credentials: true` in CORS is unused and harmful | HIGH | 1 |
+| 7 | Keycloak credential listing response shape — verify at runtime before implementing delete/rename | MEDIUM | 4 |
+
+## Recommended Phase Order
+
+1. **Security Hardening** — prerequisite for safe public sharing; creates `dom.ts` primitive
+2. **Trip Builder Edit Page** — largest feature; `is_public` toggle subsumes most of Phase 3
+3. **Public Trip Sharing** — minimal net-new code after Phase 2; requires `public_slug` migration
+4. **Passkeys Functional** — self-contained; verify credential listing shape before implementing
+
+## Open Decisions (Resolve Before Phase 2)
+
+- **Activity `time` field**: schema migration (nullable `time text` column) or name-prefix convention ("10:00 — Senso-ji")?
+- **Coordinate input UX**: plain lat/lng text fields or Nominatim geocoder lookup?
+- No existing share URLs in the wild, so `public_slug` migration needs no transition plan.
 
 ---
-
-## Key Findings
-
-### Stack
-The committed stack (Hono + Cloudflare Workers + Neon + Keycloak 25 + Vite MPA + Leaflet) is sound. No stack changes needed. Critical fixes before production:
-- Remove stale D1 placeholder from `wrangler.toml`
-- Update `compatibility_date` to `2025-03-01`
-- Fix CORS wildcard → explicit GitHub Pages origin
-- Add Vite build-time guard for `VITE_API_URL`
-- Cache local dev DB pool to avoid per-request Pool creation
-
-### Features (Table Stakes for v1)
-These must exist for the product to feel like a trip planner:
-1. Edit trip metadata inline (name, dates, description, public/private)
-2. Add/remove destinations with geocoordinates
-3. Hotel per destination (name, check-in/out, coords)
-4. Add/edit/delete days with label and color
-5. Add/edit/delete activities per day (name, coords, notes)
-6. Activity reorder (up/down buttons minimum)
-7. Map sync — activity list clicks pan/zoom the map
-8. Geocoding input (Nominatim OSM, free) for destinations and activities
-9. Public/private toggle + shareable link copy
-10. Delete trip with confirmation
-
-### Architecture
-**Recommended approach:** Inline editing on `trip.html`, not a separate edit page.
-- `isOwner` flag derived at load time (compare `trip.user_id` vs `getUserInfo().id`)
-- `editMode` boolean controls CSS class on container, shows/hides all edit controls
-- Single `currentTrip: ApiTrip` variable mutated in place after each API call
-- Targeted re-renders per level — never full page reload
-- Plain `<form>` elements for editor panels (not Web Components)
-- Map click → captures `e.latlng` → populates lat/lng inputs in open forms
-- Missing API client functions to add: `updateDay`, `deleteDay`, `upsertHotel`, `deleteHotel`, `reorderActivities`
-
-### Watch Out For (High Severity)
-| Pitfall | Fix |
-|---------|-----|
-| Blank WebAuthn RP ID → passkeys fail in prod | Set `webAuthnPolicyPasswordlessRpId` to `manud.github.io` |
-| CORS `*` + credentials → all auth API calls silently fail | Explicit origin in Hono `cors()` middleware |
-| XSS via `innerHTML` with user data | `textContent` everywhere; DOMPurify if HTML needed |
-| `VITE_API_URL` silent fallback to localhost | Build-time assertion in `vite.config.ts` |
-| Railway Keycloak no DB → config lost on redeploy | Provision Railway PostgreSQL, set `KC_DB_*` env vars |
-| `KC_HOSTNAME` mismatch → every JWT fails | Set to Railway URL before first deploy |
-
----
-
-## Build Order Recommendation
-
-Based on dependencies between features and pitfalls:
-
-1. **Security hardening** — CORS, XSS, JWT audience, VITE_API_URL guard. These block production and affect every phase that touches those files. Fix before building on top.
-
-2. **Trip builder UI** — The largest gap. Backend API is complete; frontend needs inline editing for all 5 entity levels (trip → destinations → hotels → days → activities). Includes geocoding via Nominatim, map-click pin placement, and the missing backend DELETE day route.
-
-3. **Passkeys + IAM** — Configure Keycloak WebAuthn RP ID, flip `browserFlow` to `browser-passkey` in prod, fix credential type filter in `profile.ts`, make `email` nullable.
-
-4. **Production deployment** — Cloudflare Workers + Neon + Railway Keycloak all live with correct env vars, wrangler.toml cleanup, KC_HOSTNAME set, deployment runbook written.
-
-5. **Demo + public sharing** — Migrate Japan trip from static TS to DB (as a demo public trip), landing page queries API, public/private toggle UI with shareable link copy.
-
----
-
-## Deferred (v2)
-- Drag-and-drop activity reorder
-- Route polyline between activity pins
-- Cover image upload for trip cards
-- Export to PDF / print view
-- Day color picker (schema supports it, low effort — could be v1 bonus)
+*Ready for roadmap: yes — 4 phases, all research flags resolved except Phase 4 runtime Keycloak verification*
