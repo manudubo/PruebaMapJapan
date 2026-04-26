@@ -8,6 +8,18 @@ A web app for planning, visualizing, and sharing fully customizable trip itinera
 
 A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
 
+## Current Milestone: v1.0 Trip Builder
+
+**Goal:** Build the end-to-end trip builder UI so a user can create and manage a complete trip itinerary from the web.
+
+**Target features:**
+- Dedicated trip edit page — destinations (dates/coordinates), hotels (name, URL, check-in/out), days (label, date), activities (name, time, notes, map pin)
+- Security hardening — XSS (`innerHTML` → `textContent`/DOMPurify), CORS fix, JWT audience tightened
+- Public trip sharing UI — toggle public/private per trip, shareable link without login
+- Passkeys functional — Keycloak 25 WebAuthn config, profile page passkey management wired to Keycloak Account REST API
+
+**Deferred to next milestone:** Production deployment, deployment runbook, landing demo enhancements.
+
 ## Requirements
 
 ### Validated
@@ -93,4 +105,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after initialization*
+*Last updated: 2026-04-26 — milestone v1.0 started*
