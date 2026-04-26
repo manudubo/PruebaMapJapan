@@ -49,7 +49,7 @@
 |----|-------------|------------------|
 | SEC-01 | User-controlled strings never interpolated via `innerHTML`; `dom.ts` helper replaces all 11+ injection sites including inline style attributes | Injection sites catalogued in all three files; dom.ts API locked; `textContent` + `el.style.setProperty()` is the correct native pattern |
 | SEC-02 | Leaflet popup HTML strings sanitized with DOMPurify in `buildPopup` / `buildHotelPopup` | DOMPurify 3.4.1 verified; bundled string path confirmed correct for Leaflet `bindPopup` |
-| SEC-03 | CORS: null-origin fallback returns `null` not `'*'` | Bug at `cors.ts:18` confirmed; REQUIREMENTS.md also mentions removing `credentials: true` — see Open Questions |
+| SEC-03 | CORS: null-origin fallback returns `null` not `'*'`; `credentials: true` removed | Bug at `cors.ts:18` confirmed; `credentials: true` is dead code — frontend uses `Authorization: Bearer` only, no `credentials: 'include'` anywhere [VERIFIED: grep frontend/src] |
 | SEC-04 | JWT audience validation removes `'account'`; Keycloak client gets audience mapper for `japan-trip-frontend` | `validAudiences` at line 193 confirmed; realm-export.json structure verified; mapper JSON format documented |
 | SEC-05 | Stale D1 binding removed from `wrangler.toml` | `[[d1_databases]]` block confirmed present at line 13 |
 </phase_requirements>
@@ -62,7 +62,7 @@ Phase 1 is a surgical, file-by-file hardening pass with no new architectural con
 
 The largest task is SEC-01: replacing 11+ `innerHTML` assignment sites across three files with the locked `dom.ts` helper API (`setText` / `setStyle`). Because the locked API is intentionally minimal (two functions only), sites that previously built nested HTML strings must be rewritten to explicit `document.createElement` chains. The popup builders in `tripDetail.ts` and `map.ts` also hold HTML-string templates that are beyond `dom.ts` scope — those go through DOMPurify (SEC-02). The two backend tasks (SEC-03, SEC-04) are single-line changes plus a JSON edit; SEC-05 is a three-line TOML deletion.
 
-**Primary recommendation:** Implement in dependency order — dom.ts first (other tasks import from it conceptually), then all innerHTML replacements, then DOMPurify installs, then backend changes. Treat SEC-03 `credentials: true` discrepancy as a planner decision (see Open Questions).
+**Primary recommendation:** Implement in dependency order — dom.ts first, then all innerHTML replacements, then DOMPurify, then backend changes. SEC-03 fix includes both the null-origin change and removing `credentials: true` (frontend uses bearer tokens only — verified). The `map.ts` popup scope is a plan blocker — see Open Questions.
 
 ---
 
@@ -283,7 +283,12 @@ if (!origin || allowed.includes(origin)) {
 }
 ```
 
-One character change. The behavior: when `origin` is null/undefined (e.g., same-origin requests, server-to-server), return `null` which causes Hono to omit the `Access-Control-Allow-Origin` header. Previously returning `'*'` while `credentials: true` is set violates the CORS spec — browsers reject responses with `Access-Control-Allow-Origin: *` when `credentials: true`.
+Two changes for SEC-03:
+
+1. `return origin ?? null` — when origin is null/absent, omit the header instead of returning `'*'`
+2. Remove `credentials: true` from the cors() config — the frontend sends `Authorization: Bearer` headers only; there is no `credentials: 'include'` anywhere in `frontend/src/` [VERIFIED: grep]. Keeping `credentials: true` serves no purpose and was the root cause of the original spec violation.
+
+The fixed config should omit the `credentials` key entirely (defaults to false).
 
 ### Anti-Patterns to Avoid
 
@@ -416,17 +421,13 @@ Not applicable. This phase modifies source files and config; it introduces no st
 
 ## Open Questions
 
-1. **SEC-03: REQUIREMENTS.md says remove `credentials: true`; CONTEXT.md D-06 keeps it**
-   - What we know: `REQUIREMENTS.md` SEC-03 reads: "`credentials: true` removed; null-origin fallback returns `null` not `'*'`". `CONTEXT.md` D-06 reads: "return `null` instead of `'*'` when origin is null/absent. This makes the response spec-valid with `credentials: true`." These are contradictory.
-   - What's unclear: CONTEXT.md was produced by the discuss phase (later than REQUIREMENTS.md) and reflects the user's decided intent. REQUIREMENTS.md SEC-03 may have been written before the discuss session resolved the scope. The functional question is: does the frontend actually use cookies for auth (which would require `credentials: true`) or bearer tokens only (which would not)?
-   - Recommendation: The planner should treat CONTEXT.md D-06 as authoritative (later decision) and implement only the null-origin fix, leaving `credentials: true` in place. However, this question should be surfaced to the user at plan review time rather than silently resolved. If `credentials: true` is dead code (Keycloak uses bearer tokens via `Authorization: Bearer`), removing it is a clean improvement but is not required by D-06.
+1. **PLAN BLOCKER: map.ts popup builders — D-04 vs. phase success criterion #2**
+   - What we know: Phase success criterion #2 is "Leaflet popups pass all HTML through DOMPurify before binding." `map.ts` has `createPopupContent` (line 45) and `createHotelPopup` (line 56) that call `bindPopup()` with user-controlled HTML strings (`activity.name`, `activity.notes`, `day.label`, `hotel.name`). These functions are NOT covered by D-04, which restricts DOMPurify to `tripDetail.ts` only.
+   - What's blocked: If D-04 is followed literally, success criterion #2 cannot pass verification — `map.ts` popups remain unsanitized. The plan cannot proceed without resolution.
+   - Resolution options: (a) Expand D-04 to also cover `map.ts` popup builders — same one-line sanitize pattern, minimal extra work. (b) Revise success criterion #2 to explicitly exclude `map.ts`. Option (a) is recommended; it closes the XSS surface completely with negligible added scope.
 
-2. **map.ts popup builders — DOMPurify scope**
-   - What we know: `map.ts` has `createPopupContent` (line 45) and `createHotelPopup` (line 56) that mirror the `tripDetail.ts` popup builders. Both use user-controlled strings (`activity.name`, `activity.notes`, `day.label`, `hotel.name`) in HTML templates passed to `bindPopup()`.
-   - What's unclear: D-04 says DOMPurify is used "only in `buildPopup` and `buildHotelPopup` in `tripDetail.ts`". Whether `map.ts` equivalents are also in scope is ambiguous.
-   - Recommendation: Planner should apply DOMPurify to both `tripDetail.ts` and `map.ts` popup builders (same pattern, same risk), and document it as an implicit extension of SEC-02. If the user explicitly defers `map.ts` popups, the plan should note the residual risk.
-
----
+2. **RESOLVED: SEC-03 `credentials: true`**
+   - Status: RESOLVED — REQUIREMENTS.md is correct. The frontend uses `Authorization: Bearer` headers only. Grep of `frontend/src/` confirms zero occurrences of `credentials: 'include'`. `credentials: true` in the backend cors config is dead code. The SEC-03 fix must include both: (1) null-origin returns `null`, and (2) remove `credentials: true`. [VERIFIED: codebase grep 2026-04-26]
 
 ## Validation Architecture
 
@@ -445,7 +446,7 @@ Not applicable. This phase modifies source files and config; it introduces no st
 | SEC-01 | `dom.ts` `setText` sets `textContent`, `setStyle` calls `style.setProperty` | unit | `cd frontend && npm run test:run -- --reporter=verbose` | ❌ Wave 0 |
 | SEC-02 | DOMPurify called in popup builder functions; sanitized output bound to `bindPopup` | unit (light) | `cd frontend && npm run test:run` | ❌ Wave 0 |
 | SEC-03 | CORS middleware returns `null` (not `'*'`) when origin is null | unit (backend) | `cd backend && npm test` | ❌ Wave 0 |
-| SEC-04 | JWT with `aud: ['account']` is rejected; JWT with `aud: 'japan-trip-frontend'` passes audience check | unit (backend) | `cd backend && npm test` | ❌ Wave 0 |
+| SEC-04 | Audience check in `verifyJwt` rejects `account`; accepts `japan-trip-frontend` | integration-unit (requires mocking `getKeycloakJwks` or extracting pure helper — see Wave 0 note) | `cd backend && npm test` | ❌ Wave 0 |
 | SEC-05 | `wrangler.toml` contains no `[[d1_databases]]` block | static check / grep | `grep -c 'd1_databases' backend/wrangler.toml` (expect 0) | n/a — file edit |
 
 ### Sampling Rate
@@ -456,7 +457,7 @@ Not applicable. This phase modifies source files and config; it introduces no st
 ### Wave 0 Gaps
 - [ ] `frontend/tests/dom.test.ts` — covers SEC-01: setText, setStyle behavior
 - [ ] `backend/src/middleware/cors.test.ts` — covers SEC-03: null origin returns null
-- [ ] `backend/src/auth/keycloak.test.ts` — covers SEC-04: audience validation (unit, mock JWTs)
+- [ ] `backend/src/auth/keycloak.test.ts` — covers SEC-04: audience validation. NOTE: `verifyJwt` is monolithic (JWKS fetch + expiry + issuer + audience + signature in one call). Testing audience logic in isolation requires either (a) extracting audience check to a pure helper — testable without JWKS mock — or (b) a full integration test with a signed JWT fixture. Option (a) is a small refactor that should be part of the SEC-04 task, not a separate plan item.
 
 *(Existing `backend/src/index.test.ts` tests auth at the route level — 401 for missing header — but does not test audience claim logic specifically.)*
 
