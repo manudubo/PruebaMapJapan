@@ -149,6 +149,99 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    /* Demo section */
+    .demo-section {
+      padding: 40px 24px 60px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .demo-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary, #86868b);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    /* Countdown */
+    .demo-countdown {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+
+    .countdown-unit {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--bg-secondary, #fff);
+      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      padding: 16px 20px;
+      min-width: 72px;
+    }
+
+    .countdown-value {
+      font-size: 32px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary, #1d1d1f);
+      line-height: 1;
+    }
+
+    .countdown-label {
+      font-size: 11px;
+      color: var(--text-tertiary, #86868b);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .demo-countdown-title {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-secondary, #515154);
+      margin-bottom: 16px;
+    }
+
+    /* City chips */
+    .demo-cities {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .city-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--bg-secondary, #fff);
+      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      color: var(--text-secondary, #515154);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .city-chip:hover {
+      border-color: var(--accent, #0071e3);
+      color: var(--accent, #0071e3);
+      background: var(--accent-subtle, rgba(0,113,227,0.06));
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      margin: 0 24px;
+    }
   </style>
 </head>
 <body>
@@ -174,9 +267,34 @@
           <button id="landing-login-btn" class="landing-btn landing-btn--primary" type="button">
             Iniciar sesión
           </button>
-          <a href="tokyo.html" class="landing-btn landing-btn--secondary">
+          <a href="#demo" class="landing-btn landing-btn--secondary">
             Ver demo
           </a>
+        </div>
+      </section>
+
+      <!-- Demo section — always visible -->
+      <hr class="divider">
+      <section class="demo-section" id="demo" aria-label="Demo: Japón 2026">
+        <p class="demo-section-title">Demo — Japón 2026</p>
+
+        <p class="demo-countdown-title">Faltan para el viaje</p>
+        <div class="demo-countdown" id="demo-countdown" aria-live="polite" aria-label="Cuenta regresiva">
+          <div class="countdown-unit"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">días</span></div>
+          <div class="countdown-unit"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">horas</span></div>
+          <div class="countdown-unit"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">minutos</span></div>
+          <div class="countdown-unit"><span class="countdown-value" id="cd-secs">--</span><span class="countdown-label">segundos</span></div>
+        </div>
+
+        <div class="demo-cities" aria-label="Ciudades del itinerario">
+          <a href="tokyo.html" class="city-chip">Tokyo</a>
+          <a href="nagoya.html" class="city-chip">Nagoya</a>
+          <a href="takayama.html" class="city-chip">Takayama</a>
+          <a href="kyoto.html" class="city-chip">Kyoto</a>
+          <a href="osaka.html" class="city-chip">Osaka</a>
+          <a href="naoshima.html" class="city-chip">Naoshima</a>
+          <a href="hakone.html" class="city-chip">Hakone</a>
+          <a href="tokyo2.html" class="city-chip">Tokyo (regreso)</a>
         </div>
       </section>
     </main>
@@ -209,11 +327,36 @@
 
       const loginBtn = document.getElementById('landing-login-btn');
       if (loginBtn) {
-        loginBtn.addEventListener('click', () => login(window.location.origin + '/dashboard.html'));
+        loginBtn.addEventListener('click', () => login(new URL('dashboard.html', window.location.href).href));
       }
     }
   </script>
   <script>
+    // Demo countdown — target: Feb 22 2027 (next Japan trip)
+    (function() {
+      var target = new Date('2027-02-22T00:00:00').getTime();
+      function update() {
+        var now = Date.now();
+        var diff = target - now;
+        if (diff <= 0) { return; }
+        var days = Math.floor(diff / 86400000);
+        var hours = Math.floor((diff % 86400000) / 3600000);
+        var mins = Math.floor((diff % 3600000) / 60000);
+        var secs = Math.floor((diff % 60000) / 1000);
+        var pad = function(n) { return String(n).padStart(2, '0'); };
+        var d = document.getElementById('cd-days');
+        var h = document.getElementById('cd-hours');
+        var m = document.getElementById('cd-mins');
+        var s = document.getElementById('cd-secs');
+        if (d) d.textContent = String(days);
+        if (h) h.textContent = pad(hours);
+        if (m) m.textContent = pad(mins);
+        if (s) s.textContent = pad(secs);
+      }
+      update();
+      setInterval(update, 1000);
+    })();
+
     // Mark body as ready when styles are loaded
     document.fonts.ready.then(function() {
       document.body.classList.add('ready');

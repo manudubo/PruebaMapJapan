@@ -48,8 +48,6 @@ const LOADING_TEMPLATE = `
 
 export class AuthGuard extends HTMLElement {
   private _shadow: ShadowRoot;
-  private _slot: HTMLSlotElement | null = null;
-
   constructor() {
     super();
     this._shadow = this.attachShadow({ mode: 'open' });
@@ -90,7 +88,6 @@ export class AuthGuard extends HTMLElement {
       </style>
       <slot></slot>
     `;
-    this._slot = this._shadow.querySelector('slot');
   }
 
   private _showError(message: string): void {

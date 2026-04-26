@@ -9,7 +9,7 @@ test.describe('Accessibility', () => {
   });
 
   test('Landing page has skip link', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
 
     const skipLink = page.locator('a[href="#main-content"]');
@@ -17,7 +17,7 @@ test.describe('Accessibility', () => {
   });
 
   test('Landing page has h1', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
 
     const h1Elements = page.locator('h1');
@@ -26,7 +26,7 @@ test.describe('Accessibility', () => {
   });
 
   test('Tokyo page map has aria-label', async ({ page }) => {
-    await page.goto('/tokyo.html');
+    await page.goto('tokyo.html');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(500);
 
@@ -40,7 +40,7 @@ test.describe('Accessibility', () => {
   });
 
   test('Search bar input has accessible label', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(500);
 
@@ -66,7 +66,7 @@ test.describe('Accessibility', () => {
   });
 
   test('Day selector buttons have accessible names', async ({ page }) => {
-    await page.goto('/tokyo.html');
+    await page.goto('tokyo.html');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 
@@ -98,7 +98,7 @@ test.describe('Accessibility', () => {
   });
 
   test('Theme toggle has aria-label', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
 
     const themeToggle = page.locator(

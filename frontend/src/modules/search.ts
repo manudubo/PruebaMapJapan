@@ -1,4 +1,5 @@
 import { ITINERARY } from '@/data/itinerary';
+import type { ApiTrip } from '@/types';
 
 // ============================================
 // Types
@@ -21,6 +22,8 @@ export interface SearchResult {
 // ============================================
 
 let searchIndex: SearchResult[] = [];
+// Track which API trip IDs have been added so we don't double-index
+const indexedTripIds = new Set<string | number>();
 
 /**
  * Build search index from itinerary data
@@ -78,6 +81,69 @@ export function buildSearchIndex(): void {
           color: day.color,
           coords: activity.coords,
           url: `${cityKey}.html`
+        });
+      });
+    });
+  });
+}
+
+/**
+ * Add an API trip's destinations, days, and activities to the search index.
+ * Safe to call multiple times with the same trip — idempotent.
+ */
+export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
+  if (indexedTripIds.has(trip.id)) return;
+  indexedTripIds.add(trip.id);
+
+  trip.destinations.forEach((dest, destIdx) => {
+    const tripUrl = `trip.html?tripId=${trip.id}&destIndex=${destIdx}`;
+    const cityKey = String(dest.id);
+
+    // City / destination
+    searchIndex.push({
+      type: 'city',
+      title: dest.city_name,
+      subtitle: `${trip.name}${dest.start_date ? ' · ' + new Date(dest.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : ''}`,
+      city: dest.city_name,
+      cityKey,
+      url: tripUrl,
+    });
+
+    // Hotel
+    if (dest.hotel) {
+      searchIndex.push({
+        type: 'hotel',
+        title: dest.hotel.name,
+        subtitle: `Hotel en ${dest.city_name} · ${trip.name}`,
+        city: dest.city_name,
+        cityKey,
+        coords: dest.hotel.lat != null && dest.hotel.lng != null ? [dest.hotel.lat, dest.hotel.lng] : undefined,
+        url: tripUrl,
+      });
+    }
+
+    // Days and activities
+    dest.days.forEach((day) => {
+      searchIndex.push({
+        type: 'day',
+        title: `${day.label ?? day.date} — ${dest.city_name}`,
+        subtitle: formatDateLabel(day.date),
+        city: dest.city_name,
+        cityKey,
+        date: day.date,
+        url: tripUrl,
+      });
+
+      day.activities.forEach((act) => {
+        searchIndex.push({
+          type: 'activity',
+          title: act.name,
+          subtitle: act.notes ? act.notes : `${day.label ?? day.date} · ${dest.city_name}`,
+          city: dest.city_name,
+          cityKey,
+          date: day.date,
+          coords: act.lat != null && act.lng != null ? [act.lat, act.lng] : undefined,
+          url: tripUrl,
         });
       });
     });

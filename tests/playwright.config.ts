@@ -12,7 +12,7 @@ export default defineConfig({
     ...(process.env.CI ? [['github'] as ['github']] : []),
   ],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5173/PruebaMapJapan/',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
     trace: 'on-first-retry',

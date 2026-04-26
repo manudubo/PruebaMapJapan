@@ -62,7 +62,7 @@ test.describe('Dynamic trip tests', () => {
       }
     });
 
-    await page.goto('/dashboard.html');
+    await page.goto('dashboard.html');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(500);
 
@@ -89,7 +89,7 @@ test.describe('Dynamic trip tests', () => {
       });
     });
 
-    await page.goto('/trip.html?tripId=1');
+    await page.goto('trip.html?tripId=1');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(500);
 
@@ -112,7 +112,7 @@ test.describe('Dynamic trip tests', () => {
       });
     });
 
-    await page.goto('/trip.html?tripId=1');
+    await page.goto('trip.html?tripId=1');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 
@@ -142,7 +142,7 @@ test.describe('Dynamic trip tests', () => {
       });
     });
 
-    await page.goto('/dashboard.html');
+    await page.goto('dashboard.html');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(300);
 
@@ -227,7 +227,7 @@ test.describe('Dynamic trip tests', () => {
       }
     });
 
-    await page.goto('/dashboard.html');
+    await page.goto('dashboard.html');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(300);
 

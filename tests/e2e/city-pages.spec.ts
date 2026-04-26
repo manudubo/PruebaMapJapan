@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 
 // Data-driven city page tests
 const cityPages = [
-  { city: 'Tokyo', path: '/tokyo.html' },
-  { city: 'Kyoto', path: '/kyoto.html' },
-  { city: 'Osaka', path: '/osaka.html' },
+  { city: 'Tokyo', path: 'tokyo.html' },
+  { city: 'Kyoto', path: 'kyoto.html' },
+  { city: 'Osaka', path: 'osaka.html' },
 ];
 
 test.describe('City pages – static itinerary pages', () => {
@@ -54,7 +54,7 @@ test.describe('City pages – static itinerary pages', () => {
           body: JSON.stringify({}),
         });
       });
-      await page.goto('/tokyo.html');
+      await page.goto('tokyo.html');
       await page.waitForLoadState('domcontentloaded');
     });
 

@@ -114,7 +114,7 @@ KEYCLOAK_REALM=japan-trip
 
 **`frontend/.env`**
 ```
-VITE_API_URL=http://localhost:8787
+VITE_API_URL=http://localhost:8787/api
 VITE_KEYCLOAK_URL=http://localhost:8080
 VITE_KEYCLOAK_REALM=japan-trip
 VITE_KEYCLOAK_CLIENT_ID=japan-trip-frontend

@@ -9,7 +9,7 @@ test.describe('PWA requirements', () => {
   });
 
   test('Manifest is linked in index page', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
 
     // The <head> should contain a link[rel="manifest"]
@@ -22,13 +22,13 @@ test.describe('PWA requirements', () => {
   });
 
   test('Service worker file is accessible', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
 
-    // Fetch /sw.js and expect a 200 response
+    // Fetch sw.js relative to the page base
     const response = await page.evaluate(async () => {
       try {
-        const res = await fetch('/sw.js');
+        const res = await fetch(new URL('sw.js', window.location.href).href);
         return { status: res.status, ok: res.ok };
       } catch {
         return { status: 0, ok: false };
@@ -40,13 +40,13 @@ test.describe('PWA requirements', () => {
   });
 
   test('Manifest has required fields', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
 
-    // Fetch the manifest.json from the page's origin
+    // Fetch manifest.json relative to the page base
     const manifestData = await page.evaluate(async () => {
       try {
-        const res = await fetch('/manifest.json');
+        const res = await fetch(new URL('manifest.json', window.location.href).href);
         if (!res.ok) return null;
         return await res.json();
       } catch {

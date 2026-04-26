@@ -19,7 +19,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 const API_URL: string =
-  (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http://localhost:8787';
+  (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http://localhost:8787/api';
 
 // ---------------------------------------------------------------------------
 // HTTP helpers
@@ -48,6 +48,13 @@ async function buildHeaders(auth: boolean): Promise<HeadersInit> {
   return headers;
 }
 
+interface ApiEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = true } = options;
 
@@ -64,12 +71,16 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new Error(`API error ${response.status}: ${text}`);
   }
 
-  // 204 No Content — no body to parse
   if (response.status === 204) {
     return undefined as unknown as T;
   }
 
-  return response.json() as Promise<T>;
+  const envelope = await response.json() as ApiEnvelope<T>;
+  if (!envelope.success) {
+    throw new Error(envelope.error ?? 'API error');
+  }
+
+  return envelope.data as T;
 }
 
 // ---------------------------------------------------------------------------

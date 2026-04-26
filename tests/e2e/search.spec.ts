@@ -5,7 +5,7 @@ test.describe('Search functionality', () => {
     await page.route('**/realms/**', (route) => {
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
     });
-    await page.goto('/');
+    await page.goto('');
     await page.waitForLoadState('domcontentloaded');
   });
 
@@ -63,7 +63,7 @@ test.describe('Search functionality', () => {
     await page.waitForTimeout(300);
 
     // Page should still be functional
-    const citiesGrid = page.locator('.cities-grid');
+    const citiesGrid = page.locator('.demo-cities');
     await expect(citiesGrid).toBeVisible();
   });
 
@@ -87,7 +87,7 @@ test.describe('Search functionality', () => {
   });
 
   test('search bar is present on city pages too', async ({ page }) => {
-    await page.goto('/tokyo.html');
+    await page.goto('tokyo.html');
     await page.waitForLoadState('domcontentloaded');
     const searchBar = page.locator('search-bar');
     await expect(searchBar).toBeVisible({ timeout: 10000 });

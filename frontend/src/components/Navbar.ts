@@ -56,7 +56,7 @@ class TravelNav extends HTMLElement {
     const authed = isAuthenticated();
     const loginBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-login');
     const logoutBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-logout');
-    const userLabel = this.shadow.querySelector<HTMLElement>('.nav-auth-user');
+    const userLabel = this.shadow.querySelector<HTMLAnchorElement>('.nav-auth-user');
 
     if (loginBtn) {
       loginBtn.hidden = authed;
@@ -68,12 +68,21 @@ class TravelNav extends HTMLElement {
       if (authed) {
         const info = getUserInfo();
         const name = info?.name?.split(' ')[0] ?? info?.preferredUsername ?? '';
-        userLabel.textContent = name;
+        userLabel.textContent = name ? `${name} ▾` : '';
+        userLabel.href = new URL('profile.html', window.location.href).href;
         userLabel.hidden = !name;
       } else {
         userLabel.hidden = true;
       }
     }
+  }
+
+  /**
+   * Public method — call this after a login event to refresh the auth UI
+   * without re-rendering the whole navbar.
+   */
+  public refreshAuthUI(): void {
+    this.updateAuthUI();
   }
 
   private render(): void {
@@ -201,6 +210,11 @@ class TravelNav extends HTMLElement {
           font-weight: 500;
           color: var(--text-secondary, #515154);
           padding: 0 4px;
+          text-decoration: none;
+        }
+
+        .nav-auth-user:hover {
+          color: var(--text-primary, #1d1d1f);
         }
 
         .nav-auth-btn {
@@ -286,7 +300,7 @@ class TravelNav extends HTMLElement {
           </a>
           <div class="top-nav" role="tablist" aria-label="Navegación">${this.renderNavLinks(currentPage)}</div>
           <div class="nav-auth">
-            <span class="nav-auth-user" hidden></span>
+            <a class="nav-auth-user" hidden></a>
             <button type="button" class="nav-auth-btn nav-auth-login" hidden>Iniciar sesión</button>
             <button type="button" class="nav-auth-btn nav-auth-logout" hidden>Cerrar sesión</button>
           </div>
@@ -350,14 +364,14 @@ class TravelNav extends HTMLElement {
     const loginBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-login');
     if (loginBtn) {
       loginBtn.addEventListener('click', () => {
-        login(window.location.origin + '/dashboard.html');
+        login(new URL('dashboard.html', window.location.href).href);
       });
     }
 
     const logoutBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
-        logout(window.location.origin + '/index.html');
+        logout(new URL('index.html', window.location.href).href);
       });
     }
   }

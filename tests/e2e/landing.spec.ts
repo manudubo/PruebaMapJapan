@@ -6,47 +6,47 @@ test.describe('Landing page', () => {
     await page.route('**/realms/**', (route) => {
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
     });
-    await page.goto('/');
+    await page.goto('');
   });
 
   test('page loads and shows countdown timer', async ({ page }) => {
     await page.waitForLoadState('domcontentloaded');
-    const countdown = page.locator('#countdown');
+    const countdown = page.locator('#demo-countdown');
     await expect(countdown).toBeVisible({ timeout: 10000 });
 
-    const daysEl = page.locator('#countdown-days');
+    const daysEl = page.locator('#cd-days');
     await expect(daysEl).toBeVisible();
     // The countdown values should not stay as '--' indefinitely
     await expect(daysEl).not.toHaveText('--', { timeout: 5000 });
   });
 
-  test('city cards grid is visible with 8 cities', async ({ page }) => {
-    const citiesGrid = page.locator('.cities-grid');
+  test('city chips grid is visible with 8 cities', async ({ page }) => {
+    const citiesGrid = page.locator('.demo-cities');
     await expect(citiesGrid).toBeVisible({ timeout: 10000 });
 
-    const cityCards = page.locator('.city-card');
-    await expect(cityCards).toHaveCount(8);
+    const cityChips = page.locator('.city-chip');
+    await expect(cityChips).toHaveCount(8);
 
     // Verify some expected cities are present
-    await expect(page.locator('.city-card', { hasText: 'Tokyo' }).first()).toBeVisible();
-    await expect(page.locator('.city-card', { hasText: 'Kyoto' })).toBeVisible();
-    await expect(page.locator('.city-card', { hasText: 'Osaka' })).toBeVisible();
+    await expect(page.locator('.city-chip', { hasText: 'Tokyo' }).first()).toBeVisible();
+    await expect(page.locator('.city-chip', { hasText: 'Kyoto' })).toBeVisible();
+    await expect(page.locator('.city-chip', { hasText: 'Osaka' })).toBeVisible();
   });
 
   test('navigation links work for city pages', async ({ page }) => {
-    const citiesGrid = page.locator('.cities-grid');
+    const citiesGrid = page.locator('.demo-cities');
     await expect(citiesGrid).toBeVisible({ timeout: 10000 });
 
     // Verify Tokyo link points to tokyo.html
-    const tokyoLink = page.locator('.city-card[href="tokyo.html"]').first();
+    const tokyoLink = page.locator('.city-chip[href="tokyo.html"]').first();
     await expect(tokyoLink).toBeVisible();
 
     // Verify Kyoto link
-    const kyotoLink = page.locator('.city-card[href="kyoto.html"]');
+    const kyotoLink = page.locator('.city-chip[href="kyoto.html"]');
     await expect(kyotoLink).toBeVisible();
 
     // Verify Osaka link
-    const osakaLink = page.locator('.city-card[href="osaka.html"]');
+    const osakaLink = page.locator('.city-chip[href="osaka.html"]');
     await expect(osakaLink).toBeVisible();
   });
 
@@ -98,7 +98,7 @@ test.describe('Landing page', () => {
     await expect(main).toBeVisible({ timeout: 10000 });
 
     // Cities grid should still show
-    const citiesGrid = page.locator('.cities-grid');
+    const citiesGrid = page.locator('.demo-cities');
     await expect(citiesGrid).toBeVisible();
   });
 });

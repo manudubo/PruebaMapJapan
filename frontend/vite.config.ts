@@ -30,6 +30,7 @@ export default defineConfig({
         // New dynamic pages
         dashboard: resolve(__dirname, 'dashboard.html'),
         trip: resolve(__dirname, 'trip.html'),
+        profile: resolve(__dirname, 'profile.html'),
       },
       output: {
         manualChunks: {
@@ -40,7 +41,6 @@ export default defineConfig({
   },
   
   server: {
-    port: 3000,
-    open: true,
+    port: 5173,
   },
 });
