@@ -51,10 +51,12 @@ export interface KeycloakJwtPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Hono context variable map (set by auth middleware)
+// Hono context variable map (set by auth middleware + ensureUserProvisioned)
 // ---------------------------------------------------------------------------
 export interface ContextVariables {
   user: KeycloakJwtPayload;
+  /** DB primary key for the authenticated user — set by ensureUserProvisioned */
+  dbUserId: number;
 }
 
 // ---------------------------------------------------------------------------

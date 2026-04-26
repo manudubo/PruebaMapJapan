@@ -22,8 +22,9 @@ import {
   deleteActivity,
   reorderActivities,
 } from '../db';
-import { users, destinations, days, hotels, activities, trips } from '../db/schema';
+import { destinations, days, hotels, activities, trips } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
+import { ensureUserProvisioned } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import {
   CreateTripSchema,
@@ -40,25 +41,12 @@ import {
 
 const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
-// ---------------------------------------------------------------------------
-// Helper — resolve the DB user id from the JWT subject.
-// Returns undefined if the user does not exist in the DB.
-// ---------------------------------------------------------------------------
-async function resolveUserId(
-  db: ReturnType<typeof getDb>,
-  keycloakId: string,
-): Promise<number | undefined> {
-  const rows = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.keycloak_id, keycloakId))
-    .limit(1);
-  return rows[0]?.id;
-}
+// Apply auth + user-provisioning to every route in this router.
+tripsRoute.use('*', authMiddleware, ensureUserProvisioned);
 
 // ---------------------------------------------------------------------------
 // Helper — verify that a destination belongs to a trip (and the trip belongs
-// to the user). Returns the destination row or undefined.
+// to the user). Returns the destination row or an error code.
 // ---------------------------------------------------------------------------
 async function resolveDestination(
   db: ReturnType<typeof getDb>,
@@ -150,69 +138,77 @@ async function resolveActivity(
  * GET /api/trips
  * Returns all trips belonging to the authenticated user.
  */
-tripsRoute.get('/', authMiddleware, async (c) => {
-  const db = getDb(c.env.DATABASE_URL);
-  const jwtUser = c.get('user');
-
-  const userId = await resolveUserId(db, jwtUser.sub);
-  if (userId === undefined) {
-    const response: ApiResponse = { success: false, error: 'User not found' };
-    return c.json(response, 404);
+tripsRoute.get('/', async (c) => {
+  if (!c.env.DATABASE_URL) {
+    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+    return c.json(response, 500);
   }
+  const db = getDb(c.env.DATABASE_URL);
+  const userId = c.get('dbUserId');
 
-  const userTrips = await getTripsByUser(db, userId);
-  const response: ApiResponse = { success: true, data: userTrips };
-  return c.json(response);
+  try {
+    const userTrips = await getTripsByUser(db, userId);
+    const response: ApiResponse<typeof userTrips> = { success: true, data: userTrips };
+    return c.json(response);
+  } catch {
+    const response: ApiResponse<never> = { success: false, error: 'Failed to fetch trips' };
+    return c.json(response, 500);
+  }
 });
 
 /**
  * POST /api/trips
  * Creates a new trip for the authenticated user.
  */
-tripsRoute.post('/', authMiddleware, zValidator('json', CreateTripSchema), async (c) => {
+tripsRoute.post('/', zValidator('json', CreateTripSchema), async (c) => {
+  if (!c.env.DATABASE_URL) {
+    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+    return c.json(response, 500);
+  }
   const db = getDb(c.env.DATABASE_URL);
-  const jwtUser = c.get('user');
+  const userId = c.get('dbUserId');
   const body = c.req.valid('json');
 
-  const userId = await resolveUserId(db, jwtUser.sub);
-  if (userId === undefined) {
-    const response: ApiResponse = { success: false, error: 'User not found' };
-    return c.json(response, 404);
+  try {
+    const trip = await createTrip(db, userId, body);
+    const response: ApiResponse<typeof trip> = { success: true, data: trip };
+    return c.json(response, 201);
+  } catch {
+    const response: ApiResponse<never> = { success: false, error: 'Failed to create trip' };
+    return c.json(response, 500);
   }
-
-  const trip = await createTrip(db, userId, body);
-  const response: ApiResponse = { success: true, data: trip };
-  return c.json(response, 201);
 });
 
 /**
  * GET /api/trips/:tripId
  * Returns a single trip with full nested details (destinations → hotel, days → activities).
  */
-tripsRoute.get('/:tripId', authMiddleware, async (c) => {
+tripsRoute.get('/:tripId', async (c) => {
+  if (!c.env.DATABASE_URL) {
+    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+    return c.json(response, 500);
+  }
   const db = getDb(c.env.DATABASE_URL);
-  const jwtUser = c.get('user');
+  const userId = c.get('dbUserId');
   const tripId = Number(c.req.param('tripId'));
 
   if (isNaN(tripId)) {
-    const response: ApiResponse = { success: false, error: 'Invalid trip id' };
+    const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
     return c.json(response, 400);
   }
 
-  const userId = await resolveUserId(db, jwtUser.sub);
-  if (userId === undefined) {
-    const response: ApiResponse = { success: false, error: 'User not found' };
-    return c.json(response, 404);
+  try {
+    const trip = await getTripById(db, tripId, userId);
+    if (!trip) {
+      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+      return c.json(response, 404);
+    }
+    const response: ApiResponse<typeof trip> = { success: true, data: trip };
+    return c.json(response);
+  } catch {
+    const response: ApiResponse<never> = { success: false, error: 'Failed to fetch trip' };
+    return c.json(response, 500);
   }
-
-  const trip = await getTripById(db, tripId, userId);
-  if (!trip) {
-    const response: ApiResponse = { success: false, error: 'Trip not found' };
-    return c.json(response, 404);
-  }
-
-  const response: ApiResponse = { success: true, data: trip };
-  return c.json(response);
 });
 
 /**
@@ -221,31 +217,28 @@ tripsRoute.get('/:tripId', authMiddleware, async (c) => {
  */
 tripsRoute.patch(
   '/:tripId',
-  authMiddleware,
   zValidator('json', UpdateTripSchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid trip id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
       return c.json(response, 400);
-    }
-
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
     }
 
     try {
       const updated = await updateTrip(db, tripId, userId, body);
-      const response: ApiResponse = { success: true, data: updated };
+      const response: ApiResponse<typeof updated> = { success: true, data: updated };
       return c.json(response);
     } catch {
-      const response: ApiResponse = { success: false, error: 'Trip not found' };
+      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
       return c.json(response, 404);
     }
   },
@@ -255,32 +248,35 @@ tripsRoute.patch(
  * DELETE /api/trips/:tripId
  * Deletes a trip belonging to the authenticated user.
  */
-tripsRoute.delete('/:tripId', authMiddleware, async (c) => {
+tripsRoute.delete('/:tripId', async (c) => {
+  if (!c.env.DATABASE_URL) {
+    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+    return c.json(response, 500);
+  }
   const db = getDb(c.env.DATABASE_URL);
-  const jwtUser = c.get('user');
+  const userId = c.get('dbUserId');
   const tripId = Number(c.req.param('tripId'));
 
   if (isNaN(tripId)) {
-    const response: ApiResponse = { success: false, error: 'Invalid trip id' };
+    const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
     return c.json(response, 400);
   }
 
-  const userId = await resolveUserId(db, jwtUser.sub);
-  if (userId === undefined) {
-    const response: ApiResponse = { success: false, error: 'User not found' };
-    return c.json(response, 404);
-  }
+  try {
+    // Verify the trip exists and belongs to this user before deleting.
+    const trip = await getTripById(db, tripId, userId);
+    if (!trip) {
+      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+      return c.json(response, 404);
+    }
 
-  // Verify the trip exists and belongs to this user before deleting.
-  const trip = await getTripById(db, tripId, userId);
-  if (!trip) {
-    const response: ApiResponse = { success: false, error: 'Trip not found' };
-    return c.json(response, 404);
+    await deleteTrip(db, tripId, userId);
+    const response: ApiResponse<never> = { success: true, message: 'Trip deleted' };
+    return c.json(response);
+  } catch {
+    const response: ApiResponse<never> = { success: false, error: 'Failed to delete trip' };
+    return c.json(response, 500);
   }
-
-  await deleteTrip(db, tripId, userId);
-  const response: ApiResponse = { success: true, message: 'Trip deleted' };
-  return c.json(response);
 });
 
 // ===========================================================================
@@ -291,41 +287,44 @@ tripsRoute.delete('/:tripId', authMiddleware, async (c) => {
  * GET /api/trips/:tripId/destinations
  * Returns all destinations for a trip.
  */
-tripsRoute.get('/:tripId/destinations', authMiddleware, async (c) => {
+tripsRoute.get('/:tripId/destinations', async (c) => {
+  if (!c.env.DATABASE_URL) {
+    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+    return c.json(response, 500);
+  }
   const db = getDb(c.env.DATABASE_URL);
-  const jwtUser = c.get('user');
+  const userId = c.get('dbUserId');
   const tripId = Number(c.req.param('tripId'));
 
   if (isNaN(tripId)) {
-    const response: ApiResponse = { success: false, error: 'Invalid trip id' };
+    const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
     return c.json(response, 400);
   }
 
-  const userId = await resolveUserId(db, jwtUser.sub);
-  if (userId === undefined) {
-    const response: ApiResponse = { success: false, error: 'User not found' };
-    return c.json(response, 404);
-  }
+  try {
+    // Verify trip ownership.
+    const tripRows = await db
+      .select({ id: trips.id, user_id: trips.user_id })
+      .from(trips)
+      .where(eq(trips.id, tripId))
+      .limit(1);
 
-  // Verify trip ownership.
-  const tripRows = await db
-    .select({ id: trips.id, user_id: trips.user_id })
-    .from(trips)
-    .where(eq(trips.id, tripId))
-    .limit(1);
+    if (!tripRows[0]) {
+      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+      return c.json(response, 404);
+    }
+    if (tripRows[0].user_id !== userId) {
+      const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+      return c.json(response, 403);
+    }
 
-  if (!tripRows[0]) {
-    const response: ApiResponse = { success: false, error: 'Trip not found' };
-    return c.json(response, 404);
+    const dests = await getDestinationsByTrip(db, tripId);
+    const response: ApiResponse<typeof dests> = { success: true, data: dests };
+    return c.json(response);
+  } catch {
+    const response: ApiResponse<never> = { success: false, error: 'Failed to fetch destinations' };
+    return c.json(response, 500);
   }
-  if (tripRows[0].user_id !== userId) {
-    const response: ApiResponse = { success: false, error: 'Forbidden' };
-    return c.json(response, 403);
-  }
-
-  const dests = await getDestinationsByTrip(db, tripId);
-  const response: ApiResponse = { success: true, data: dests };
-  return c.json(response);
 });
 
 /**
@@ -334,46 +333,48 @@ tripsRoute.get('/:tripId/destinations', authMiddleware, async (c) => {
  */
 tripsRoute.post(
   '/:tripId/destinations',
-  authMiddleware,
   zValidator('json', CreateDestinationSchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid trip id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
+    try {
+      const tripRows = await db
+        .select({ id: trips.id, user_id: trips.user_id })
+        .from(trips)
+        .where(eq(trips.id, tripId))
+        .limit(1);
 
-    const tripRows = await db
-      .select({ id: trips.id, user_id: trips.user_id })
-      .from(trips)
-      .where(eq(trips.id, tripId))
-      .limit(1);
+      if (!tripRows[0]) {
+        const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+        return c.json(response, 404);
+      }
+      if (tripRows[0].user_id !== userId) {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
+      }
 
-    if (!tripRows[0]) {
-      const response: ApiResponse = { success: false, error: 'Trip not found' };
-      return c.json(response, 404);
+      const dest = await createDestination(db, tripId, {
+        ...body,
+        zoom_level: body.zoom_level ?? undefined,
+      });
+      const response: ApiResponse<typeof dest> = { success: true, data: dest };
+      return c.json(response, 201);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to create destination' };
+      return c.json(response, 500);
     }
-    if (tripRows[0].user_id !== userId) {
-      const response: ApiResponse = { success: false, error: 'Forbidden' };
-      return c.json(response, 403);
-    }
-
-    const dest = await createDestination(db, tripId, {
-      ...body,
-      zoom_level: body.zoom_level ?? undefined,
-    });
-    const response: ApiResponse = { success: true, data: dest };
-    return c.json(response, 201);
   },
 );
 
@@ -383,39 +384,41 @@ tripsRoute.post(
  */
 tripsRoute.patch(
   '/:tripId/destinations/:destId',
-  authMiddleware,
   zValidator('json', UpdateDestinationSchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDestination(db, tripId, destId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDestination(db, tripId, destId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Destination not found' };
-      return c.json(response, 404);
-    }
 
-    const updated = await updateDestination(db, destId, body);
-    const response: ApiResponse = { success: true, data: updated };
-    return c.json(response);
+      const updated = await updateDestination(db, destId, body);
+      const response: ApiResponse<typeof updated> = { success: true, data: updated };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to update destination' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -425,37 +428,39 @@ tripsRoute.patch(
  */
 tripsRoute.delete(
   '/:tripId/destinations/:destId',
-  authMiddleware,
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
 
     if (isNaN(tripId) || isNaN(destId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDestination(db, tripId, destId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDestination(db, tripId, destId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Destination not found' };
-      return c.json(response, 404);
-    }
 
-    await deleteDestination(db, destId);
-    const response: ApiResponse = { success: true, message: 'Destination deleted' };
-    return c.json(response);
+      await deleteDestination(db, destId);
+      const response: ApiResponse<never> = { success: true, message: 'Destination deleted' };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to delete destination' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -469,37 +474,39 @@ tripsRoute.delete(
  */
 tripsRoute.get(
   '/:tripId/destinations/:destId/days',
-  authMiddleware,
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
 
     if (isNaN(tripId) || isNaN(destId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDestination(db, tripId, destId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDestination(db, tripId, destId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Destination not found' };
-      return c.json(response, 404);
-    }
 
-    const dayList = await getDaysByDestination(db, destId);
-    const response: ApiResponse = { success: true, data: dayList };
-    return c.json(response);
+      const dayList = await getDaysByDestination(db, destId);
+      const response: ApiResponse<typeof dayList> = { success: true, data: dayList };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to fetch days' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -509,39 +516,41 @@ tripsRoute.get(
  */
 tripsRoute.post(
   '/:tripId/destinations/:destId/days',
-  authMiddleware,
   zValidator('json', CreateDaySchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDestination(db, tripId, destId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDestination(db, tripId, destId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Destination not found' };
-      return c.json(response, 404);
-    }
 
-    const day = await createDay(db, destId, body);
-    const response: ApiResponse = { success: true, data: day };
-    return c.json(response, 201);
+      const day = await createDay(db, destId, body);
+      const response: ApiResponse<typeof day> = { success: true, data: day };
+      return c.json(response, 201);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to create day' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -551,40 +560,42 @@ tripsRoute.post(
  */
 tripsRoute.patch(
   '/:tripId/destinations/:destId/days/:dayId',
-  authMiddleware,
   zValidator('json', UpdateDaySchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const dayId = Number(c.req.param('dayId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDay(db, tripId, destId, dayId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDay(db, tripId, destId, dayId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Day not found' };
-      return c.json(response, 404);
-    }
 
-    const updated = await updateDay(db, dayId, body);
-    const response: ApiResponse = { success: true, data: updated };
-    return c.json(response);
+      const updated = await updateDay(db, dayId, body);
+      const response: ApiResponse<typeof updated> = { success: true, data: updated };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to update day' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -598,38 +609,40 @@ tripsRoute.patch(
  */
 tripsRoute.get(
   '/:tripId/destinations/:destId/days/:dayId/activities',
-  authMiddleware,
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const dayId = Number(c.req.param('dayId'));
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDay(db, tripId, destId, dayId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDay(db, tripId, destId, dayId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Day not found' };
-      return c.json(response, 404);
-    }
 
-    const acts = await getActivitiesByDay(db, dayId);
-    const response: ApiResponse = { success: true, data: acts };
-    return c.json(response);
+      const acts = await getActivitiesByDay(db, dayId);
+      const response: ApiResponse<typeof acts> = { success: true, data: acts };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to fetch activities' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -639,40 +652,42 @@ tripsRoute.get(
  */
 tripsRoute.post(
   '/:tripId/destinations/:destId/days/:dayId/activities',
-  authMiddleware,
   zValidator('json', CreateActivitySchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const dayId = Number(c.req.param('dayId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDay(db, tripId, destId, dayId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDay(db, tripId, destId, dayId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Day not found' };
-      return c.json(response, 404);
-    }
 
-    const act = await createActivity(db, dayId, body);
-    const response: ApiResponse = { success: true, data: act };
-    return c.json(response, 201);
+      const act = await createActivity(db, dayId, body);
+      const response: ApiResponse<typeof act> = { success: true, data: act };
+      return c.json(response, 201);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to create activity' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -682,11 +697,14 @@ tripsRoute.post(
  */
 tripsRoute.patch(
   '/:tripId/destinations/:destId/days/:dayId/activities/:actId',
-  authMiddleware,
   zValidator('json', UpdateActivitySchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const dayId = Number(c.req.param('dayId'));
@@ -694,29 +712,28 @@ tripsRoute.patch(
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId) || isNaN(actId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Activity not found' };
-      return c.json(response, 404);
-    }
 
-    const updated = await updateActivity(db, actId, body);
-    const response: ApiResponse = { success: true, data: updated };
-    return c.json(response);
+      const updated = await updateActivity(db, actId, body);
+      const response: ApiResponse<typeof updated> = { success: true, data: updated };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to update activity' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -726,39 +743,41 @@ tripsRoute.patch(
  */
 tripsRoute.delete(
   '/:tripId/destinations/:destId/days/:dayId/activities/:actId',
-  authMiddleware,
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const dayId = Number(c.req.param('dayId'));
     const actId = Number(c.req.param('actId'));
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId) || isNaN(actId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Activity not found' };
-      return c.json(response, 404);
-    }
 
-    await deleteActivity(db, actId);
-    const response: ApiResponse = { success: true, message: 'Activity deleted' };
-    return c.json(response);
+      await deleteActivity(db, actId);
+      const response: ApiResponse<never> = { success: true, message: 'Activity deleted' };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to delete activity' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -768,40 +787,42 @@ tripsRoute.delete(
  */
 tripsRoute.post(
   '/:tripId/destinations/:destId/days/:dayId/activities/reorder',
-  authMiddleware,
   zValidator('json', ReorderActivitiesSchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const dayId = Number(c.req.param('dayId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDay(db, tripId, destId, dayId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDay(db, tripId, destId, dayId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Day not found' };
-      return c.json(response, 404);
-    }
 
-    const reordered = await reorderActivities(db, dayId, body.ordered_ids);
-    const response: ApiResponse = { success: true, data: reordered };
-    return c.json(response);
+      const reordered = await reorderActivities(db, dayId, body.ordered_ids);
+      const response: ApiResponse<typeof reordered> = { success: true, data: reordered };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to reorder activities' };
+      return c.json(response, 500);
+    }
   },
 );
 
@@ -815,47 +836,49 @@ tripsRoute.post(
  */
 tripsRoute.get(
   '/:tripId/destinations/:destId/hotel',
-  authMiddleware,
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
 
     if (isNaN(tripId) || isNaN(destId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDestination(db, tripId, destId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDestination(db, tripId, destId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Destination not found' };
-      return c.json(response, 404);
+
+      const hotelRows = await db
+        .select()
+        .from(hotels)
+        .where(eq(hotels.destination_id, destId))
+        .limit(1);
+
+      if (!hotelRows[0]) {
+        const response: ApiResponse<never> = { success: false, error: 'Hotel not found' };
+        return c.json(response, 404);
+      }
+
+      const response: ApiResponse<typeof hotelRows[0]> = { success: true, data: hotelRows[0] };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to fetch hotel' };
+      return c.json(response, 500);
     }
-
-    const hotelRows = await db
-      .select()
-      .from(hotels)
-      .where(eq(hotels.destination_id, destId))
-      .limit(1);
-
-    if (!hotelRows[0]) {
-      const response: ApiResponse = { success: false, error: 'Hotel not found' };
-      return c.json(response, 404);
-    }
-
-    const response: ApiResponse = { success: true, data: hotelRows[0] };
-    return c.json(response);
   },
 );
 
@@ -865,39 +888,41 @@ tripsRoute.get(
  */
 tripsRoute.put(
   '/:tripId/destinations/:destId/hotel',
-  authMiddleware,
   zValidator('json', UpsertHotelSchema),
   async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
     const db = getDb(c.env.DATABASE_URL);
-    const jwtUser = c.get('user');
+    const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId)) {
-      const response: ApiResponse = { success: false, error: 'Invalid id' };
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
       return c.json(response, 400);
     }
 
-    const userId = await resolveUserId(db, jwtUser.sub);
-    if (userId === undefined) {
-      const response: ApiResponse = { success: false, error: 'User not found' };
-      return c.json(response, 404);
-    }
-
-    const result = await resolveDestination(db, tripId, destId, userId);
-    if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
+    try {
+      const result = await resolveDestination(db, tripId, destId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+        return c.json(response, 404);
       }
-      const response: ApiResponse = { success: false, error: 'Destination not found' };
-      return c.json(response, 404);
-    }
 
-    const hotel = await upsertHotel(db, destId, body);
-    const response: ApiResponse = { success: true, data: hotel };
-    return c.json(response);
+      const hotel = await upsertHotel(db, destId, body);
+      const response: ApiResponse<typeof hotel> = { success: true, data: hotel };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to upsert hotel' };
+      return c.json(response, 500);
+    }
   },
 );
 
