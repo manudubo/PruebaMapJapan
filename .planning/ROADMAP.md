@@ -27,7 +27,17 @@ Four phases from security foundation through trip builder, public sharing, and p
   3. Backend rejects CORS preflight from unlisted origins and never echoes `*` with credentials
   4. JWT validation accepts only tokens with audience `japan-trip-frontend`, not `account`
   5. `wrangler.toml` contains no D1 binding
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Wave 0 frontend test stubs: dom.test.ts + popup.test.ts (RED)
+- [ ] 01-02-PLAN.md — Wave 0 backend test stubs: cors.test.ts + keycloak.test.ts (RED)
+- [ ] 01-03-PLAN.md — Wave 2: Create dom.ts helper + install dompurify
+- [ ] 01-04-PLAN.md — Wave 2: Fix CORS null-origin bug + remove stale D1 wrangler binding
+- [ ] 01-05-PLAN.md — Wave 2: JWT audience hardening + Keycloak realm re-import (manual checkpoint)
+- [ ] 01-06-PLAN.md — Wave 3: Replace all innerHTML sites in tripDetail.ts (SEC-01 + SEC-02)
+- [ ] 01-07-PLAN.md — Wave 3: Replace all innerHTML sites in map.ts (SEC-01 + SEC-02)
+- [ ] 01-08-PLAN.md — Wave 3: Replace all innerHTML sites in dashboard.ts (SEC-01)
 
 ### Phase 2: Trip Builder
 **Goal**: Authenticated users can create and manage a complete trip itinerary from the web
@@ -70,7 +80,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security Hardening | 0/? | Not started | - |
+| 1. Security Hardening | 0/8 | Not started | - |
 | 2. Trip Builder | 0/? | Not started | - |
 | 3. Public Sharing | 0/? | Not started | - |
 | 4. Passkeys | 0/? | Not started | - |
