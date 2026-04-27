@@ -14,6 +14,7 @@ import { initKeycloak, getUserInfo, login } from '@/auth/keycloak';
 import { getMyTrips, getMe } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
+import { setText, setStyle } from '@/modules/dom';
 
 // ---------------------------------------------------------------------------
 // Render helpers
@@ -26,50 +27,85 @@ function formatDateRange(start: string | null, end: string | null): string {
   return end ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
 }
 
-function renderTripCard(trip: ApiTrip): string {
+function renderTripCard(trip: ApiTrip): HTMLElement {
   const destCount = trip.destinations?.length ?? 0;
   const dateRange = formatDateRange(trip.start_date, trip.end_date);
-  const href = `trip.html?tripId=${trip.id}`;
-  const badgeHtml = trip.is_public
-    ? '<span class="trip-card-badge trip-card-badge--public">Público</span>'
-    : '';
 
-  const coverStyle = trip.cover_image_url
-    ? `background-image:url('${trip.cover_image_url}');background-size:cover;background-position:center;`
-    : 'background: linear-gradient(135deg, var(--accent-subtle,#e8f0fe) 0%, var(--border-color,#e5e5ea) 100%);';
+  const card = document.createElement('a');
+  card.href = `trip.html?tripId=${trip.id}`;
+  card.className = 'trip-card';
+  card.setAttribute('aria-label', `Ver viaje: ${trip.name}`);
 
-  return `
-    <a href="${href}" class="trip-card" aria-label="Ver viaje: ${trip.name}">
-      <div class="trip-card-cover" style="${coverStyle}">
-        ${badgeHtml}
-      </div>
-      <div class="trip-card-body">
-        <h3 class="trip-card-title">${trip.name}</h3>
-        ${trip.description ? `<p class="trip-card-desc">${trip.description}</p>` : ''}
-        <div class="trip-card-meta">
-          ${dateRange ? `<span class="trip-card-dates">${dateRange}</span>` : ''}
-          <span class="trip-card-dests">${destCount} destino${destCount !== 1 ? 's' : ''}</span>
-        </div>
-      </div>
-    </a>
-  `;
+  const cover = document.createElement('div');
+  cover.className = 'trip-card-cover';
+  if (trip.cover_image_url) {
+    setStyle(cover, 'background-image', `url('${trip.cover_image_url}')`);
+    setStyle(cover, 'background-size', 'cover');
+    setStyle(cover, 'background-position', 'center');
+  } else {
+    setStyle(cover, 'background', 'linear-gradient(135deg, var(--accent-subtle,#e8f0fe) 0%, var(--border-color,#e5e5ea) 100%)');
+  }
+  if (trip.is_public) {
+    const badge = document.createElement('span');
+    badge.className = 'trip-card-badge trip-card-badge--public';
+    badge.textContent = 'Público';
+    cover.appendChild(badge);
+  }
+  card.appendChild(cover);
+
+  const body = document.createElement('div');
+  body.className = 'trip-card-body';
+
+  const title = document.createElement('h3');
+  title.className = 'trip-card-title';
+  setText(title, trip.name);
+  body.appendChild(title);
+
+  if (trip.description) {
+    const desc = document.createElement('p');
+    desc.className = 'trip-card-desc';
+    setText(desc, trip.description);
+    body.appendChild(desc);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'trip-card-meta';
+  if (dateRange) {
+    const dates = document.createElement('span');
+    dates.className = 'trip-card-dates';
+    dates.textContent = dateRange;
+    meta.appendChild(dates);
+  }
+  const dests = document.createElement('span');
+  dests.className = 'trip-card-dests';
+  dests.textContent = `${destCount} destino${destCount !== 1 ? 's' : ''}`;
+  meta.appendChild(dests);
+  body.appendChild(meta);
+  card.appendChild(body);
+
+  return card;
 }
 
 function renderGrid(trips: ApiTrip[]): void {
   const grid = document.getElementById('trips-grid');
   if (!grid) return;
 
+  grid.innerHTML = '';
+
   if (trips.length === 0) {
-    grid.innerHTML = `
-      <div class="trips-empty">
-        <p>Todavía no tenés ningún viaje guardado.</p>
-        <p>¡Creá tu primer itinerario con el botón de arriba!</p>
-      </div>
-    `;
+    const empty = document.createElement('div');
+    empty.className = 'trips-empty';
+    const p1 = document.createElement('p');
+    p1.textContent = 'Todavía no tenés ningún viaje guardado.';
+    const p2 = document.createElement('p');
+    p2.textContent = '¡Creá tu primer itinerario con el botón de arriba!';
+    empty.appendChild(p1);
+    empty.appendChild(p2);
+    grid.appendChild(empty);
     return;
   }
 
-  grid.innerHTML = trips.map((t) => renderTripCard(t)).join('');
+  trips.forEach((t) => grid.appendChild(renderTripCard(t)));
 }
 
 function renderUserGreeting(user: ApiUser | null): void {
@@ -190,8 +226,13 @@ async function init(): Promise<void> {
       trips.forEach((t) => extendSearchIndexWithApiTrip(t));
     } catch (err) {
       const grid = document.getElementById('trips-grid');
-      if (grid)
-        grid.innerHTML = `<p class="trips-error">No se pudieron cargar los viajes: ${(err as Error).message}</p>`;
+      if (grid) {
+        grid.innerHTML = '';
+        const errP = document.createElement('p');
+        errP.className = 'trips-error';
+        setText(errP, `No se pudieron cargar los viajes: ${(err as Error).message}`);
+        grid.appendChild(errP);
+      }
     }
   } else {
     // Guest mode — show login prompt (grid is hidden by setupAuthButtons)
