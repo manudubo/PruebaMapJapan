@@ -15,7 +15,7 @@ export const corsMiddleware = cors({
       'http://localhost:5173',
     ];
     if (!origin || allowed.includes(origin)) {
-      return origin ?? '*';
+      return origin ?? null;
     }
     return null;
   },
@@ -23,5 +23,4 @@ export const corsMiddleware = cors({
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length'],
   maxAge: 86400,
-  credentials: true,
 });
