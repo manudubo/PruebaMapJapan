@@ -21,6 +21,8 @@ import { apiTripToCityData } from '@/modules/tripAdapter';
 import { getMapsUrl } from '@/data/maps';
 import { createDirectionsUrl, announceToScreenReader } from '@/modules/utils';
 import type { ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
+import DOMPurify from 'dompurify';
+import { setText, setStyle } from '@/modules/dom';
 
 // ---------------------------------------------------------------------------
 // URL params
@@ -47,18 +49,16 @@ function buildDestTabs(trip: ApiTrip, activeIndex: number): void {
 
   const sorted = trip.destinations.slice().sort((a, b) => a.order_index - b.order_index);
 
-  tabsEl.innerHTML = sorted
-    .map(
-      (dest, i) => `
-    <button
-      class="dest-tab${i === activeIndex ? ' is-active' : ''}"
-      data-dest-index="${i}"
-      role="tab"
-      aria-selected="${i === activeIndex}"
-    >${dest.city_name}</button>
-  `
-    )
-    .join('');
+  tabsEl.innerHTML = '';
+  sorted.forEach((dest, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'dest-tab' + (i === activeIndex ? ' is-active' : '');
+    btn.dataset.destIndex = String(i);
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', String(i === activeIndex));
+    setText(btn, dest.city_name);
+    tabsEl.appendChild(btn);
+  });
 
   tabsEl.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('.dest-tab') as HTMLElement | null;
@@ -88,9 +88,13 @@ function destroyMap(): void {
 
 function createMarkerIcon(label: string | number, color: string, isOptional = false): L.DivIcon {
   const cls = isOptional ? 'numbered-marker optional' : 'numbered-marker';
+  const div = document.createElement('div');
+  div.className = cls;
+  setStyle(div, 'background', color);
+  div.textContent = String(label);
   return L.divIcon({
     className: 'custom-marker',
-    html: `<div class="${cls}" style="background:${color}">${label}</div>`,
+    html: div,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
   });
@@ -105,7 +109,7 @@ function createHotelIcon(): L.DivIcon {
   });
 }
 
-function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): string {
+export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): string {
   const badge = activity.optional ? `<span class="optional-badge">Opción ${activity.optional}</span>` : '';
   let html = `<div class="day-label">${day.label}${badge}</div><h4>${activity.name}</h4>`;
   if (activity.notes) html += `<p>${activity.notes}</p>`;
@@ -122,10 +126,10 @@ function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): strin
       </a>
     </div>`;
   }
-  return html;
+  return DOMPurify.sanitize(html);
 }
 
-function buildHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
+export function buildHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
   let html = `<h4>${hotel.name}</h4><p>Alojamiento</p>`;
   if (mapsUrl && hotel.coords) {
     const dirUrl = createDirectionsUrl(hotel.coords);
@@ -140,7 +144,7 @@ function buildHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
       </a>
     </div>`;
   }
-  return html;
+  return DOMPurify.sanitize(html);
 }
 
 function initMap(data: CityData): void {
@@ -297,13 +301,23 @@ function generateLegend(data: CityData): void {
     dayGroup.className = 'day-group' + (day.hasOptions ? ' has-options' : '');
     dayGroup.dataset.day = dateKey;
     dayGroup.id = `day-${dateKey}`;
-    const badge = day.hasOptions ? '<span class="day-group-badge">Opciones</span>' : '';
-    dayGroup.innerHTML = `
-      <div class="day-group-header">
-        <div class="day-group-color" style="background:${day.color}"></div>
-        <span class="day-group-label">${day.label}</span>${badge}
-      </div>
-    `;
+    const header = document.createElement('div');
+    header.className = 'day-group-header';
+    const colorDot = document.createElement('div');
+    colorDot.className = 'day-group-color';
+    setStyle(colorDot, 'background', day.color);
+    header.appendChild(colorDot);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'day-group-label';
+    setText(labelSpan, day.label);
+    header.appendChild(labelSpan);
+    if (day.hasOptions) {
+      const badge = document.createElement('span');
+      badge.className = 'day-group-badge';
+      badge.textContent = 'Opciones';
+      header.appendChild(badge);
+    }
+    dayGroup.appendChild(header);
     const list = document.createElement('ul');
     list.className = 'day-activities';
     list.setAttribute('role', 'list');
@@ -327,28 +341,47 @@ function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement
       ? activity.notes.substring(0, 50) + '...'
       : activity.notes
     : '';
-  let actionsHtml = '';
+  const markerDiv = document.createElement('div');
+  markerDiv.className = 'legend-marker';
+  setStyle(markerDiv, 'background', String(markerColor));
+  setText(markerDiv, String(markerLabel));
+  item.appendChild(markerDiv);
+
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'legend-content';
+  const nameEl = document.createElement('strong');
+  setText(nameEl, activity.name);
+  contentDiv.appendChild(nameEl);
+  if (noteText) {
+    const noteEl = document.createElement('small');
+    setText(noteEl, noteText);
+    contentDiv.appendChild(noteEl);
+  }
+  item.appendChild(contentDiv);
+
   if (!activity.isGeneric && mapsUrl && activity.coords) {
     const dirUrl = createDirectionsUrl(activity.coords);
-    actionsHtml = `
-      <div class="legend-actions">
-        <a href="${mapsUrl}" target="_blank" rel="noopener" class="legend-action-btn" title="Ver en Google Maps">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        </a>
-        <a href="${dirUrl}" target="_blank" rel="noopener" class="legend-action-btn directions" title="Cómo llegar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-        </a>
-      </div>
-    `;
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'legend-actions';
+    const mapsLink = document.createElement('a');
+    mapsLink.href = mapsUrl;
+    mapsLink.target = '_blank';
+    mapsLink.rel = 'noopener';
+    mapsLink.className = 'legend-action-btn';
+    mapsLink.title = 'Ver en Google Maps';
+    mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+    actionsDiv.appendChild(mapsLink);
+    const dirLink = document.createElement('a');
+    dirLink.href = dirUrl;
+    dirLink.target = '_blank';
+    dirLink.rel = 'noopener';
+    dirLink.className = 'legend-action-btn directions';
+    dirLink.title = 'Cómo llegar';
+    dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
+    actionsDiv.appendChild(dirLink);
+    item.appendChild(actionsDiv);
   }
-  item.innerHTML = `
-    <div class="legend-marker" style="background:${markerColor}">${markerLabel}</div>
-    <div class="legend-content">
-      <strong>${activity.name}</strong>
-      ${noteText ? `<small>${noteText}</small>` : ''}
-    </div>
-    ${actionsHtml}
-  `;
+
   return item;
 }
 
@@ -356,23 +389,40 @@ function updateHotelInfo(hotel: Hotel): void {
   const hotelInfo = document.getElementById('hotel-info');
   if (!hotelInfo || !hotel) return;
   const mapsUrl = getMapsUrl(hotel.name);
-  let actionsHtml = '';
+
+  hotelInfo.innerHTML = '';
+  const markerDiv = document.createElement('div');
+  markerDiv.className = 'marker';
+  markerDiv.textContent = 'H';
+  hotelInfo.appendChild(markerDiv);
+
+  const nameSpan = document.createElement('span');
+  setText(nameSpan, hotel.name);
+  hotelInfo.appendChild(nameSpan);
+
   if (mapsUrl && hotel.coords) {
     const dirUrl = createDirectionsUrl(hotel.coords);
-    actionsHtml = `
-      <div class="legend-actions">
-        <a href="${mapsUrl}" target="_blank" rel="noopener" class="legend-action-btn" title="Ver en Google Maps">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        </a>
-        <a href="${dirUrl}" target="_blank" rel="noopener" class="legend-action-btn directions" title="Cómo llegar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-        </a>
-      </div>
-    `;
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'legend-actions';
+    const mapsLink = document.createElement('a');
+    mapsLink.href = mapsUrl;
+    mapsLink.target = '_blank';
+    mapsLink.rel = 'noopener';
+    mapsLink.className = 'legend-action-btn';
+    mapsLink.title = 'Ver en Google Maps';
+    mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+    actionsDiv.appendChild(mapsLink);
+    const dirLink = document.createElement('a');
+    dirLink.href = dirUrl;
+    dirLink.target = '_blank';
+    dirLink.rel = 'noopener';
+    dirLink.className = 'legend-action-btn directions';
+    dirLink.title = 'Cómo llegar';
+    dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
+    actionsDiv.appendChild(dirLink);
+    hotelInfo.appendChild(actionsDiv);
   }
-  hotelInfo.innerHTML = `<div class="marker">H</div><span>${hotel.name}</span>${actionsHtml}`;
 
-  // Move hotel info to top of legend
   const legend = document.querySelector('.legend');
   if (legend) legend.insertBefore(hotelInfo, legend.firstChild);
 }
@@ -410,12 +460,21 @@ function loadDestination(trip: ApiTrip, destIndex: number): void {
 function showError(message: string): void {
   const main = document.getElementById('main-content');
   if (!main) return;
-  main.innerHTML = `
-    <div class="page-card" style="padding:32px;text-align:center;">
-      <p style="color:var(--text-secondary,#515154)">${message}</p>
-      <a href="dashboard.html" style="color:var(--accent,#0071e3)">Volver al dashboard</a>
-    </div>
-  `;
+  main.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'page-card';
+  card.style.padding = '32px';
+  card.style.textAlign = 'center';
+  const p = document.createElement('p');
+  p.style.color = 'var(--text-secondary,#515154)';
+  setText(p, message);
+  card.appendChild(p);
+  const link = document.createElement('a');
+  link.href = 'dashboard.html';
+  link.style.color = 'var(--accent,#0071e3)';
+  link.textContent = 'Volver al dashboard';
+  card.appendChild(link);
+  main.appendChild(card);
 }
 
 // ---------------------------------------------------------------------------
