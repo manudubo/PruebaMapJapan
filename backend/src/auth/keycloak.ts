@@ -86,6 +86,12 @@ async function importRsaPublicKey(jwk: JwkKey): Promise<CryptoKey> {
   );
 }
 
+export function validateAudience(aud: string | string[] | undefined, valid: string[]): boolean {
+  if (!aud) return false;
+  const audArray = Array.isArray(aud) ? aud : [aud];
+  return audArray.some((a) => valid.includes(a));
+}
+
 // ---------------------------------------------------------------------------
 // Fetch JWKS from Keycloak and cache imported CryptoKeys
 // ---------------------------------------------------------------------------
@@ -189,15 +195,10 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
     throw new Error(`JWT issuer mismatch: got "${payload.iss}", expected "${expectedIssuer}"`);
   }
 
-  // Validate audience — must include japan-trip-api or japan-trip-frontend
-  const validAudiences = ['japan-trip-api', 'japan-trip-frontend', 'account'];
+  const validAudiences = ['japan-trip-frontend'];
   const aud = payload.aud;
-  if (aud) {
-    const audArray = Array.isArray(aud) ? aud : [aud];
-    const hasValidAud = audArray.some((a) => validAudiences.includes(a));
-    if (!hasValidAud) {
-      throw new Error(`JWT audience not accepted: ${JSON.stringify(aud)}`);
-    }
+  if (!validateAudience(aud, validAudiences)) {
+    throw new Error(`JWT audience not accepted: ${JSON.stringify(aud)}`);
   }
 
   // Validate required claims
