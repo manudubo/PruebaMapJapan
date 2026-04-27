@@ -9,10 +9,3 @@ KEYCLOAK_REALM = ""
 
 # Neon database connection string is provided via secret:
 # wrangler secret put DATABASE_URL
-
-[[d1_databases]]
-# Placeholder — actual database is Neon (PostgreSQL) via DATABASE_URL env var.
-# Remove or replace this block if you add a D1 database in the future.
-binding = "DB_PLACEHOLDER"
-database_name = "placeholder"
-database_id = "placeholder"
