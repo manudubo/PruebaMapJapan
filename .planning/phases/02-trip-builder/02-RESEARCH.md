@@ -493,7 +493,7 @@ Also: `ApiActivity`, `ApiHotel`, `ApiDay` in `types/index.ts` are missing `time`
 
 **What goes wrong:** Running `npm run db:generate` fails or generates a migration that attempts to recreate existing tables rather than adding only the two new columns.
 **Why it happens:** `backend/src/db/migrations/` contains only `0000_initial.sql` — no `meta/` subdirectory was found [VERIFIED: listing migrations directory]. The `meta/` directory holds drizzle-kit's snapshot of the current schema state. Without it, drizzle-kit cannot diff against the previous state and may behave incorrectly.
-**How to avoid:** Before running `db:generate`, verify the local database matches the schema defined in `0000_initial.sql`. If `meta/` is missing, run `drizzle-kit generate` against a database that already has the initial schema applied — drizzle-kit will create `meta/` and the snapshot on first run. Inspect the generated SQL before running `db:migrate` to confirm it only adds the two new columns.
+**How to avoid:** Two safe options: (1) Hand-write `0001_add_hotel_url_activity_time.sql` as two `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements and skip `db:generate` entirely — safest when `meta/` is absent. (2) Run `drizzle-kit introspect` first (reads the live DB, creates `meta/` and a schema snapshot), then run `db:generate` — drizzle-kit can now diff against the snapshot and will emit only the two new `ALTER TABLE` statements. Either way, inspect the generated SQL before running `db:migrate` to confirm it contains no `CREATE TABLE` statements.
 **Warning signs:** Generated migration SQL contains `CREATE TABLE` statements for tables that already exist; `db:migrate` errors with "table already exists".
 
 ---
