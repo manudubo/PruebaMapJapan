@@ -49,8 +49,17 @@ Plans:
   3. User can add, edit, and delete a hotel per destination (name, URL, check-in/out)
   4. User can add, edit, delete, and reorder activities; each activity accepts a time value stored in the database
   5. User can toggle a trip public or private from the edit page
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 8 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Wave 0: Backend schema + migration [BLOCKING] + Zod + deleteHotel query + DELETE day/hotel routes (TRIP-04, TRIP-05, TRIP-08)
+- [ ] 02-02-PLAN.md — Wave 0: Frontend client.ts 6 missing functions + ApiHotel.url + ApiActivity.time (TRIP-03,04,05,06)
+- [ ] 02-03-PLAN.md — Wave 0: Playwright test stubs — trip-edit.spec.ts + geocoder.spec.ts (all requirements)
+- [ ] 02-04-PLAN.md — Wave 1: trip-edit.html scaffold + metadata form + auth guard + geocoder module + dashboard edit link (TRIP-01, TRIP-02, TRIP-07, SHARE-01)
+- [ ] 02-05-PLAN.md — Wave 2: Destinations CRUD section — modal + geocoder + accordion (TRIP-03)
+- [ ] 02-06-PLAN.md — Wave 2: Hotels CRUD section — upsert/delete modal + URL as plain text (TRIP-04)
+- [ ] 02-07-PLAN.md — Wave 2: Days CRUD section — color picker + bulk generate smart merge (TRIP-05)
+- [ ] 02-08-PLAN.md — Wave 2: Activities CRUD + reorder POST with ordered_ids (TRIP-06)
 
 ### Phase 3: Public Sharing
 **Goal**: Trip owners can share a stable public link; guests can view trips without logging in
@@ -81,6 +90,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security Hardening | 0/8 | Not started | - |
-| 2. Trip Builder | 0/? | Not started | - |
+| 2. Trip Builder | 0/8 | Not started | - |
 | 3. Public Sharing | 0/? | Not started | - |
 | 4. Passkeys | 0/? | Not started | - |
