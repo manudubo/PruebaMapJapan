@@ -215,6 +215,9 @@ if (document.readyState === 'loading') {
 
 ### Pattern 2: Overlay / Modal Management
 
+> **CSS location:** `.overlay`, `.modal`, `.btn`, `.btn-primary`, `.btn-secondary`, `.form-group`, `.form-row`, `.form-actions`, `.error-msg` are defined in an inline `<style>` block inside `dashboard.html` — NOT in `main.css`. [VERIFIED: reading dashboard.html]
+> `trip-edit.html` must copy this `<style>` block verbatim (or both pages must extract it to `main.css` in a Wave 0 task).
+
 ```typescript
 // Source: frontend/dashboard.html + dashboard.ts (verified by reading files)
 // One modal element per entity type, reused for both add and edit
@@ -461,11 +464,12 @@ Also: `ApiActivity`, `ApiHotel`, `ApiDay` in `types/index.ts` are missing `time`
 **How to avoid:** Each entity is saved independently (separate forms/modals). Don't chain entity creation in a single transaction from the frontend. Show inline `.error-msg` per form; let user retry.
 **Warning signs:** Partial state visible on page refresh.
 
-### Pitfall 5: `getTrip` Returns Nested Data But Not Hotel
+### Pitfall 5: Destination Hotel Is Optional — Must Null-Check
 
-**What goes wrong:** `GET /api/trips/:tripId` returns destinations with days and activities, but `ApiDestination.hotel` may be undefined if no hotel exists. Frontend code assumes hotel is always present.
-**Why it happens:** The hotel is a 0-or-1 relationship. `ApiHotel` is typed as optional in `types/index.ts`.
-**How to avoid:** Always null-check `destination.hotel` before rendering hotel section. Show "Sin hotel asignado." empty state per UI-SPEC copywriting.
+**What goes wrong:** Frontend code assumes `destination.hotel` is always present and tries to render it unconditionally → TypeError at runtime.
+**Why it happens:** `getTripById` uses Drizzle `with: { hotel: true }` which returns the hotel object when it exists and `null`/`undefined` when no hotel has been created for that destination [VERIFIED: reading `backend/src/db/queries/trips.ts`]. `ApiHotel` is typed as optional (`hotel?: ApiHotel`) in `types/index.ts`.
+**How to avoid:** Always null-check `destination.hotel` before rendering hotel section. Show "Sin hotel asignado." empty state per UI-SPEC copywriting when `destination.hotel` is absent.
+**Warning signs:** TypeError on page load for any destination that has no hotel yet.
 
 ### Pitfall 6: Reorder PATCH Uses `POST .../activities/reorder` (Not PATCH)
 
@@ -484,6 +488,13 @@ Also: `ApiActivity`, `ApiHotel`, `ApiDay` in `types/index.ts` are missing `time`
 **What goes wrong:** Activity modal (D-03 scope: "name, time, notes, optional geocoder") tries to send `is_optional` — field is not in the modal spec.
 **Why it happens:** The word "optional" in D-03 refers to the geocoder field being optional, not an `is_optional` boolean.
 **How to avoid:** Activity create/edit forms do NOT include `is_optional`. Default to `false` on all creates from this UI. The field exists in the schema for legacy data only.
+
+### Pitfall 9: Drizzle `meta/` Snapshot Directory Absent
+
+**What goes wrong:** Running `npm run db:generate` fails or generates a migration that attempts to recreate existing tables rather than adding only the two new columns.
+**Why it happens:** `backend/src/db/migrations/` contains only `0000_initial.sql` — no `meta/` subdirectory was found [VERIFIED: listing migrations directory]. The `meta/` directory holds drizzle-kit's snapshot of the current schema state. Without it, drizzle-kit cannot diff against the previous state and may behave incorrectly.
+**How to avoid:** Before running `db:generate`, verify the local database matches the schema defined in `0000_initial.sql`. If `meta/` is missing, run `drizzle-kit generate` against a database that already has the initial schema applied — drizzle-kit will create `meta/` and the snapshot on first run. Inspect the generated SQL before running `db:migrate` to confirm it only adds the two new columns.
+**Warning signs:** Generated migration SQL contains `CREATE TABLE` statements for tables that already exist; `db:migrate` errors with "table already exists".
 
 ---
 
@@ -688,19 +699,16 @@ ASVS enforcement is enabled (no explicit `false` in config).
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | Local Docker Postgres is available for running `drizzle-kit migrate` during development | Environment Availability | Developer must use Neon prod URL to migrate — acceptable fallback |
-| A2 | `getTrip()` response from backend already returns the full nested structure (destinations → hotel, days, activities) | Architecture | If hotel is not included in `getTripById` query response, a separate `GET /hotel` call is needed per destination |
 | A3 | Nominatim search works from the browser without CORS issues | Geocoder section | OSM's Nominatim sets permissive CORS headers; if not, calls must be proxied through backend |
+
+**Resolved during research:**
+- A2 (hotel nesting): `getTripById` uses Drizzle `with: { hotel: true }` — hotel IS included in the `GET /api/trips/:tripId` response. No separate hotel fetch needed per destination. [VERIFIED: reading `backend/src/db/queries/trips.ts`]
 
 ---
 
 ## Open Questions
 
-1. **Does `getTripById` return hotel nested in destination?**
-   - What we know: `getTripById` is in `backend/src/db/queries/trips.ts` (not read during research).
-   - What's unclear: Whether the response includes `destination.hotel` already or requires a separate fetch.
-   - Recommendation: Read `queries/trips.ts` during planning. If hotel is not nested, add a `getHotel(tripId, destId)` call after loading the trip for each destination.
-
-2. **"Generar todos los días" date boundary: inclusive or exclusive of end_date?**
+1. **"Generar todos los días" date boundary: inclusive or exclusive of end_date?**
    - What we know: Destination has `start_date` and `end_date`.
    - What's unclear: Should a 3-night stay (check-in Jan 1, check-out Jan 3) generate 3 days (1, 2, 3) or 2 days (1, 2)?
    - Recommendation: Inclusive of both start and end dates — a user staying Jan 1-3 expects 3 days in their itinerary.
@@ -712,14 +720,16 @@ ASVS enforcement is enabled (no explicit `false` in config).
 ### Primary (HIGH confidence)
 - `backend/src/db/schema.ts` — Drizzle schema, all column types verified
 - `backend/src/routes/trips.ts` — All REST endpoints, confirmed missing DELETE day and hotel routes
+- `backend/src/db/queries/trips.ts` — `getTripById` Drizzle relational query; hotel IS nested via `with: { hotel: true }`
 - `backend/src/validation/schemas.ts` — Zod schemas, confirmed missing `url` and `time` fields
 - `frontend/src/api/client.ts` — API client functions, confirmed missing 6 functions
 - `frontend/src/pages/tripDetail.ts` — Reference page structure template
 - `frontend/src/pages/dashboard.ts` — Modal management pattern template
-- `frontend/dashboard.html` — CSS classes: `.overlay`, `.modal`, `.btn`, `.form-group`, `.error-msg`
+- `frontend/dashboard.html` — CSS classes (inline `<style>` tag): `.overlay`, `.modal`, `.btn`, `.form-group`, `.error-msg`
 - `frontend/vite.config.ts` — MPA entry points, rollupOptions.input pattern
 - `frontend/src/modules/dom.ts` — `setText`/`setStyle` helpers
 - `frontend/src/types/index.ts` — `ApiTrip`, `ApiDestination`, `ApiDay`, `ApiActivity`, `ApiHotel` types
+- `backend/src/db/migrations/` — directory listing: only `0000_initial.sql` present, no `meta/` subfolder
 - `.planning/phases/02-trip-builder/02-CONTEXT.md` — Locked decisions D-01 through D-04
 - `.planning/phases/02-trip-builder/02-UI-SPEC.md` — Full visual and interaction contract
 - [Nominatim official docs](https://nominatim.org/release-docs/latest/api/Search/) — endpoint, parameters, response shape
@@ -743,6 +753,8 @@ ASVS enforcement is enabled (no explicit `false` in config).
 - Client.ts gaps: HIGH — confirmed by reading client.ts in full
 - Geocoder: HIGH — Nominatim docs + usage policy verified from official sources
 - Validation architecture: HIGH — Playwright config and existing test patterns verified
+- Hotel nesting: HIGH — verified by reading `backend/src/db/queries/trips.ts`
+- Drizzle meta/ status: HIGH — verified by listing migrations directory
 
 **Research date:** 2026-05-02
 **Valid until:** 2026-06-01 (stable stack; Nominatim policy rarely changes)
