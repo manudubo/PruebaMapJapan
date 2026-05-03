@@ -32,6 +32,7 @@ export default defineConfig({
         dashboard: resolve(__dirname, 'dashboard.html'),
         trip: resolve(__dirname, 'trip.html'),
         profile: resolve(__dirname, 'profile.html'),
+        'trip-edit': resolve(__dirname, 'trip-edit.html'),
       },
       output: {
         manualChunks: {

@@ -83,6 +83,18 @@ function renderTripCard(trip: ApiTrip): HTMLElement {
   body.appendChild(meta);
   card.appendChild(body);
 
+  // Edit link (TRIP-01)
+  const editRow = document.createElement('div');
+  editRow.className = 'trip-card-actions';
+  editRow.style.cssText = 'padding: 8px 16px 12px; border-top: 1px solid var(--border-color,rgba(0,0,0,0.08))';
+  const editLink = document.createElement('a');
+  editLink.href = `trip-edit.html?tripId=${trip.id}`;
+  editLink.className = 'btn btn-secondary';
+  editLink.style.cssText = 'font-size: 13px; padding: 6px 12px; text-decoration: none;';
+  editLink.textContent = 'Editar';
+  editRow.appendChild(editLink);
+  card.appendChild(editRow);
+
   return card;
 }
 
