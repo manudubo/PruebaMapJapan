@@ -107,6 +107,7 @@ export const hotels = pgTable('hotels', {
   lng: numeric('lng', { precision: 10, scale: 7 }),
   check_in_date: date('check_in_date'),
   check_out_date: date('check_out_date'),
+  url: text('url'),
 });
 
 export const hotelsRelations = relations(hotels, ({ one }) => ({
@@ -154,6 +155,7 @@ export const activities = pgTable('activities', {
   is_generic: boolean('is_generic').notNull().default(false),
   maps_url: text('maps_url'),
   order_index: integer('order_index').notNull().default(0),
+  time: text('time'),
 });
 
 export const activitiesRelations = relations(activities, ({ one }) => ({
