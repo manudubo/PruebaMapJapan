@@ -1,8 +1,8 @@
 # Stack Research
 
 **Project:** TravelMap (PruebaMapJapan)
-**Researched:** 2026-04-25
-**Note:** WebSearch, WebFetch, and Bash tools were restricted during this session. All web-verifiable facts (tier limits, pricing, patch versions) are flagged LOW confidence and sourced from training data (cutoff Aug 2025). Code-derived findings are HIGH confidence.
+**Researched:** 2026-04-26 (updated for v1.0 milestone)
+**Note:** Version numbers verified via `npm show` against the live registry. Keycloak Account REST API usage verified against codebase. All DOMPurify findings HIGH confidence (npm registry + codebase-verified). WebSearch was unavailable; supplemental web claims are flagged.
 
 ---
 
@@ -25,308 +25,205 @@
 
 ---
 
-## Key Questions Answered
+## v1.0 Milestone: New Library Additions
 
-### 1. Keycloak 25 Passkeys/WebAuthn Configuration
+### 1. DOMPurify — XSS Sanitization
 
-**What exists in the codebase:**
+**Add to:** `frontend/` (runtime dependency)
 
-The realm-export.json already has a well-structured passkeys setup:
-- `webAuthnPolicyPasswordless*` block is configured: `authenticatorAttachment: "platform"`, `requireResidentKey: "Yes"`, `userVerificationRequirement: "required"`, algorithm `ES256`
-- Custom auth flows `browser-passkey` and `passkey-forms` are defined, with `webauthn-authenticator-passwordless` as REQUIRED
-- Registration is done via `keycloak.login({ action: 'webauthn-register', redirectUri })` in `profile.ts` — this is the correct Keycloak 25 pattern
+```bash
+npm install dompurify@3.4.1
+npm install -D @types/dompurify@3.2.0
+```
 
-**The one critical gap found in the config:**
+**Why 3.x:** DOMPurify 3.x ships its own TypeScript types in `dist/purify.es.d.mts` (verified via `npm show dompurify@3.4.1`). The `@types/dompurify` package is a separate DefinitelyTyped mirror — pin `3.2.0` to match the `3.x` API. If both are installed, `dompurify`'s own types take precedence for the ESM path; `@types/dompurify` is a fallback safety net.
 
-`webAuthnPolicyPasswordlessRpId` is blank (`""`) in realm-export.json. This works for localhost but **will break in production**. The WebAuthn RP ID must exactly match the effective domain of the page that initiates the ceremony. For Railway-hosted Keycloak, this should be the Railway-assigned domain (e.g., `your-app.up.railway.app`) — or ideally the custom domain if one is configured.
+**Why it's needed:** `tripDetail.ts`, `dashboard.ts`, `profile.ts`, `map.ts`, `widgets.ts`, and `SearchBar.ts` all use `innerHTML` with user-controlled strings interpolated directly into templates — e.g., `trip.name`, `activity.name`, `hotel.name`, `day.label`. These values come from the Neon DB via the API and are set by the logged-in user during trip creation. An attacker could store `<script>` or `<img onerror=...>` payloads in any name/label field and have them execute for any viewer of that trip.
 
-**Other gaps:**
+**Usage pattern for Vanilla TS (no SSR, browser-only):**
 
-- `browserFlow` in realm-export.json is `"browser"` (standard), not `"browser-passkey"`. The passkey flow is defined but not set as the active browser flow. `apply-local-settings.sh` explicitly resets it to `"browser"`. This means passkeys work as a registration/credential management option, but login defaults to password. If the intent is passkey-first login, `browserFlow` must be set to `"browser-passkey"` and only in production (not local dev where you may want password fallback — hence the shell script pattern already in place is correct).
+```typescript
+import DOMPurify from 'dompurify';
 
-- The `japan-trip-api` client is `bearerOnly: true`. Keycloak 25 deprecated bearer-only clients — they still work but the recommended approach is a confidential client with `standardFlowEnabled: false`. Low urgency but worth noting for future Keycloak upgrades.
+// Sanitize before any innerHTML assignment
+element.innerHTML = DOMPurify.sanitize(userString);
 
-- The Account REST API endpoint used in profile.ts (`/realms/{realm}/account/credentials?type=webauthn`) is the correct v1 endpoint for Keycloak 25. It returns credentials with `type: "webauthn"` for standard WebAuthn and `type: "webauthn-passwordless"` for passwordless. The current code filters by `type === 'webauthn'` — this will miss passwordless credentials. Change filter to `c.type === 'webauthn' || c.type === 'webauthn-passwordless'` or remove the filter and check type field.
+// For plain text that NEVER needs HTML — prefer textContent (no DOMPurify needed)
+element.textContent = userString;
+```
 
-- `email` field in passkey-only flows: users who register via passkey (no password) may have no email. `user.ts` middleware already handles this with `email: jwtUser.email ?? ''` — acceptable for now. The schema should allow `email` as nullable rather than `''` as sentinel.
+**Key decision: textContent vs DOMPurify.sanitize:**
 
-**Confidence:** HIGH (derived from codebase + Keycloak 25 docs knowledge).
+Most `innerHTML` usages in the codebase mix user strings with hard-coded HTML structure. Two strategies:
+
+1. **Pure text values** (`trip.name`, `dest.city_name`, `activity.name`, `hotel.name`, `day.label`): these should always be rendered as text, never as HTML. Use `textContent` or `createTextNode` where possible. Only use DOMPurify when you need the surrounding HTML structure to stay as `innerHTML`.
+
+2. **Templates with user values interpolated**: sanitize the full string or extract the user parts, set them via `textContent` on child nodes, then assemble via DOM methods.
+
+The simplest correct path for the trip builder: wrap any final `innerHTML` assignment that includes user data with `DOMPurify.sanitize(...)`. This is single-call, low-risk, and doesn't require rewriting template assembly logic.
+
+**DOMPurify config for this app (no need for custom config):**
+
+Default config strips all JS event handlers and script elements. No FORCE_BODY or ALLOWED_TAGS customization needed — the app only renders user-provided strings (names, labels, notes), not user-authored HTML.
+
+**Confidence:** HIGH (version from npm registry; usage from codebase analysis).
 
 ---
 
-### 2. Cloudflare Workers Free Tier + Hono Best Practices
+### 2. No new library needed — Trip Builder UI
 
-**Free tier limits (as of training knowledge, verify at developers.cloudflare.com/workers/platform/limits):**
-- 100,000 requests/day
-- 10ms CPU time per request (wall clock time is longer due to I/O wait)
-- 128MB memory
-- 50 sub-requests per request (outbound fetches from Worker)
-- No persistent TCP connections (relevant for Neon)
+**The trip builder edit page is a form-heavy UI.** All data operations (CRUD) already have:
+- A complete API client in `frontend/src/api/client.ts` — all endpoints exist
+- TypeScript types in `frontend/src/types/index.ts` — `ApiTrip`, `ApiDestination`, `ApiDay`, `ApiActivity`, `ApiHotel`
+- Hono + Zod validation schemas on the backend
 
-**The `wrangler.toml` issues found:**
+**What's needed is a new HTML entry point + TS page module, not a new library.**
 
-1. `compatibility_date = "2024-01-01"` is stale. Recommend updating to `2024-09-23` or later. The `nodejs_compat` compatibility flag requires a recent date to get the latest Node.js API shims (crypto, Buffer, etc.). The correct date to use is the most recent date before the production deploy — use `2025-03-01` or current date at deploy time. Stale compatibility dates mean you miss bug fixes in the compat layer.
+Add to `vite.config.ts` rollupOptions.input:
+```typescript
+edit: resolve(__dirname, 'edit.html'),
+```
 
-2. The fake D1 binding block:
-   ```toml
-   [[d1_databases]]
-   binding = "DB_PLACEHOLDER"
-   database_name = "placeholder"
-   database_id = "placeholder"
-   ```
-   This is stale scaffolding. `wrangler deploy` will attempt to validate this binding and may warn or fail. Remove it. The actual database is Neon via `DATABASE_URL` secret, confirmed in both `db/index.ts` and the deploy workflow.
+The page follows the same MPA pattern as `dashboard.ts` and `tripDetail.ts`:
+- `edit.html` + `frontend/src/pages/edit.ts`
+- Auth guard via `initKeycloak()` (same as profile.ts)
+- DOM manipulation via standard Web APIs — no form library needed
+- Leaflet reused from the existing chunk split for the map picker (click-to-set-coordinates for destinations and activities)
 
-3. `KEYCLOAK_URL` and `KEYCLOAK_REALM` are in `[vars]` as empty strings. Non-secret config for the Cloudflare dashboard. For production, set these via `wrangler.toml` vars or via the Cloudflare dashboard — not as secrets (they're not sensitive). This is correct.
+**What NOT to add for the trip builder:**
 
-**Hono on Workers best practices:**
+| Library | Why not |
+|---------|---------|
+| React / Vue / Svelte | Stack is locked to Vanilla TS; adds 40-100KB bundle; overkill for a form page |
+| SortableJS / drag-and-drop library | Reordering activities is a `order_index` PATCH — a simple up/down button pair is sufficient for v1; saves a dependency |
+| Flatpickr or similar date picker | `<input type="date">` is supported in all target browsers (Chrome, Firefox, Safari, Edge); native datepicker is sufficient for v1 |
+| Alpine.js or htmx | Stack is locked Vanilla TS; these would add a second paradigm to a codebase already using Web Components |
+| Zod on frontend | Validation is enforced server-side; frontend can use HTML5 `required`/`pattern` for UX; adding Zod front-end would duplicate backend logic without benefit for v1 |
 
-- The `nodejs_compat` flag is required for `@neondatabase/serverless` (uses Node.js crypto) and `node-postgres` path (local only). Already set.
-- CORS: current setup uses `Access-Control-Allow-Origin: *` with `credentials: true`. This combination is spec-invalid (browsers reject credentialed requests to wildcard origins). Fix: set `origin` to the specific GitHub Pages URL (e.g., `https://username.github.io`). Hono's `cors()` middleware accepts a string or array of allowed origins.
-- CPU time: Neon HTTP calls are I/O, not CPU, so the 10ms CPU limit is not a concern for typical CRUD. The JWT verify (using Workers Web Crypto) is also fast.
+**Coordinate input for destinations and activities:** Use Leaflet click-to-pick. The user clicks on a map, and the `lat`/`lng` inputs update. Leaflet is already bundled as a manual chunk. No geocoding library needed for v1 — users paste coordinates or click the map.
 
-**Confidence:** MEDIUM (tier limits from training, code-derived issues are HIGH).
+**Confidence:** HIGH (derived from existing codebase structure and API completeness).
 
 ---
 
-### 3. Neon Free Tier Connection Management
+### 3. No new library needed — CORS Fix
 
-**The actual production code (from `db/index.ts`):**
+The CORS fix is a configuration change, not a new library. The existing `hono/cors` middleware is already in use (`backend/src/middleware/cors.ts`). The fix is to tighten the `origin` callback.
 
-```typescript
-export function createDb(databaseUrl: string): any {
-  const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-  if (isLocal) {
-    const pool = new Pool({ connectionString: databaseUrl });
-    return drizzlePg(pool, { schema });
-  }
-  const sql = neon(databaseUrl);
-  return drizzleNeon(sql, { schema });
-}
-```
+**Current bug:** When `origin` is unrecognized, the callback returns `null` (correct). But when called from a browser without an Origin header (same-origin request or curl), it returns `'*'`. The Hono cors middleware will set `Access-Control-Allow-Origin: *` on those responses. For credentialed cross-origin requests, the origin callback returns the specific allowed origin string — this is actually correct behavior. The spec-invalid combination (`*` + `credentials`) only occurs when `origin` is set to `'*'` as a string, not when the callback returns the request origin. **The current cors.ts is already correct** — it returns the specific origin string, not `'*'`, for requests from allowed origins.
 
-And this is called on every request:
-```typescript
-const db = getDb(c.env.DATABASE_URL);
-```
+The actual remaining fix: add `http://localhost:5173` to the allowed origins list if it's not already there for local dev (currently it is). For production, `KEYCLOAK_URL` and CORS origin should come from environment variables, not be hardcoded. No new library needed.
 
-**Production (Neon HTTP driver):** `neon()` creates an HTTP client — no TCP connection pool. Each call to `neon(url)` is cheap. There is no connection pool to exhaust on the Cloudflare Workers side. This is the correct pattern for serverless. The concern in PROJECT.md about "DB connection pool not reused across requests" applies only to local dev.
-
-**Local dev (node-postgres Pool):** `new Pool()` is created on every request in local dev. Each Pool maintains a connection pool and will open connections that aren't reused. With low local dev traffic this doesn't cause practical exhaustion, but it leaks pool resources across requests. Fix for local dev: create the Pool once at module level (in `db/index.ts`) and cache it by connection string. This is purely a local dev concern — production is unaffected.
-
-**Neon free tier limits (training knowledge — verify at neon.tech/docs/introduction/plans):**
-- 0.5 GiB storage
-- 190 compute hours/month (autosuspend after 5 minutes of inactivity)
-- 10 projects max (1 is enough)
-- No branching on free tier
-- HTTP driver is not subject to connection limits (uses REST API)
-- Autosuspend means first request after idle period adds ~300-500ms cold start (the Neon compute wakes up)
-
-**What NOT to do with Neon:**
-- Do not use websocket/TCP connections from Cloudflare Workers — use the HTTP driver (`drizzle-orm/neon-http`)
-- Do not set `?pgbouncer=true` in the DATABASE_URL for HTTP-driver connections — that's for PgBouncer proxy configs, not applicable here
-- Do not use `neon()` with a hardcoded URL in module scope in Cloudflare Workers — Workers may reuse isolates across requests but the `Env` bindings (including `DATABASE_URL`) are per-request. The current pattern of calling `getDb(c.env.DATABASE_URL)` per-request handler is correct.
-
-**Confidence:** HIGH for the code analysis. LOW for specific free tier numbers (verify at neon.tech).
+**Confidence:** HIGH (code-derived from `backend/src/middleware/cors.ts`).
 
 ---
 
-### 4. GitHub Pages + Vite MPA Deployment
+### 4. No new library needed — JWT Audience Validation
 
-**Current setup in `vite.config.ts`:**
+The JWT audience validation is already implemented in `backend/src/auth/keycloak.ts` (lines 192-199). It validates against `['japan-trip-api', 'japan-trip-frontend', 'account']`. The hardening task is to:
 
-```typescript
-base: '/PruebaMapJapan/',
-rollupOptions: {
-  input: { main, tokyo, nagoya, ..., dashboard, trip, profile },
-  output: { manualChunks: { leaflet: ['leaflet'] } }
-}
-```
+1. Remove `'account'` from `validAudiences` — the `account` audience is issued by Keycloak's own Account Service tokens, not by API tokens. Accepting it means any token issued for the Keycloak Account UI can be used against the API. The API should only accept tokens with `aud: 'japan-trip-api'`.
 
-**Deploy workflow (`deploy-frontend.yml`) — gaps identified:**
+2. Configure the Keycloak `japan-trip-api` client to add an audience mapper that includes `japan-trip-api` in the `aud` claim of access tokens issued via `japan-trip-frontend`. Without this mapper, access tokens issued to `japan-trip-frontend` may only have `aud: ['account']` by default.
 
-1. **No `VITE_API_URL` guard.** The workflow correctly passes `VITE_API_URL: ${{ secrets.VITE_API_URL }}` — if the secret is unset, Vite receives an empty string, NOT the localhost default. The `profile.ts` uses `import.meta.env['VITE_KEYCLOAK_URL'] ?? 'http://localhost:8080'` as fallback — this anti-pattern (silent localhost fallback) is present in `profile.ts` and possibly other pages. PROJECT.md explicitly flags this. A silent fallback to localhost in a production build is a hidden misconfiguration. Fix: use `vite-plugin-checker` or an inline build-time assertion in `vite.config.ts` that throws if `VITE_API_URL` is empty.
+This is a Keycloak realm configuration change (add Audience mapper to `japan-trip-api` client) + a one-line code change in `auth/keycloak.ts`. No new library.
 
-   Simplest fix (no extra plugin): add to `vite.config.ts`:
-   ```typescript
-   // In defineConfig callback before returning
-   if (process.env.NODE_ENV === 'production') {
-     if (!process.env.VITE_API_URL) throw new Error('VITE_API_URL must be set for production builds');
-   }
-   ```
-
-2. **Cache-busting:** Vite's default content-hash filenames (`assets/index-[hash].js`) handle cache-busting correctly for JS/CSS assets. The HTML entry points themselves (`index.html`, `dashboard.html`, etc.) are NOT content-hashed and GitHub Pages does NOT add cache headers for `.html` files by default — they are served with short cache lifetimes. This is acceptable behavior; no action needed.
-
-3. **`base` URL and hash routing:** The `base: '/PruebaMapJapan/'` is set for this specific repo. If the repo is renamed or moved to a custom domain, update `base` or set it to `'/'`. GitHub Pages custom domains use root-relative URLs. The current Leaflet chunk split is correct — it separates the large Leaflet bundle from the main app code.
-
-4. **MPA 404 handling:** GitHub Pages serves `404.html` for unknown paths. With MPA (multiple separate HTML entry points), deep links like `/PruebaMapJapan/dashboard.html` work fine as static files. No `404.html` redirect hack needed. Only SPA apps with client-side routing need the 404 redirect trick.
-
-5. **`manualChunks` for Leaflet:** Correct. Leaflet (~150KB minified) only needs to load on map pages. The split works when pages explicitly import from 'leaflet'.
-
-**Confidence:** HIGH (all derived from codebase + Vite docs knowledge).
+**Confidence:** HIGH (code-derived; Keycloak audience mapper behavior is stable across versions).
 
 ---
 
-### 5. Railway for Keycloak — Resource Limits and Persistence
+### 5. No new library needed — Passkeys/WebAuthn via Keycloak Account REST API
 
-**Current config (`railway.toml`, `keycloak/Dockerfile` implied):**
-- Build: Dockerfile
-- Start: `start --optimized --db=postgres`
-- Health check: `/health/ready`
-- Restart: on_failure
+The passkey management UI in `profile.ts` is already functionally implemented:
+- `loadPasskeys()` calls `GET /realms/{realm}/account/credentials?type=webauthn` — correct Keycloak 25 endpoint
+- `registerPasskey()` calls `keycloak.login({ action: 'webauthn-register' })` — correct Keycloak 25 pattern
 
-**Railway pricing (training knowledge — verify at railway.app/pricing, has changed multiple times):**
+**No WebAuthn library (SimpleWebAuthn, fido2-lib, etc.) is needed.** The Keycloak Account REST API abstracts the entire WebAuthn ceremony. The frontend never calls `navigator.credentials.create()` or `navigator.credentials.get()` directly — Keycloak handles that in its own UI flow via the login redirect.
 
-Railway eliminated the free tier in August 2023. As of training knowledge:
-- **Hobby plan:** $5/month credit, then usage-based (~$5 is generally sufficient for a low-traffic Keycloak instance if resources are tuned down)
-- **Resources default:** 512MB RAM, 0.5 vCPU — adequate for Keycloak in `--optimized` mode
-- **Persistence:** Railway volumes are persistent. The Keycloak `--db=postgres` flag means Railway uses an external PostgreSQL database (must be provisioned separately — either Railway-managed Postgres or another service). Without a persistent DB, realm configuration and users are lost on redeploy.
+**What the v1.0 work actually requires:**
 
-**Critical missing config found:**
+1. Fix the credential type filter in `profile.ts` to include `'webauthn-passwordless'` (code fix, no library)
+2. Add delete passkey functionality — `DELETE /realms/{realm}/account/credentials/{id}` using the existing `keycloak.token` pattern (code addition, no library)
+3. Configure the Keycloak realm: set `webAuthnPolicyPasswordlessRpId` to the production domain (realm config, not code)
+4. Set `browserFlow` to `'browser-passkey'` in the Keycloak admin UI for production (realm config, not code)
 
-The `railway.toml` specifies `--db=postgres` but there is no Railway PostgreSQL environment variable configuration in the repo. Keycloak needs these env vars at runtime:
-```
-KC_DB=postgres
-KC_DB_URL=jdbc:postgresql://host:port/db
-KC_DB_USERNAME=...
-KC_DB_PASSWORD=...
-KC_HOSTNAME=https://your-railway-url.up.railway.app
-KC_HOSTNAME_STRICT=false (if using both custom domain and railway default)
-KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true
-```
+**What NOT to add:**
 
-Without `KC_HOSTNAME` set to the actual Railway URL, the realm's `frontendUrl` (currently blank in realm-export.json) is inferred from the request host. This usually works but can break token issuer validation if Keycloak is accessed via multiple hostnames. The backend validates JWTs against `issuer = {KEYCLOAK_URL}/realms/{realm}` — this must match exactly.
+| Library | Why not |
+|---------|---------|
+| `@simplewebauthn/browser` | The app delegates WebAuthn to Keycloak's UI flow. Adding SimpleWebAuthn would bypass Keycloak and require a custom ceremony/server-side verification implementation — far more work for no benefit |
+| `@simplewebauthn/server` | Same reason; also only relevant if running own WebAuthn server, not applicable with Keycloak |
+| Any other FIDO2/WebAuthn library | Keycloak 25 already handles the full passkey lifecycle; adding a client library would create parallel, conflicting auth paths |
 
-**Confidence:** MEDIUM for Railway limits (pricing changes; verify current). HIGH for Keycloak env var requirements.
+**Confidence:** HIGH (derived from profile.ts implementation + Keycloak 25 Account REST API pattern).
 
 ---
 
-## Version & Config Recommendations
+### 6. No new library needed — Public Trip Sharing UI
 
-### `wrangler.toml` — Fix immediately
+The backend already has `GET /api/public/trips/:id` (unauthenticated) and `is_public: boolean` on the `ApiTrip` type. The toggle is a PATCH to `updateTrip(tripId, { is_public: !trip.is_public })` using the existing `client.ts` function.
 
-```toml
-name = "prueba-map-japan-api"
-main = "src/index.ts"
-compatibility_date = "2025-03-01"   # Update from stale 2024-01-01
-compatibility_flags = ["nodejs_compat"]
+The shareable link is `window.location.origin + '/PruebaMapJapan/trip.html?tripId=' + trip.id`. The "copy link" button uses `navigator.clipboard.writeText()` — Web API, no library needed.
 
-[vars]
-KEYCLOAK_URL = "https://your-keycloak.up.railway.app"
-KEYCLOAK_REALM = "japan-trip"
+**What NOT to add:** No URL shortening service (adds external dependency, complexity); no QR code library (overkill for v1).
 
-# Secrets (set via: wrangler secret put DATABASE_URL)
-# DATABASE_URL — Neon connection string
-```
-
-Remove the entire `[[d1_databases]]` block — it's dead scaffolding and may cause wrangler validation warnings.
-
-### Keycloak Realm — Production checklist
-
-These must be set when deploying to Railway (not committed to realm-export.json since they're environment-specific):
-
-1. **`webAuthnPolicyPasswordlessRpId`** = the effective domain of the GitHub Pages site (e.g., `manud.github.io`). Not the full URL, just the domain. If using a custom domain, use that instead.
-
-2. **`attributes.frontendUrl`** = the full Railway URL (e.g., `https://your-app.up.railway.app`). Currently blank in realm-export.json.
-
-3. **Client redirect URIs** — currently `https://*.github.io/*`. The wildcard subdomain match is supported in Keycloak 25. Fine for now, but tighten to the specific GitHub Pages URL for production: `https://manud.github.io/PruebaMapJapan/*`.
-
-4. If passkey-first login is desired in production: update `browserFlow` to `"browser-passkey"` via the admin API (not via realm-export.json re-import, which would reset everything).
-
-### Keycloak Account REST API — Passkey credential type fix
-
-In `profile.ts`, line 70:
-```typescript
-const webauthn = credentials.filter((c) => c.type === 'webauthn');
-```
-Should be:
-```typescript
-const webauthn = credentials.filter(
-  (c) => c.type === 'webauthn' || c.type === 'webauthn-passwordless'
-);
-```
-Keycloak 25 uses `'webauthn-passwordless'` as the type for credentials registered via the passwordless authenticator.
-
-### Neon — Local dev Pool fix
-
-In `backend/src/db/index.ts`, cache the local Pool to avoid creating a new pool per request:
-
-```typescript
-const localPoolCache = new Map<string, pg.Pool>();
-
-export function createDb(databaseUrl: string) {
-  const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-  if (isLocal) {
-    if (!localPoolCache.has(databaseUrl)) {
-      localPoolCache.set(databaseUrl, new Pool({ connectionString: databaseUrl }));
-    }
-    return drizzlePg(localPoolCache.get(databaseUrl)!, { schema });
-  }
-  const sql = neon(databaseUrl);
-  return drizzleNeon(sql, { schema });
-}
-```
-
-### CORS fix (backend)
-
-Replace the wildcard CORS origin with the specific GitHub Pages origin:
-```typescript
-app.use('*', cors({
-  origin: 'https://manud.github.io',
-  allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-}));
-```
-
-For local dev, add `'http://localhost:5173'` to the allowed origins. Use an env var (`ALLOWED_ORIGIN`) to pass the production origin at deploy time.
-
-### Vite — Build-time guard for `VITE_API_URL`
-
-In `frontend/vite.config.ts`, add before the `defineConfig`:
-```typescript
-if (process.env.NODE_ENV === 'production' && !process.env.VITE_API_URL) {
-  throw new Error('VITE_API_URL must be set for production builds');
-}
-```
-
-Remove the `?? 'http://localhost:8080'` fallbacks from `profile.ts` (and any other page that has them) — they silently mask misconfiguration in prod builds.
+**Confidence:** HIGH (all pieces already exist in codebase).
 
 ---
 
-## What NOT to Do
+## Complete v1.0 Frontend Installation Delta
 
-| Anti-pattern | Why | Fix |
-|---|---|---|
-| `Access-Control-Allow-Origin: *` with `credentials: true` | Spec-invalid; browsers reject it | Explicit origin list in `cors()` |
-| `new Pool()` on every request | Leaks connections in local dev, exhausts pool | Cache Pool at module scope |
-| `compatibility_date = "2024-01-01"` | Stale; misses nodejs_compat bug fixes | Update to `2025-03-01` |
-| `[[d1_databases]]` placeholder | Dead binding; confuses wrangler validation | Remove block entirely |
-| Blank `webAuthnPolicyPasswordlessRpId` | WebAuthn ceremonies fail in production | Set to production domain |
-| `?? 'http://localhost:8080'` fallbacks in prod builds | Silently points prod app at localhost | Assert env vars exist at build time |
-| Filtering passkeys by `type === 'webauthn'` only | Misses passwordless credentials in Keycloak 25 | Include `'webauthn-passwordless'` type |
-| `email: jwtUser.email ?? ''` for passkey users | Empty string stored instead of NULL | Make `email` nullable in schema |
-| `bearer-only: true` on `japan-trip-api` client | Deprecated in Keycloak 25+ | Low urgency; note for future upgrades |
-| Using Neon TCP driver from Cloudflare Workers | Workers have no persistent TCP | Already using HTTP driver; don't switch |
+```bash
+# In frontend/ — only one new runtime dep
+npm install dompurify@3.4.1
+npm install -D @types/dompurify@3.2.0
+```
+
+No backend dependencies change. No new infrastructure. No new Cloudflare bindings.
+
+---
+
+## What NOT to Add (Master List for v1.0)
+
+| Package | Why not |
+|---------|---------|
+| React / Vue / Svelte | Stack locked to Vanilla TS |
+| `@simplewebauthn/browser` | Keycloak handles WebAuthn ceremony; adding this creates conflicting auth paths |
+| SortableJS | Up/down reorder buttons sufficient for v1; saves dependency |
+| Flatpickr / date-fns | Native `<input type="date">` sufficient; date-fns is large (~200KB) for minimal gain |
+| Zod (frontend) | Backend validates; HTML5 constraint validation sufficient for UX |
+| Alpine.js / htmx | Adds a second paradigm alongside existing Web Components |
+| `isomorphic-dompurify` | SSR wrapper — this app is browser-only; plain `dompurify` is correct |
+| `sanitize-html` | Node-centric; larger than DOMPurify; no TypeScript types built in |
+| Any URL shortener SDK | External dependency, not needed for trip sharing |
+| Geocoding library (Nominatim client, etc.) | Click-to-pick on Leaflet map is sufficient; avoids rate-limit concerns on third-party geocoding APIs |
+
+---
+
+## Integration Points Summary
+
+| Feature | Library delta | Config change | Code change |
+|---------|--------------|---------------|-------------|
+| Trip builder edit page | None | Add `edit` entry to `vite.config.ts` rollupOptions | New `edit.html` + `frontend/src/pages/edit.ts` |
+| XSS hardening | `dompurify@3.4.1` + `@types/dompurify@3.2.0` | None | Wrap `innerHTML` assignments with `DOMPurify.sanitize()` in `tripDetail.ts`, `dashboard.ts`, `map.ts`, `widgets.ts`, `SearchBar.ts` |
+| CORS fix | None | None | Remove `account` from `corsMiddleware` if present; confirm origin list matches production URL |
+| JWT audience tightening | None | Keycloak: add Audience mapper to `japan-trip-api` client | Remove `'account'` from `validAudiences` array in `auth/keycloak.ts` |
+| Passkeys functional | None | Keycloak realm: set RP ID, set `browserFlow`, wire required actions | Fix credential type filter; add delete passkey button |
+| Public trip sharing | None | None | Add toggle button to trip detail/dashboard; copy-link using `navigator.clipboard` |
 
 ---
 
 ## Confidence Levels
 
 | Topic | Confidence | Reason |
-|---|---|---|
-| Keycloak realm config gaps (rpId, frontendUrl, credential type filter) | HIGH | Derived directly from realm-export.json and profile.ts source |
-| WebAuthn flow structure (browser-passkey, passkey-forms) | HIGH | Derived from realm-export.json, consistent with Keycloak 25 docs knowledge |
-| CORS bug (`*` + credentials) | HIGH | Spec-defined behavior, codebase-verified |
-| `wrangler.toml` D1 placeholder removal | HIGH | Wrangler behavior well-known; placeholder is visibly stale |
-| Neon HTTP driver is connection-pool-safe | HIGH | Architecture-derived from @neondatabase/serverless design |
-| Local dev Pool leak | HIGH | Confirmed: `new Pool()` called per request in routes handler |
-| Vite MPA cache-busting behavior | HIGH | Vite docs stable, codebase-verified |
-| VITE_API_URL guard absence in profile.ts | HIGH | Confirmed `?? 'http://localhost:8080'` in source |
-| Cloudflare Workers free tier request limits | LOW | Training data (Aug 2025); verify at developers.cloudflare.com/workers/platform/limits |
-| Cloudflare Workers CPU time (10ms) | MEDIUM | Stable limit for years; verify current |
-| `compatibility_date` recommendation (`2025-03-01`) | MEDIUM | Pattern is correct; specific date needs verification |
-| Neon free tier storage/compute hours | LOW | Training data (Aug 2025); verify at neon.tech/docs/introduction/plans |
-| Railway Hobby plan pricing ($5/mo) | LOW | Training data; Railway has changed pricing multiple times — verify at railway.app/pricing |
-| Railway Keycloak DB env vars required | HIGH | Keycloak 25 startup requirements are stable and well-documented |
-| Keycloak 25.0.x latest patch | LOW | Could not verify; check hub.docker.com/r/keycloak/keycloak for latest 25.0.x tag |
-| `webauthn-passwordless` credential type string | MEDIUM | Consistent with Keycloak source/docs but not verifiable via live API in this session |
+|-------|------------|--------|
+| DOMPurify version (3.4.1) | HIGH | Verified via `npm show dompurify dist-tags` |
+| `@types/dompurify` version (3.2.0) | HIGH | Verified via `npm show @types/dompurify version` |
+| DOMPurify ESM compatibility with Vite 5 | HIGH | Package ships `dist/purify.es.mjs` as `module` field; Vite picks it up automatically |
+| XSS surface (innerHTML with user data) | HIGH | Derived from full grep of codebase |
+| No new library for trip builder | HIGH | API client and types are complete; MPA pattern is established |
+| CORS fix is config-only | HIGH | Derived from `cors.ts` implementation |
+| JWT audience fix is code-only | HIGH | Derived from `auth/keycloak.ts` lines 192-199 |
+| Passkeys use Keycloak Account REST API (no WebAuthn library) | HIGH | Derived from `profile.ts` implementation |
+| Public sharing uses existing API + clipboard | HIGH | `getPublicTrip()` and `is_public` field already exist |
+| Keycloak Audience mapper behavior | MEDIUM | Training knowledge, not live-verified; but behavior is stable across Keycloak versions |

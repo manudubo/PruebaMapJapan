@@ -1,154 +1,310 @@
-# Architecture Research
+# Architecture Patterns — v1.0 Integration
 
-**Focus:** Trip builder UI integration into existing MPA
-**Date:** 2026-04-25
-**Confidence:** HIGH — based on direct codebase analysis
-
----
-
-## Recommended Approach for Trip Builder UI
-
-**Recommendation: Inline editing on the trip detail page (trip.html), not a separate page.**
-
-The trip detail page (`trip.html` + `tripDetail.ts`) already owns the full `ApiTrip` object in memory after load, renders destination tabs, manages the Leaflet map lifecycle, and is the natural context where a user already *sees* their trip. Adding an edit mode to this page avoids a round-trip to a separate page, keeps the map visible while editing (critical for placing activity pins), and doesn't require a new Vite entry point.
-
-Concretely: the page gains an `isOwner` boolean (compare `trip.user_id` against `getUserInfo().id`), and owner-only UI (edit buttons, add-destination button, inline forms) is conditionally rendered. Non-owners (and public viewers) see the read-only view unchanged. The page already has the auth infrastructure (`initKeycloak`, `isAuthenticated`) to determine this at load time.
-
-A separate `trip-edit.html` page would require duplicating the entire map init, destination tab logic, and trip-loading flow — all of which lives in `tripDetail.ts`. It also breaks the mental model: the user clicks "Edit" and lands on a different URL with no map visible until they save.
+**Domain:** Feature integration into existing Vite MPA + Hono Workers + Keycloak stack
+**Researched:** 2026-04-26
+**Overall confidence:** HIGH (all claims grounded in actual source files)
 
 ---
 
-## Component Design for Nested Data
+## 1. Trip Edit Page
 
-The hierarchy is: Trip → Destinations → (Hotel, Days → Activities). The recommended approach is **disclosure-based inline forms** — each level renders a collapsed summary with an "Add" or "Edit" button that expands a form in place, saves via API on submit, then re-renders only the affected sub-tree.
-
-**Level 1 — Trip metadata** (name, description, dates, is_public):
-- Small edit form rendered inline at the top of the page, shown/hidden via a trip-level "Edit" button.
-- On save: `updateTrip(tripId, data)` → update the in-memory `currentTrip` object → re-render the title/subtitle only.
-- No page reload required.
-
-**Level 2 — Destinations** (city, dates, lat/lng, zoom):
-- Each destination tab gets an "Edit" icon. Clicking it opens a panel (not a modal) in the sidebar/legend area with the destination's current values.
-- "Add Destination" button appends a blank form below the tab list.
-- On save: `createDestination` / `updateDestination` → insert/update into `currentTrip.destinations` → rebuild dest tabs, call `loadDestination()` for the active one.
-- Deletion: "Delete" button with confirmation, then `deleteDestination` → remove from `currentTrip.destinations` → rebuild tabs, jump to index 0.
-
-**Level 3 — Hotel** (name, lat/lng, check-in/out):
-- Hotel is a single optional entity per destination. One "Set hotel" / "Edit hotel" button in the legend area.
-- Expands a small form. On save: `upsertHotel` (PUT `/trips/:id/destinations/:destId/hotel`) → update `currentTrip.destinations[destIndex].hotel` → re-render hotel marker on map.
-- Note: `client.ts` currently lacks `upsertHotel` — must be added.
-
-**Level 4 — Days** (date, label, color):
-- Days appear in the legend as day-group sections. Each gets an "Edit" icon and a delete button.
-- "Add Day" button appended after the last day-group.
-- On save: `createDay` / `updateDay` → insert/update into `currentTrip.destinations[destIndex].days` → rebuild the day filter and legend for this destination only (not the whole trip).
-- Color picker input (`<input type="color">`) sets `color_hex`.
-- Note: `updateDay` is absent from `client.ts` — must be added.
-
-**Level 5 — Activities** (name, lat/lng, notes, optional, order):
-- Each legend item gets an "Edit" icon (pencil) and a drag handle for reorder.
-- "Add Activity" button at the bottom of each day-group.
-- On save: `createActivity` / `updateActivity` → insert/update into the day's `activities` array → refresh only that day's markers on the map (remove old markers, add new ones).
-- For location: provide `lat`/`lng` number inputs (the user types coordinates or uses the map click integration described below). The backend accepts string lat/lng in the Zod schema; the client must stringify.
-- Note: `deleteActivity` is in `client.ts`. `updateActivity` is in `client.ts`. Reorder (`reorderActivities`) is in the backend but not in `client.ts` — must be added.
-
-**Pattern for all levels:** Changes are applied to a mutable `currentTrip: ApiTrip` variable in `tripDetail.ts` (already module-level, just needs to be declared `let` not `const`). Each save operation does: API call → mutate `currentTrip` → targeted re-render. Never reload the full trip from the API after an edit — that doubles latency and breaks any in-progress edits.
-
-**Forms: plain `<form>` elements, no Web Components.** The nested editing UI is page-specific and not reused elsewhere. Building it as Web Components adds Shadow DOM complexity that makes reading and mutating the outer `currentTrip` harder. The existing pattern (dashboard's create-trip modal is a plain `<form>` in HTML with JS event listeners) should be followed consistently.
-
----
-
-## State Management Approach
-
-Keep the existing pattern: module-level variables in `tripDetail.ts`, no external state library.
-
-```
-let currentTrip: ApiTrip | null = null;   // mutable source of truth
-let isOwner = false;                       // derived once after auth
-let activeDestIndex = 0;                  // current tab
-```
-
-After every mutating API call, update `currentTrip` in place (e.g. `currentTrip.destinations.push(newDest)` or replace the specific object by id) and call the appropriate targeted render function. The render functions are already structured to accept `ApiTrip` and an index — they can be called repeatedly without side effects.
-
-**Edit mode toggle:** A boolean `editMode` flag controls whether edit buttons/forms are visible. Toggle it with a top-level "Edit trip" / "Done" button visible only to the owner. This avoids a proliferation of show/hide logic scattered across render functions — one CSS class on `<body>` or a container element (`body.edit-mode .edit-controls { display: flex }`) handles it cleanly.
-
-**Token refresh during long sessions:** The existing `keycloak.onTokenExpired` handler in `auth/keycloak.ts` already calls `refreshToken()` automatically. `getToken()` calls `keycloak.updateToken(30)` before every API call, proactively refreshing if expiry is within 30 seconds. This means: any user action that triggers an API call will refresh the token as a side-effect. For passive sessions (user is typing in a form, not clicking), the `onTokenExpired` event fires and calls `refreshToken()`. Keycloak's default access token lifetime is 5 minutes with a refresh token lifetime of 30 minutes — a user editing for 30+ minutes will get automatic refreshes as long as they make at least one API call per 30 minutes, or if `onTokenExpired` fires. No additional keepalive logic is needed for this use case; the existing mechanism is sufficient.
-
-**Optimistic UI vs save-on-server:** Use explicit save buttons per form (not auto-save on field blur). Rationale: the nested data model means a half-filled "Add Activity" form has no valid API payload until at least `name` is provided. Auto-saving fragments would require server-side draft state. Save buttons are simpler, match the existing pattern in dashboard's create-trip form, and make the state transition obvious to the user. Disable the save button while the request is in-flight (already done in dashboard's `handleCreateTrip`).
-
----
-
-## Integration Points with Existing Code
-
-**Files to modify:**
-
-| File | Change |
-|------|--------|
-| `frontend/src/pages/tripDetail.ts` | Add `isOwner` detection; add edit mode toggle; add render functions for editor controls; wire create/update/delete handlers for all entity levels |
-| `frontend/src/api/client.ts` | Add missing endpoints: `updateDay`, `deleteDay`, `upsertHotel`, `deleteHotel`, `reorderActivities` |
-| `frontend/trip.html` | Add edit toolbar HTML, skeleton edit form elements (hidden by default), owner-only CSS classes |
-| `frontend/vite.config.ts` | No change needed — `trip` entry already exists |
-
-**Files to create:**
+### New files
 
 | File | Purpose |
 |------|---------|
-| (none required initially) | All builder logic lives in `tripDetail.ts` until it exceeds ~600 lines, then extract to `frontend/src/modules/tripBuilder.ts` |
+| `frontend/trip-edit.html` | HTML shell — mirrors `trip.html` structure: `<travel-nav>`, `<search-bar>`, main content area |
+| `frontend/src/pages/tripEdit.ts` | Page controller — loads trip, renders edit forms, wires save actions |
 
-**Do not modify:**
-- `frontend/src/modules/tripAdapter.ts` — the read-only view still uses it; editing works directly on `ApiTrip`, not `CityData`
-- `frontend/src/components/Navbar.ts` — no changes needed for builder
-- Backend — all CRUD routes exist; no new endpoints needed
+### Modified files
 
-**Map interaction for activity pin placement:** Leaflet supports click events on the map (`map.on('click', handler)`). When an "Add Activity" or "Edit Activity" form is open and the user clicks the map, capture `e.latlng` and populate the `lat`/`lng` inputs. A visual indicator (temporary marker) should be placed at the clicked point until the form is saved. Wire this up in the activity form open/close lifecycle. The `currentMap` reference is already a module-level variable in `tripDetail.ts` — no new globals needed.
+| File | Change |
+|------|--------|
+| `frontend/vite.config.ts` | Add `tripEdit: resolve(__dirname, 'trip-edit.html')` to `rollupOptions.input` |
 
-**Destination lat/lng / zoom:** When creating a destination, the user needs to set the map center coordinates. Two options: (1) geocoding lookup by city name (requires a third-party API, adds complexity), (2) manual lat/lng inputs with a "pick from map" button. Recommendation: manual inputs for v1, same map-click pattern as activities. Add a helper to parse the inputs as floats — the backend Zod schema accepts strings, so `String(lat)` before the API call.
+### Trip ID: URL param pattern
+
+Follow `tripDetail.ts` exactly:
+
+```typescript
+const params = new URLSearchParams(window.location.search);
+const tripId = params.get('tripId');
+if (!tripId) { showError('...'); return; }
+```
+
+This is consistent across all dynamic pages. No router, no hash routing — query string is the MPA convention already established.
+
+### Auth requirement
+
+Unlike `tripDetail.ts`, `tripEdit.ts` must always require authentication. On `!authenticated`, redirect immediately rather than attempting guest read:
+
+```typescript
+authenticated = await initKeycloak();
+if (!authenticated) {
+  window.location.replace(`index.html?next=${encodeURIComponent(window.location.href)}`);
+  return;
+}
+```
+
+`ensureUserProvisioned` on the backend means edit API calls will 401 for unauthenticated requests anyway, but rejecting client-side avoids a flicker.
+
+### Form structure — per-section explicit save
+
+The existing `dashboard.ts:handleCreateTrip` (FormData → Object.fromEntries → API call) is the correct pattern. Scale it to per-section forms:
+
+- **Trip metadata form**: name, description, start/end date, is_public toggle → `PATCH /api/trips/:id` via `updateTrip()`
+- **Destination forms** (one per destination): city_name, country, dates, lat/lng, zoom_level → `PATCH /api/trips/:id/destinations/:destId` via `updateDestination()`
+- **Hotel form** (per destination): name, url, lat/lng, check-in/out → `PUT /api/trips/:id/destinations/:destId/hotel` via `upsertHotel()` (note: upsert, not patch)
+- **Day forms** (per day): label, date, color_hex → `PATCH .../days/:dayId` via `updateDay()`
+- **Activity forms** (per activity): name, lat/lng, notes, time → `PATCH .../activities/:actId` via `updateActivity()`
+
+**No auto-save.** Auto-save requires diff tracking and dirty state management — unnecessary complexity for this app. Each form section gets a "Guardar" button. Disable during submission, show inline success/error text. This matches the existing `submitBtn.disabled = true` pattern in `dashboard.ts:102-120`.
+
+**Add-new flows**: "Add destination" calls `createDestination()`, appends the returned object to the in-memory trip state, re-renders the destination list. Same pattern for add-day, add-activity.
+
+**Delete flows**: Confirm via `window.confirm()` (cheap, sufficient for v1), then call the DELETE endpoint, remove from in-memory state, re-render. No modal needed in v1.
+
+### Linking to the edit page
+
+In `tripDetail.ts`: Add an "Edit trip" button (only visible when `isAuthenticated() && trip.user_id === currentUserId`). Link: `trip-edit.html?tripId=${tripId}`.
+
+In `dashboard.ts:renderTripCard()`: Add an edit icon/link to the card markup.
 
 ---
 
-## Build Order
+## 2. Security Hardening
 
-Dependencies flow from data model outward to UI interactions. Build in this order:
+### innerHTML audit — actual risk surface
 
-**1. API client completeness (hours)**
-Add the 5 missing client functions (`updateDay`, `deleteDay`, `upsertHotel`, `deleteHotel`, `reorderActivities`) to `client.ts`. These are mechanical wrappers over the existing `request()` helper. No other work is blocked on anything before this.
+From grepping all `frontend/src/**/*.ts`:
 
-**2. Owner detection and edit mode toggle (hours)**
-In `tripDetail.ts`, after the trip loads: compare `trip.user_id` against `getUserInfo()?.id`, set `isOwner`, render an "Edit" button if true. Toggling `document.body.classList.toggle('edit-mode')` controls visibility of all editor controls via CSS. Write the CSS rules in `trip.html`. This is the scaffolding all subsequent steps depend on.
+| File | User data interpolated? | Fix |
+|------|------------------------|-----|
+| `pages/tripDetail.ts:52` | `dest.city_name` in tab button | DOM construction |
+| `pages/tripDetail.ts:301` | `day.label`, `day.color` in day group | DOM construction |
+| `pages/tripDetail.ts:344` | `activity.name`, `activity.notes` | DOM construction |
+| `pages/tripDetail.ts:373` | `hotel.name` | `textContent` |
+| `pages/tripDetail.ts:413` | Static error string only | Safe — no change |
+| `pages/dashboard.ts:63` | Static empty-state HTML | Safe — no change |
+| `pages/dashboard.ts:72` | `trip.name`, `trip.description`, URL params | DOM construction |
+| `pages/dashboard.ts:194` | `Error.message` only | Safe — not user data |
+| `pages/profile.ts:74` | `c.userLabel` from Keycloak credential | DOM construction |
+| `modules/map.ts:236` | `day.label`, `day.color` | DOM construction |
+| `modules/map.ts:260` | `activity.name`, `activity.notes` | DOM construction |
+| `modules/map.ts:273` | `hotel.name` | `textContent` |
+| `modules/widgets.ts:202` | News/event titles from external API | DOM construction |
+| `components/SearchBar.ts:492` | Search result item text | DOM construction |
+| `components/Navbar.ts:92` | Static template on mount | Safe — Shadow DOM, no user data |
+| `components/Navbar.ts:360` | Icon HTML + static label | Safe — controlled strings |
+| `components/SearchBar.ts:32` | Static template on mount | Safe |
+| `auth/AuthGuard.ts:58,85,94,135` | Static templates | Safe |
 
-**3. Trip-level edit form (1 day)**
-Inline form for trip name, description, dates, is_public. Save via `updateTrip`. This is the simplest case (flat object) and validates the pattern for deeper levels.
+**Do not use DOMPurify.** Every risky interpolation is plain text — there is no legitimate rich-text input in this app. DOMPurify adds ~20KB bundle weight and licenses HTML parsing, which is the wrong semantic fit. Use DOM construction helpers instead.
 
-**4. Destination CRUD (1–2 days)**
-Add destination button, edit panel, delete with confirmation. Includes the map-click-for-coordinates integration. After save, rebuild dest tabs and reload the active destination view.
+### New file: `frontend/src/modules/dom.ts`
 
-**5. Hotel upsert form (half day)**
-Single form per destination. Reuses the map-click-for-coordinates pattern. After save, re-render the hotel marker on the current map instance.
+A lightweight typed DOM construction module:
 
-**6. Day CRUD (1 day)**
-Add/edit/delete days. Includes color picker. After each save, rebuild the day filter and legend for the current destination only.
+```typescript
+export function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string> = {},
+  children: (Node | string)[] = []
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') node.className = v;
+    else node.setAttribute(k, v);
+  }
+  for (const child of children) {
+    node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+  }
+  return node;
+}
+```
 
-**7. Activity CRUD (2 days)**
-Most complex level. Add/edit/delete activities, map-click for pin placement, temporary marker preview. After each save, remove and re-add only the affected day's markers.
+Usage replaces inline templates:
 
-**8. Activity reorder (1 day, deferrable)**
-Drag-to-reorder using HTML5 drag-and-drop or pointer events. Calls `reorderActivities` on drop. Can be deferred to a later phase without blocking any other builder feature.
+```typescript
+// Before
+tabsEl.innerHTML = sorted.map(dest => `<button>${dest.city_name}</button>`).join('');
+
+// After
+tabsEl.replaceChildren(...sorted.map((dest, i) =>
+  el('button', { class: `dest-tab${i === activeIndex ? ' is-active' : ''}` }, [dest.city_name])
+));
+```
+
+### CORS fix — `backend/src/middleware/cors.ts`
+
+The bug is on line 18: `return origin ?? '*'`. When no `Origin` header is present, it falls back to `'*'`, which is spec-invalid when `credentials: true`. Fix:
+
+```typescript
+// Before
+return origin ?? '*';
+
+// After — reject unknown/absent origins
+origin: (origin) => {
+  const allowed = [
+    'https://manud.github.io',
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+  if (origin && allowed.includes(origin)) return origin;
+  return null;
+},
+```
+
+No other changes to the Hono CORS config are needed. `corsMiddleware` is already mounted as `app.use('*', corsMiddleware)` before routes, so OPTIONS preflights are handled correctly.
+
+### JWT audience tightening — `backend/src/auth/keycloak.ts`
+
+Currently the `aud` claim is validated against `account` (the Keycloak management client). Add a dedicated backend audience (`japan-trip-api`) via a Keycloak audience mapper on the `japan-trip-frontend` client, then validate against `japan-trip-api` in `verifyJwt`. Keep `account` as an additional audience (needed by the Account REST API — see Section 4). This is the standard Keycloak multi-audience pattern.
 
 ---
 
-## Tradeoffs Considered
+## 3. Public Trip Sharing UI
 
-**Separate `trip-edit.html` page vs inline editing on `trip.html`:**
-Separate page would give a clean slate and simpler state (no read/edit mode split), but requires duplicating ~400 lines of map and tab logic from `tripDetail.ts`, creates a navigation seam (user leaves the map to edit), and adds a Vite entry point. Inline editing wins because the existing page already owns everything needed and the map must stay visible for pin placement.
+### No new route needed
 
-**Web Components for editor panels vs plain JS/HTML:**
-Web Components would encapsulate each editor panel (destination editor, day editor, activity editor) cleanly. But: Shadow DOM makes it harder to read/mutate `currentTrip` without custom events or property setters; the existing editor patterns (dashboard modal) don't use Web Components; and the builder panels are page-specific, not reusable. Plain JS/HTML wins for maintainability in this context.
+`tripDetail.ts` already falls back to `getPublicTrip()` for unauthenticated users (lines 447–462). The shareable URL is already `trip.html?tripId=<uuid>`. A public trip URL already works without login.
 
-**Auto-save (per-field) vs explicit save buttons:**
-Auto-save on blur is common in rich editors but requires: debouncing, partial-payload handling, conflict resolution if the user edits faster than requests complete, and error display that doesn't interrupt typing. The trip data model has required fields at every level (`city_name`, `country` for destinations; `date` for days; `name` for activities) — auto-saving incomplete forms would send invalid requests. Explicit save buttons are simpler and correct here.
+### Where the toggle lives
 
-**Optimistic UI (update local state before API confirms) vs pessimistic:**
-Optimistic would feel faster but requires rollback logic on API failure, which is especially tricky for create operations where the server assigns the new entity's ID (needed for nested creates). Pessimistic (wait for server response, then update UI) is the right default for a v1 builder. The latency on Cloudflare Workers + Neon is low enough (typically <100ms for simple inserts) that pessimistic saves won't feel sluggish.
+**Canonical location: trip-edit page** — `is_public` toggle in the trip metadata form. The `PATCH /api/trips/:id` endpoint already accepts `is_public` (confirmed in `UpdateTripSchema` and `updateTrip()`).
 
-**Single `currentTrip` object vs separate state per entity level:**
-A separate "destinations store", "days store" etc. would reduce re-render scope but adds synchronization complexity — any mutation at one level must propagate to parent. A single `currentTrip` tree is simpler and matches what the API returns. Targeted re-renders (rebuild only the day-group for a saved activity, not the entire legend) keep performance acceptable even with a large trip.
+**Secondary: trip detail page** — When the viewer is the authenticated owner, show a "Compartir" button that:
+1. Calls `updateTrip(tripId, { is_public: true })` if not yet public
+2. Copies `window.location.href` to clipboard via `navigator.clipboard.writeText()`
+3. Shows a transient "Enlace copiado" status message inline
+
+This is a one-click share flow that does not require visiting the edit page for the most common action.
+
+**Dashboard card badge**: Already implemented in `dashboard.ts:renderTripCard()` lines 33–35. No change needed.
+
+### Shareable URL format
+
+```
+https://manud.github.io/PruebaMapJapan/trip.html?tripId=<uuid>
+```
+
+No signed URLs, no `/share/` aliases. The UUID is opaque enough for casual privacy. The backend enforces `is_public` gating in `routes/public.ts`.
+
+---
+
+## 4. Passkeys via Keycloak Account REST API
+
+### Realm configuration status
+
+From `keycloak/realm-export.json`:
+- `webAuthnPolicyPasswordlessAuthenticatorAttachment: "platform"` — correct for passkeys
+- `webAuthnPolicyPasswordlessRequireResidentKey: "Yes"` — correct for passkeys
+- `webAuthnPolicyPasswordlessUserVerificationRequirement: "required"` — correct
+- Authentication flow `browser-passkey` exists with `webauthn-authenticator-passwordless` as required step
+
+The realm is correctly configured for passwordless WebAuthn. **The `webAuthnPolicyPasswordlessRpId` is empty** — must be set per environment before passkeys work. Set to `localhost` in `apply-local-settings.sh` for dev, and to `manud.github.io` for production. The RP ID must match the origin of the page performing the WebAuthn ceremony.
+
+### Keycloak Account REST API endpoints (self-service, user Bearer token)
+
+| Operation | Method | Path |
+|-----------|--------|------|
+| List credentials | GET | `/realms/{realm}/account/credentials?type=webauthn` |
+| Delete credential | DELETE | `/realms/{realm}/account/credentials/{id}` |
+| Rename credential | PUT | `/realms/{realm}/account/credentials/{id}/label` — body: plain text string |
+| Register new passkey | Redirect | `keycloak.login({ action: 'webauthn-register-passwordless', redirectUri: window.location.href })` |
+
+The existing `profile.ts:loadPasskeys` is already calling the GET endpoint correctly.
+
+**Critical bug in `profile.ts:registerPasskey`:** The action string is `'webauthn-register'` which registers a second-factor WebAuthn credential, not a passwordless passkey. For the passwordless flow configured in the realm, the correct action is `'webauthn-register-passwordless'`.
+
+**Confidence on action string:** MEDIUM — confirmed by realm config (flow uses `webauthn-authenticator-passwordless`) but should be verified against a running local Keycloak 25 instance at implementation time.
+
+### Audience requirement
+
+The access token must contain `account` in the `aud` claim for Account REST API calls to succeed. This is why the JWT audience tightening (Section 2) must use a multi-audience approach: add `japan-trip-api` as an additional audience for the backend, while preserving `account` in the token. The `japan-trip-frontend` client needs both audience mappers.
+
+### What `profile.ts` needs
+
+Currently: list credentials (working) + register with wrong action string.
+
+Missing:
+- DELETE credential: `DELETE /realms/{realm}/account/credentials/${c.id}` with same Bearer token, reload list on success
+- Rename credential: `PUT /realms/{realm}/account/credentials/${c.id}/label` with `Content-Type: text/plain` body
+- Fix action string: `'webauthn-register'` → `'webauthn-register-passwordless'`
+- XSS fix: passkey list `innerHTML` → DOM construction (part of Phase 1 hardening)
+
+---
+
+## 5. New vs Modified Files — Complete List
+
+### New files
+
+| File | Why new |
+|------|---------|
+| `frontend/trip-edit.html` | New Vite entry point for edit page |
+| `frontend/src/pages/tripEdit.ts` | New page controller |
+| `frontend/src/modules/dom.ts` | DOM construction helpers — used by all XSS fixes and new edit page |
+
+### Modified files
+
+| File | Changes |
+|------|---------|
+| `frontend/vite.config.ts` | Add `tripEdit` entry to rollupOptions.input |
+| `frontend/src/pages/tripDetail.ts` | innerHTML → dom helpers (city_name, day label/color, activity name/notes, hotel name); add edit/share buttons for owner |
+| `frontend/src/pages/dashboard.ts` | innerHTML → dom helpers (renderTripCard: trip name, description); add edit link to card |
+| `frontend/src/pages/profile.ts` | Fix action string; add DELETE + rename for passkeys; innerHTML → dom helpers in passkey list |
+| `frontend/src/pages/tripEdit.ts` | (NEW) Full edit page implementation |
+| `frontend/src/modules/map.ts` | innerHTML → dom helpers (day group header, legend item, hotel info) |
+| `frontend/src/modules/widgets.ts` | innerHTML → dom helpers (news/event list items) |
+| `frontend/src/components/SearchBar.ts` | innerHTML → dom helpers for dynamic search result items (static shadow template is safe) |
+| `backend/src/middleware/cors.ts` | Drop `?? '*'` fallback (line 18) |
+| `backend/src/auth/keycloak.ts` | Add `japan-trip-api` audience validation |
+| `keycloak/realm-export.json` | Set `webAuthnPolicyPasswordlessRpId`; verify `webOrigins` includes GitHub Pages URL |
+
+---
+
+## 6. Build Order (Dependency-Aware)
+
+```
+Phase 1 — Security hardening (establishes safe primitives before new code is written)
+  1a. Create frontend/src/modules/dom.ts helper
+  1b. Replace all user-data innerHTML with dom.ts across:
+        tripDetail.ts, dashboard.ts, profile.ts, map.ts, widgets.ts, SearchBar.ts
+  1c. Fix cors.ts — drop ?? '*' fallback
+  1d. Add japan-trip-api audience in keycloak client mapper + tighten backend/src/auth/keycloak.ts
+  Rationale: tripEdit.ts uses dom.ts from day one. Fixes before new code prevents compounding debt.
+
+Phase 2 — Trip edit page (depends on dom.ts from Phase 1)
+  2a. trip-edit.html + tripEdit.ts scaffolding (URL param, auth guard, trip load)
+  2b. Trip metadata form + save (includes is_public toggle — covers Phase 3a)
+  2c. Destination forms + add/delete destinations
+  2d. Hotel form (upsert)
+  2e. Day and activity forms + add/delete
+  2f. Update vite.config.ts; add edit links in tripDetail + dashboard
+  Rationale: Each sub-step is independently testable. API is fully available for all these calls.
+
+Phase 3 — Public sharing UI (depends on tripEdit for canonical toggle; 2b already adds it)
+  3a. is_public toggle already in Phase 2b — no separate step if done in order
+  3b. "Compartir" button in tripDetail.ts (owner-only, copy link + toggle public if needed)
+  Rationale: Minimal. Only step 3b adds code beyond Phase 2.
+
+Phase 4 — Passkeys (independent track; can run in parallel with Phases 2-3)
+  4a. Set webAuthnPolicyPasswordlessRpId in realm-export.json for dev + prod; update apply-local-settings.sh
+  4b. Fix registerPasskey action string in profile.ts ('webauthn-register-passwordless')
+  4c. Add DELETE passkey to profile.ts
+  4d. Add rename passkey to profile.ts
+  Note: 4's XSS fix (passkey list innerHTML) is covered by Phase 1b if done together.
+```
+
+---
+
+## 7. Cloudflare Workers Constraints
+
+All changes are Workers-compatible:
+- `dom.ts` is browser code (frontend only), irrelevant to Workers
+- CORS fix uses only `hono/cors` — already the Workers CORS implementation
+- JWT audience change is a string comparison in `verifyJwt` — no new dependencies
+- No new npm packages introduced anywhere in the backend
+
+---
+
+*Research date: 2026-04-26 | Sources: actual source files read in this session*

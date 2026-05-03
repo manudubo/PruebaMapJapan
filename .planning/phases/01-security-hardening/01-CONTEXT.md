@@ -22,7 +22,7 @@ Fix all user-controlled string injection points in the three required frontend f
 ### DOMPurify / Leaflet popups (SEC-02)
 
 - **D-04:** DOMPurify is used **only** in `buildPopup` and `buildHotelPopup` in `tripDetail.ts`. The `dom.ts` path uses `textContent` which needs no sanitization — clean separation.
-- **D-05:** Install via npm: `dompurify` + `@types/dompurify` in `frontend/package.json`. Bundled by Vite, consistent with existing module setup.
+- **D-05:** Install via npm: `dompurify` only in `frontend/package.json`. Do NOT install `@types/dompurify` — it is deprecated; DOMPurify 3.x ships its own type definitions. Bundled by Vite, consistent with existing module setup.
 
 ### CORS (SEC-03)
 

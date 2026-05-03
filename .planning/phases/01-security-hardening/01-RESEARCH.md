@@ -18,7 +18,7 @@
 
 **DOMPurify / Leaflet popups (SEC-02)**
 - D-04: DOMPurify used only in `buildPopup` and `buildHotelPopup` in `tripDetail.ts`. The `dom.ts` path uses `textContent`, needs no sanitization.
-- D-05: Install via npm: `dompurify` + `@types/dompurify` in `frontend/package.json`.
+- D-05: Install via npm: `dompurify` only in `frontend/package.json`. Do NOT install `@types/dompurify` — deprecated; DOMPurify 3.x ships its own types.
 
 **CORS (SEC-03)**
 - D-06: Fix the null-origin fallback in `cors.ts:18` — return `null` instead of `'*'` when origin is null/absent. This makes the response spec-valid with `credentials: true`.
@@ -419,12 +419,10 @@ Not applicable. This phase modifies source files and config; it introduces no st
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **PLAN BLOCKER: map.ts popup builders — D-04 vs. phase success criterion #2**
-   - What we know: Phase success criterion #2 is "Leaflet popups pass all HTML through DOMPurify before binding." `map.ts` has `createPopupContent` (line 45) and `createHotelPopup` (line 56) that call `bindPopup()` with user-controlled HTML strings (`activity.name`, `activity.notes`, `day.label`, `hotel.name`). These functions are NOT covered by D-04, which restricts DOMPurify to `tripDetail.ts` only.
-   - What's blocked: If D-04 is followed literally, success criterion #2 cannot pass verification — `map.ts` popups remain unsanitized. The plan cannot proceed without resolution.
-   - Resolution options: (a) Expand D-04 to also cover `map.ts` popup builders — same one-line sanitize pattern, minimal extra work. (b) Revise success criterion #2 to explicitly exclude `map.ts`. Option (a) is recommended; it closes the XSS surface completely with negligible added scope.
+1. **RESOLVED (option a implemented): map.ts popup builders — D-04 expanded**
+   - D-04 is expanded to cover `map.ts` `createPopupContent` and `createHotelPopup` in addition to `tripDetail.ts` `buildPopup`/`buildHotelPopup`. DOMPurify.sanitize is applied before `bindPopup()` in both files. Phase success criterion #2 ("Leaflet popups pass all HTML through DOMPurify before binding") is now fully satisfied. Confirmed by developer 2026-04-26.
 
 2. **RESOLVED: SEC-03 `credentials: true`**
    - Status: RESOLVED — REQUIREMENTS.md is correct. The frontend uses `Authorization: Bearer` headers only. Grep of `frontend/src/` confirms zero occurrences of `credentials: 'include'`. `credentials: true` in the backend cors config is dead code. The SEC-03 fix must include both: (1) null-origin returns `null`, and (2) remove `credentials: true`. [VERIFIED: codebase grep 2026-04-26]
