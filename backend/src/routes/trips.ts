@@ -13,9 +13,11 @@ import {
   updateDestination,
   deleteDestination,
   upsertHotel,
+  deleteHotel,
   getDaysByDestination,
   createDay,
   updateDay,
+  deleteDay,
   getActivitiesByDay,
   createActivity,
   updateActivity,
@@ -599,6 +601,49 @@ tripsRoute.patch(
   },
 );
 
+/**
+ * DELETE /api/trips/:tripId/destinations/:destId/days/:dayId
+ * Removes a day (cascades to activities).
+ */
+tripsRoute.delete(
+  '/:tripId/destinations/:destId/days/:dayId',
+  async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
+    const db = getDb(c.env.DATABASE_URL);
+    const userId = c.get('dbUserId');
+    const tripId = Number(c.req.param('tripId'));
+    const destId = Number(c.req.param('destId'));
+    const dayId = Number(c.req.param('dayId'));
+
+    if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
+      return c.json(response, 400);
+    }
+
+    try {
+      const result = await resolveDay(db, tripId, destId, dayId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+        return c.json(response, 404);
+      }
+
+      await deleteDay(db, dayId);
+      const response: ApiResponse<never> = { success: true, message: 'Day deleted' };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to delete day' };
+      return c.json(response, 500);
+    }
+  },
+);
+
 // ===========================================================================
 // ACTIVITIES
 // ===========================================================================
@@ -921,6 +966,48 @@ tripsRoute.put(
       return c.json(response);
     } catch {
       const response: ApiResponse<never> = { success: false, error: 'Failed to upsert hotel' };
+      return c.json(response, 500);
+    }
+  },
+);
+
+/**
+ * DELETE /api/trips/:tripId/destinations/:destId/hotel
+ * Removes the hotel for a destination.
+ */
+tripsRoute.delete(
+  '/:tripId/destinations/:destId/hotel',
+  async (c) => {
+    if (!c.env.DATABASE_URL) {
+      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+      return c.json(response, 500);
+    }
+    const db = getDb(c.env.DATABASE_URL);
+    const userId = c.get('dbUserId');
+    const tripId = Number(c.req.param('tripId'));
+    const destId = Number(c.req.param('destId'));
+
+    if (isNaN(tripId) || isNaN(destId)) {
+      const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
+      return c.json(response, 400);
+    }
+
+    try {
+      const result = await resolveDestination(db, tripId, destId, userId);
+      if ('error' in result) {
+        if (result.error === 'forbidden') {
+          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+          return c.json(response, 403);
+        }
+        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+        return c.json(response, 404);
+      }
+
+      await deleteHotel(db, destId);
+      const response: ApiResponse<never> = { success: true, message: 'Hotel deleted' };
+      return c.json(response);
+    } catch {
+      const response: ApiResponse<never> = { success: false, error: 'Failed to delete hotel' };
       return c.json(response, 500);
     }
   },
