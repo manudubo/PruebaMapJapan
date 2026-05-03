@@ -52,9 +52,9 @@ Plans:
 **Plans**: 8 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Wave 0: Backend schema + migration [BLOCKING] + Zod + deleteHotel query + DELETE day/hotel routes (TRIP-04, TRIP-05, TRIP-08)
-- [ ] 02-02-PLAN.md — Wave 0: Frontend client.ts 6 missing functions + ApiHotel.url + ApiActivity.time (TRIP-03,04,05,06)
-- [ ] 02-03-PLAN.md — Wave 0: Playwright test stubs — trip-edit.spec.ts + geocoder.spec.ts (all requirements)
+- [x] 02-01-PLAN.md — Wave 0: Backend schema + migration [BLOCKING] + Zod + deleteHotel query + DELETE day/hotel routes (TRIP-04, TRIP-05, TRIP-08)
+- [x] 02-02-PLAN.md — Wave 0: Frontend client.ts 6 missing functions + ApiHotel.url + ApiActivity.time (TRIP-03,04,05,06)
+- [x] 02-03-PLAN.md — Wave 0: Playwright test stubs — trip-edit.spec.ts + geocoder.spec.ts (all requirements)
 - [ ] 02-04-PLAN.md — Wave 1: trip-edit.html scaffold + metadata form + auth guard + geocoder module + dashboard edit link (TRIP-01, TRIP-02, TRIP-07, SHARE-01)
 - [ ] 02-05-PLAN.md — Wave 2: Destinations CRUD section — modal + geocoder + accordion (TRIP-03)
 - [ ] 02-06-PLAN.md — Wave 2: Hotels CRUD section — upsert/delete modal + URL as plain text (TRIP-04)
