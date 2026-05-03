@@ -61,6 +61,7 @@ export const CreateActivitySchema = z.object({
   is_optional: z.boolean().optional(),
   maps_url: z.string().url().nullable().optional(),
   order_index: z.number().int().min(0).optional(),
+  time: z.string().nullable().optional(),
 });
 
 export const UpdateActivitySchema = CreateActivitySchema.partial();
@@ -79,6 +80,7 @@ export const UpsertHotelSchema = z.object({
   lng: z.string().nullable().optional(),
   check_in_date: z.string().date().nullable().optional(),
   check_out_date: z.string().date().nullable().optional(),
+  url: z.string().url().nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------

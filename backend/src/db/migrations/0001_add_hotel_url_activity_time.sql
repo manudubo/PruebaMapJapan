@@ -1,0 +1,2 @@
+ALTER TABLE hotels ADD COLUMN IF NOT EXISTS url text;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS time text;

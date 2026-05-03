@@ -28,6 +28,7 @@ export type CreateHotelData = {
   lng?: string | null;
   check_in_date?: string | null;
   check_out_date?: string | null;
+  url?: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -144,9 +145,17 @@ export async function upsertHotel(
       lng: data.lng ?? null,
       check_in_date: data.check_in_date ?? null,
       check_out_date: data.check_out_date ?? null,
+      url: data.url ?? null,
     })
     .returning();
 
   if (!created) throw new Error('upsertHotel: insert returned no rows');
   return created;
+}
+
+/**
+ * Delete the hotel for a destination, if it exists.
+ */
+export async function deleteHotel(db: Db, destinationId: number): Promise<void> {
+  await db.delete(hotels).where(eq(hotels.destination_id, destinationId));
 }
