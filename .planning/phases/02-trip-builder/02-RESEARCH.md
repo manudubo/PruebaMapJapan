@@ -706,12 +706,13 @@ ASVS enforcement is enabled (no explicit `false` in config).
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **"Generar todos los días" date boundary: inclusive or exclusive of end_date?**
    - What we know: Destination has `start_date` and `end_date`.
    - What's unclear: Should a 3-night stay (check-in Jan 1, check-out Jan 3) generate 3 days (1, 2, 3) or 2 days (1, 2)?
    - Recommendation: Inclusive of both start and end dates — a user staying Jan 1-3 expects 3 days in their itinerary.
+   - RESOLVED: inclusive of both endpoints (`while (current <= end)`).
 
 ---
 
