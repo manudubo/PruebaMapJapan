@@ -11,6 +11,7 @@ import type {
   ApiDestination,
   ApiDay,
   ApiActivity,
+  ApiHotel,
   ApiUser,
 } from '@/types';
 
@@ -171,6 +172,63 @@ export async function createDay(
   });
 }
 
+/** Update a day. */
+export async function updateDay(
+  tripId: string,
+  destId: string,
+  dayId: string,
+  data: Partial<Omit<ApiDay, 'id' | 'activities'>>
+): Promise<ApiDay> {
+  return request<ApiDay>(
+    `/trips/${tripId}/destinations/${destId}/days/${dayId}`,
+    { method: 'PATCH', body: data, auth: true }
+  );
+}
+
+/** Delete a day (cascades to activities). */
+export async function deleteDay(
+  tripId: string,
+  destId: string,
+  dayId: string
+): Promise<void> {
+  return request<void>(
+    `/trips/${tripId}/destinations/${destId}/days/${dayId}`,
+    { method: 'DELETE', auth: true }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Hotel endpoints
+// ---------------------------------------------------------------------------
+
+/** Get the hotel for a destination (null if none). */
+export async function getHotel(tripId: string, destId: string): Promise<ApiHotel> {
+  return request<ApiHotel>(
+    `/trips/${tripId}/destinations/${destId}/hotel`,
+    { auth: true }
+  );
+}
+
+/** Create or replace the hotel for a destination. */
+export async function upsertHotel(
+  tripId: string,
+  destId: string,
+  data: Partial<Omit<ApiHotel, 'id'>>
+): Promise<ApiHotel> {
+  return request<ApiHotel>(
+    `/trips/${tripId}/destinations/${destId}/hotel`,
+    { method: 'PUT', body: data, auth: true }
+  );
+}
+
+/** Delete the hotel for a destination. */
+export async function deleteHotel(tripId: string, destId: string): Promise<void> {
+  return request<void>(
+    `/trips/${tripId}/destinations/${destId}/hotel`,
+    { method: 'DELETE', auth: true }
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Activity endpoints
 // ---------------------------------------------------------------------------
@@ -212,6 +270,22 @@ export async function deleteActivity(
   return request<void>(
     `/trips/${tripId}/destinations/${destId}/days/${dayId}/activities/${actId}`,
     { method: 'DELETE', auth: true }
+  );
+}
+
+/**
+ * Reorder activities within a day.
+ * Uses POST (not PATCH) — backend endpoint is tripsRoute.post('.../reorder').
+ */
+export async function reorderActivities(
+  tripId: string,
+  destId: string,
+  dayId: string,
+  orderedIds: number[]
+): Promise<void> {
+  return request<void>(
+    `/trips/${tripId}/destinations/${destId}/days/${dayId}/activities/reorder`,
+    { method: 'POST', body: { ordered_ids: orderedIds }, auth: true }
   );
 }
 

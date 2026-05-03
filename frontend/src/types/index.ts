@@ -86,6 +86,7 @@ export interface ApiActivity {
   is_generic: boolean;
   maps_url: string | null;
   order_index: number;
+  time: string | null;
 }
 
 export interface ApiDay {
@@ -104,6 +105,7 @@ export interface ApiHotel {
   lng: number;
   check_in_date: string | null;
   check_out_date: string | null;
+  url: string | null;
 }
 
 export interface ApiDestination {
