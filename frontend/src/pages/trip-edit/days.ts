@@ -1,6 +1,7 @@
 import { createDay, updateDay, deleteDay } from '@/api/client';
 import { setText, setStyle } from '@/modules/dom';
 import type { ApiDay, ApiDestination } from '@/types';
+import { renderActivitiesSection } from './activities';
 
 const COLOR_MAP: Record<string, string> = {
   '--marker-1': '#ff3b30',
@@ -510,10 +511,10 @@ function renderDaysDisplay(
 
     container.appendChild(row);
 
-    // Activities sub-list placeholder (filled by Wave 2 activities plan)
     const activitiesContainer = document.createElement('div');
     activitiesContainer.id = `activities-${day.id}`;
     container.appendChild(activitiesContainer);
+    renderActivitiesSection(activitiesContainer, day, tripId, dest.id);
   }
 }
 
