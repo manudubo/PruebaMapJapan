@@ -49,7 +49,7 @@ Plans:
   3. User can add, edit, and delete a hotel per destination (name, URL, check-in/out)
   4. User can add, edit, delete, and reorder activities; each activity accepts a time value stored in the database
   5. User can toggle a trip public or private from the edit page
-**Plans**: 8 plans
+**Plans**: 9 plans
 
 Plans:
 - [x] 02-01-PLAN.md — Wave 0: Backend schema + migration [BLOCKING] + Zod + deleteHotel query + DELETE day/hotel routes (TRIP-04, TRIP-05, TRIP-08)
@@ -60,6 +60,7 @@ Plans:
 - [x] 02-06-PLAN.md — Wave 2: Hotels CRUD section — upsert/delete modal + URL as plain text (TRIP-04)
 - [x] 02-07-PLAN.md — Wave 2: Days CRUD section — color picker + bulk generate smart merge (TRIP-05)
 - [x] 02-08-PLAN.md — Wave 2: Activities CRUD + reorder POST with ordered_ids (TRIP-06)
+- [x] 02-09-PLAN.md — Wave 3: Wire renderHotelSection + renderDaysSection + renderActivitiesSection into parent render functions
 
 ### Phase 3: Public Sharing
 **Goal**: Trip owners can share a stable public link; guests can view trips without logging in
