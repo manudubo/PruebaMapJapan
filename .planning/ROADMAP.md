@@ -56,10 +56,10 @@ Plans:
 - [x] 02-02-PLAN.md — Wave 0: Frontend client.ts 6 missing functions + ApiHotel.url + ApiActivity.time (TRIP-03,04,05,06)
 - [x] 02-03-PLAN.md — Wave 0: Playwright test stubs — trip-edit.spec.ts + geocoder.spec.ts (all requirements)
 - [x] 02-04-PLAN.md — Wave 1: trip-edit.html scaffold + metadata form + auth guard + geocoder module + dashboard edit link (TRIP-01, TRIP-02, TRIP-07, SHARE-01)
-- [ ] 02-05-PLAN.md — Wave 2: Destinations CRUD section — modal + geocoder + accordion (TRIP-03)
-- [ ] 02-06-PLAN.md — Wave 2: Hotels CRUD section — upsert/delete modal + URL as plain text (TRIP-04)
-- [ ] 02-07-PLAN.md — Wave 2: Days CRUD section — color picker + bulk generate smart merge (TRIP-05)
-- [ ] 02-08-PLAN.md — Wave 2: Activities CRUD + reorder POST with ordered_ids (TRIP-06)
+- [x] 02-05-PLAN.md — Wave 2: Destinations CRUD section — modal + geocoder + accordion (TRIP-03)
+- [x] 02-06-PLAN.md — Wave 2: Hotels CRUD section — upsert/delete modal + URL as plain text (TRIP-04)
+- [x] 02-07-PLAN.md — Wave 2: Days CRUD section — color picker + bulk generate smart merge (TRIP-05)
+- [x] 02-08-PLAN.md — Wave 2: Activities CRUD + reorder POST with ordered_ids (TRIP-06)
 
 ### Phase 3: Public Sharing
 **Goal**: Trip owners can share a stable public link; guests can view trips without logging in
