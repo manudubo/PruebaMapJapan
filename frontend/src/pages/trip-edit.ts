@@ -5,6 +5,7 @@ import { initTheme } from '@/modules/theme';
 import { initKeycloak, isAuthenticated } from '@/auth/keycloak';
 import { getTrip } from '@/api/client';
 import { initMetadataSection } from './trip-edit/metadata';
+import { initDestinationsSection } from './trip-edit/destinations';
 
 async function init(): Promise<void> {
   initTheme();
@@ -30,6 +31,9 @@ async function init(): Promise<void> {
   try {
     const trip = await getTrip(tripId);
     initMetadataSection(trip);
+    initDestinationsSection(trip, tripId);
+    const destSection = document.getElementById('destinations-section');
+    destSection?.removeAttribute('hidden');
     document.body.classList.add('ready');
   } catch {
     window.location.href = 'dashboard.html';
