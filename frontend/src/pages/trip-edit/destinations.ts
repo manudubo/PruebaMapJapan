@@ -5,6 +5,8 @@ import {
   isGoogleMapsUrl,
   extractCoordsFromGoogleMapsUrl,
 } from '@/modules/geocoder';
+import { renderHotelSection } from './hotels';
+import { renderDaysSection } from './days';
 import type { ApiTrip, ApiDestination } from '@/types';
 
 // Module-scoped state
@@ -446,7 +448,30 @@ function renderList(): void {
 
     const body = document.createElement('div');
     body.className = 'dest-section-body';
-    body.textContent = 'Hotel y días aparecerán aquí.';
+
+    const hotelHeader = document.createElement('h3');
+    hotelHeader.style.fontSize = '14px';
+    hotelHeader.style.fontWeight = '600';
+    hotelHeader.style.margin = '0 0 8px';
+    hotelHeader.textContent = 'Hotel';
+    body.appendChild(hotelHeader);
+
+    const hotelContainer = document.createElement('div');
+    hotelContainer.style.marginBottom = '16px';
+    body.appendChild(hotelContainer);
+    renderHotelSection(hotelContainer, dest, currentTripId);
+
+    const daysHeader = document.createElement('h3');
+    daysHeader.style.fontSize = '14px';
+    daysHeader.style.fontWeight = '600';
+    daysHeader.style.margin = '0 0 8px';
+    daysHeader.textContent = 'Días';
+    body.appendChild(daysHeader);
+
+    const daysContainer = document.createElement('div');
+    body.appendChild(daysContainer);
+    renderDaysSection(daysContainer, dest, currentTripId);
+
     section.appendChild(body);
 
     list.appendChild(section);
