@@ -312,7 +312,8 @@ async function handleFormSubmit(e: Event): Promise<void> {
       if (idx !== -1) currentTrip.destinations[idx] = updated;
     } else {
       const created = await createDestination(currentTripId, payload);
-      currentTrip.destinations.push(created);
+      // Backend POST response omits nested days/hotel; normalize so renderList() is safe
+      currentTrip.destinations.push({ ...created, days: created.days ?? [] });
     }
     closeModal();
     renderList();

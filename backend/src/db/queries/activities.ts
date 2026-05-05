@@ -10,6 +10,7 @@ export type Activity = typeof activities.$inferSelect;
 
 export type CreateActivityData = {
   name: string;
+  time?: string | null;
   lat?: string | null;
   lng?: string | null;
   notes?: string | null;
@@ -52,6 +53,7 @@ export async function createActivity(
     .values({
       day_id: dayId,
       name: data.name,
+      time: data.time ?? null,
       lat: data.lat ?? null,
       lng: data.lng ?? null,
       notes: data.notes ?? null,
