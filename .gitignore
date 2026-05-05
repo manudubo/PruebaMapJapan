@@ -20,6 +20,12 @@ npm-debug.log*
 
 # Testing
 coverage/
+test-results/
+tests/test-results/
+tests/playwright-report/
+
+# Claude Code
+.claude/
 
 # Environment
 .env

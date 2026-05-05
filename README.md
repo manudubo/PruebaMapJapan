@@ -1,88 +1,125 @@
-# 🇯🇵 Japan Itinerary 2026
+# Travel Planner
 
-Interactive travel itinerary web app for a 30-day trip to Japan (Feb-Mar 2026).
+Full-stack travel planning app. Plan trips with destinations, hotels, days, and activities — all on an interactive map.
+
+Includes a pre-loaded demo for a 30-day Japan 2026 itinerary.
 
 ## Features
 
-- 🗺️ **Interactive Maps** - Leaflet-based maps with markers for each activity
-- 🔍 **Global Search** - Search across all activities, cities, days, and hotels
-- 🌤️ **Live Weather** - Current conditions and 5-day forecast via Open-Meteo
-- 📰 **News & Events** - Curated news and events from Google RSS
-- 🌓 **Dark Mode** - System-aware theme with manual toggle (works on all browsers including Safari/iOS)
-- 📱 **PWA Support** - Install as app, works offline
-- ♿ **Accessible** - WCAG 2.1 compliant
-
-## Recent Changes (v2.1.0)
-
-- **Fixed**: Navbar theme now works correctly on mobile Safari/iOS
-- **Fixed**: Home logo is now consistent across all devices (SVG icon instead of emoji)
-- **Updated**: Dependencies to latest stable versions
-- **Improved**: CSS custom properties used for theme support in Shadow DOM components
+- **Trip builder** — Create and edit trips with destinations, hotels, days, and activities
+- **Interactive maps** — Leaflet maps with markers for every activity
+- **Global search** — Search across all activities, cities, days, and hotels
+- **Authentication** — Keycloak OIDC with PKCE and passkey support
+- **Public sharing** — Make trips public and share them without login
+- **Dark mode** — System-aware theme with manual toggle
+- **PWA** — Installable, works offline
 
 ## Tech Stack
 
-- **Build**: Vite 5 + TypeScript 5.6
-- **Maps**: Leaflet 1.9
-- **Testing**: Vitest 2.1
-- **Deployment**: GitHub Pages (Node 22)
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Vite 5 + TypeScript, Leaflet, Keycloak.js |
+| Backend | Hono (Node.js / Cloudflare Workers), Drizzle ORM |
+| Database | PostgreSQL (local Docker / Neon in production) |
+| Auth | Keycloak 25 (local Docker / Railway in production) |
+| Testing | Vitest (unit), Playwright (E2E + integration) |
+| Deployment | GitHub Pages (frontend), Cloudflare Workers (backend) |
 
 ## Getting Started
 
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the full local setup guide.
+
+**Quick start:**
+
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
+npm install --prefix tests
 
-# Start dev server
-npm run dev
+# 2. Start infrastructure (PostgreSQL + Keycloak)
+cd keycloak && docker compose up -d && cd ..
 
-# Run tests
-npm test
+# 3. Initialise database
+cd backend
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/japan_trip npx drizzle-kit push --force
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/japan_trip npx tsx src/db/seed.ts
+cd ..
 
-# Build for production
-npm run build
+# 4. Start backend + frontend (two terminals)
+npm run dev:backend   # → http://localhost:8787
+npm run dev:frontend  # → http://localhost:5173/PruebaMapJapan/
 ```
 
 ## Project Structure
 
 ```
-├── src/
-│   ├── components/     # Web Components (Navbar, SearchBar)
-│   ├── data/          # Itinerary data and map URLs
-│   ├── modules/       # Core functionality
-│   │   ├── countdown.ts
-│   │   ├── map.ts
-│   │   ├── search.ts
-│   │   ├── theme.ts
-│   │   ├── utils.ts
-│   │   └── widgets.ts
-│   ├── styles/        # CSS
-│   └── types/         # TypeScript types
-├── tests/             # Vitest tests
-├── public/            # Static assets (manifest, sw.js)
-└── *.html             # Page templates
+PruebaMapJapan/
+├── frontend/          # Vite + TypeScript SPA
+│   ├── src/
+│   │   ├── api/       # Typed API client
+│   │   ├── auth/      # Keycloak adapter
+│   │   ├── components/# Web Components (Navbar, SearchBar)
+│   │   ├── modules/   # Map, search, theme, geocoder
+│   │   ├── pages/     # dashboard.ts, trip-edit/ (metadata, destinations, hotels, days, activities)
+│   │   └── types/     # Shared TypeScript types
+│   ├── dashboard.html
+│   ├── trip-edit.html
+│   └── index.html     # Landing page with Japan 2026 demo
+│
+├── backend/           # Hono API
+│   ├── src/
+│   │   ├── auth/      # Keycloak JWKS + JWT verification
+│   │   ├── db/        # Drizzle schema, migrations, seed, queries
+│   │   ├── routes/    # trips, users, public, health
+│   │   └── validation/# Zod schemas
+│   └── wrangler.toml  # Cloudflare Workers config
+│
+├── keycloak/          # Keycloak 25 (Docker + Railway)
+│   ├── realm-export.json
+│   └── docker-compose.yml
+│
+├── tests/             # Playwright E2E + integration tests
+│   └── e2e/
+│
+└── DEVELOPMENT.md     # Full local + production setup guide
 ```
 
-## Cities Covered
+## API
 
-1. **Tokyo** (Feb 22 - Mar 1) - TeamLab, Shibuya, Shinjuku, Asakusa
-2. **Nagoya** (Mar 2-3) - Ghibli Park
-3. **Takayama** (Mar 4-7) - Shirakawa-go, skiing
-4. **Kyoto** (Mar 8-13) - Nintendo Museum, Fushimi Inari, Arashiyama
-5. **Osaka** (Mar 14-17) - Universal Studios, Dotonbori
-6. **Naoshima** (Mar 18-19) - Art island
-7. **Hakone** (Mar 20-21) - Onsen, Mt. Fuji views
-8. **Tokyo** (Mar 22-23) - Final shopping
+Base URL (local): `http://localhost:8787`
 
-## Keyboard Shortcuts
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/health` | No | Health check |
+| GET | `/api/public/trips/:id` | No | Public trip with full details |
+| GET | `/api/trips` | Yes | List user's trips |
+| POST | `/api/trips` | Yes | Create a trip |
+| GET/PATCH/DELETE | `/api/trips/:id` | Yes | Get / update / delete trip |
+| POST | `/api/trips/:id/destinations` | Yes | Add destination |
+| PATCH/DELETE | `/api/trips/:id/destinations/:dId` | Yes | Update / delete destination |
+| PUT | `.../hotel` | Yes | Upsert hotel for destination |
+| POST | `.../days` | Yes | Add day |
+| POST | `.../days/:dayId/activities` | Yes | Add activity |
+| PATCH/DELETE | `.../activities/:actId` | Yes | Update / delete activity |
+| POST | `.../activities/reorder` | Yes | Reorder activities |
 
-- `Cmd/Ctrl + K` - Open search
-- `↑/↓` - Navigate search results
-- `Enter` - Select result
-- `Esc` - Close search
+## Running Tests
+
+```bash
+# Unit tests
+npm run test --workspace=frontend
+npm run test --workspace=backend
+
+# E2E + integration (requires full stack running)
+npm run test:e2e
+
+# All
+npm run test:all
+```
 
 ## Deployment
 
-Automatically deploys to GitHub Pages on push to `main` via GitHub Actions.
+See [DEVELOPMENT.md § Production deployment](DEVELOPMENT.md#production-deployment) for step-by-step instructions covering Neon (database), Railway (Keycloak), Cloudflare Workers (backend), and GitHub Pages (frontend).
 
 ## License
 
