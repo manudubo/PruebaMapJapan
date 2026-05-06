@@ -551,13 +551,10 @@ async function init(): Promise<void> {
     editLink.removeAttribute('hidden');
   }
 
-  // Reveal copy-link button only if trip has a public_slug
+  // Reveal copy-link button only for public trips with a slug
   const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement | null;
-  if (copyLinkBtn && trip.public_slug) {
+  if (copyLinkBtn && trip.is_public && trip.public_slug) {
     copyLinkBtn.removeAttribute('hidden');
-  }
-
-  if (copyLinkBtn && trip.public_slug) {
     const slugForCopy = trip.public_slug;
     copyLinkBtn.addEventListener('click', async () => {
       const url = `${window.location.origin}${window.location.pathname}?slug=${slugForCopy}`;
