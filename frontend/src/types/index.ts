@@ -132,6 +132,7 @@ export interface ApiTrip {
   end_date: string | null;
   cover_image_url: string | null;
   is_public: boolean;
+  public_slug: string | null;
   destinations: ApiDestination[];
 }
 

@@ -294,8 +294,8 @@ export async function reorderActivities(
 // ---------------------------------------------------------------------------
 
 /** Fetch a public trip without authentication. */
-export async function getPublicTrip(tripId: string): Promise<ApiTrip> {
-  return request<ApiTrip>(`/public/trips/${tripId}`, { auth: false });
+export async function getPublicTrip(slug: string): Promise<ApiTrip> {
+  return request<ApiTrip>(`/public/trips/${slug}`, { auth: false });
 }
 
 // ---------------------------------------------------------------------------
