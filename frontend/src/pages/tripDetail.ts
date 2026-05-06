@@ -28,10 +28,11 @@ import { setText, setStyle } from '@/modules/dom';
 // URL params
 // ---------------------------------------------------------------------------
 
-function getUrlParams(): { tripId: string | null; destIndex: number } {
+function getUrlParams(): { tripId: string | null; slug: string | null; destIndex: number } {
   const params = new URLSearchParams(window.location.search);
   return {
     tripId: params.get('tripId'),
+    slug: params.get('slug'),
     destIndex: parseInt(params.get('destIndex') ?? '0', 10) || 0,
   };
 }
@@ -484,7 +485,29 @@ function showError(message: string): void {
 async function init(): Promise<void> {
   initTheme();
 
-  const { tripId, destIndex } = getUrlParams();
+  const { tripId, slug, destIndex } = getUrlParams();
+
+  // Public slug mode: skip auth entirely, load via slug directly
+  if (slug) {
+    let slugTrip: ApiTrip | null = null;
+    try {
+      slugTrip = await getPublicTrip(slug);
+    } catch (err) {
+      showError(`No se pudo cargar el viaje: ${(err as Error).message}`);
+      document.body.classList.add('ready');
+      return;
+    }
+    buildDestTabs(slugTrip, destIndex);
+    loadDestination(slugTrip, destIndex);
+    // Hide all owner-only controls — this is a public guest view.
+    // Do NOT call navbar.setDestinations() here — its links use tripId= which
+    // would produce broken URLs for guests. Guest view uses the default navbar.
+    document.querySelectorAll('[data-owner-only]').forEach((el) => {
+      (el as HTMLElement).setAttribute('hidden', '');
+    });
+    document.body.classList.add('ready');
+    return;
+  }
 
   if (!tripId) {
     showError('No se especificó un viaje. Revisá la URL.');
@@ -523,6 +546,29 @@ async function init(): Promise<void> {
 
   buildDestTabs(trip, destIndex);
   loadDestination(trip, destIndex);
+
+  // Reveal the edit link for authenticated owners
+  const editLink = document.getElementById('trip-edit-link') as HTMLAnchorElement | null;
+  if (editLink && authenticated) {
+    editLink.href = `trip-edit.html?tripId=${trip.id}`;
+    editLink.removeAttribute('hidden');
+  }
+
+  // Reveal copy-link button only if trip has a public_slug
+  const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement | null;
+  if (copyLinkBtn && trip.public_slug) {
+    copyLinkBtn.removeAttribute('hidden');
+  }
+
+  if (copyLinkBtn && trip.public_slug) {
+    const slugForCopy = trip.public_slug;
+    copyLinkBtn.addEventListener('click', async () => {
+      const url = `${window.location.origin}${window.location.pathname}?slug=${slugForCopy}`;
+      await navigator.clipboard.writeText(url);
+      setText(copyLinkBtn, '¡Copiado!');
+      setTimeout(() => { setText(copyLinkBtn, 'Copiar enlace público'); }, 2000);
+    });
+  }
 
   // Update navbar with this trip's destinations
   const navbar = document.querySelector('travel-nav');
