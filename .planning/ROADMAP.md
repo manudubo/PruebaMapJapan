@@ -68,10 +68,14 @@ Plans:
 **Requirements**: SHARE-02, SHARE-03, SHARE-04
 **Success Criteria** (what must be TRUE):
   1. Trip detail page shows a "Compartir" copy-link button visible only to the trip owner
-  2. Public share URL uses a UUID slug (`/trips/public/<slug>`), not the integer trip ID
+  2. Public share URL uses a UUID slug (`trip.html?slug=<uuid>`), not the integer trip ID
   3. An unauthenticated user opening a public trip link sees the map and itinerary with no edit controls visible
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 3 plans
+
+Plans:
+- [x] 03-01-PLAN.md — Wave 1: TDD RED — public.test.ts slug-based route tests (SHARE-02, SHARE-04)
+- [x] 03-02-PLAN.md — Wave 2: Backend — schema + migration + getTripBySlug + update public route (SHARE-02, SHARE-04)
+- [x] 03-03-PLAN.md — Wave 2: Frontend — ApiTrip.public_slug + getPublicTrip rename + copy-link button + slug URL mode (SHARE-02, SHARE-03, SHARE-04)
 
 ### Phase 4: Passkeys
 **Goal**: Users can register, use, and delete passkeys; Keycloak is correctly configured for WebAuthn
@@ -92,5 +96,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 |-------|----------------|--------|-----------|
 | 1. Security Hardening | 8/8 | Complete | 2026-04-27 |
 | 2. Trip Builder | 9/9 | Complete | 2026-05-04 |
-| 3. Public Sharing | 0/? | Not started | - |
+| 3. Public Sharing | 3/3 | Complete | 2026-05-06 |
 | 4. Passkeys | 0/? | Not started | - |
