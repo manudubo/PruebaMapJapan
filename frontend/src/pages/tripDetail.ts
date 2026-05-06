@@ -536,13 +536,9 @@ async function init(): Promise<void> {
   }
 
   if (!trip) {
-    try {
-      trip = await getPublicTrip(tripId);
-    } catch (err) {
-      showError(`No se pudo cargar el viaje: ${(err as Error).message}`);
-      document.body.classList.add('ready');
-      return;
-    }
+    showError('No tenés acceso a este viaje. Pedile al dueño el enlace público.');
+    document.body.classList.add('ready');
+    return;
   }
 
   buildDestTabs(trip, destIndex);
