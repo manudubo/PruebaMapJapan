@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
-import { eq, and, asc } from 'drizzle-orm';
 import { getDb } from '../db';
-import { trips, destinations, days, activities } from '../db/schema';
+import { getTripBySlug } from '../db/queries/trips';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 
 const publicRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
@@ -11,39 +10,20 @@ const publicRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 // ===========================================================================
 
 /**
- * GET /api/public/trips/:tripId
+ * GET /api/public/trips/:slug
  * Returns the full nested details of a trip that has is_public = true.
- * No authentication is required.
+ * No authentication is required. Slug must be a valid UUID.
  */
-publicRoute.get('/trips/:tripId', async (c) => {
+publicRoute.get('/trips/:slug', async (c) => {
   const db = getDb(c.env.DATABASE_URL);
-  const tripId = Number(c.req.param('tripId'));
+  const slug = c.req.param('slug');
 
-  if (isNaN(tripId)) {
-    const response: ApiResponse = { success: false, error: 'Invalid trip id' };
+  if (!slug || !/^[0-9a-f-]{36}$/.test(slug)) {
+    const response: ApiResponse = { success: false, error: 'Invalid slug' };
     return c.json(response, 400);
   }
 
-  // Only return the trip when it exists AND is_public is true.
-  const result = await db.query.trips.findFirst({
-    where: and(eq(trips.id, tripId), eq(trips.is_public, true)),
-    with: {
-      destinations: {
-        orderBy: [asc(destinations.order_index)],
-        with: {
-          hotel: true,
-          days: {
-            orderBy: [asc(days.order_index)],
-            with: {
-              activities: {
-                orderBy: [asc(activities.order_index)],
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  const result = await getTripBySlug(db, slug);
 
   if (!result) {
     const response: ApiResponse = { success: false, error: 'Trip not found' };

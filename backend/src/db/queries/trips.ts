@@ -136,4 +136,30 @@ export async function deleteTrip(
     .where(and(eq(trips.id, tripId), eq(trips.user_id, userId)));
 }
 
+/**
+ * Return a public trip by its UUID slug.
+ * Only returns trips with is_public = true.
+ */
+export async function getTripBySlug(db: Db, slug: string) {
+  return db.query.trips.findFirst({
+    where: and(eq(trips.public_slug, slug), eq(trips.is_public, true)),
+    with: {
+      destinations: {
+        orderBy: [asc(destinations.order_index)],
+        with: {
+          hotel: true,
+          days: {
+            orderBy: [asc(days.order_index)],
+            with: {
+              activities: {
+                orderBy: [asc(activities.order_index)],
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 // (Sub-table types are exported from their own query files.)

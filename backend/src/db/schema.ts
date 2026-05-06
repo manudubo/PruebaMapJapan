@@ -10,6 +10,7 @@ import {
   timestamp,
   date,
   uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -40,20 +41,27 @@ export const usersRelations = relations(users, ({ many }) => ({
 // ---------------------------------------------------------------------------
 // trips
 // ---------------------------------------------------------------------------
-export const trips = pgTable('trips', {
-  id: serial('id').primaryKey(),
-  user_id: integer('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  description: text('description'),
-  start_date: date('start_date'),
-  end_date: date('end_date'),
-  cover_image_url: text('cover_image_url'),
-  is_public: boolean('is_public').notNull().default(false),
-  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const trips = pgTable(
+  'trips',
+  {
+    id: serial('id').primaryKey(),
+    user_id: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    description: text('description'),
+    start_date: date('start_date'),
+    end_date: date('end_date'),
+    cover_image_url: text('cover_image_url'),
+    is_public: boolean('is_public').notNull().default(false),
+    public_slug: uuid('public_slug').$defaultFn(() => crypto.randomUUID()),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    publicSlugIdx: uniqueIndex('trips_public_slug_idx').on(table.public_slug),
+  }),
+);
 
 export const tripsRelations = relations(trips, ({ one, many }) => ({
   user: one(users, {
