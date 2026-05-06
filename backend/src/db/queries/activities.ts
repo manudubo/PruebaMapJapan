@@ -127,6 +127,6 @@ export async function reorderActivities(
     .returning();
 
   // Return in the requested order.
-  const byId = new Map(updated.map((a) => [a.id, a]));
+  const byId = new Map((updated as Activity[]).map((a) => [a.id, a]));
   return orderedIds.map((id) => byId.get(id)).filter((a): a is Activity => a !== undefined);
 }

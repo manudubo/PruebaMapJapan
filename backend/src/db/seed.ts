@@ -17,9 +17,6 @@ import { createDb } from './index';
 // Helpers
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Db = any;
-
 // ---------------------------------------------------------------------------
 // Google Maps URL lookup (inline copy to avoid frontend import)
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import type { Db } from '../index';
-import { destinations, hotels } from '../schema';
+import { destinations, hotels, days, activities } from '../schema';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -110,10 +110,10 @@ export async function getFullDestination(db: Db, destId: number) {
     with: {
       hotel: true,
       days: {
-        orderBy: (d, { asc }) => [asc(d.order_index)],
+        orderBy: [asc(days.order_index)],
         with: {
           activities: {
-            orderBy: (a, { asc }) => [asc(a.order_index)],
+            orderBy: [asc(activities.order_index)],
           },
         },
       },

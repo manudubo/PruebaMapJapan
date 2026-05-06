@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import type { Db } from '../index';
 import { activities, days, destinations, trips } from '../schema';
 
@@ -58,14 +58,14 @@ export async function getTripById(
     where: and(eq(trips.id, tripId), eq(trips.user_id, userId)),
     with: {
       destinations: {
-        orderBy: (d, { asc }) => [asc(d.order_index)],
+        orderBy: [asc(destinations.order_index)],
         with: {
           hotel: true,
           days: {
-            orderBy: (d, { asc }) => [asc(d.order_index)],
+            orderBy: [asc(days.order_index)],
             with: {
               activities: {
-                orderBy: (a, { asc }) => [asc(a.order_index)],
+                orderBy: [asc(activities.order_index)],
               },
             },
           },
