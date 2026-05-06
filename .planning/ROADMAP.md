@@ -12,7 +12,7 @@ Four phases from security foundation through trip builder, public sharing, and p
 
 - [x] **Phase 1: Security Hardening** - Eliminate XSS injection sites, fix CORS/JWT, ship dom.ts helper
 - [x] **Phase 2: Trip Builder** - Full trip edit UI: destinations, hotels, days, activities, is_public toggle
-- [ ] **Phase 3: Public Sharing** - public_slug migration, copy-link button, read-only guest view
+- [x] **Phase 3: Public Sharing** - public_slug migration, copy-link button, read-only guest view
 - [ ] **Phase 4: Passkeys** - Keycloak WebAuthn config, passkey registration fix, delete passkey UI
 
 ## Phase Details
