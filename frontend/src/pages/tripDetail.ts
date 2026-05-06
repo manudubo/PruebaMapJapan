@@ -280,6 +280,7 @@ function setupDayFilter(
         (g as HTMLElement).dataset.day === selectedDay ? 'block' : 'none';
     });
     const dayData = data.days[selectedDay];
+    if (!dayData) return;
     announceToScreenReader(
       `Mostrando ${dayData.label}: ${markersByDay[selectedDay].length} ubicaciones`
     );
