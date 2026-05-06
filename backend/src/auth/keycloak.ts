@@ -247,7 +247,7 @@ export function extractUserInfo(payload: KeycloakJwtPayload): UserInfo {
   const roles = payload.realm_access?.roles ?? [];
 
   // Cast to access custom attributes that may not be in the base type
-  const raw = payload as Record<string, unknown>;
+  const raw = payload as unknown as Record<string, unknown>;
 
   return {
     keycloakId: payload.sub,

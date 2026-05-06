@@ -15,7 +15,7 @@ describe('Hono app — in-process unit tests', () => {
     const res = await app.request('/', {}, mockEnv);
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.success).toBe(true);
     expect(body.message).toContain('API is running');
   });
@@ -24,7 +24,7 @@ describe('Hono app — in-process unit tests', () => {
     const res = await app.request('/api/health', {}, mockEnv);
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.success).toBe(true);
     expect(body.status).toBe('ok');
   });
@@ -33,7 +33,7 @@ describe('Hono app — in-process unit tests', () => {
     const res = await app.request('/api/trips', {}, mockEnv);
     expect(res.status).toBe(401);
 
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.success).toBe(false);
   });
 
@@ -41,7 +41,7 @@ describe('Hono app — in-process unit tests', () => {
     const res = await app.request('/api/users/me', {}, mockEnv);
     expect(res.status).toBe(401);
 
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.success).toBe(false);
   });
 
@@ -52,7 +52,7 @@ describe('Hono app — in-process unit tests', () => {
     const res = await app.request('/api/public/trips/99999', {}, mockEnv);
     expect([404, 500]).toContain(res.status);
 
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.success).toBe(false);
   });
 
@@ -60,7 +60,7 @@ describe('Hono app — in-process unit tests', () => {
     const res = await app.request('/this-route-does-not-exist', {}, mockEnv);
     expect(res.status).toBe(404);
 
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.success).toBe(false);
   });
 });

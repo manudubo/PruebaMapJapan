@@ -129,7 +129,8 @@ async function resolveActivity(
   const act = actRows[0];
   if (!act || act.day_id !== dayId) return { error: 'not_found' as const };
 
-  return { dest: dayResult.dest, day: dayResult.day, act };
+  const { dest, day } = dayResult as { dest: any; day: any };
+  return { dest, day, act };
 }
 
 // ===========================================================================

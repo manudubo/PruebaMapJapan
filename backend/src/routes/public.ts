@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import { getDb } from '../db';
-import { trips } from '../db/schema';
+import { trips, destinations, days, activities } from '../db/schema';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 
 const publicRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
@@ -29,14 +29,14 @@ publicRoute.get('/trips/:tripId', async (c) => {
     where: and(eq(trips.id, tripId), eq(trips.is_public, true)),
     with: {
       destinations: {
-        orderBy: (d, { asc }) => [asc(d.order_index)],
+        orderBy: [asc(destinations.order_index)],
         with: {
           hotel: true,
           days: {
-            orderBy: (d, { asc }) => [asc(d.order_index)],
+            orderBy: [asc(days.order_index)],
             with: {
               activities: {
-                orderBy: (a, { asc }) => [asc(a.order_index)],
+                orderBy: [asc(activities.order_index)],
               },
             },
           },
