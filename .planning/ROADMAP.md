@@ -85,7 +85,11 @@ Plans:
   1. Passkey registration completes without error — action string `webauthn-register-passwordless` is used
   2. `webAuthnPolicyPasswordlessRpId` is set to the frontend domain in `realm-export.json`
   3. User can delete a registered passkey from the profile page and it no longer appears in the list
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Wave 1: Keycloak infrastructure upgrade (image 26.6.1, env var rename, RP ID, keycloak-js ^26.0.0 + typecheck gate) (PASS-02)
+- [ ] 04-02-PLAN.md — Wave 2: profile.ts — fix action string, fix type filter, add delete passkey UI (PASS-01, PASS-03)
 
 ## Progress
 
@@ -97,4 +101,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 1. Security Hardening | 8/8 | Complete | 2026-04-27 |
 | 2. Trip Builder | 9/9 | Complete | 2026-05-04 |
 | 3. Public Sharing | 3/3 | Complete | 2026-05-06 |
-| 4. Passkeys | 0/? | Not started | - |
+| 4. Passkeys | 0/2 | Not started | - |
