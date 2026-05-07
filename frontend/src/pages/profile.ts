@@ -54,7 +54,7 @@ async function loadPasskeys(): Promise<void> {
   try {
     const token = keycloak.token;
     const res = await fetch(
-      `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/account/credentials?type=webauthn`,
+      `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/account/credentials?type=webauthn-passwordless`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -63,7 +63,7 @@ async function loadPasskeys(): Promise<void> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const credentials: CredentialInfo[] = await res.json() as CredentialInfo[];
-    const webauthn = credentials.filter((c) => c.type === 'webauthn');
+    const webauthn = credentials.filter((c) => c.type === 'webauthn-passwordless');
 
     if (webauthn.length === 0) {
       list.innerHTML =
