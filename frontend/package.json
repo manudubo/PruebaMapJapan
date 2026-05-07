@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "dompurify": "^3.4.1",
-    "keycloak-js": "^25.0.0",
+    "keycloak-js": "^26.0.0",
     "leaflet": "^1.9.4"
   },
   "engines": {
