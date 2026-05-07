@@ -39,7 +39,7 @@
   "webAuthnPolicyAcceptableAaguids": [],
   "webAuthnPolicyPasswordlessRpEntityName": "japan-trip",
   "webAuthnPolicyPasswordlessSignatureAlgorithms": ["ES256"],
-  "webAuthnPolicyPasswordlessRpId": "",
+  "webAuthnPolicyPasswordlessRpId": "localhost",
   "webAuthnPolicyPasswordlessAttestationConveyancePreference": "not specified",
   "webAuthnPolicyPasswordlessAuthenticatorAttachment": "platform",
   "webAuthnPolicyPasswordlessRequireResidentKey": "Yes",
