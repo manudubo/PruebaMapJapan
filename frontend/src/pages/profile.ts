@@ -102,7 +102,7 @@ async function registerPasskey(): Promise<void> {
 
   try {
     await keycloak.login({
-      action: 'webauthn-register',
+      action: 'webauthn-register-passwordless',
       redirectUri: window.location.href,
     });
   } catch {
