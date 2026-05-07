@@ -37,7 +37,8 @@
 ### Passkeys
 
 - [ ] **PASS-01**: Passkey registration uses correct action string (`webauthn-register-passwordless`)
-- [ ] **PASS-02**: `webAuthnPolicyPasswordlessRpId` is set in `realm-export.json` for both local dev and production
+- [x] **PASS-02
+**: `webAuthnPolicyPasswordlessRpId` is set in `realm-export.json` for both local dev and production
 - [ ] **PASS-03**: User can delete a registered passkey from the profile page
 
 ---
