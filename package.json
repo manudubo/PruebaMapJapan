@@ -15,5 +15,8 @@
     "test:e2e": "cd tests && npm test",
     "test:all": "npm run test --workspaces && npm run test:e2e",
     "install:all": "npm install && npm install --prefix tests"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
   }
 }
