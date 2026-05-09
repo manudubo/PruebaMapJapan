@@ -70,19 +70,17 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:5173/*##https://*.github.io/*"
       },
-      "fullScopeAllowed": false,
+      "fullScopeAllowed": true,
       "defaultClientScopes": [
         "web-origins",
         "acr",
-        "profile",
         "roles",
+        "profile",
+        "basic",
         "email"
       ],
       "optionalClientScopes": [
-        "address",
-        "phone",
-        "offline_access",
-        "microprofile-jwt"
+        "offline_access"
       ],
       "protocolMappers": [
         {
@@ -96,6 +94,22 @@
             "access.token.claim": "true"
           }
         }
+      ]
+    },
+    {
+      "clientId": "account",
+      "name": "${client_account}",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "rootUrl": "${authBaseUrl}",
+      "baseUrl": "/realms/japan-trip/account/",
+      "redirectUris": ["/realms/japan-trip/account/*"],
+      "webOrigins": [
+        "http://localhost:5173",
+        "https://manudubovis.github.io"
       ]
     },
     {
@@ -319,6 +333,6 @@
       ]
     }
   ],
-  "defaultDefaultClientScopes": ["role_list", "profile", "email", "roles", "web-origins", "acr"],
+  "defaultDefaultClientScopes": ["role_list", "profile", "email", "roles", "web-origins", "acr", "basic"],
   "defaultOptionalClientScopes": ["offline_access", "address", "phone", "microprofile-jwt"]
 }
