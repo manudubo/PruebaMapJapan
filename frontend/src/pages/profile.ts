@@ -40,11 +40,17 @@ function showStatus(
 // Passkeys (via Keycloak account REST API v1)
 // ---------------------------------------------------------------------------
 
-interface CredentialInfo {
+// KC 26 Account API returns credential types with nested userCredentialMetadatas
+interface CredentialEntry {
   id: string;
   type: string;
   userLabel?: string;
   createdDate?: number;
+}
+
+interface CredentialTypeResponse {
+  type: string;
+  userCredentialMetadatas: Array<{ credential: CredentialEntry }>;
 }
 
 async function loadPasskeys(): Promise<void> {
@@ -56,22 +62,24 @@ async function loadPasskeys(): Promise<void> {
     const res = await fetch(
       `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/account/credentials?type=webauthn-passwordless`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       },
     );
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const credentials: CredentialInfo[] = await res.json() as CredentialInfo[];
-    const webauthn = credentials.filter((c) => c.type === 'webauthn-passwordless');
+    const credentialTypes: CredentialTypeResponse[] = await res.json() as CredentialTypeResponse[];
+    const passkeyType = credentialTypes.find((c) => c.type === 'webauthn-passwordless');
+    const credentials = passkeyType?.userCredentialMetadatas.map((m) => m.credential) ?? [];
 
-    if (webauthn.length === 0) {
+    if (credentials.length === 0) {
       list.innerHTML =
         '<li style="font-size:14px;color:var(--text-secondary,#515154);padding:8px 0;">No tenés passkeys registrados todavía.</li>';
       return;
     }
 
-    list.innerHTML = webauthn
+    list.innerHTML = credentials
       .map((c) => {
         const label = c.userLabel ?? 'Passkey';
         const created = c.createdDate
@@ -151,7 +159,6 @@ function buildDeleteModal(): void {
   modal.innerHTML = `
     <h2>¿Eliminar passkey?</h2>
     <p>Esta acción no se puede deshacer.</p>
-    <p class="status-msg status-msg--error" id="passkey-delete-error" hidden></p>
     <div class="form-actions">
       <button class="btn btn-secondary" id="passkey-delete-cancel">Cancelar</button>
       <button class="btn btn-danger" id="passkey-delete-confirm">Eliminar</button>
@@ -161,15 +168,13 @@ function buildDeleteModal(): void {
   document.body.appendChild(overlay);
 }
 
-async function openDeleteConfirm(credentialId: string): Promise<void> {
+function openDeleteConfirm(credentialId: string): void {
   const overlay = document.getElementById('passkey-delete-overlay');
-  const errorEl = document.getElementById('passkey-delete-error');
   const cancelBtn = document.getElementById('passkey-delete-cancel');
   const confirmBtn = document.getElementById('passkey-delete-confirm');
 
   if (!overlay || !cancelBtn || !confirmBtn) return;
 
-  if (errorEl) errorEl.setAttribute('hidden', '');
   overlay.removeAttribute('hidden');
 
   // Clone buttons to strip prior event listeners (destinations.ts pattern, line 348-352)
@@ -187,34 +192,18 @@ async function openDeleteConfirm(credentialId: string): Promise<void> {
 
   freshCancel.addEventListener('click', close, { once: true });
 
-  freshConfirm.addEventListener('click', async () => {
+  // KC 26 DELETE /account/credentials/{id} returns 405 for WebAuthn credentials.
+  // Use the AIA flow instead: KC deletes the credential server-side and redirects back.
+  freshConfirm.addEventListener('click', () => {
     freshConfirm.disabled = true;
     freshConfirm.textContent = 'Eliminando…';
-    const freshError = document.getElementById('passkey-delete-error');
-    if (freshError) freshError.setAttribute('hidden', '');
-
-    try {
-      // TODO: DELETE /account/credentials/{id} is deprecated in KC 26 (but not removed).
-      // Future alternative: keycloak.login({ action: `delete_credential:${credentialId}` })
-      const res = await fetch(
-        `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/account/credentials/${credentialId}`,
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${keycloak.token}` },
-        },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      close();
-      await loadPasskeys();
-      showStatus('passkey-status', 'Passkey eliminada correctamente.', 'success');
-    } catch {
-      if (freshError) {
-        freshError.textContent = 'No se pudo eliminar. Intentá de nuevo.';
-        freshError.removeAttribute('hidden');
-      }
+    keycloak.login({
+      action: `delete_credential:${credentialId}`,
+      redirectUri: window.location.href,
+    }).catch(() => {
       freshConfirm.disabled = false;
       freshConfirm.textContent = 'Eliminar';
-    }
+    });
   }, { once: true });
 }
 
