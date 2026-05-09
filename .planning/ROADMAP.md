@@ -13,7 +13,7 @@ Four phases from security foundation through trip builder, public sharing, and p
 - [x] **Phase 1: Security Hardening** - Eliminate XSS injection sites, fix CORS/JWT, ship dom.ts helper
 - [x] **Phase 2: Trip Builder** - Full trip edit UI: destinations, hotels, days, activities, is_public toggle
 - [x] **Phase 3: Public Sharing** - public_slug migration, copy-link button, read-only guest view
-- [ ] **Phase 4: Passkeys** - Keycloak WebAuthn config, passkey registration fix, delete passkey UI
+- [x] **Phase 4: Passkeys** - Keycloak WebAuthn config, passkey registration fix, delete passkey UI
 
 ## Phase Details
 
@@ -88,8 +88,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Wave 1: Keycloak infrastructure upgrade (image 26.6.1, env var rename, RP ID, keycloak-js ^26.0.0 + typecheck gate) (PASS-02)
-- [ ] 04-02-PLAN.md — Wave 2: profile.ts — fix action string, fix type filter, add delete passkey UI (PASS-01, PASS-03)
+- [x] 04-01-PLAN.md — Wave 1: Keycloak infrastructure upgrade (image 26.6.1, env var rename, RP ID, keycloak-js ^26.0.0 + typecheck gate) (PASS-02)
+- [x] 04-02-PLAN.md — Wave 2: profile.ts — fix action string, fix type filter, add delete passkey UI (PASS-01, PASS-03)
 
 ## Progress
 
@@ -101,4 +101,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 1. Security Hardening | 8/8 | Complete | 2026-04-27 |
 | 2. Trip Builder | 9/9 | Complete | 2026-05-04 |
 | 3. Public Sharing | 3/3 | Complete | 2026-05-06 |
-| 4. Passkeys | 0/2 | Not started | - |
+| 4. Passkeys | 2/2 | Complete | 2026-05-09 |
