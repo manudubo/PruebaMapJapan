@@ -327,14 +327,14 @@ class SearchBar extends HTMLElement {
           <input 
             type="text" 
             class="search-input" 
-            placeholder="Buscar..."
-            aria-label="Buscar actividades, lugares, días"
+            placeholder="Search..."
+            aria-label="Search activities, places, days"
             aria-expanded="false"
             aria-controls="search-dropdown"
             aria-autocomplete="list"
             autocomplete="off"
           >
-          <button class="clear-btn" type="button" aria-label="Limpiar búsqueda">
+          <button class="clear-btn" type="button" aria-label="Clear search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -342,7 +342,7 @@ class SearchBar extends HTMLElement {
           </button>
         </div>
         
-        <div class="search-dropdown" id="search-dropdown" role="listbox" aria-label="Resultados de búsqueda">
+        <div class="search-dropdown" id="search-dropdown" role="listbox" aria-label="Search results">
           <ul class="search-results"></ul>
         </div>
       </div>
@@ -444,7 +444,7 @@ class SearchBar extends HTMLElement {
             <circle cx="11" cy="11" r="8"/>
             <path d="M21 21l-4.35-4.35"/>
           </svg>
-          <div>No se encontraron resultados</div>
+          <div>No results found</div>
         </li>
       `;
       return;
@@ -453,7 +453,7 @@ class SearchBar extends HTMLElement {
     let html = '';
     
     if (isSuggestions) {
-      html += '<li class="section-header">Ciudades</li>';
+      html += '<li class="section-header">Cities</li>';
     }
     
     html += this.results.map((result, index) => {
@@ -473,7 +473,7 @@ class SearchBar extends HTMLElement {
               <div class="result-title">${this.highlightMatch(result.title)}</div>
               <div class="result-subtitle">${result.subtitle}</div>
             </div>
-            <span class="result-badge">${result.type === 'activity' ? 'lugar' : result.type === 'day' ? 'día' : result.type}</span>
+            <span class="result-badge">${result.type === 'activity' ? 'place' : result.type === 'day' ? 'day' : result.type}</span>
           </a>
         </li>
       `;
@@ -482,9 +482,9 @@ class SearchBar extends HTMLElement {
     if (!isSuggestions) {
       html += `
         <li class="keyboard-hint">
-          <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
-          <span><kbd>↵</kbd> seleccionar</span>
-          <span><kbd>esc</kbd> cerrar</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span><kbd>↵</kbd> select</span>
+          <span><kbd>esc</kbd> close</span>
         </li>
       `;
     }

@@ -289,22 +289,22 @@ class TravelNav extends HTMLElement {
           }
         }
       </style>
-      <nav role="navigation" aria-label="Navegación principal">
+      <nav role="navigation" aria-label="Main navigation">
         <div class="nav-inner">
-          <a href="index.html" class="nav-brand" aria-label="Ir al inicio">
+          <a href="index.html" class="nav-brand" aria-label="Go to home">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
             <span>Home</span>
           </a>
-          <div class="top-nav" role="tablist" aria-label="Navegación">${this.renderNavLinks(currentPage)}</div>
+          <div class="top-nav" role="tablist" aria-label="Navigation">${this.renderNavLinks(currentPage)}</div>
           <div class="nav-auth">
             <a class="nav-auth-user" hidden></a>
-            <button type="button" class="nav-auth-btn nav-auth-login" hidden>Iniciar sesión</button>
-            <button type="button" class="nav-auth-btn nav-auth-logout" hidden>Cerrar sesión</button>
+            <button type="button" class="nav-auth-btn nav-auth-login" hidden>Sign in</button>
+            <button type="button" class="nav-auth-btn nav-auth-logout" hidden>Sign out</button>
           </div>
-          <button class="theme-toggle" type="button" aria-label="Cambiar tema">${this.getThemeIcon(theme)}<span>${theme === 'dark' ? 'Light' : 'Dark'}</span></button>
+          <button class="theme-toggle" type="button" aria-label="Toggle theme">${this.getThemeIcon(theme)}<span>${theme === 'dark' ? 'Light' : 'Dark'}</span></button>
         </div>
       </nav>`;
   }
@@ -314,8 +314,8 @@ class TravelNav extends HTMLElement {
     const indexActive = currentPage === 'index' || currentPage === '';
     const dashboardActive = currentPage === 'dashboard';
 
-    let links = `<a href="index.html" class="nav-link${indexActive ? ' is-active' : ''}" ${indexActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${indexActive}">Inicio</a>`;
-    links += `<a href="dashboard.html" class="nav-link${dashboardActive ? ' is-active' : ''}" ${dashboardActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${dashboardActive}">Mis viajes</a>`;
+    let links = `<a href="index.html" class="nav-link${indexActive ? ' is-active' : ''}" ${indexActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${indexActive}">Home</a>`;
+    links += `<a href="dashboard.html" class="nav-link${dashboardActive ? ' is-active' : ''}" ${dashboardActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${dashboardActive}">My Trips</a>`;
 
     // Dynamic destination links
     if (this.destinations.length > 0) {
