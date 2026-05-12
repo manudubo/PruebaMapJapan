@@ -1,7 +1,7 @@
 {
-  "name": "Japón 2026 Itinerario",
-  "short_name": "Japón 2026",
-  "description": "Itinerario interactivo de viaje a Japón - 30 días, 8 ciudades",
+  "name": "Japan 2026 Itinerary",
+  "short_name": "Japan 2026",
+  "description": "Interactive Japan travel itinerary - 30 days, 8 cities",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -9,7 +9,7 @@
   "theme_color": "#0071e3",
   "orientation": "portrait-primary",
   "categories": ["travel", "navigation"],
-  "lang": "es",
+  "lang": "en",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/128/197/197604.png",
