@@ -102,3 +102,55 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 2. Trip Builder | 9/9 | Complete | 2026-05-04 |
 | 3. Public Sharing | 3/3 | Complete | 2026-05-06 |
 | 4. Passkeys | 2/2 | Complete | 2026-05-09 |
+| 5. Internationalization | 0/12 | Planned | — |
+
+### Phase 5: Internationalization — translate all user-facing UI strings, HTML content, and TypeScript source strings from Spanish to English across all pages and components
+
+**Goal:** Translate ALL user-facing UI strings, HTML content, and TypeScript source strings from Spanish to English across all pages and components. No i18n library required — direct find-and-replace pass.
+**Requirements**: I18N-HTML, I18N-TS, I18N-LOCALE, I18N-PASSKEY, I18N-ACCENT
+**Depends on:** Phase 4
+**Plans:** 12 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Wave 1: Shared components — Navbar.ts + SearchBar.ts (I18N-HTML, I18N-TS)
+- [ ] 05-02-PLAN.md — Wave 2: App HTML pages — index.html + dashboard.html + profile.html (I18N-HTML)
+- [ ] 05-03-PLAN.md — Wave 2: App HTML pages — trip.html + trip-edit.html (I18N-HTML)
+- [ ] 05-04-PLAN.md — Wave 2: City HTML pages — all 8 city files batch (I18N-HTML)
+- [ ] 05-05-PLAN.md — Wave 2: profile.ts + uat-passkeys.spec.ts (test coupling — same commit) (I18N-TS, I18N-LOCALE, I18N-PASSKEY)
+- [ ] 05-06-PLAN.md — Wave 2: dashboard.ts (I18N-TS, I18N-LOCALE)
+- [ ] 05-07-PLAN.md — Wave 2: tripDetail.ts + map.ts (shared-string coupling — same task) (I18N-TS)
+- [ ] 05-08-PLAN.md — Wave 2: trip-edit/destinations.ts + hotels.ts + metadata.ts (I18N-TS)
+- [ ] 05-09-PLAN.md — Wave 2: trip-edit/days.ts + activities.ts (I18N-TS)
+- [ ] 05-10-PLAN.md — Wave 2: widgets.ts + search.ts (I18N-TS, I18N-LOCALE)
+- [ ] 05-11-PLAN.md — Wave 2: itinerary.ts + manifest.json (I18N-TS, I18N-HTML)
+- [ ] 05-12-PLAN.md — Wave 3: Final validation — accent audit + locale audit + typecheck + Playwright (I18N-ACCENT)
+
+### Phase 6: Multi-environment configuration — Vite env files per environment (local/dev/prod), Cloudflare Workers wrangler.toml environments, Keycloak realm per env, sslRequired prod hardening
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 5
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 6 to break down)
+
+### Phase 7: Passkey login — wire browser-passkey Keycloak flow as default browser flow, enable AvoidSameAuthenticatorRegister, add Sign in with passkey entry point on landing page
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 7 to break down)
+
+### Phase 8: Demo trip — seed a public demo trip in the database, add View demo trip button on landing page pointing to its public slug so guests can browse the trip builder without logging in
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 8 to break down)
