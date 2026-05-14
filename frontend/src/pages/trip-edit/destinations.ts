@@ -41,26 +41,26 @@ function buildModal(): void {
 
   const title = document.createElement('h2');
   title.id = 'dest-modal-title';
-  title.textContent = 'Agregar destino';
+  title.textContent = 'Add destination';
   modal.appendChild(title);
 
   const form = document.createElement('form');
   form.id = 'dest-form';
 
-  form.appendChild(buildFormGroup('Ciudad', 'dest-city', 'city_name', 'text', true, 255));
-  form.appendChild(buildFormGroup('País', 'dest-country', 'country', 'text', true, 100));
+  form.appendChild(buildFormGroup('City', 'dest-city', 'city_name', 'text', true, 255));
+  form.appendChild(buildFormGroup('Country', 'dest-country', 'country', 'text', true, 100));
 
   const dateRow = document.createElement('div');
   dateRow.className = 'form-row';
-  dateRow.appendChild(buildFormGroup('Llegada', 'dest-start', 'start_date', 'date', false));
-  dateRow.appendChild(buildFormGroup('Salida', 'dest-end', 'end_date', 'date', false));
+  dateRow.appendChild(buildFormGroup('Arrival', 'dest-start', 'start_date', 'date', false));
+  dateRow.appendChild(buildFormGroup('Departure', 'dest-end', 'end_date', 'date', false));
   form.appendChild(dateRow);
 
   const geocoderGroup = document.createElement('div');
   geocoderGroup.className = 'form-group';
 
   const geocoderLabel = document.createElement('label');
-  geocoderLabel.textContent = 'Coordenadas (opcional)';
+  geocoderLabel.textContent = 'Coordinates (optional)';
   geocoderGroup.appendChild(geocoderLabel);
 
   const widget = document.createElement('div');
@@ -69,14 +69,14 @@ function buildModal(): void {
   const gInput = document.createElement('input');
   gInput.type = 'text';
   gInput.id = 'dest-geocoder-input';
-  gInput.placeholder = 'Buscar lugar o pegar URL de Google Maps…';
+  gInput.placeholder = 'Search location or paste Google Maps URL…';
   widget.appendChild(gInput);
 
   const gBtn = document.createElement('button');
   gBtn.type = 'button';
   gBtn.className = 'btn btn-primary';
   gBtn.id = 'dest-geocoder-btn';
-  gBtn.textContent = 'Buscar lugar';
+  gBtn.textContent = 'Search location';
   widget.appendChild(gBtn);
 
   const gResults = document.createElement('div');
@@ -114,14 +114,14 @@ function buildModal(): void {
   cancelBtn.type = 'button';
   cancelBtn.className = 'btn btn-secondary';
   cancelBtn.id = 'dest-cancel-btn';
-  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.textContent = 'Cancel';
   actions.appendChild(cancelBtn);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'submit';
   saveBtn.className = 'btn btn-primary';
   saveBtn.id = 'dest-save-btn';
-  saveBtn.textContent = 'Guardar';
+  saveBtn.textContent = 'Save';
   actions.appendChild(saveBtn);
 
   form.appendChild(actions);
@@ -180,7 +180,7 @@ function buildFormGroup(
 
 function openModal(dest: ApiDestination | null): void {
   editingDestId = dest ? dest.id : null;
-  setText(modalTitle, dest ? 'Editar destino' : 'Agregar destino');
+  setText(modalTitle, dest ? 'Edit destination' : 'Add destination');
 
   cityInput.value = dest?.city_name ?? '';
   countryInput.value = dest?.country ?? '';
@@ -225,7 +225,7 @@ async function handleGeocoderSearch(): Promise<void> {
       lngInput.value = coords.lng;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Encontrado';
+      btn.textContent = 'Found';
       btn.addEventListener('click', () => {
         geocoderResults.setAttribute('hidden', '');
         geocoderResults.replaceChildren();
@@ -234,15 +234,15 @@ async function handleGeocoderSearch(): Promise<void> {
     } else {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Sin resultados. Probá con otra búsqueda.';
+      btn.textContent = 'No results. Try a different search.';
       btn.disabled = true;
       geocoderResults.appendChild(btn);
     }
     return;
   }
 
-  const originalText = geocoderBtn.textContent ?? 'Buscar lugar';
-  geocoderBtn.textContent = 'Buscando…';
+  const originalText = geocoderBtn.textContent ?? 'Search location';
+  geocoderBtn.textContent = 'Searching…';
   geocoderBtn.disabled = true;
 
   try {
@@ -252,7 +252,7 @@ async function handleGeocoderSearch(): Promise<void> {
     if (results.length === 0) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Sin resultados. Probá con otra búsqueda.';
+      btn.textContent = 'No results. Try a different search.';
       btn.disabled = true;
       geocoderResults.appendChild(btn);
       return;
@@ -272,7 +272,7 @@ async function handleGeocoderSearch(): Promise<void> {
       geocoderResults.appendChild(btn);
     }
   } catch {
-    setText(formError, 'Error al buscar la ubicación. Intentá de nuevo.');
+    setText(formError, 'Error searching location. Please try again.');
     formError.removeAttribute('hidden');
     geocoderResults.setAttribute('hidden', '');
   } finally {
@@ -288,7 +288,7 @@ async function handleFormSubmit(e: Event): Promise<void> {
   const saveBtn = document.getElementById('dest-save-btn') as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
-    setText(saveBtn, 'Guardando…');
+    setText(saveBtn, 'Saving…');
   }
 
   const rawLat = latInput.value;
@@ -318,12 +318,12 @@ async function handleFormSubmit(e: Event): Promise<void> {
     closeModal();
     renderList();
   } catch {
-    setText(formError, 'No se pudo guardar. Verificá tu conexión e intentá de nuevo.');
+    setText(formError, 'Could not save. Check your connection and try again.');
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      setText(saveBtn, 'Guardar');
+      setText(saveBtn, 'Save');
     }
   }
 }
@@ -338,8 +338,8 @@ function openConfirmDelete(dest: ApiDestination): void {
 
   if (!confirmOverlay || !confirmTitle || !confirmMsg || !deleteBtn || !cancelBtn) return;
 
-  setText(confirmTitle, '¿Eliminar destino?');
-  setText(confirmMsg, 'Se eliminarán todos los días y actividades de este destino.');
+  setText(confirmTitle, 'Delete destination?');
+  setText(confirmMsg, 'All days and activities for this destination will be deleted.');
   if (confirmError) confirmError.setAttribute('hidden', '');
 
   confirmOverlay.removeAttribute('hidden');
@@ -365,7 +365,7 @@ function openConfirmDelete(dest: ApiDestination): void {
 
   freshDelete.addEventListener('click', async () => {
     freshDelete.disabled = true;
-    setText(freshDelete, 'Eliminando…');
+    setText(freshDelete, 'Deleting…');
     if (confirmError) confirmError.setAttribute('hidden', '');
 
     try {
@@ -375,11 +375,11 @@ function openConfirmDelete(dest: ApiDestination): void {
       renderList();
     } catch {
       if (confirmError) {
-        setText(confirmError, 'No se pudo eliminar. Intentá de nuevo.');
+        setText(confirmError, 'Could not delete. Please try again.');
         confirmError.removeAttribute('hidden');
       }
       freshDelete.disabled = false;
-      setText(freshDelete, 'Eliminar');
+      setText(freshDelete, 'Delete');
     }
   }, { once: true });
 }
@@ -434,14 +434,14 @@ function renderList(): void {
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'btn btn-secondary';
-    editBtn.textContent = 'Editar';
+    editBtn.textContent = 'Edit';
     editBtn.addEventListener('click', () => openModal(dest));
     header.appendChild(editBtn);
 
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'btn btn-danger';
-    delBtn.textContent = 'Eliminar';
+    delBtn.textContent = 'Delete';
     delBtn.addEventListener('click', () => openConfirmDelete(dest));
     header.appendChild(delBtn);
 
@@ -466,7 +466,7 @@ function renderList(): void {
     daysHeader.style.fontSize = '14px';
     daysHeader.style.fontWeight = '600';
     daysHeader.style.margin = '0 0 8px';
-    daysHeader.textContent = 'Días';
+    daysHeader.textContent = 'Days';
     body.appendChild(daysHeader);
 
     const daysContainer = document.createElement('div');

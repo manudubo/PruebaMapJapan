@@ -41,7 +41,7 @@ function buildModal(): void {
 
   const title = document.createElement('h2');
   title.id = 'hotel-modal-title';
-  title.textContent = 'Agregar hotel';
+  title.textContent = 'Add hotel';
   modal.appendChild(title);
 
   const form = document.createElement('form');
@@ -61,7 +61,7 @@ function buildModal(): void {
   geocoderGroup.className = 'form-group';
 
   const geocoderLabel = document.createElement('label');
-  geocoderLabel.textContent = 'Coordenadas (opcional)';
+  geocoderLabel.textContent = 'Coordinates (optional)';
   geocoderGroup.appendChild(geocoderLabel);
 
   const widget = document.createElement('div');
@@ -70,14 +70,14 @@ function buildModal(): void {
   const gInput = document.createElement('input');
   gInput.type = 'text';
   gInput.id = 'hotel-geocoder-input';
-  gInput.placeholder = 'Buscar lugar o pegar URL de Google Maps…';
+  gInput.placeholder = 'Search location or paste Google Maps URL…';
   widget.appendChild(gInput);
 
   const gBtn = document.createElement('button');
   gBtn.type = 'button';
   gBtn.className = 'btn btn-primary';
   gBtn.id = 'hotel-geocoder-btn';
-  gBtn.textContent = 'Buscar lugar';
+  gBtn.textContent = 'Search location';
   widget.appendChild(gBtn);
 
   const gResults = document.createElement('div');
@@ -115,14 +115,14 @@ function buildModal(): void {
   cancelBtn.type = 'button';
   cancelBtn.className = 'btn btn-secondary';
   cancelBtn.id = 'hotel-cancel-btn';
-  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.textContent = 'Cancel';
   actions.appendChild(cancelBtn);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'submit';
   saveBtn.className = 'btn btn-primary';
   saveBtn.id = 'hotel-save-btn';
-  saveBtn.textContent = 'Guardar';
+  saveBtn.textContent = 'Save';
   actions.appendChild(saveBtn);
 
   form.appendChild(actions);
@@ -181,7 +181,7 @@ function buildFormGroup(
 function openModal(hotel: ApiHotel | undefined): void {
   buildModal();
 
-  setText(modalTitle, hotel ? 'Editar hotel' : 'Agregar hotel');
+  setText(modalTitle, hotel ? 'Edit hotel' : 'Add hotel');
 
   nameInput.value = hotel?.name ?? '';
   urlInput.value = hotel?.url ?? '';
@@ -225,7 +225,7 @@ async function handleGeocoderSearch(): Promise<void> {
       lngInput.value = coords.lng;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Encontrado';
+      btn.textContent = 'Found';
       btn.addEventListener('click', () => {
         geocoderResults.setAttribute('hidden', '');
         geocoderResults.replaceChildren();
@@ -234,15 +234,15 @@ async function handleGeocoderSearch(): Promise<void> {
     } else {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Sin resultados. Probá con otra búsqueda.';
+      btn.textContent = 'No results. Try a different search.';
       btn.disabled = true;
       geocoderResults.appendChild(btn);
     }
     return;
   }
 
-  const originalText = geocoderBtn.textContent ?? 'Buscar lugar';
-  geocoderBtn.textContent = 'Buscando…';
+  const originalText = geocoderBtn.textContent ?? 'Search location';
+  geocoderBtn.textContent = 'Searching…';
   geocoderBtn.disabled = true;
 
   try {
@@ -252,7 +252,7 @@ async function handleGeocoderSearch(): Promise<void> {
     if (results.length === 0) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Sin resultados. Probá con otra búsqueda.';
+      btn.textContent = 'No results. Try a different search.';
       btn.disabled = true;
       geocoderResults.appendChild(btn);
       return;
@@ -272,7 +272,7 @@ async function handleGeocoderSearch(): Promise<void> {
       geocoderResults.appendChild(btn);
     }
   } catch {
-    setText(formError, 'Error al buscar la ubicación. Intentá de nuevo.');
+    setText(formError, 'Error searching location. Please try again.');
     formError.removeAttribute('hidden');
     geocoderResults.setAttribute('hidden', '');
   } finally {
@@ -288,7 +288,7 @@ async function handleFormSubmit(e: Event): Promise<void> {
   const saveBtn = document.getElementById('hotel-save-btn') as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
-    setText(saveBtn, 'Guardando…');
+    setText(saveBtn, 'Saving…');
   }
 
   const rawLat = latInput.value;
@@ -307,12 +307,12 @@ async function handleFormSubmit(e: Event): Promise<void> {
     closeModal();
     renderHotelDisplay(currentContainer, currentDest, currentTripId);
   } catch {
-    setText(formError, 'No se pudo guardar. Verificá tu conexión e intentá de nuevo.');
+    setText(formError, 'Could not save. Check your connection and try again.');
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      setText(saveBtn, 'Guardar');
+      setText(saveBtn, 'Save');
     }
   }
 }
@@ -327,8 +327,8 @@ function openConfirmDelete(): void {
 
   if (!confirmOverlay || !confirmTitle || !confirmMsg || !deleteBtn || !cancelBtn) return;
 
-  setText(confirmTitle, '¿Eliminar hotel?');
-  setText(confirmMsg, 'Esta acción no se puede deshacer.');
+  setText(confirmTitle, 'Delete hotel?');
+  setText(confirmMsg, 'This action cannot be undone.');
   if (confirmError) confirmError.setAttribute('hidden', '');
 
   confirmOverlay.removeAttribute('hidden');
@@ -354,7 +354,7 @@ function openConfirmDelete(): void {
 
   freshDelete.addEventListener('click', async () => {
     freshDelete.disabled = true;
-    setText(freshDelete, 'Eliminando…');
+    setText(freshDelete, 'Deleting…');
     if (confirmError) confirmError.setAttribute('hidden', '');
 
     try {
@@ -364,11 +364,11 @@ function openConfirmDelete(): void {
       renderHotelDisplay(currentContainer, currentDest, currentTripId);
     } catch {
       if (confirmError) {
-        setText(confirmError, 'No se pudo eliminar. Intentá de nuevo.');
+        setText(confirmError, 'Could not delete. Please try again.');
         confirmError.removeAttribute('hidden');
       }
       freshDelete.disabled = false;
-      setText(freshDelete, 'Eliminar');
+      setText(freshDelete, 'Delete');
     }
   }, { once: true });
 }
@@ -382,7 +382,7 @@ function renderHotelDisplay(
 
   if (!dest.hotel) {
     const empty = document.createElement('p');
-    setText(empty, 'Sin hotel asignado.');
+    setText(empty, 'No hotel assigned.');
     empty.style.color = 'var(--text-secondary, #515154)';
     empty.style.margin = '0 0 8px';
     container.appendChild(empty);
@@ -390,7 +390,7 @@ function renderHotelDisplay(
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'btn btn-secondary';
-    addBtn.textContent = 'Agregar hotel';
+    addBtn.textContent = 'Add hotel';
     addBtn.addEventListener('click', () => {
       currentTripId = tripId;
       currentDest = dest;
@@ -436,7 +436,7 @@ function renderHotelDisplay(
   const editBtn = document.createElement('button');
   editBtn.type = 'button';
   editBtn.className = 'btn btn-secondary';
-  editBtn.textContent = 'Editar';
+  editBtn.textContent = 'Edit';
   editBtn.addEventListener('click', () => {
     currentTripId = tripId;
     currentDest = dest;
@@ -448,7 +448,7 @@ function renderHotelDisplay(
   const delBtn = document.createElement('button');
   delBtn.type = 'button';
   delBtn.className = 'btn btn-danger';
-  delBtn.textContent = 'Eliminar';
+  delBtn.textContent = 'Delete';
   delBtn.addEventListener('click', () => {
     currentTripId = tripId;
     currentDest = dest;
