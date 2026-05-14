@@ -46,7 +46,7 @@ export function buildSearchIndex(): void {
     searchIndex.push({
       type: 'hotel',
       title: cityData.hotel.name,
-      subtitle: `Hotel en ${cityData.name}`,
+      subtitle: `Hotel in ${cityData.name}`,
       city: cityData.name,
       cityKey,
       coords: cityData.hotel.coords,
@@ -103,7 +103,7 @@ export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
     searchIndex.push({
       type: 'city',
       title: dest.city_name,
-      subtitle: `${trip.name}${dest.start_date ? ' · ' + new Date(dest.start_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : ''}`,
+      subtitle: `${trip.name}${dest.start_date ? ' · ' + new Date(dest.start_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : ''}`,
       city: dest.city_name,
       cityKey,
       url: tripUrl,
@@ -114,7 +114,7 @@ export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
       searchIndex.push({
         type: 'hotel',
         title: dest.hotel.name,
-        subtitle: `Hotel en ${dest.city_name} · ${trip.name}`,
+        subtitle: `Hotel in ${dest.city_name} · ${trip.name}`,
         city: dest.city_name,
         cityKey,
         coords: dest.hotel.lat != null && dest.hotel.lng != null ? [dest.hotel.lat, dest.hotel.lng] : undefined,
@@ -155,7 +155,7 @@ export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
  */
 function formatDateLabel(dateKey: string): string {
   const date = new Date(dateKey);
-  return date.toLocaleDateString('es-ES', {
+  return date.toLocaleDateString('en-US', {
     weekday: 'long',
     day: 'numeric',
     month: 'long'
