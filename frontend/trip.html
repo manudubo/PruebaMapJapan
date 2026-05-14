@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
-  <meta name="description" content="Detalle de viaje – itinerario interactivo">
+  <meta name="description" content="Trip detail – interactive itinerary">
   <meta name="view-transition" content="same-origin">
 
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
 
-  <title>Viaje – Itinerario</title>
+  <title>Trip – Itinerary</title>
 
   <!-- Critical CSS to prevent FOUC -->
   <style>
@@ -80,7 +80,7 @@
   </style>
 </head>
 <body>
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
   <div class="container">
     <travel-nav></travel-nav>
@@ -89,27 +89,27 @@
     <main id="main-content">
       <div class="page-card">
         <header class="header">
-          <h1 id="trip-title">Cargando viaje…</h1>
+          <h1 id="trip-title">Loading trip…</h1>
           <p id="trip-subtitle"></p>
-          <button id="copy-link-btn" class="btn btn-secondary" hidden>Copiar enlace público</button>
-          <a id="trip-edit-link" href="#" class="btn btn-secondary" data-owner-only hidden>Editar viaje</a>
+          <button id="copy-link-btn" class="btn btn-secondary" hidden>Copy public link</button>
+          <a id="trip-edit-link" href="#" class="btn btn-secondary" data-owner-only hidden>Edit trip</a>
         </header>
 
         <!-- Destination tabs (rendered by tripDetail.ts) -->
-        <div class="dest-tabs" id="dest-tabs" role="tablist" aria-label="Destinos del viaje"></div>
+        <div class="dest-tabs" id="dest-tabs" role="tablist" aria-label="Destination tabs"></div>
 
         <!-- Day selector (populated by tripDetail.ts via initMap) -->
-        <div class="day-selector" id="day-selector" role="tablist" aria-label="Filtrar por día"></div>
+        <div class="day-selector" id="day-selector" role="tablist" aria-label="Day selector"></div>
 
         <!-- Map -->
         <div class="map-container">
-          <div id="map" role="application" aria-label="Mapa del destino"></div>
-          <button class="hotel-btn" id="hotel-btn" title="Ir al hotel" aria-label="Centrar mapa en hotel">H</button>
+          <div id="map" role="application" aria-label="Map"></div>
+          <button class="hotel-btn" id="hotel-btn" title="Go to hotel" aria-label="Center map on hotel">H</button>
         </div>
 
         <!-- Legend -->
-        <div class="legend" aria-label="Leyenda de actividades">
-          <h3>Actividades</h3>
+        <div class="legend" aria-label="Legend">
+          <h3>Activities</h3>
           <div class="legend-grid" id="legend-grid" role="list"></div>
           <div class="hotel-info" id="hotel-info"></div>
         </div>
