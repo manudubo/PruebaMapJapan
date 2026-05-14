@@ -105,7 +105,7 @@ test('UAT-2 & UAT-3: register passkey via virtual authenticator, verify list, ca
   }, { timeout: 5000 }).catch(() => {});
 
   const initialText = await list.textContent();
-  expect(initialText).toContain('No tenés passkeys');
+  expect(initialText).toContain("You don't have any passkeys");
 
   // ── UAT-2b: Register a passkey ────────────────────────────────────────
   await page.click('#btn-add-passkey');
@@ -182,11 +182,11 @@ test('UAT-2 & UAT-3: register passkey via virtual authenticator, verify list, ca
 
   await page.waitForFunction(() => {
     const el = document.getElementById('passkey-list');
-    return el && el.textContent?.includes('No tenés passkeys');
+    return el && el.textContent?.includes("You don't have any passkeys");
   }, { timeout: 15000 });
 
   const afterText = await list.textContent();
-  expect(afterText).toContain('No tenés passkeys');
+  expect(afterText).toContain("You don't have any passkeys");
   console.log('UAT-3b PASSED: Confirm delete removes passkey from list');
 
   await browser.close();

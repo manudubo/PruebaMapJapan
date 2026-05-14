@@ -75,7 +75,7 @@ async function loadPasskeys(): Promise<void> {
 
     if (credentials.length === 0) {
       list.innerHTML =
-        '<li style="font-size:14px;color:var(--text-secondary,#515154);padding:8px 0;">No tenés passkeys registrados todavía.</li>';
+        '<li style="font-size:14px;color:var(--text-secondary,#515154);padding:8px 0;">You don\'t have any passkeys registered yet.</li>';
       return;
     }
 
@@ -83,7 +83,7 @@ async function loadPasskeys(): Promise<void> {
       .map((c) => {
         const label = c.userLabel ?? 'Passkey';
         const created = c.createdDate
-          ? new Date(c.createdDate).toLocaleDateString('es-ES', {
+          ? new Date(c.createdDate).toLocaleDateString('en-US', {
               day: 'numeric',
               month: 'short',
               year: 'numeric',
@@ -93,10 +93,10 @@ async function loadPasskeys(): Promise<void> {
         <li class="passkey-item" data-credential-id="${c.id}">
           <div class="passkey-info">
             <span class="passkey-name">${label}</span>
-            ${created ? `<span class="passkey-meta">Registrado: ${created}</span>` : ''}
+            ${created ? `<span class="passkey-meta">Registered: ${created}</span>` : ''}
           </div>
           <button class="btn btn-danger" type="button" data-credential-id="${c.id}" data-passkey-delete>
-            Eliminar
+            Delete
           </button>
         </li>`;
       })
@@ -110,7 +110,7 @@ async function loadPasskeys(): Promise<void> {
     });
   } catch {
     list.innerHTML =
-      '<li style="font-size:14px;color:var(--text-secondary,#515154);padding:8px 0;">No se pudo cargar la lista de passkeys.</li>';
+      '<li style="font-size:14px;color:var(--text-secondary,#515154);padding:8px 0;">Could not load passkey list.</li>';
   }
 }
 
@@ -124,7 +124,7 @@ async function registerPasskey(): Promise<void> {
       redirectUri: window.location.href,
     });
   } catch {
-    showStatus('passkey-status', 'Error al iniciar el registro de passkey.', 'error');
+    showStatus('passkey-status', 'Error starting passkey registration.', 'error');
     if (btn) btn.disabled = false;
   }
 }
@@ -157,11 +157,11 @@ function buildDeleteModal(): void {
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   modal.innerHTML = `
-    <h2>¿Eliminar passkey?</h2>
-    <p>Esta acción no se puede deshacer.</p>
+    <h2>Delete passkey?</h2>
+    <p>This action cannot be undone.</p>
     <div class="form-actions">
-      <button class="btn btn-secondary" id="passkey-delete-cancel">Cancelar</button>
-      <button class="btn btn-danger" id="passkey-delete-confirm">Eliminar</button>
+      <button class="btn btn-secondary" id="passkey-delete-cancel">Cancel</button>
+      <button class="btn btn-danger" id="passkey-delete-confirm">Delete</button>
     </div>
   `;
   overlay.appendChild(modal);
@@ -196,13 +196,13 @@ function openDeleteConfirm(credentialId: string): void {
   // Use the AIA flow instead: KC deletes the credential server-side and redirects back.
   freshConfirm.addEventListener('click', () => {
     freshConfirm.disabled = true;
-    freshConfirm.textContent = 'Eliminando…';
+    freshConfirm.textContent = 'Deleting…';
     keycloak.login({
       action: `delete_credential:${credentialId}`,
       redirectUri: window.location.href,
     }).catch(() => {
       freshConfirm.disabled = false;
-      freshConfirm.textContent = 'Eliminar';
+      freshConfirm.textContent = 'Delete';
     });
   }, { once: true });
 }
