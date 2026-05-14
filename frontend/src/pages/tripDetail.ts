@@ -46,7 +46,7 @@ function buildDestTabs(trip: ApiTrip, activeIndex: number): void {
   if (!tabsEl) return;
 
   tabsEl.setAttribute('role', 'tablist');
-  tabsEl.setAttribute('aria-label', 'Destinos del viaje');
+  tabsEl.setAttribute('aria-label', 'Trip destinations');
 
   const sorted = trip.destinations.slice().sort((a, b) => a.order_index - b.order_index);
 
@@ -111,7 +111,7 @@ function createHotelIcon(): L.DivIcon {
 }
 
 export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): string {
-  const badge = activity.optional ? `<span class="optional-badge">Opción ${activity.optional}</span>` : '';
+  const badge = activity.optional ? `<span class="optional-badge">Option ${activity.optional}</span>` : '';
   let html = `<div class="day-label">${day.label}${badge}</div><h4>${activity.name}</h4>`;
   if (activity.notes) html += `<p>${activity.notes}</p>`;
   if (!activity.isGeneric && mapsUrl && activity.coords) {
@@ -119,11 +119,11 @@ export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null)
     html += `<div class="popup-links">
       <a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        <span>Ver en Maps</span>
+        <span>View on Maps</span>
       </a>
       <a href="${dirUrl}" target="_blank" rel="noopener" class="popup-link directions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-        <span>Cómo llegar</span>
+        <span>Directions</span>
       </a>
     </div>`;
   }
@@ -131,17 +131,17 @@ export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null)
 }
 
 export function buildHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
-  let html = `<h4>${hotel.name}</h4><p>Alojamiento</p>`;
+  let html = `<h4>${hotel.name}</h4><p>Accommodation</p>`;
   if (mapsUrl && hotel.coords) {
     const dirUrl = createDirectionsUrl(hotel.coords);
     html += `<div class="popup-links">
       <a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        <span>Ver en Maps</span>
+        <span>View on Maps</span>
       </a>
       <a href="${dirUrl}" target="_blank" rel="noopener" class="popup-link directions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-        <span>Cómo llegar</span>
+        <span>Directions</span>
       </a>
     </div>`;
   }
@@ -167,7 +167,7 @@ function initMap(data: CityData): void {
 
   if (daySelector) {
     daySelector.setAttribute('role', 'tablist');
-    daySelector.setAttribute('aria-label', 'Filtrar por día');
+    daySelector.setAttribute('aria-label', 'Filter by day');
     daySelector.innerHTML = '';
 
     Object.entries(data.days).forEach(([dateKey, day]) => {
@@ -177,7 +177,7 @@ function initMap(data: CityData): void {
       btn.dataset.day = dateKey;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', 'false');
-      if (day.hasOptions) btn.title = 'Este día tiene opciones alternativas';
+      if (day.hasOptions) btn.title = 'This day has alternative options';
       daySelector.appendChild(btn);
 
       markersByDay[dateKey] = [];
@@ -209,7 +209,7 @@ function initMap(data: CityData): void {
 
   const hotelBtn = document.getElementById('hotel-btn');
   if (hotelBtn && data.hotel?.coords) {
-    hotelBtn.setAttribute('aria-label', 'Centrar mapa en hotel');
+    hotelBtn.setAttribute('aria-label', 'Center map on hotel');
     hotelBtn.onclick = () => map.setView(data.hotel.coords, 15);
   }
 
@@ -223,7 +223,7 @@ function initMap(data: CityData): void {
     window.currentTileLayer = currentTileLayer;
   });
 
-  announceToScreenReader(`Mapa de ${data.name} cargado con ${allMarkers.length} ubicaciones`);
+  announceToScreenReader(`Map of ${data.name} loaded with ${allMarkers.length} locations`);
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ function setupDayFilter(
       document.querySelectorAll('.day-group').forEach((g) => {
         (g as HTMLElement).style.display = 'block';
       });
-      announceToScreenReader('Mostrando todos los días');
+      announceToScreenReader('Showing all days');
       return;
     }
 
@@ -282,7 +282,7 @@ function setupDayFilter(
     const dayData = data.days[selectedDay];
     if (!dayData) return;
     announceToScreenReader(
-      `Mostrando ${dayData.label}: ${markersByDay[selectedDay].length} ubicaciones`
+      `Showing ${dayData.label}: ${markersByDay[selectedDay].length} locations`
     );
   });
 }
@@ -296,7 +296,7 @@ function generateLegend(data: CityData): void {
   if (!legendGrid) return;
   legendGrid.innerHTML = '';
   legendGrid.setAttribute('role', 'region');
-  legendGrid.setAttribute('aria-label', 'Lista de actividades por día');
+  legendGrid.setAttribute('aria-label', 'Activity list by day');
 
   Object.entries(data.days).forEach(([dateKey, day]) => {
     const dayGroup = document.createElement('div');
@@ -316,7 +316,7 @@ function generateLegend(data: CityData): void {
     if (day.hasOptions) {
       const badge = document.createElement('span');
       badge.className = 'day-group-badge';
-      badge.textContent = 'Opciones';
+      badge.textContent = 'Options';
       header.appendChild(badge);
     }
     dayGroup.appendChild(header);
@@ -370,7 +370,7 @@ function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement
     mapsLink.target = '_blank';
     mapsLink.rel = 'noopener';
     mapsLink.className = 'legend-action-btn';
-    mapsLink.title = 'Ver en Google Maps';
+    mapsLink.title = 'View on Google Maps';
     mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
     actionsDiv.appendChild(mapsLink);
     const dirLink = document.createElement('a');
@@ -378,7 +378,7 @@ function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement
     dirLink.target = '_blank';
     dirLink.rel = 'noopener';
     dirLink.className = 'legend-action-btn directions';
-    dirLink.title = 'Cómo llegar';
+    dirLink.title = 'Directions';
     dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
     actionsDiv.appendChild(dirLink);
     item.appendChild(actionsDiv);
@@ -411,7 +411,7 @@ function updateHotelInfo(hotel: Hotel): void {
     mapsLink.target = '_blank';
     mapsLink.rel = 'noopener';
     mapsLink.className = 'legend-action-btn';
-    mapsLink.title = 'Ver en Google Maps';
+    mapsLink.title = 'View on Google Maps';
     mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
     actionsDiv.appendChild(mapsLink);
     const dirLink = document.createElement('a');
@@ -419,7 +419,7 @@ function updateHotelInfo(hotel: Hotel): void {
     dirLink.target = '_blank';
     dirLink.rel = 'noopener';
     dirLink.className = 'legend-action-btn directions';
-    dirLink.title = 'Cómo llegar';
+    dirLink.title = 'Directions';
     dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
     actionsDiv.appendChild(dirLink);
     hotelInfo.appendChild(actionsDiv);
@@ -474,7 +474,7 @@ function showError(message: string): void {
   const link = document.createElement('a');
   link.href = 'dashboard.html';
   link.style.color = 'var(--accent,#0071e3)';
-  link.textContent = 'Volver al dashboard';
+  link.textContent = 'Back to dashboard';
   card.appendChild(link);
   main.appendChild(card);
 }
@@ -494,7 +494,7 @@ async function init(): Promise<void> {
     try {
       slugTrip = await getPublicTrip(slug);
     } catch (err) {
-      showError(`No se pudo cargar el viaje: ${(err as Error).message}`);
+      showError(`Could not load trip: ${(err as Error).message}`);
       document.body.classList.add('ready');
       return;
     }
@@ -511,7 +511,7 @@ async function init(): Promise<void> {
   }
 
   if (!tripId) {
-    showError('No se especificó un viaje. Revisá la URL.');
+    showError('No trip specified. Check the URL.');
     document.body.classList.add('ready');
     return;
   }
@@ -536,7 +536,7 @@ async function init(): Promise<void> {
   }
 
   if (!trip) {
-    showError('No tenés acceso a este viaje. Pedile al dueño el enlace público.');
+    showError("You don't have access to this trip. Ask the owner for the public link.");
     document.body.classList.add('ready');
     return;
   }
@@ -559,8 +559,8 @@ async function init(): Promise<void> {
     copyLinkBtn.addEventListener('click', async () => {
       const url = `${window.location.origin}${window.location.pathname}?slug=${slugForCopy}`;
       await navigator.clipboard.writeText(url);
-      setText(copyLinkBtn, '¡Copiado!');
-      setTimeout(() => { setText(copyLinkBtn, 'Copiar enlace público'); }, 2000);
+      setText(copyLinkBtn, 'Copied!');
+      setTimeout(() => { setText(copyLinkBtn, 'Copy public link'); }, 2000);
     });
   }
 

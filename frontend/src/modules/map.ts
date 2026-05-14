@@ -49,21 +49,21 @@ function createHotelIcon(): L.DivIcon {
 }
 
 export function createPopupContent(activity: Activity, day: Day, mapsUrl: string | null): string {
-  const optionalBadge = activity.optional ? `<span class="optional-badge">Opción ${activity.optional}</span>` : '';
+  const optionalBadge = activity.optional ? `<span class="optional-badge">Option ${activity.optional}</span>` : '';
   let content = `<div class="day-label">${day.label}${optionalBadge}</div><h4>${activity.name}</h4>`;
   if (activity.notes) content += `<p>${activity.notes}</p>`;
   if (!activity.isGeneric && mapsUrl && activity.coords) {
     const directionsUrl = createDirectionsUrl(activity.coords);
-    content += `<div class="popup-links"><a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Ver en Maps</span></a><a href="${directionsUrl}" target="_blank" rel="noopener" class="popup-link directions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg><span>Cómo llegar</span></a></div>`;
+    content += `<div class="popup-links"><a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>View on Maps</span></a><a href="${directionsUrl}" target="_blank" rel="noopener" class="popup-link directions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg><span>Directions</span></a></div>`;
   }
   return DOMPurify.sanitize(content);
 }
 
 export function createHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
-  let content = `<h4>${hotel.name}</h4><p>Alojamiento</p>`;
+  let content = `<h4>${hotel.name}</h4><p>Accommodation</p>`;
   if (mapsUrl && hotel.coords) {
     const directionsUrl = createDirectionsUrl(hotel.coords);
-    content += `<div class="popup-links"><a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Ver en Maps</span></a><a href="${directionsUrl}" target="_blank" rel="noopener" class="popup-link directions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg><span>Cómo llegar</span></a></div>`;
+    content += `<div class="popup-links"><a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>View on Maps</span></a><a href="${directionsUrl}" target="_blank" rel="noopener" class="popup-link directions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg><span>Directions</span></a></div>`;
   }
   return DOMPurify.sanitize(content);
 }
@@ -86,7 +86,7 @@ export function initCityMap(city: string): L.Map | null {
 
   if (daySelector) {
     daySelector.setAttribute('role', 'tablist');
-    daySelector.setAttribute('aria-label', 'Filtrar por día');
+    daySelector.setAttribute('aria-label', 'Filter by day');
     
     Object.entries(data.days).forEach(([dateKey, day]) => {
       const btn = document.createElement('button');
@@ -95,7 +95,7 @@ export function initCityMap(city: string): L.Map | null {
       btn.dataset.day = dateKey;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', 'false');
-      if (day.hasOptions) btn.title = 'Este día tiene opciones alternativas';
+      if (day.hasOptions) btn.title = 'This day has alternative options';
       daySelector.appendChild(btn);
 
       markersByDay[dateKey] = [];
@@ -125,7 +125,7 @@ export function initCityMap(city: string): L.Map | null {
 
   const hotelBtn = document.getElementById('hotel-btn');
   if (hotelBtn && data.hotel?.coords) {
-    hotelBtn.setAttribute('aria-label', 'Centrar mapa en hotel');
+    hotelBtn.setAttribute('aria-label', 'Center map on hotel');
     hotelBtn.addEventListener('click', () => map.setView(data.hotel.coords, 15));
   }
 
@@ -144,7 +144,7 @@ export function initCityMap(city: string): L.Map | null {
     }, 300);
   }
   
-  announceToScreenReader(`Mapa de ${data.name} cargado con ${allMarkers.length} ubicaciones`);
+  announceToScreenReader(`Map of ${data.name} loaded with ${allMarkers.length} locations`);
   return map;
 }
 
@@ -202,7 +202,7 @@ function setupDayFilter(
       allMarkers.forEach(m => m.addTo(map));
       map.setView(data.center, data.zoom);
       document.querySelectorAll('.day-group').forEach(g => { (g as HTMLElement).style.display = 'block'; });
-      announceToScreenReader('Mostrando todos los días');
+      announceToScreenReader('Showing all days');
       return;
     }
     
@@ -222,7 +222,7 @@ function setupDayFilter(
       (g as HTMLElement).style.display = (g as HTMLElement).dataset.day === selectedDay ? 'block' : 'none';
     });
     const dayData = data.days[selectedDay];
-    announceToScreenReader(`Mostrando ${dayData.label}: ${markersByDay[selectedDay].length} ubicaciones`);
+    announceToScreenReader(`Showing ${dayData.label}: ${markersByDay[selectedDay].length} locations`);
   });
 }
 
@@ -231,7 +231,7 @@ function generateLegendByDay(data: CityData): void {
   if (!legendGrid) return;
   legendGrid.innerHTML = '';
   legendGrid.setAttribute('role', 'region');
-  legendGrid.setAttribute('aria-label', 'Lista de actividades por día');
+  legendGrid.setAttribute('aria-label', 'Activity list by day');
 
   Object.entries(data.days).forEach(([dateKey, day]) => {
     const dayGroup = document.createElement('div');
@@ -251,7 +251,7 @@ function generateLegendByDay(data: CityData): void {
     if (day.hasOptions) {
       const badge = document.createElement('span');
       badge.className = 'day-group-badge';
-      badge.textContent = 'Opciones';
+      badge.textContent = 'Options';
       header.appendChild(badge);
     }
     dayGroup.appendChild(header);
@@ -300,7 +300,7 @@ function createLegendItem(activity: Activity, idx: number, day: Day): HTMLElemen
     mapsLink.target = '_blank';
     mapsLink.rel = 'noopener';
     mapsLink.className = 'legend-action-btn';
-    mapsLink.title = 'Ver en Google Maps';
+    mapsLink.title = 'View on Google Maps';
     mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
     actionsDiv.appendChild(mapsLink);
     const dirLink = document.createElement('a');
@@ -308,7 +308,7 @@ function createLegendItem(activity: Activity, idx: number, day: Day): HTMLElemen
     dirLink.target = '_blank';
     dirLink.rel = 'noopener';
     dirLink.className = 'legend-action-btn directions';
-    dirLink.title = 'Cómo llegar';
+    dirLink.title = 'Directions';
     dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
     actionsDiv.appendChild(dirLink);
     item.appendChild(actionsDiv);
@@ -341,7 +341,7 @@ function updateHotelInfo(hotel: Hotel): void {
     mapsLink.target = '_blank';
     mapsLink.rel = 'noopener';
     mapsLink.className = 'legend-action-btn';
-    mapsLink.title = 'Ver en Google Maps';
+    mapsLink.title = 'View on Google Maps';
     mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
     actionsDiv.appendChild(mapsLink);
     const dirLink = document.createElement('a');
@@ -349,7 +349,7 @@ function updateHotelInfo(hotel: Hotel): void {
     dirLink.target = '_blank';
     dirLink.rel = 'noopener';
     dirLink.className = 'legend-action-btn directions';
-    dirLink.title = 'Cómo llegar';
+    dirLink.title = 'Directions';
     dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
     actionsDiv.appendChild(dirLink);
     hotelInfo.appendChild(actionsDiv);
@@ -391,7 +391,7 @@ export function initOverviewMap(): void {
       iconSize: [32, 32],
       iconAnchor: [16, 16]
     });
-    const popupHtml = `<h4>${city.name}</h4><p>${city.dates}</p><p><a href="${city.link}" style="color:var(--accent);">Ver itinerario</a></p>`;
+    const popupHtml = `<h4>${city.name}</h4><p>${city.dates}</p><p><a href="${city.link}" style="color:var(--accent);">View itinerary</a></p>`;
     L.marker(city.coords as L.LatLngExpression, { icon, alt: city.name })
       .bindPopup(DOMPurify.sanitize(popupHtml))
       .addTo(map);
@@ -401,7 +401,7 @@ export function initOverviewMap(): void {
     color: themeConfig.routeColor, weight: 2, opacity: 0.5, dashArray: '8, 8'
   }).addTo(map);
   
-  announceToScreenReader('Mapa general cargado con 8 ciudades');
+  announceToScreenReader('Overview map loaded with 8 cities');
 }
 
 export function updateMapTheme(): void {
