@@ -50,7 +50,7 @@ function buildModal(): void {
 
   const title = document.createElement('h2');
   title.id = 'day-modal-title';
-  title.textContent = 'Agregar día';
+  title.textContent = 'Add day';
   modal.appendChild(title);
 
   const form = document.createElement('form');
@@ -61,14 +61,14 @@ function buildModal(): void {
   labelGroup.className = 'form-group';
   const labelEl = document.createElement('label');
   labelEl.setAttribute('for', 'day-label');
-  labelEl.textContent = 'Etiqueta';
+  labelEl.textContent = 'Label';
   labelGroup.appendChild(labelEl);
   const lInput = document.createElement('input');
   lInput.type = 'text';
   lInput.id = 'day-label';
   lInput.name = 'label';
   lInput.maxLength = 255;
-  lInput.placeholder = 'Ej: Día libre en Tokio';
+  lInput.placeholder = 'E.g.: Free day in Tokyo';
   labelGroup.appendChild(lInput);
   form.appendChild(labelGroup);
 
@@ -77,7 +77,7 @@ function buildModal(): void {
   dateGroup.className = 'form-group';
   const dateLabelEl = document.createElement('label');
   dateLabelEl.setAttribute('for', 'day-date');
-  dateLabelEl.textContent = 'Fecha';
+  dateLabelEl.textContent = 'Date';
   dateGroup.appendChild(dateLabelEl);
   const dInput = document.createElement('input');
   dInput.type = 'date';
@@ -150,14 +150,14 @@ function buildModal(): void {
   cancelBtn.type = 'button';
   cancelBtn.className = 'btn btn-secondary';
   cancelBtn.id = 'day-cancel-btn';
-  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.textContent = 'Cancel';
   actions.appendChild(cancelBtn);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'submit';
   saveBtn.className = 'btn btn-primary';
   saveBtn.id = 'day-save-btn';
-  saveBtn.textContent = 'Guardar';
+  saveBtn.textContent = 'Save';
   actions.appendChild(saveBtn);
 
   form.appendChild(actions);
@@ -184,7 +184,7 @@ function openModal(day: ApiDay | null): void {
   editingDayId = day ? day.id : null;
   selectedColor = null;
 
-  setText(modalTitle, day ? 'Editar día' : 'Agregar día');
+  setText(modalTitle, day ? 'Edit day' : 'Add day');
   labelInput.value = day?.label ?? '';
   dateInput.value = day?.date ?? '';
 
@@ -237,7 +237,7 @@ async function handleFormSubmit(e: Event): Promise<void> {
   const saveBtn = document.getElementById('day-save-btn') as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
-    setText(saveBtn, 'Guardando…');
+    setText(saveBtn, 'Saving…');
   }
 
   const colorHex = selectedColor ? (COLOR_MAP[selectedColor] ?? null) : null;
@@ -264,12 +264,12 @@ async function handleFormSubmit(e: Event): Promise<void> {
     closeModal();
     renderDaysDisplay(currentContainer, currentDest, currentTripId);
   } catch {
-    setText(formError, 'No se pudo guardar. Verificá tu conexión e intentá de nuevo.');
+    setText(formError, 'Could not save. Check your connection and try again.');
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      setText(saveBtn, 'Guardar');
+      setText(saveBtn, 'Save');
     }
   }
 }
@@ -284,8 +284,8 @@ function openConfirmDelete(day: ApiDay): void {
 
   if (!confirmOverlay || !confirmTitle || !confirmMsg || !deleteBtn || !cancelBtn) return;
 
-  setText(confirmTitle, '¿Eliminar día?');
-  setText(confirmMsg, 'Se eliminarán todas las actividades de este día.');
+  setText(confirmTitle, 'Delete day?');
+  setText(confirmMsg, 'All activities for this day will be deleted.');
   if (confirmError) confirmError.setAttribute('hidden', '');
 
   confirmOverlay.removeAttribute('hidden');
@@ -310,7 +310,7 @@ function openConfirmDelete(day: ApiDay): void {
 
   freshDelete.addEventListener('click', async () => {
     freshDelete.disabled = true;
-    setText(freshDelete, 'Eliminando…');
+    setText(freshDelete, 'Deleting…');
     if (confirmError) confirmError.setAttribute('hidden', '');
 
     try {
@@ -320,11 +320,11 @@ function openConfirmDelete(day: ApiDay): void {
       renderDaysDisplay(currentContainer, currentDest, currentTripId);
     } catch {
       if (confirmError) {
-        setText(confirmError, 'No se pudo eliminar. Intentá de nuevo.');
+        setText(confirmError, 'Could not delete. Please try again.');
         confirmError.removeAttribute('hidden');
       }
       freshDelete.disabled = false;
-      setText(freshDelete, 'Eliminar');
+      setText(freshDelete, 'Delete');
     }
   }, { once: true });
 }
@@ -336,7 +336,7 @@ async function generateDays(
   genError: HTMLElement,
 ): Promise<void> {
   if (!dest.start_date || !dest.end_date) {
-    setText(genError, 'El destino no tiene fechas definidas. Editá el destino para agregar fechas.');
+    setText(genError, 'The destination has no dates defined. Edit the destination to add dates.');
     genError.removeAttribute('hidden');
     return;
   }
@@ -356,7 +356,7 @@ async function generateDays(
   }
 
   if (promises.length === 0) {
-    setText(genError, 'Todos los días del período ya existen.');
+    setText(genError, 'All days in this period already exist.');
     genError.removeAttribute('hidden');
     return;
   }
@@ -366,10 +366,10 @@ async function generateDays(
     dest.days.push(...created);
     renderDaysDisplay(currentContainer, dest, tripId);
   } catch {
-    setText(genError, 'No se pudieron generar todos los días. Intentá de nuevo.');
+    setText(genError, 'Could not generate all days. Please try again.');
     genError.removeAttribute('hidden');
     genBtn.disabled = false;
-    setText(genBtn, 'Generar todos los días');
+    setText(genBtn, 'Generate all days');
   }
 }
 
@@ -390,7 +390,7 @@ function renderDaysDisplay(
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.className = 'btn btn-secondary';
-  addBtn.textContent = 'Agregar día';
+  addBtn.textContent = 'Add day';
   addBtn.addEventListener('click', () => {
     currentTripId = tripId;
     currentDest = dest;
@@ -402,7 +402,7 @@ function renderDaysDisplay(
   const genBtn = document.createElement('button');
   genBtn.type = 'button';
   genBtn.className = 'btn btn-secondary';
-  genBtn.textContent = 'Generar todos los días';
+  genBtn.textContent = 'Generate all days';
 
   const genError = document.createElement('p');
   genError.className = 'error-msg';
@@ -410,14 +410,14 @@ function renderDaysDisplay(
 
   genBtn.addEventListener('click', async () => {
     genBtn.disabled = true;
-    setText(genBtn, 'Generando…');
+    setText(genBtn, 'Generating…');
     genError.setAttribute('hidden', '');
     currentTripId = tripId;
     currentDest = dest;
     currentContainer = container;
     await generateDays(dest, tripId, genBtn, genError);
     genBtn.disabled = false;
-    setText(genBtn, 'Generar todos los días');
+    setText(genBtn, 'Generate all days');
   });
 
   actionsRow.appendChild(genBtn);
@@ -427,7 +427,7 @@ function renderDaysDisplay(
   // Empty state
   if (dest.days.length === 0) {
     const emptyP = document.createElement('p');
-    setText(emptyP, 'Sin días. Agregá un día o usá "Generar todos los días".');
+    setText(emptyP, 'No days. Add a day or use "Generate all days".');
     emptyP.style.color = 'var(--text-secondary, #515154)';
     emptyP.style.margin = '0';
     container.appendChild(emptyP);
@@ -487,7 +487,7 @@ function renderDaysDisplay(
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'btn btn-secondary';
-    editBtn.textContent = 'Editar';
+    editBtn.textContent = 'Edit';
     editBtn.addEventListener('click', () => {
       currentTripId = tripId;
       currentDest = dest;
@@ -500,7 +500,7 @@ function renderDaysDisplay(
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'btn btn-danger';
-    delBtn.textContent = 'Eliminar';
+    delBtn.textContent = 'Delete';
     delBtn.addEventListener('click', () => {
       currentTripId = tripId;
       currentDest = dest;
