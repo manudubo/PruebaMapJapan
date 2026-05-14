@@ -30,21 +30,21 @@ export function initWidgets(cityKey: string): void {
 
 function createWidgetsSection(cityName: string): HTMLElement {
   const section = createElement('section', 'widgets-section');
-  section.setAttribute('aria-label', `Información local de ${cityName}`);
+  section.setAttribute('aria-label', `Local information for ${cityName}`);
   section.innerHTML = `
-    <h3 class="widgets-title">Información Local: ${cityName}</h3>
+    <h3 class="widgets-title">Local Information: ${cityName}</h3>
     <div class="widgets-grid" role="region" aria-live="polite">
       <article class="widget-card" id="widget-weather" aria-labelledby="weather-title">
-        <div class="widget-header"><h4 id="weather-title">Clima & Pronóstico</h4></div>
-        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Cargando clima...</span></div></div>
+        <div class="widget-header"><h4 id="weather-title">Weather & Forecast</h4></div>
+        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Loading weather...</span></div></div>
       </article>
       <article class="widget-card" id="widget-news" aria-labelledby="news-title">
-        <div class="widget-header"><h4 id="news-title">Noticias</h4></div>
-        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Cargando noticias...</span></div></div>
+        <div class="widget-header"><h4 id="news-title">News</h4></div>
+        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Loading news...</span></div></div>
       </article>
       <article class="widget-card" id="widget-events" aria-labelledby="events-title">
-        <div class="widget-header"><h4 id="events-title">Eventos</h4></div>
-        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Cargando eventos...</span></div></div>
+        <div class="widget-header"><h4 id="events-title">Events</h4></div>
+        <div class="widget-content" aria-busy="true"><div class="loader" role="status"><span class="sr-only">Loading events...</span></div></div>
       </article>
     </div>`;
   return section;
@@ -79,7 +79,7 @@ async function fetchWeather(lat: number, lon: number): Promise<void> {
     setCache(cacheKey, data);
     renderWeather(container, data);
   } catch {
-    renderError(container, 'Clima no disponible');
+    renderError(container, 'Weather unavailable');
   }
 }
 
@@ -90,7 +90,7 @@ function renderWeather(container: HTMLElement, data: WeatherData): void {
   
   const forecastDays = daily.time.slice(1, 5).map((time, i) => {
     const idx = i + 1;
-    const date = new Date(time).toLocaleDateString('es-ES', { weekday: 'short' });
+    const date = new Date(time).toLocaleDateString('en-US', { weekday: 'short' });
     const min = Math.round(daily.temperature_2m_min[idx]);
     const max = Math.round(daily.temperature_2m_max[idx]);
     const icon = getWeatherIcon(daily.weather_code[idx]);
@@ -100,15 +100,15 @@ function renderWeather(container: HTMLElement, data: WeatherData): void {
   container.setAttribute('aria-busy', 'false');
   container.innerHTML = `
     <div class="weather-current">
-      <div class="weather-temp" aria-label="Temperatura actual">${currentTemp}°</div>
+      <div class="weather-temp" aria-label="Current temperature">${currentTemp}°</div>
       <div class="weather-condition"><div class="weather-icon-large" aria-hidden="true">${getWeatherIcon(current.weather_code)}</div><span>${condition}</span></div>
     </div>
-    <div class="weather-forecast" role="list" aria-label="Pronóstico de 4 días">${forecastDays}</div>`;
+    <div class="weather-forecast" role="list" aria-label="4-day forecast">${forecastDays}</div>`;
 }
 
 const WEATHER_CONDITIONS: Record<number, string> = {
-  0: 'Despejado', 1: 'Poco nuboso', 2: 'Parcial nublado', 3: 'Nublado',
-  45: 'Niebla', 51: 'Llovizna', 61: 'Lluvia', 71: 'Nieve', 95: 'Tormenta'
+  0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Cloudy',
+  45: 'Fog', 51: 'Drizzle', 61: 'Rain', 71: 'Snow', 95: 'Thunderstorm'
 };
 
 function getWeatherCondition(code: number): string {
@@ -133,7 +133,7 @@ function getWeatherIcon(code: number): string {
     // Lluvia
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><line x1="8" y1="13" x2="8" y2="21"/><line x1="16" y1="13" x2="16" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>`;
   }
-  // Nublado genérico
+  // Generic cloudy
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>`;
 }
 
@@ -159,7 +159,7 @@ async function loadDynamicData(city: string, type: 'news' | 'events'): Promise<v
       renderEmptyState(container, type);
     }
   } catch {
-    renderError(container, 'Recarga para ver contenido');
+    renderError(container, 'Reload to view content');
   }
 }
 
@@ -194,7 +194,7 @@ function renderList(container: HTMLElement, items: NewsItem[], type: 'news' | 'e
     let actionBtn = '';
     if (type === 'events') {
       const calUrl = createCalendarUrl(title, item.link, `${city}, Japan`);
-      actionBtn = `<a href="${calUrl}" target="_blank" rel="noopener" class="calendar-btn" title="Agregar al calendario" aria-label="Agregar ${title} al calendario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg></a>`;
+      actionBtn = `<a href="${calUrl}" target="_blank" rel="noopener" class="calendar-btn" title="Add to calendar" aria-label="Add ${title} to calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg></a>`;
     }
     return `<li class="widget-list-item"><div class="widget-text-content"><a href="${item.link}" target="_blank" rel="noopener" class="widget-link"><span class="widget-link-title">${title}</span><span class="widget-meta"><span>${item.source}</span><time datetime="${item.pubDate}">${date}</time></span></a></div>${actionBtn}</li>`;
   }).join('');
@@ -204,7 +204,7 @@ function renderList(container: HTMLElement, items: NewsItem[], type: 'news' | 'e
 
 function renderEmptyState(container: HTMLElement, type: 'news' | 'events'): void {
   container.setAttribute('aria-busy', 'false');
-  container.innerHTML = `<p class="widget-empty" role="status">No se encontraron ${type === 'news' ? 'noticias' : 'eventos'} recientes.</p>`;
+  container.innerHTML = `<p class="widget-empty" role="status">No recent ${type === 'news' ? 'news' : 'events'} found.</p>`;
 }
 
 function renderError(container: HTMLElement, message: string): void {
