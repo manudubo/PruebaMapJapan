@@ -47,7 +47,7 @@ function buildModal(): void {
 
   const title = document.createElement('h2');
   title.id = 'act-modal-title';
-  title.textContent = 'Agregar actividad';
+  title.textContent = 'Add activity';
   modal.appendChild(title);
 
   const form = document.createElement('form');
@@ -58,7 +58,7 @@ function buildModal(): void {
   nameGroup.className = 'form-group';
   const nameLabelEl = document.createElement('label');
   nameLabelEl.setAttribute('for', 'act-name');
-  nameLabelEl.textContent = 'Nombre';
+  nameLabelEl.textContent = 'Name';
   nameGroup.appendChild(nameLabelEl);
   const nInput = document.createElement('input');
   nInput.type = 'text';
@@ -74,7 +74,7 @@ function buildModal(): void {
   timeGroup.className = 'form-group';
   const timeLabelEl = document.createElement('label');
   timeLabelEl.setAttribute('for', 'act-time');
-  timeLabelEl.textContent = 'Hora (opcional)';
+  timeLabelEl.textContent = 'Time (optional)';
   timeGroup.appendChild(timeLabelEl);
   const tInput = document.createElement('input');
   tInput.type = 'time';
@@ -88,7 +88,7 @@ function buildModal(): void {
   notesGroup.className = 'form-group';
   const notesLabelEl = document.createElement('label');
   notesLabelEl.setAttribute('for', 'act-notes');
-  notesLabelEl.textContent = 'Notas (opcional)';
+  notesLabelEl.textContent = 'Notes (optional)';
   notesGroup.appendChild(notesLabelEl);
   const nTextarea = document.createElement('textarea');
   nTextarea.id = 'act-notes';
@@ -101,7 +101,7 @@ function buildModal(): void {
   const geocoderGroup = document.createElement('div');
   geocoderGroup.className = 'form-group';
   const geocoderLabel = document.createElement('label');
-  geocoderLabel.textContent = 'Coordenadas (opcional)';
+  geocoderLabel.textContent = 'Coordinates (optional)';
   geocoderGroup.appendChild(geocoderLabel);
 
   const widget = document.createElement('div');
@@ -110,14 +110,14 @@ function buildModal(): void {
   const gInput = document.createElement('input');
   gInput.type = 'text';
   gInput.id = 'act-geocoder-input';
-  gInput.placeholder = 'Buscar lugar o pegar URL de Google Maps…';
+  gInput.placeholder = 'Search location or paste Google Maps URL…';
   widget.appendChild(gInput);
 
   const gBtn = document.createElement('button');
   gBtn.type = 'button';
   gBtn.className = 'btn btn-primary';
   gBtn.id = 'act-geocoder-btn';
-  gBtn.textContent = 'Buscar lugar';
+  gBtn.textContent = 'Search location';
   widget.appendChild(gBtn);
 
   const gResults = document.createElement('div');
@@ -155,14 +155,14 @@ function buildModal(): void {
   cancelBtn.type = 'button';
   cancelBtn.className = 'btn btn-secondary';
   cancelBtn.id = 'act-cancel-btn';
-  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.textContent = 'Cancel';
   actions.appendChild(cancelBtn);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'submit';
   saveBtn.className = 'btn btn-primary';
   saveBtn.id = 'act-save-btn';
-  saveBtn.textContent = 'Guardar';
+  saveBtn.textContent = 'Save';
   actions.appendChild(saveBtn);
 
   form.appendChild(actions);
@@ -193,7 +193,7 @@ function openModal(act: ApiActivity | null): void {
   buildModal();
 
   editingActivityId = act ? act.id : null;
-  setText(modalTitle, act ? 'Editar actividad' : 'Agregar actividad');
+  setText(modalTitle, act ? 'Edit activity' : 'Add activity');
 
   nameInput.value = act?.name ?? '';
   timeInput.value = act?.time ?? '';
@@ -237,7 +237,7 @@ async function handleGeocoderSearch(): Promise<void> {
       lngInput.value = coords.lng;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Encontrado';
+      btn.textContent = 'Found';
       btn.addEventListener('click', () => {
         geocoderResults.setAttribute('hidden', '');
         geocoderResults.replaceChildren();
@@ -246,15 +246,15 @@ async function handleGeocoderSearch(): Promise<void> {
     } else {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Sin resultados. Probá con otra búsqueda.';
+      btn.textContent = 'No results. Try a different search.';
       btn.disabled = true;
       geocoderResults.appendChild(btn);
     }
     return;
   }
 
-  const originalText = geocoderBtn.textContent ?? 'Buscar lugar';
-  geocoderBtn.textContent = 'Buscando…';
+  const originalText = geocoderBtn.textContent ?? 'Search location';
+  geocoderBtn.textContent = 'Searching…';
   geocoderBtn.disabled = true;
 
   try {
@@ -264,7 +264,7 @@ async function handleGeocoderSearch(): Promise<void> {
     if (results.length === 0) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Sin resultados. Probá con otra búsqueda.';
+      btn.textContent = 'No results. Try a different search.';
       btn.disabled = true;
       geocoderResults.appendChild(btn);
       return;
@@ -284,7 +284,7 @@ async function handleGeocoderSearch(): Promise<void> {
       geocoderResults.appendChild(btn);
     }
   } catch {
-    setText(formError, 'Error al buscar la ubicación. Intentá de nuevo.');
+    setText(formError, 'Error searching location. Please try again.');
     formError.removeAttribute('hidden');
     geocoderResults.setAttribute('hidden', '');
   } finally {
@@ -300,7 +300,7 @@ async function handleFormSubmit(e: Event): Promise<void> {
   const saveBtn = document.getElementById('act-save-btn') as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
-    setText(saveBtn, 'Guardando…');
+    setText(saveBtn, 'Saving…');
   }
 
   const rawLat = latInput.value;
@@ -339,12 +339,12 @@ async function handleFormSubmit(e: Event): Promise<void> {
     closeModal();
     renderActivitiesDisplay(currentContainer, currentDay, currentTripId, currentDestId);
   } catch {
-    setText(formError, 'No se pudo guardar. Verificá tu conexión e intentá de nuevo.');
+    setText(formError, 'Could not save. Check your connection and try again.');
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      setText(saveBtn, 'Guardar');
+      setText(saveBtn, 'Save');
     }
   }
 }
@@ -359,8 +359,8 @@ function openConfirmDelete(act: ApiActivity): void {
 
   if (!confirmOverlay || !confirmTitle || !confirmMsg || !deleteBtn || !cancelBtn) return;
 
-  setText(confirmTitle, '¿Eliminar actividad?');
-  setText(confirmMsg, 'Esta acción no se puede deshacer.');
+  setText(confirmTitle, 'Delete activity?');
+  setText(confirmMsg, 'This action cannot be undone.');
   if (confirmError) confirmError.setAttribute('hidden', '');
 
   confirmOverlay.removeAttribute('hidden');
@@ -385,7 +385,7 @@ function openConfirmDelete(act: ApiActivity): void {
 
   freshDelete.addEventListener('click', async () => {
     freshDelete.disabled = true;
-    setText(freshDelete, 'Eliminando…');
+    setText(freshDelete, 'Deleting…');
     if (confirmError) confirmError.setAttribute('hidden', '');
 
     try {
@@ -395,11 +395,11 @@ function openConfirmDelete(act: ApiActivity): void {
       renderActivitiesDisplay(currentContainer, currentDay, currentTripId, currentDestId);
     } catch {
       if (confirmError) {
-        setText(confirmError, 'No se pudo eliminar. Intentá de nuevo.');
+        setText(confirmError, 'Could not delete. Please try again.');
         confirmError.removeAttribute('hidden');
       }
       freshDelete.disabled = false;
-      setText(freshDelete, 'Eliminar');
+      setText(freshDelete, 'Delete');
     }
   }, { once: true });
 }
@@ -433,7 +433,7 @@ async function handleReorder(
     renderActivitiesDisplay(container, day, tripId, destId);
     const errEl = document.createElement('p');
     errEl.className = 'error-msg';
-    setText(errEl, 'No se pudo guardar. Verificá tu conexión e intentá de nuevo.');
+    setText(errEl, 'Could not save. Check your connection and try again.');
     container.appendChild(errEl);
   }
 }
@@ -449,7 +449,7 @@ function renderActivitiesDisplay(
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.className = 'btn btn-secondary';
-  addBtn.textContent = 'Agregar actividad';
+  addBtn.textContent = 'Add activity';
   addBtn.style.marginBottom = '8px';
   addBtn.addEventListener('click', () => {
     currentTripId = tripId;
@@ -464,7 +464,7 @@ function renderActivitiesDisplay(
     const emptyP = document.createElement('p');
     emptyP.style.color = 'var(--text-secondary, #515154)';
     emptyP.style.margin = '0';
-    setText(emptyP, 'Sin actividades. Agregá la primera.');
+    setText(emptyP, 'No activities. Add the first one.');
     container.appendChild(emptyP);
     return;
   }
@@ -488,7 +488,7 @@ function renderActivitiesDisplay(
     const upBtn = document.createElement('button');
     upBtn.type = 'button';
     upBtn.className = 'btn-icon';
-    upBtn.title = 'Subir';
+    upBtn.title = 'Move up';
     upBtn.textContent = '▲';
     if (isFirst) {
       upBtn.disabled = true;
@@ -509,7 +509,7 @@ function renderActivitiesDisplay(
     const downBtn = document.createElement('button');
     downBtn.type = 'button';
     downBtn.className = 'btn-icon';
-    downBtn.title = 'Bajar';
+    downBtn.title = 'Move down';
     downBtn.textContent = '▼';
     if (isLast) {
       downBtn.disabled = true;
@@ -552,7 +552,7 @@ function renderActivitiesDisplay(
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'btn btn-secondary';
-    editBtn.textContent = 'Editar';
+    editBtn.textContent = 'Edit';
     editBtn.addEventListener('click', () => {
       currentTripId = tripId;
       currentDestId = destId;
@@ -566,7 +566,7 @@ function renderActivitiesDisplay(
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'btn btn-danger';
-    delBtn.textContent = 'Eliminar';
+    delBtn.textContent = 'Delete';
     delBtn.addEventListener('click', () => {
       currentTripId = tripId;
       currentDestId = destId;
