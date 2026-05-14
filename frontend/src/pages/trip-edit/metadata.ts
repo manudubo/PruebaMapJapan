@@ -31,7 +31,7 @@ export function initMetadataSection(trip: ApiTrip): void {
 
     if (errorEl) errorEl.setAttribute('hidden', '');
     saveBtn.disabled = true;
-    setText(saveBtn, 'Guardando…');
+    setText(saveBtn, 'Saving…');
 
     const formData = new FormData(form);
     try {
@@ -42,16 +42,16 @@ export function initMetadataSection(trip: ApiTrip): void {
         end_date: (formData.get('end_date') as string) || null,
         is_public: publicInput?.checked ?? false,
       });
-      setText(saveBtn, 'Guardado');
-      setTimeout(() => { if (saveBtn) setText(saveBtn, 'Guardar cambios'); }, 1500);
+      setText(saveBtn, 'Saved');
+      setTimeout(() => { if (saveBtn) setText(saveBtn, 'Save changes'); }, 1500);
     } catch {
       if (errorEl) {
-        errorEl.textContent = 'No se pudo guardar. Verificá tu conexión e intentá de nuevo.';
+        errorEl.textContent = 'Could not save. Check your connection and try again.';
         errorEl.removeAttribute('hidden');
       }
     } finally {
       saveBtn.disabled = false;
-      if (saveBtn.textContent === 'Guardando…') setText(saveBtn, 'Guardar cambios');
+      if (saveBtn.textContent === 'Saving…') setText(saveBtn, 'Save changes');
     }
   });
 }
