@@ -23,7 +23,7 @@ import { setText, setStyle } from '@/modules/dom';
 function formatDateRange(start: string | null, end: string | null): string {
   if (!start) return '';
   const fmt = (iso: string): string =>
-    new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
   return end ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
 }
 
@@ -34,7 +34,7 @@ function renderTripCard(trip: ApiTrip): HTMLElement {
   const card = document.createElement('a');
   card.href = `trip.html?tripId=${trip.id}`;
   card.className = 'trip-card';
-  card.setAttribute('aria-label', `Ver viaje: ${trip.name}`);
+  card.setAttribute('aria-label', `View trip: ${trip.name}`);
 
   const cover = document.createElement('div');
   cover.className = 'trip-card-cover';
@@ -48,7 +48,7 @@ function renderTripCard(trip: ApiTrip): HTMLElement {
   if (trip.is_public) {
     const badge = document.createElement('span');
     badge.className = 'trip-card-badge trip-card-badge--public';
-    badge.textContent = 'Público';
+    badge.textContent = 'Public';
     cover.appendChild(badge);
   }
   card.appendChild(cover);
@@ -78,7 +78,7 @@ function renderTripCard(trip: ApiTrip): HTMLElement {
   }
   const dests = document.createElement('span');
   dests.className = 'trip-card-dests';
-  dests.textContent = `${destCount} destino${destCount !== 1 ? 's' : ''}`;
+  dests.textContent = `${destCount} destination${destCount !== 1 ? 's' : ''}`;
   meta.appendChild(dests);
   body.appendChild(meta);
   card.appendChild(body);
@@ -91,7 +91,7 @@ function renderTripCard(trip: ApiTrip): HTMLElement {
   editLink.href = `trip-edit.html?tripId=${trip.id}`;
   editLink.className = 'btn btn-secondary';
   editLink.style.cssText = 'font-size: 13px; padding: 6px 12px; text-decoration: none;';
-  editLink.textContent = 'Editar';
+  editLink.textContent = 'Edit';
   editRow.appendChild(editLink);
   card.appendChild(editRow);
 
@@ -108,9 +108,9 @@ function renderGrid(trips: ApiTrip[]): void {
     const empty = document.createElement('div');
     empty.className = 'trips-empty';
     const p1 = document.createElement('p');
-    p1.textContent = 'Todavía no tenés ningún viaje guardado.';
+    p1.textContent = "You don't have any trips saved yet.";
     const p2 = document.createElement('p');
-    p2.textContent = '¡Creá tu primer itinerario con el botón de arriba!';
+    p2.textContent = 'Create your first itinerary with the button above!';
     empty.appendChild(p1);
     empty.appendChild(p2);
     grid.appendChild(empty);
@@ -124,7 +124,7 @@ function renderUserGreeting(user: ApiUser | null): void {
   const greeting = document.getElementById('dashboard-greeting');
   if (!greeting) return;
   const name = user?.name ?? getUserInfo()?.name ?? null;
-  greeting.textContent = name ? `Hola, ${name.split(' ')[0]}` : 'Mis viajes';
+  greeting.textContent = name ? `Hello, ${name.split(' ')[0]}` : 'My Trips';
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +242,7 @@ async function init(): Promise<void> {
         grid.innerHTML = '';
         const errP = document.createElement('p');
         errP.className = 'trips-error';
-        setText(errP, `No se pudieron cargar los viajes: ${(err as Error).message}`);
+        setText(errP, `Could not load trips: ${(err as Error).message}`);
         grid.appendChild(errP);
       }
     }
