@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
-  <meta name="description" content="Mis viajes – Itinerario interactivo de viaje">
+  <meta name="description" content="My Trips – Interactive travel itinerary">
   <meta name="view-transition" content="same-origin">
 
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
 
-  <title>Mis viajes</title>
+  <title>My Trips</title>
 
   <!-- Critical CSS to prevent FOUC -->
   <style>
@@ -271,7 +271,7 @@
   </style>
 </head>
 <body>
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
   <div class="container">
     <travel-nav></travel-nav>
@@ -280,27 +280,27 @@
     <main id="main-content">
       <div class="page-card">
         <div class="dashboard-header">
-          <h1 id="dashboard-greeting">Mis viajes</h1>
+          <h1 id="dashboard-greeting">My Trips</h1>
           <div class="dashboard-actions">
             <button id="new-trip-btn" class="btn btn-primary" hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15" aria-hidden="true">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Nuevo viaje
+              New Trip
             </button>
           </div>
         </div>
 
         <!-- Login prompt shown to unauthenticated users (managed by dashboard.ts) -->
         <div id="dashboard-login-prompt" hidden style="padding:32px 0;text-align:center;">
-          <p style="color:var(--text-secondary,#515154);margin-bottom:16px;">Iniciá sesión para ver y gestionar tus viajes.</p>
-          <button id="auth-login-prompt-btn" class="btn btn-primary" type="button">Iniciar sesión</button>
+          <p style="color:var(--text-secondary,#515154);margin-bottom:16px;">Sign in to view and manage your trips.</p>
+          <button id="auth-login-prompt-btn" class="btn btn-primary" type="button">Sign in</button>
         </div>
 
         <div class="trips-grid" id="trips-grid">
           <!-- Trip cards rendered by dashboard.ts -->
-          <div class="trips-empty">Cargando viajes…</div>
+          <div class="trips-empty">Loading trips…</div>
         </div>
       </div>
     </main>
@@ -309,30 +309,30 @@
   <!-- Create-trip overlay -->
   <div class="overlay" id="create-trip-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="create-trip-title">
     <div class="modal">
-      <h2 id="create-trip-title">Crear nuevo viaje</h2>
+      <h2 id="create-trip-title">Create New Trip</h2>
       <form id="create-trip-form" novalidate>
         <div class="form-group">
-          <label for="trip-name">Nombre del viaje *</label>
-          <input type="text" id="trip-name" name="name" required placeholder="ej. Japón 2027" autocomplete="off">
+          <label for="trip-name">Trip name *</label>
+          <input type="text" id="trip-name" name="name" required placeholder="e.g. Japan 2027" autocomplete="off">
         </div>
         <div class="form-group">
-          <label for="trip-description">Descripción</label>
-          <textarea id="trip-description" name="description" rows="2" placeholder="Descripción opcional"></textarea>
+          <label for="trip-description">Description</label>
+          <textarea id="trip-description" name="description" rows="2" placeholder="Optional description"></textarea>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="trip-start">Fecha de inicio</label>
+            <label for="trip-start">Start date</label>
             <input type="date" id="trip-start" name="start_date">
           </div>
           <div class="form-group">
-            <label for="trip-end">Fecha de fin</label>
+            <label for="trip-end">End date</label>
             <input type="date" id="trip-end" name="end_date">
           </div>
         </div>
         <p class="error-msg" id="create-trip-error"></p>
         <div class="form-actions">
-          <button type="button" id="create-trip-cancel" class="btn btn-secondary">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Crear viaje</button>
+          <button type="button" id="create-trip-cancel" class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create trip</button>
         </div>
       </form>
     </div>
