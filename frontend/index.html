@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
-  <meta name="description" content="Travel Planner — Planificá tu próximo viaje con mapas interactivos, días y actividades.">
+  <meta name="description" content="Travel Planner — Plan your next trip with interactive maps, days, and activities.">
   <meta name="view-transition" content="same-origin">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -245,7 +245,7 @@
   </style>
 </head>
 <body>
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
   <div class="container">
     <travel-nav></travel-nav>
@@ -255,38 +255,38 @@
       <!-- Loading state while auth check runs -->
       <div class="landing-loading" id="landing-loading" aria-live="polite">
         <div class="loading-spinner" aria-hidden="true"></div>
-        <span>Cargando...</span>
+        <span>Loading...</span>
       </div>
 
       <!-- Hero — shown to unauthenticated users -->
-      <section class="landing-hero" id="landing-hero" aria-label="Bienvenida">
+      <section class="landing-hero" id="landing-hero" aria-label="Welcome">
         <p class="landing-eyebrow">Travel Planner</p>
-        <h1 class="landing-title">Tu próximo viaje,<br>perfectamente planificado.</h1>
-        <p class="landing-tagline">Planificá tu próximo viaje. Días, destinos y actividades, todo en un mapa interactivo.</p>
+        <h1 class="landing-title">Your next trip,<br>perfectly planned.</h1>
+        <p class="landing-tagline">Plan your next trip. Days, destinations, and activities, all on an interactive map.</p>
         <div class="landing-actions">
           <button id="landing-login-btn" class="landing-btn landing-btn--primary" type="button">
-            Iniciar sesión
+            Sign in
           </button>
           <a href="#demo" class="landing-btn landing-btn--secondary">
-            Ver demo
+            View demo
           </a>
         </div>
       </section>
 
       <!-- Demo section — always visible -->
       <hr class="divider">
-      <section class="demo-section" id="demo" aria-label="Demo: Japón 2026">
-        <p class="demo-section-title">Demo — Japón 2026</p>
+      <section class="demo-section" id="demo" aria-label="Demo: Japan 2026">
+        <p class="demo-section-title">Demo — Japan 2026</p>
 
-        <p class="demo-countdown-title">Faltan para el viaje</p>
+        <p class="demo-countdown-title">Days until the trip</p>
         <div class="demo-countdown" id="demo-countdown" aria-live="polite" aria-label="Cuenta regresiva">
-          <div class="countdown-unit"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">días</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">horas</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">minutos</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-secs">--</span><span class="countdown-label">segundos</span></div>
+          <div class="countdown-unit"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">days</span></div>
+          <div class="countdown-unit"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">hours</span></div>
+          <div class="countdown-unit"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">minutes</span></div>
+          <div class="countdown-unit"><span class="countdown-value" id="cd-secs">--</span><span class="countdown-label">seconds</span></div>
         </div>
 
-        <div class="demo-cities" aria-label="Ciudades del itinerario">
+        <div class="demo-cities" aria-label="Itinerary cities">
           <a href="tokyo.html" class="city-chip">Tokyo</a>
           <a href="nagoya.html" class="city-chip">Nagoya</a>
           <a href="takayama.html" class="city-chip">Takayama</a>
@@ -294,7 +294,7 @@
           <a href="osaka.html" class="city-chip">Osaka</a>
           <a href="naoshima.html" class="city-chip">Naoshima</a>
           <a href="hakone.html" class="city-chip">Hakone</a>
-          <a href="tokyo2.html" class="city-chip">Tokyo (regreso)</a>
+          <a href="tokyo2.html" class="city-chip">Tokyo (return)</a>
         </div>
       </section>
     </main>
