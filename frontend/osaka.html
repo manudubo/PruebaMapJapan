@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
-  <meta name="description" content="Itinerario de Osaka - Universal Studios">
+  <meta name="description" content="Osaka itinerary - Mar 14 to Mar 17, 2026">
   <meta name="view-transition" content="same-origin">
   <link rel="manifest" href="manifest.json">
-  <title>Osaka – Japón 2026</title>
+  <title>Osaka – Japan 2026</title>
   <!-- Critical CSS to prevent FOUC -->
   <style>
     html { background: #f5f5f7; }
@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
-  <a href="#main-content" class="skip-link">Saltar al contenido principal</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <div class="container">
     <travel-nav></travel-nav>
     <search-bar></search-bar>
@@ -36,15 +36,15 @@
       <div class="page-card">
         <header class="header">
           <h1>Osaka</h1>
-          <p>14 – 17 Marzo 2026 · 4 días</p>
+          <p>Mar 14 – 17, 2026 · 4 days</p>
         </header>
         <div class="day-selector" id="day-selector"></div>
         <div class="map-container">
           <div id="map" data-city="osaka"></div>
-          <button class="hotel-btn" id="hotel-btn" title="Ir al hotel">H</button>
+          <button class="hotel-btn" id="hotel-btn" title="Go to hotel">H</button>
         </div>
         <div class="legend">
-          <h3>Actividades</h3>
+          <h3>Activities</h3>
           <div class="legend-grid" id="legend-grid"></div>
           <div class="hotel-info" id="hotel-info"></div>
         </div>
