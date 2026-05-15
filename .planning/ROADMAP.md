@@ -102,7 +102,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 2. Trip Builder | 9/9 | Complete | 2026-05-04 |
 | 3. Public Sharing | 3/3 | Complete | 2026-05-06 |
 | 4. Passkeys | 2/2 | Complete | 2026-05-09 |
-| 5. Internationalization | 0/12 | Planned | — |
+| 5. Internationalization | 12/12 | Complete | 2026-05-15 |
 
 ### Phase 5: Internationalization — translate all user-facing UI strings, HTML content, and TypeScript source strings from Spanish to English across all pages and components
 
@@ -112,18 +112,18 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 **Plans:** 12 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Wave 1: Shared components — Navbar.ts + SearchBar.ts (I18N-HTML, I18N-TS)
-- [ ] 05-02-PLAN.md — Wave 2: App HTML pages — index.html + dashboard.html + profile.html (I18N-HTML)
-- [ ] 05-03-PLAN.md — Wave 2: App HTML pages — trip.html + trip-edit.html (I18N-HTML)
-- [ ] 05-04-PLAN.md — Wave 2: City HTML pages — all 8 city files batch (I18N-HTML)
-- [ ] 05-05-PLAN.md — Wave 2: profile.ts + uat-passkeys.spec.ts (test coupling — same commit) (I18N-TS, I18N-LOCALE, I18N-PASSKEY)
-- [ ] 05-06-PLAN.md — Wave 2: dashboard.ts (I18N-TS, I18N-LOCALE)
-- [ ] 05-07-PLAN.md — Wave 2: tripDetail.ts + map.ts (shared-string coupling — same task) (I18N-TS)
-- [ ] 05-08-PLAN.md — Wave 2: trip-edit/destinations.ts + hotels.ts + metadata.ts (I18N-TS)
-- [ ] 05-09-PLAN.md — Wave 2: trip-edit/days.ts + activities.ts (I18N-TS)
-- [ ] 05-10-PLAN.md — Wave 2: widgets.ts + search.ts (I18N-TS, I18N-LOCALE)
-- [ ] 05-11-PLAN.md — Wave 2: itinerary.ts + manifest.json (I18N-TS, I18N-HTML)
-- [ ] 05-12-PLAN.md — Wave 3: Final validation — accent audit + locale audit + typecheck + Playwright (I18N-ACCENT)
+- [x] 05-01-PLAN.md — Wave 1: Shared components — Navbar.ts + SearchBar.ts (I18N-HTML, I18N-TS)
+- [x] 05-02-PLAN.md — Wave 2: App HTML pages — index.html + dashboard.html + profile.html (I18N-HTML)
+- [x] 05-03-PLAN.md — Wave 2: App HTML pages — trip.html + trip-edit.html (I18N-HTML)
+- [x] 05-04-PLAN.md — Wave 2: City HTML pages — all 8 city files batch (I18N-HTML)
+- [x] 05-05-PLAN.md — Wave 2: profile.ts + uat-passkeys.spec.ts (test coupling — same commit) (I18N-TS, I18N-LOCALE, I18N-PASSKEY)
+- [x] 05-06-PLAN.md — Wave 2: dashboard.ts (I18N-TS, I18N-LOCALE)
+- [x] 05-07-PLAN.md — Wave 2: tripDetail.ts + map.ts (shared-string coupling — same task) (I18N-TS)
+- [x] 05-08-PLAN.md — Wave 2: trip-edit/destinations.ts + hotels.ts + metadata.ts (I18N-TS)
+- [x] 05-09-PLAN.md — Wave 2: trip-edit/days.ts + activities.ts (I18N-TS)
+- [x] 05-10-PLAN.md — Wave 2: widgets.ts + search.ts (I18N-TS, I18N-LOCALE)
+- [x] 05-11-PLAN.md — Wave 2: itinerary.ts + manifest.json (I18N-TS, I18N-HTML)
+- [x] 05-12-PLAN.md — Wave 3: Final validation — accent audit + locale audit + typecheck + Playwright (I18N-ACCENT)
 
 ### Phase 6: Multi-environment configuration — Vite env files per environment (local/dev/prod), Cloudflare Workers wrangler.toml environments, Keycloak realm per env, sslRequired prod hardening
 

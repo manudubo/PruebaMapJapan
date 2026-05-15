@@ -155,7 +155,7 @@ function buildDateRange(start: string | null, end: string | null): string {
 
   const fmt = (iso: string): string => {
     const d = new Date(iso);
-    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   if (start && end) return `${fmt(start)} – ${fmt(end)}`;

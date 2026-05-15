@@ -29,7 +29,7 @@ const MAPS_URLS: Record<string, string> = {
   "Golden-Gai": "https://maps.app.goo.gl/zZP451VFmtGaru1j6",
   "Shinjuku Gyoen": "https://maps.app.goo.gl/VuoxugzTZJjRqnCt8",
   "Walking Tour Shinjuku": "https://maps.app.goo.gl/SGww3HoLXAXtdQbf6",
-  "Jardín Botánico Koishikawa": "https://maps.app.goo.gl/kPFsJ9VV8ay6xFqAA",
+  "Koishikawa Botanical Garden": "https://maps.app.goo.gl/kPFsJ9VV8ay6xFqAA",
   "Tokyo City Flea Market": "https://maps.app.goo.gl/5hQDTrh1LspvjuZ6A",
   "Shimokitazawa": "https://maps.app.goo.gl/EvKWWttKi1ahhw4H8",
 
@@ -41,7 +41,7 @@ const MAPS_URLS: Record<string, string> = {
   "Shirakawa-go": "https://maps.app.goo.gl/H9waF7h4BjHUHQ818",
   "Mont Deus Ski Park": "https://maps.app.goo.gl/kRw9xcPJPpQ7xkEd8",
   "Hounokidaira Ski Area": "https://maps.app.goo.gl/kRw9xcPJPpQ7xkEd8",
-  "Hounokidaira Ski (día 2)": "https://maps.app.goo.gl/kRw9xcPJPpQ7xkEd8",
+  "Hounokidaira Ski (Day 2)": "https://maps.app.goo.gl/kRw9xcPJPpQ7xkEd8",
   "Shinhotaka Ropeway": "https://maps.app.goo.gl/gVdzn5NgvUrB7oYf9",
   "Gokayama": "https://maps.app.goo.gl/nxV8cAcb8QHiTMd37",
 
@@ -56,8 +56,8 @@ const MAPS_URLS: Record<string, string> = {
   "Uji": "https://maps.app.goo.gl/M8gVetzanqaQpTYE9",
   "Nintendo Museum": "https://maps.app.goo.gl/8azBeVxi7ERnmtWf6",
   "Fushimi Inari Taisha": "https://maps.app.goo.gl/vMAcsJ4shHcjyMpr5",
-  "Templo Komyo-in": "https://maps.app.goo.gl/hP2Q71nBcidg4DqC9",
-  "Río Kamo": "https://maps.app.goo.gl/Rp53QtCaUnobA4rQ8",
+  "Komyo-in Temple": "https://maps.app.goo.gl/hP2Q71nBcidg4DqC9",
+  "Kamo River": "https://maps.app.goo.gl/Rp53QtCaUnobA4rQ8",
   "Kiyomizu-dera": "https://maps.app.goo.gl/WUG1VfDvHcwNcucK8",
   "Ishibe Alley": "https://maps.app.goo.gl/MwZRNsHu1MvZivaUA",
   "Ninenzaka & Sanneizaka": "https://maps.app.goo.gl/GYYNnsUT7FTUsmG39",
