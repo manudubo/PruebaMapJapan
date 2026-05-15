@@ -98,6 +98,6 @@ test.describe('Public sharing — non-owner ?tripId= access (WR-01)', () => {
     // Should show the access-denied error message (WR-01 fix)
     const mainContent = page.locator('#main-content');
     const text = await mainContent.textContent();
-    expect(text).toContain('acceso');
+    expect(text).toContain('access');
   });
 });

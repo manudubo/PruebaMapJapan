@@ -200,8 +200,8 @@ test('P2-V4: hotel URL renders as plain text, not an <a> tag @integration', asyn
   await page.waitForSelector('#destinations-section', { timeout: 10000 });
 
   // Open hotel modal (hotel section should render under each destination)
-  await page.waitForSelector('button:has-text("Agregar hotel")', { timeout: 5000 });
-  await page.locator('button:has-text("Agregar hotel")').first().click();
+  await page.waitForSelector('button:has-text("Add hotel")', { timeout: 5000 });
+  await page.locator('button:has-text("Add hotel")').first().click();
   await page.waitForSelector('#hotel-modal-overlay:not([hidden])', { timeout: 5000 });
 
   await page.fill('#hotel-name', 'Hotel Osaka');
@@ -283,7 +283,7 @@ test('P2-V5: activity time input saved; reorder POST sends ordered_ids @integrat
   });
 
   // Click ▲ on second activity (move up)
-  const upBtns = page.locator('button[title="Subir"]');
+  const upBtns = page.locator('button[title="Move up"]');
   const count = await upBtns.count();
   expect(count).toBeGreaterThan(0);
   await upBtns.last().click();
