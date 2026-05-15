@@ -1,29 +1,22 @@
 {
-  "name": "japan-itinerary-2026",
-  "version": "2.1.0",
-  "description": "Interactive travel itinerary for Japan 2026",
-  "type": "module",
+  "name": "prueba-map-japan",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "preview:frontend": "npm run preview --workspace=frontend",
+    "test": "npm run test --workspaces",
+    "test:e2e": "cd tests && npm test",
+    "test:all": "npm run test --workspaces && npm run test:e2e",
+    "install:all": "npm install && npm install --prefix tests"
   },
   "devDependencies": {
-    "@types/leaflet": "^1.9.15",
-    "@vitest/coverage-v8": "^2.1.8",
-    "jsdom": "^25.0.1",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.8"
-  },
-  "dependencies": {
-    "leaflet": "^1.9.4"
-  },
-  "engines": {
-    "node": ">=20.0.0"
+    "@playwright/test": "^1.59.1"
   }
 }

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Edit trip – Interactive travel itinerary">
+  <meta name="view-transition" content="same-origin">
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
+
+  <title>Edit trip</title>
+
+  <!-- Critical CSS to prevent FOUC -->
+  <style>
+    html { background: #f5f5f7; }
+    html[data-theme="dark"] { background: #000; }
+    body { opacity: 0; transition: opacity 0.15s ease; }
+    body.ready { opacity: 1; }
+  </style>
+  <script>
+    (function() {
+      var theme = localStorage.getItem('theme');
+      if (theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <style>
+    /* === Copied from dashboard.html === */
+    .dashboard-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 24px 0 16px;
+    }
+
+    .dashboard-header h1 {
+      margin: 0;
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 700;
+      color: var(--text-primary, #1d1d1f);
+    }
+
+    .dashboard-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+      font-family: inherit;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--accent, #0071e3);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #0077ed;
+    }
+
+    .btn-secondary {
+      background: var(--bg-secondary, #fff);
+      border: 1px solid var(--border-strong, #d1d1d6);
+      color: var(--text-primary, #1d1d1f);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-secondary, #515154);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      backdrop-filter: blur(4px);
+    }
+
+    .overlay[hidden] { display: none; }
+
+    .modal {
+      background: var(--bg-primary, #f5f5f7);
+      border-radius: 4px;
+      padding: 28px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+    }
+
+    .modal h2 {
+      margin: 0 0 20px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary, #515154);
+    }
+
+    .form-group input,
+    .form-group textarea {
+      padding: 10px 12px;
+      border: 1px solid var(--border-strong, #d1d1d6);
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+      background: var(--bg-secondary, #fff);
+      color: var(--text-primary, #1d1d1f);
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      border-color: var(--accent, #0071e3);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    .error-msg {
+      color: #ff3b30;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    /* === Trip-edit additions === */
+    .btn-danger {
+      background: transparent;
+      border: 1px solid var(--color-destructive, #ff3b30);
+      color: var(--color-destructive, #ff3b30);
+    }
+    .btn-danger:hover {
+      background: var(--color-destructive, #ff3b30);
+      color: var(--bg-secondary, #fff);
+    }
+    .btn-icon {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-glass, rgba(255,255,255,0.6));
+      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      border-radius: 4px;
+      color: var(--text-secondary, #515154);
+      font-size: 14px;
+      cursor: pointer;
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .btn-icon:hover { background: var(--bg-glass-strong, rgba(255,255,255,0.9)); color: var(--text-primary, #1d1d1f); }
+    .btn-icon:disabled { opacity: 0.35; cursor: default; }
+    .color-swatch {
+      width: 24px; height: 24px;
+      border: 2px solid transparent;
+      border-radius: 2px;
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.1s ease;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.selected { border-color: var(--text-primary, #1d1d1f); box-shadow: 0 0 0 2px var(--bg-secondary, #fff); }
+    .color-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+    .geocoder-widget { display: flex; flex-direction: column; gap: 8px; }
+    .geocoder-results button {
+      display: block; width: 100%; text-align: left;
+      padding: 8px 12px; font-size: 14px; font-family: inherit;
+      border: none; border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      background: var(--bg-secondary, #fff); color: var(--text-primary, #1d1d1f);
+      cursor: pointer;
+    }
+    .geocoder-results button:hover { background: var(--accent-subtle, #e8f0fe); }
+    .dest-section { background: var(--bg-secondary, #fff); border: 1px solid var(--border-color, rgba(0,0,0,0.1)); margin-bottom: 16px; border-radius: 4px; }
+    .dest-section-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; }
+    .dest-section-body { padding: 16px; }
+    .day-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.06)); flex-wrap: wrap; }
+    .activity-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .form-group--checkbox { flex-direction: row; align-items: center; }
+    .checkbox-label { font-size: 14px; font-weight: 400; color: var(--text-primary, #1d1d1f); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent, #0071e3); }
+    .section-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .edit-page-section { background: var(--bg-secondary, #fff); border: 1px solid var(--border-color, rgba(0,0,0,0.1)); border-radius: 4px; padding: 24px; margin-bottom: 24px; }
+    .edit-page-section h2 { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div class="container">
+    <travel-nav></travel-nav>
+    <main id="main-content">
+      <div class="dashboard-header">
+        <h1 id="trip-name-heading">Loading trip…</h1>
+        <div class="dashboard-actions">
+          <a href="dashboard.html" class="btn btn-secondary">← My Trips</a>
+        </div>
+      </div>
+
+      <!-- Metadata section -->
+      <section id="metadata-section" class="edit-page-section" hidden>
+        <h2>Trip Details</h2>
+        <form id="metadata-form">
+          <div class="form-group">
+            <label for="trip-name">Name</label>
+            <input type="text" id="trip-name" name="name" required maxlength="255">
+          </div>
+          <div class="form-group">
+            <label for="trip-description">Description</label>
+            <textarea id="trip-description" name="description" rows="3"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="trip-start-date">Start</label>
+              <input type="date" id="trip-start-date" name="start_date">
+            </div>
+            <div class="form-group">
+              <label for="trip-end-date">End</label>
+              <input type="date" id="trip-end-date" name="end_date">
+            </div>
+          </div>
+          <div class="form-group form-group--checkbox">
+            <label class="checkbox-label">
+              <input type="checkbox" id="trip-public" name="is_public">
+              Make public
+            </label>
+          </div>
+          <p class="error-msg" id="metadata-error" hidden></p>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="metadata-save-btn">Save changes</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Destinations section (populated by destinations.ts) -->
+      <section id="destinations-section" hidden>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <h2 style="margin:0;font-size:18px;font-weight:600">Destinations</h2>
+          <button class="btn btn-primary" id="add-dest-btn">Add destination</button>
+        </div>
+        <div id="destinations-list"></div>
+        <p class="error-msg" id="destinations-empty" style="color:var(--text-secondary)">This trip has no destinations yet. Add the first one.</p>
+      </section>
+    </main>
+  </div>
+
+  <!-- Shared confirm-delete overlay (reused by all entity types) -->
+  <div class="overlay" id="confirm-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2 id="confirm-title">Delete?</h2>
+      <p id="confirm-msg"></p>
+      <p class="error-msg" id="confirm-error" hidden></p>
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="confirm-cancel-btn">Cancel</button>
+        <button class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/pages/trip-edit.ts"></script>
+</body>
+</html>

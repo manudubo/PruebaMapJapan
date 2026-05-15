@@ -1,0 +1,9 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "start --optimized --db=postgres"
+healthcheckPath = "/health/ready"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"

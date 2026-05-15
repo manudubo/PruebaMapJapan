@@ -1,0 +1,36 @@
+{
+  "name": "Japan 2026 Itinerary",
+  "short_name": "Japan 2026",
+  "description": "Interactive Japan travel itinerary - 30 days, 8 cities",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f7",
+  "theme_color": "#0071e3",
+  "orientation": "portrait-primary",
+  "categories": ["travel", "navigation"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/128/197/197604.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/256/197/197604.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/197/197604.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Tokyo", "url": "./tokyo.html" },
+    { "name": "Kyoto", "url": "./kyoto.html" },
+    { "name": "Osaka", "url": "./osaka.html" }
+  ]
+}
