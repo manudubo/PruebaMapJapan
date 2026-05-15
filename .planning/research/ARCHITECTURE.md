@@ -1,310 +1,307 @@
-# Architecture Patterns — v1.0 Integration
+# Architecture Research — v2.0 Auth Infrastructure & Hardening
 
-**Domain:** Feature integration into existing Vite MPA + Hono Workers + Keycloak stack
-**Researched:** 2026-04-26
-**Overall confidence:** HIGH (all claims grounded in actual source files)
+**Researched:** 2026-05-15
+**Overall confidence:** HIGH (primary sources: existing codebase read in this session)
 
 ---
 
-## 1. Trip Edit Page
+## New Components
 
-### New files
+| Path | Type | Purpose |
+|------|------|---------|
+| `terraform/keycloak/` | NEW dir | HCL module: realm, client, flows, required actions |
+| `terraform/cloudflare/` | NEW dir | HCL module: Worker script binding + secrets |
+| `terraform/neon/` | NEW dir | HCL module: DB branch/role provisioning |
+| `terraform/environments/local/` | NEW dir | TF root for localhost KC + local PG |
+| `terraform/environments/prod/` | NEW dir | TF root for Railway KC + Neon + Cloudflare |
+| `backend/src/routes/auth.ts` | NEW file | `/auth/otp-request`, `/auth/otp-verify`, `/auth/set-password` |
+| `backend/src/services/mailer.ts` | NEW file | Resend HTTP API wrapper (fetch-only, Workers-safe) |
+| `backend/src/services/keycloak-admin.ts` | NEW file | KC Admin REST client: user lookup, required-action trigger |
+| DB migration: `email_otp_codes` | NEW migration | Table: user_id, code_hash, expires_at, used_at, attempts |
+| `frontend/src/auth/passkey-detection.ts` | NEW file | `isWebAuthnSupported()` + sets detection cookie |
+| `frontend/src/auth/error-handler.ts` | NEW file | KC error code -> friendly message map |
+| `frontend/passkey-fallback.html` | NEW file | Vite MPA entry: standalone OTP fallback flow UI |
+| `keycloak/themes/japan-trip/login/passkey-campaign.ftl` | NEW file | FreeMarker override for `webauthn-register-passwordless` Required Action UI |
+| `keycloak/themes/japan-trip/login/messages/messages_es.properties` | NEW file | Spanish locale for KC error strings |
+| `tests/fixtures/auth.ts` | NEW file | Playwright `storageState` fixture (real KC tokens) |
+| `tests/fixtures/keycloak-admin.ts` | NEW file | Playwright KC Admin API helper fixture |
 
-| File | Purpose |
-|------|---------|
-| `frontend/trip-edit.html` | HTML shell — mirrors `trip.html` structure: `<travel-nav>`, `<search-bar>`, main content area |
-| `frontend/src/pages/tripEdit.ts` | Page controller — loads trip, renders edit forms, wires save actions |
+---
 
-### Modified files
+## Modified Components
 
-| File | Change |
-|------|--------|
-| `frontend/vite.config.ts` | Add `tripEdit: resolve(__dirname, 'trip-edit.html')` to `rollupOptions.input` |
+| Path | What Changes |
+|------|-------------|
+| `keycloak/docker-compose.yml` | Add `mailhog` service (SMTP on :1025, web UI on :8025); remove `--import-realm` once TF owns realm |
+| `keycloak/realm-export.json` | **Deprecate**: superseded by Terraform. Retain as historical snapshot only; remove from `--import-realm` command |
+| `backend/src/routes/index.ts` | Mount `authRoute` at `/auth` (the route itself decides what needs auth vs not) |
+| `backend/src/db/schema.ts` | Add `email_otp_codes` table export |
+| `backend/src/types/index.ts` | `Env` gains `KC_ADMIN_CLIENT_ID`, `KC_ADMIN_CLIENT_SECRET`, `RESEND_API_KEY`; `KeycloakJwtPayload.email` relaxed to `email?: string` |
+| `backend/wrangler.toml` | Add `KC_ADMIN_CLIENT_ID` to `[vars]`; add `KC_ADMIN_CLIENT_SECRET` and `RESEND_API_KEY` as secrets |
+| `frontend/vite.config.ts` | Add `'passkey-fallback': resolve(__dirname, 'passkey-fallback.html')` to `rollupOptions.input` |
+| `frontend/src/auth/keycloak.ts` | Call `passkey-detection.ts` during init; pass `kc_action` hint to `login()` when directing to OTP path |
+| `tests/global-setup.ts` | Add real KC login via Playwright headless + write `storageState.json` to `tests/.auth/` |
+| `tests/playwright.config.ts` | Add `storageState` to authenticated project `use:` block; add `setup` project dependency |
 
-### Trip ID: URL param pattern
+---
 
-Follow `tripDetail.ts` exactly:
+## Data Flow Changes
+
+### 1. passkey-campaign Required Action Flow
+
+`passkey-campaign.ftl` is a FreeMarker template override for the `webauthn-register-passwordless` Required Action. It runs **inside Keycloak's authentication session**, not in the SPA. The SPA never renders this screen.
+
+```
+Browser                  Keycloak                   SPA
+  |                          |                        |
+  |-- register (KC flow) --->|                        |
+  |                          | registration complete  |
+  |                          | evaluate required      |
+  |                          | actions                |
+  |                          | -> webauthn-register-  |
+  |                          |    passwordless fires  |
+  |<-- passkey-campaign.ftl -|                        |
+  |   (served by KC,         |                        |
+  |    FreeMarker template)  |                        |
+  | user registers passkey   |                        |
+  |-- POST /actions/submit ->|                        |
+  |                          | action satisfied       |
+  |                          | issues tokens          |
+  |                          |-- redirect with code ->|
+  |                          |                        |
+  |<----- SPA receives code and exchanges for tokens -|
+```
+
+**Key facts:**
+- Terraform sets `webauthn-register-passwordless` as a default required action on the realm.
+- Terraform also sets `browser_flow = "browser-passkey"` (currently `"browserFlow": "browser"` in the JSON — not active).
+- `passkey-campaign.ftl` is a theme override for the Required Action's login page template; it must be placed in `keycloak/themes/japan-trip/login/` and KC will pick it up automatically because the realm uses the `japan-trip` theme.
+- No Java SPI / custom RequiredActionProvider is needed — the built-in `webauthn-register-passwordless` provider is used as-is; only its FreeMarker UI template is customized.
+
+### 2. OTP Fallback Flow
+
+Trigger: `passkey-detection.ts` detects `isWebAuthnSupported() === false`, OR `error-handler.ts` maps a KC error query param to `WEBAUTHN_NOT_SUPPORTED`.
+
+```
+Browser             SPA (frontend)       Backend (Worker)      KC Admin REST
+  |                      |                     |                     |
+  | passkey-detection    |                     |                     |
+  | isWebAuthn=false     |                     |                     |
+  | navigate to          |                     |                     |
+  | passkey-fallback.html|                     |                     |
+  | enter email          |                     |                     |
+  |--POST /api/auth/otp-request (email)------->|                     |
+  |                      |                     |-- GET /admin/realms/ |
+  |                      |                     |   {realm}/users      |
+  |                      |                     |   ?email={email} --->|
+  |                      |                     |<-- user sub ---------|
+  |                      |                     | generate OTP (6 dig) |
+  |                      |                     | SHA-256(code+salt)   |
+  |                      |                     | INSERT email_otp_codes|
+  |                      |                     | fetch Resend API     |
+  |<-- 200 OK -----------|---------------------|                     |
+  | enter OTP            |                     |                     |
+  |--POST /api/auth/otp-verify (email, code)-->|                     |
+  |                      |                     | verify hash, expiry  |
+  |                      |                     | check attempts <=5   |
+  |                      |                     | mark used_at         |
+  |                      |                     |-- POST /admin/realms/|
+  |                      |                     |   {realm}/users/     |
+  |                      |                     |   {id}/execute-      |
+  |                      |                     |   actions-email      |
+  |                      |                     |   (or direct login   |
+  |                      |                     |   via token exchange)|
+  |<-- redirect to KC login with login_hint=email, acr_values=0 -----|
+  | KC issues tokens     |                     |                     |
+  |<-- SPA receives tokens ------------------------------------------|
+```
+
+**Critical architectural dimension — KC Admin client:**
+
+The backend currently only reads JWKS (no write access to KC). The OTP flow requires a new admin credential path:
+
+- `japan-trip-api` KC client must change from `bearerOnly: true` to `serviceAccountsEnabled: true` with `realm-admin` or scoped `manage-users` role
+- New `Env` fields: `KC_ADMIN_CLIENT_ID`, `KC_ADMIN_CLIENT_SECRET`
+- `keycloak-admin.ts` acquires an admin token via `client_credentials` grant and caches it module-level (same pattern as `jwksCache` in `auth/keycloak.ts`; refresh on 401, not on a timer)
+
+**OTP rate-limiting must be DB-backed** (not Worker memory — isolates do not share state across requests). The `attempts` column on `email_otp_codes` is the counter; increment on each failed verify, block at `attempts >= 5`.
+
+### 3. Terraform Bootstrap Sequence
+
+Same Terraform `keycloak/` module, two environment roots with different provider configs.
+
+```
+LOCAL DEV:
+  docker-compose up postgres keycloak mailhog
+       |
+       | (wait for KC healthy on :8080)
+       v
+  cd terraform/environments/local && terraform apply
+       |
+       | KC provider points at http://localhost:8080
+       | Sets: browser_flow=browser-passkey, required actions,
+       |       japan-trip-api as confidential+service-account
+       v
+  wrangler dev        (KC_URL=http://localhost:8080)
+  vite dev            (VITE_KEYCLOAK_URL=http://localhost:8080)
+
+PROD:
+  railway deploy keycloak container
+       |
+       | (Railway URL confirmed: https://kc.railway.app)
+       v
+  cd terraform/environments/prod && terraform apply
+       |
+       | KC provider points at Railway URL
+       | Cloudflare module creates Worker env secrets
+       | Neon module provisions DB branch
+       v
+  wrangler secret put KC_ADMIN_CLIENT_SECRET
+  wrangler secret put RESEND_API_KEY
+  wrangler deploy
+```
+
+**Dual source of truth risk:** As long as `docker-compose.yml` uses `--import-realm` AND Terraform manages the realm, every `docker-compose up` risks overwriting TF-managed config. Resolution: remove `--import-realm` flag from the KC command once the TF local environment is confirmed working. Keep `realm-export.json` only as a reference snapshot.
+
+---
+
+## Integration Points
+
+### A. KC Admin Client Promotion
+
+| Attribute | Current state | Required for v2.0 |
+|-----------|--------------|-------------------|
+| `japan-trip-api` `bearerOnly` | `true` | `false` |
+| `serviceAccountsEnabled` | `false` | `true` |
+| Service account role | none | `manage-users` (or `realm-admin`) |
+| `Env.KC_ADMIN_CLIENT_ID` | absent | new `[vars]` entry in `wrangler.toml` |
+| `Env.KC_ADMIN_CLIENT_SECRET` | absent | new secret via `wrangler secret put` |
+
+This change is managed by Terraform — not by editing `realm-export.json` directly.
+
+### B. `email_otp_codes` Schema
+
+Attaches to the existing `users` table. Proposed shape:
 
 ```typescript
-const params = new URLSearchParams(window.location.search);
-const tripId = params.get('tripId');
-if (!tripId) { showError('...'); return; }
+export const email_otp_codes = pgTable('email_otp_codes', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  code_hash: varchar('code_hash', { length: 64 }).notNull(),  // SHA-256 hex
+  expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
+  used_at: timestamp('used_at', { withTimezone: true }),
+  attempts: integer('attempts').notNull().default(0),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 ```
 
-This is consistent across all dynamic pages. No router, no hash routing — query string is the MPA convention already established.
+Drizzle migration must run before any `/api/auth/*` endpoint is deployed.
 
-### Auth requirement
+### C. `passkey-fallback.html` as Vite MPA Entry
 
-Unlike `tripDetail.ts`, `tripEdit.ts` must always require authentication. On `!authenticated`, redirect immediately rather than attempting guest read:
+Follows the same pattern as `dashboard.html`. Add to `vite.config.ts`:
 
 ```typescript
-authenticated = await initKeycloak();
-if (!authenticated) {
-  window.location.replace(`index.html?next=${encodeURIComponent(window.location.href)}`);
-  return;
-}
+'passkey-fallback': resolve(__dirname, 'passkey-fallback.html'),
 ```
 
-`ensureUserProvisioned` on the backend means edit API calls will 401 for unauthenticated requests anyway, but rejecting client-side avoids a flicker.
+This page does NOT use `<auth-guard>` — the OTP flow IS authentication. It has no prior auth requirement and must be publicly accessible without a KC redirect.
 
-### Form structure — per-section explicit save
+### D. KC Flow Activation via Terraform
 
-The existing `dashboard.ts:handleCreateTrip` (FormData → Object.fromEntries → API call) is the correct pattern. Scale it to per-section forms:
+`browser-passkey` flow is defined in the realm but `"browserFlow": "browser"` is the active flow (line 197 of `realm-export.json`). Terraform `keycloak_realm` resource must set `browser_flow = "browser-passkey"`. This is the single most impactful UX change in the milestone. It should be done in Terraform, not by patching the JSON, to avoid re-import surprises.
 
-- **Trip metadata form**: name, description, start/end date, is_public toggle → `PATCH /api/trips/:id` via `updateTrip()`
-- **Destination forms** (one per destination): city_name, country, dates, lat/lng, zoom_level → `PATCH /api/trips/:id/destinations/:destId` via `updateDestination()`
-- **Hotel form** (per destination): name, url, lat/lng, check-in/out → `PUT /api/trips/:id/destinations/:destId/hotel` via `upsertHotel()` (note: upsert, not patch)
-- **Day forms** (per day): label, date, color_hex → `PATCH .../days/:dayId` via `updateDay()`
-- **Activity forms** (per activity): name, lat/lng, notes, time → `PATCH .../activities/:actId` via `updateActivity()`
+### E. Playwright Real-Auth Overhaul
 
-**No auto-save.** Auto-save requires diff tracking and dirty state management — unnecessary complexity for this app. Each form section gets a "Guardar" button. Disable during submission, show inline success/error text. This matches the existing `submitBtn.disabled = true` pattern in `dashboard.ts:102-120`.
+Current `tests/global-setup.ts` only polls for server readiness. New version must:
+1. Launch headless Chromium
+2. Navigate to the app and trigger KC login
+3. Complete the login flow against a live local KC
+4. Write `storageState` to `tests/.auth/user.json`
 
-**Add-new flows**: "Add destination" calls `createDestination()`, appends the returned object to the in-memory trip state, re-renders the destination list. Same pattern for add-day, add-activity.
+The `playwright.config.ts` must add a `setup` project that depends on `global-setup.ts`, and the other projects must declare `dependencies: ['setup']` and `storageState: 'tests/.auth/user.json'`.
 
-**Delete flows**: Confirm via `window.confirm()` (cheap, sufficient for v1), then call the DELETE endpoint, remove from in-memory state, re-render. No modal needed in v1.
-
-### Linking to the edit page
-
-In `tripDetail.ts`: Add an "Edit trip" button (only visible when `isAuthenticated() && trip.user_id === currentUserId`). Link: `trip-edit.html?tripId=${tripId}`.
-
-In `dashboard.ts:renderTripCard()`: Add an edit icon/link to the card markup.
+Note on WebAuthn in CI: Playwright's headless Chromium supports simulated WebAuthn via `cdpSession.send('WebAuthn.enable', { enableUI: false })`. If the `setup` project must register a passkey, this CDP approach is required. Alternatively, configure a test user in KC with a password credential (bypassing passkey-only flow) solely for Playwright setup — simpler and sufficient for auth fixture purposes.
 
 ---
 
-## 2. Security Hardening
+## Suggested Build Order
 
-### innerHTML audit — actual risk surface
+Dependencies are the discriminator. Each step unlocks the next at runtime, not just logically.
 
-From grepping all `frontend/src/**/*.ts`:
+### Step 1 — Local Infrastructure Foundation
+What: MailHog in `docker-compose.yml`, `terraform/keycloak/` module, `terraform/environments/local/`  
+Goal: `docker-compose up` brings KC + PG + MailHog; `terraform apply` idempotently sets browser_flow, required actions, admin client credentials  
+Unlocks: everything downstream (KC admin creds exist, passkey flow is active, SMTP works locally)
 
-| File | User data interpolated? | Fix |
-|------|------------------------|-----|
-| `pages/tripDetail.ts:52` | `dest.city_name` in tab button | DOM construction |
-| `pages/tripDetail.ts:301` | `day.label`, `day.color` in day group | DOM construction |
-| `pages/tripDetail.ts:344` | `activity.name`, `activity.notes` | DOM construction |
-| `pages/tripDetail.ts:373` | `hotel.name` | `textContent` |
-| `pages/tripDetail.ts:413` | Static error string only | Safe — no change |
-| `pages/dashboard.ts:63` | Static empty-state HTML | Safe — no change |
-| `pages/dashboard.ts:72` | `trip.name`, `trip.description`, URL params | DOM construction |
-| `pages/dashboard.ts:194` | `Error.message` only | Safe — not user data |
-| `pages/profile.ts:74` | `c.userLabel` from Keycloak credential | DOM construction |
-| `modules/map.ts:236` | `day.label`, `day.color` | DOM construction |
-| `modules/map.ts:260` | `activity.name`, `activity.notes` | DOM construction |
-| `modules/map.ts:273` | `hotel.name` | `textContent` |
-| `modules/widgets.ts:202` | News/event titles from external API | DOM construction |
-| `components/SearchBar.ts:492` | Search result item text | DOM construction |
-| `components/Navbar.ts:92` | Static template on mount | Safe — Shadow DOM, no user data |
-| `components/Navbar.ts:360` | Icon HTML + static label | Safe — controlled strings |
-| `components/SearchBar.ts:32` | Static template on mount | Safe |
-| `auth/AuthGuard.ts:58,85,94,135` | Static templates | Safe |
+### Step 2 — DB Migration + KC Admin Client Wiring
+What: `email_otp_codes` Drizzle migration; `backend/src/services/keycloak-admin.ts`  
+Modified: `backend/src/db/schema.ts`, `backend/src/types/index.ts`, `backend/wrangler.toml`  
+Goal: Table exists in DB; backend can obtain and cache a KC Admin token  
+Unlocks: OTP routes (Step 3)  
+Depends on: Step 1 (KC admin credentials must exist)
 
-**Do not use DOMPurify.** Every risky interpolation is plain text — there is no legitimate rich-text input in this app. DOMPurify adds ~20KB bundle weight and licenses HTML parsing, which is the wrong semantic fit. Use DOM construction helpers instead.
+### Step 3 — Backend OTP Routes + Mailer
+What: `backend/src/routes/auth.ts`, `backend/src/services/mailer.ts`  
+Modified: `backend/src/routes/index.ts`  
+Goal: `POST /api/auth/otp-request` and `otp-verify` work end-to-end; MailHog captures OTP email  
+Unlocks: Frontend fallback page (Step 5), Playwright OTP E2E (Step 6)  
+Depends on: Step 2
 
-### New file: `frontend/src/modules/dom.ts`
+### Step 4 — KC Theme Extensions (parallel with Step 3)
+What: `passkey-campaign.ftl`, `messages_es.properties`  
+KC config change: `webauthn-register-passwordless` as default required action (via TF)  
+Goal: Post-registration passkey campaign fires using the custom theme; Spanish errors render  
+Depends on: Step 1 (TF must manage KC)  
+Unlocks: E2E tests for the passkey-campaign happy path
 
-A lightweight typed DOM construction module:
+### Step 5 — Frontend Passkey Detection + Fallback Page
+What: `passkey-detection.ts`, `error-handler.ts`, `passkey-fallback.html`  
+Modified: `vite.config.ts`, `frontend/src/auth/keycloak.ts`  
+Goal: Browsers without WebAuthn land on the OTP fallback page; KC error params map to friendly messages  
+Depends on: Step 3 (fallback page calls backend OTP endpoints)  
+Unlocks: Full user-facing flow
 
-```typescript
-export function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-  children: (Node | string)[] = []
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') node.className = v;
-    else node.setAttribute(k, v);
-  }
-  for (const child of children) {
-    node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
-  }
-  return node;
-}
-```
+### Step 6 — Playwright Real-Auth + Fixtures + E2E Tests
+What: `tests/fixtures/auth.ts`, `tests/fixtures/keycloak-admin.ts`  
+Modified: `tests/global-setup.ts`, `tests/playwright.config.ts`  
+Goal: E2E suite authenticates against real KC; happy path and OTP fallback path are covered  
+Depends on: Steps 1-5 (live KC + backend OTP routes + fallback page all required)
 
-Usage replaces inline templates:
-
-```typescript
-// Before
-tabsEl.innerHTML = sorted.map(dest => `<button>${dest.city_name}</button>`).join('');
-
-// After
-tabsEl.replaceChildren(...sorted.map((dest, i) =>
-  el('button', { class: `dest-tab${i === activeIndex ? ' is-active' : ''}` }, [dest.city_name])
-));
-```
-
-### CORS fix — `backend/src/middleware/cors.ts`
-
-The bug is on line 18: `return origin ?? '*'`. When no `Origin` header is present, it falls back to `'*'`, which is spec-invalid when `credentials: true`. Fix:
-
-```typescript
-// Before
-return origin ?? '*';
-
-// After — reject unknown/absent origins
-origin: (origin) => {
-  const allowed = [
-    'https://manud.github.io',
-    'http://localhost:3000',
-    'http://localhost:5173',
-  ];
-  if (origin && allowed.includes(origin)) return origin;
-  return null;
-},
-```
-
-No other changes to the Hono CORS config are needed. `corsMiddleware` is already mounted as `app.use('*', corsMiddleware)` before routes, so OPTIONS preflights are handled correctly.
-
-### JWT audience tightening — `backend/src/auth/keycloak.ts`
-
-Currently the `aud` claim is validated against `account` (the Keycloak management client). Add a dedicated backend audience (`japan-trip-api`) via a Keycloak audience mapper on the `japan-trip-frontend` client, then validate against `japan-trip-api` in `verifyJwt`. Keep `account` as an additional audience (needed by the Account REST API — see Section 4). This is the standard Keycloak multi-audience pattern.
+### Step 7 — Production Terraform
+What: `terraform/environments/prod/`, `terraform/cloudflare/` module, `terraform/neon/` module  
+Goal: Prod KC/Cloudflare/Neon state managed in code; secrets deployed via `wrangler secret put`  
+Depends on: Step 1 (module exists), everything else proven locally
 
 ---
 
-## 3. Public Trip Sharing UI
+## Cloudflare Workers Constraints
 
-### No new route needed
+`wrangler.toml` already has `nodejs_compat` — this allows Node-compatible modules in local dev (enables `pg` via TCP). The runtime remains a V8 isolate.
 
-`tripDetail.ts` already falls back to `getPublicTrip()` for unauthenticated users (lines 447–462). The shareable URL is already `trip.html?tripId=<uuid>`. A public trip URL already works without login.
-
-### Where the toggle lives
-
-**Canonical location: trip-edit page** — `is_public` toggle in the trip metadata form. The `PATCH /api/trips/:id` endpoint already accepts `is_public` (confirmed in `UpdateTripSchema` and `updateTrip()`).
-
-**Secondary: trip detail page** — When the viewer is the authenticated owner, show a "Compartir" button that:
-1. Calls `updateTrip(tripId, { is_public: true })` if not yet public
-2. Copies `window.location.href` to clipboard via `navigator.clipboard.writeText()`
-3. Shows a transient "Enlace copiado" status message inline
-
-This is a one-click share flow that does not require visiting the edit page for the most common action.
-
-**Dashboard card badge**: Already implemented in `dashboard.ts:renderTripCard()` lines 33–35. No change needed.
-
-### Shareable URL format
-
-```
-https://manud.github.io/PruebaMapJapan/trip.html?tripId=<uuid>
-```
-
-No signed URLs, no `/share/` aliases. The UUID is opaque enough for casual privacy. The backend enforces `is_public` gating in `routes/public.ts`.
+| Constraint | Impact | Pattern to follow |
+|-----------|--------|------------------|
+| No SMTP socket / no `nodemailer` | `mailer.ts` must use Resend HTTP API via `fetch()` | `fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: 'Bearer ...' }, body: JSON.stringify({...}) })` |
+| No `crypto.createHash` (Node API) | OTP hashing must use Web Crypto | `crypto.subtle.digest('SHA-256', new TextEncoder().encode(code+salt))` — see `auth/keycloak.ts:base64urlToArrayBuffer` as reference pattern |
+| No shared isolate memory across requests | Rate-limit (OTP `attempts`) must live in the DB row, not in module-level state | `attempts` column on `email_otp_codes`, incremented via UPDATE on each failed verify |
+| Module-level cache is per-isolate (not per-request) | Admin token cache is fine — same TTL assumption as JWKS cache | Refresh on 401, not on timer, since admin token TTL is long (~10 min default) |
+| `env` bindings only accessible via `c.env` | New secrets must be declared in `wrangler.toml` and in the `Env` interface | Add to `types/index.ts` `Env` interface |
+| No persistent TCP connections | Neon HTTP driver already handles this; local `pg.Pool` only via `nodejs_compat` dev path | Existing dual-driver pattern in `db/index.ts` — no change needed |
 
 ---
 
-## 4. Passkeys via Keycloak Account REST API
+## Key Architectural Risks
 
-### Realm configuration status
+**1. `japan-trip-api` client promotion is a breaking-direction change.**  
+Promoting it from `bearerOnly` to a service account client changes its semantics in KC. Verify nothing else currently treats it as a bearer validator (introspection endpoint). Currently the backend validates via JWKS directly — the client is not used for introspection — so the change is safe, but must be confirmed before touching prod.
 
-From `keycloak/realm-export.json`:
-- `webAuthnPolicyPasswordlessAuthenticatorAttachment: "platform"` — correct for passkeys
-- `webAuthnPolicyPasswordlessRequireResidentKey: "Yes"` — correct for passkeys
-- `webAuthnPolicyPasswordlessUserVerificationRequirement: "required"` — correct
-- Authentication flow `browser-passkey` exists with `webauthn-authenticator-passwordless` as required step
+**2. `realm-export.json` dual source of truth.**  
+Once TF local env works, `docker-compose.yml` must not pass `--import-realm`. If it does, `docker-compose up` will re-import the JSON and overwrite TF-managed config (e.g., the admin client secret, the browserFlow assignment). Remove the flag at Step 1 completion.
 
-The realm is correctly configured for passwordless WebAuthn. **The `webAuthnPolicyPasswordlessRpId` is empty** — must be set per environment before passkeys work. Set to `localhost` in `apply-local-settings.sh` for dev, and to `manud.github.io` for production. The RP ID must match the origin of the page performing the WebAuthn ceremony.
+**3. `email` NOT NULL in `users` table vs passkey-only users.**  
+`KeycloakJwtPayload.email` is typed non-optional but may be absent. `ensureUserProvisioned` already handles `email ?? ''`. The OTP `otp-request` handler must validate `email !== ''` before proceeding and return 422 if missing — a passkey-only user with no email cannot use the OTP fallback.
 
-### Keycloak Account REST API endpoints (self-service, user Bearer token)
-
-| Operation | Method | Path |
-|-----------|--------|------|
-| List credentials | GET | `/realms/{realm}/account/credentials?type=webauthn` |
-| Delete credential | DELETE | `/realms/{realm}/account/credentials/{id}` |
-| Rename credential | PUT | `/realms/{realm}/account/credentials/{id}/label` — body: plain text string |
-| Register new passkey | Redirect | `keycloak.login({ action: 'webauthn-register-passwordless', redirectUri: window.location.href })` |
-
-The existing `profile.ts:loadPasskeys` is already calling the GET endpoint correctly.
-
-**Critical bug in `profile.ts:registerPasskey`:** The action string is `'webauthn-register'` which registers a second-factor WebAuthn credential, not a passwordless passkey. For the passwordless flow configured in the realm, the correct action is `'webauthn-register-passwordless'`.
-
-**Confidence on action string:** MEDIUM — confirmed by realm config (flow uses `webauthn-authenticator-passwordless`) but should be verified against a running local Keycloak 25 instance at implementation time.
-
-### Audience requirement
-
-The access token must contain `account` in the `aud` claim for Account REST API calls to succeed. This is why the JWT audience tightening (Section 2) must use a multi-audience approach: add `japan-trip-api` as an additional audience for the backend, while preserving `account` in the token. The `japan-trip-frontend` client needs both audience mappers.
-
-### What `profile.ts` needs
-
-Currently: list credentials (working) + register with wrong action string.
-
-Missing:
-- DELETE credential: `DELETE /realms/{realm}/account/credentials/${c.id}` with same Bearer token, reload list on success
-- Rename credential: `PUT /realms/{realm}/account/credentials/${c.id}/label` with `Content-Type: text/plain` body
-- Fix action string: `'webauthn-register'` → `'webauthn-register-passwordless'`
-- XSS fix: passkey list `innerHTML` → DOM construction (part of Phase 1 hardening)
-
----
-
-## 5. New vs Modified Files — Complete List
-
-### New files
-
-| File | Why new |
-|------|---------|
-| `frontend/trip-edit.html` | New Vite entry point for edit page |
-| `frontend/src/pages/tripEdit.ts` | New page controller |
-| `frontend/src/modules/dom.ts` | DOM construction helpers — used by all XSS fixes and new edit page |
-
-### Modified files
-
-| File | Changes |
-|------|---------|
-| `frontend/vite.config.ts` | Add `tripEdit` entry to rollupOptions.input |
-| `frontend/src/pages/tripDetail.ts` | innerHTML → dom helpers (city_name, day label/color, activity name/notes, hotel name); add edit/share buttons for owner |
-| `frontend/src/pages/dashboard.ts` | innerHTML → dom helpers (renderTripCard: trip name, description); add edit link to card |
-| `frontend/src/pages/profile.ts` | Fix action string; add DELETE + rename for passkeys; innerHTML → dom helpers in passkey list |
-| `frontend/src/pages/tripEdit.ts` | (NEW) Full edit page implementation |
-| `frontend/src/modules/map.ts` | innerHTML → dom helpers (day group header, legend item, hotel info) |
-| `frontend/src/modules/widgets.ts` | innerHTML → dom helpers (news/event list items) |
-| `frontend/src/components/SearchBar.ts` | innerHTML → dom helpers for dynamic search result items (static shadow template is safe) |
-| `backend/src/middleware/cors.ts` | Drop `?? '*'` fallback (line 18) |
-| `backend/src/auth/keycloak.ts` | Add `japan-trip-api` audience validation |
-| `keycloak/realm-export.json` | Set `webAuthnPolicyPasswordlessRpId`; verify `webOrigins` includes GitHub Pages URL |
-
----
-
-## 6. Build Order (Dependency-Aware)
-
-```
-Phase 1 — Security hardening (establishes safe primitives before new code is written)
-  1a. Create frontend/src/modules/dom.ts helper
-  1b. Replace all user-data innerHTML with dom.ts across:
-        tripDetail.ts, dashboard.ts, profile.ts, map.ts, widgets.ts, SearchBar.ts
-  1c. Fix cors.ts — drop ?? '*' fallback
-  1d. Add japan-trip-api audience in keycloak client mapper + tighten backend/src/auth/keycloak.ts
-  Rationale: tripEdit.ts uses dom.ts from day one. Fixes before new code prevents compounding debt.
-
-Phase 2 — Trip edit page (depends on dom.ts from Phase 1)
-  2a. trip-edit.html + tripEdit.ts scaffolding (URL param, auth guard, trip load)
-  2b. Trip metadata form + save (includes is_public toggle — covers Phase 3a)
-  2c. Destination forms + add/delete destinations
-  2d. Hotel form (upsert)
-  2e. Day and activity forms + add/delete
-  2f. Update vite.config.ts; add edit links in tripDetail + dashboard
-  Rationale: Each sub-step is independently testable. API is fully available for all these calls.
-
-Phase 3 — Public sharing UI (depends on tripEdit for canonical toggle; 2b already adds it)
-  3a. is_public toggle already in Phase 2b — no separate step if done in order
-  3b. "Compartir" button in tripDetail.ts (owner-only, copy link + toggle public if needed)
-  Rationale: Minimal. Only step 3b adds code beyond Phase 2.
-
-Phase 4 — Passkeys (independent track; can run in parallel with Phases 2-3)
-  4a. Set webAuthnPolicyPasswordlessRpId in realm-export.json for dev + prod; update apply-local-settings.sh
-  4b. Fix registerPasskey action string in profile.ts ('webauthn-register-passwordless')
-  4c. Add DELETE passkey to profile.ts
-  4d. Add rename passkey to profile.ts
-  Note: 4's XSS fix (passkey list innerHTML) is covered by Phase 1b if done together.
-```
-
----
-
-## 7. Cloudflare Workers Constraints
-
-All changes are Workers-compatible:
-- `dom.ts` is browser code (frontend only), irrelevant to Workers
-- CORS fix uses only `hono/cors` — already the Workers CORS implementation
-- JWT audience change is a string comparison in `verifyJwt` — no new dependencies
-- No new npm packages introduced anywhere in the backend
-
----
-
-*Research date: 2026-04-26 | Sources: actual source files read in this session*
+**4. Playwright WebAuthn in CI.**  
+Real passkey registration in headless Chrome requires CDP `WebAuthn.enable`. For the auth fixture, consider provisioning a dedicated test user in KC with a password credential (bypassing the passkey flow) — simpler, no CDP setup required, and sufficient for storageState generation. Reserve CDP WebAuthn simulation for tests that specifically exercise the passkey UX.

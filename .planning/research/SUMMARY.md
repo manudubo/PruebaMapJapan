@@ -1,90 +1,113 @@
-# Research Summary — TravelMap v1.0
+# Research Summary — v2.0 Auth Infrastructure & Hardening
 
-**Milestone:** Trip Builder + Security Hardening + Passkeys + Public Sharing
-**Researched:** 2026-04-26
-**Confidence:** HIGH
+**Project:** TravelMap / PruebaMapJapan
+**Researched:** 2026-05-15
+**Confidence:** HIGH (stack/arch) | MEDIUM-HIGH (pitfalls)
 
-## Executive Summary
-
-v1.0 is almost entirely frontend work on top of a complete backend API. The only new dependency is `dompurify@3.4.1` for Leaflet popup sanitization. Security hardening must go first — 11+ live XSS injection sites become a public exploit the moment trip sharing ships.
-
-The highest-risk non-security item is `webAuthnPolicyPasswordlessRpId = ""` in `realm-export.json`. Must be set before any user registers a passkey in production; cannot be changed retroactively.
+---
 
 ## Stack Additions
 
-| Item | Change |
-|------|--------|
-| `dompurify@3.4.1` | New frontend runtime dep — Leaflet popup HTML only |
-| `@types/dompurify@3.2.0` | Dev dep |
-| Backend | None |
-| Infrastructure | None |
-| Keycloak | Config only (RP ID, audience mapper) |
+| Package / Tool | Version | Purpose |
+|----------------|---------|---------|
+| `resend` (npm, backend) | `^6.0.0` | Email OTP via HTTP API — only Workers-compatible option |
+| `@playwright/test` | `^1.60.0` | Virtual Authenticator stability + addInitScript fixes |
+| `keycloak/keycloak` (Terraform) | `>= 5.7.0, < 6.0.0` | Official KC org provider since Dec 2024; mrparkers archived |
+| `cloudflare/cloudflare` (Terraform) | `~> 5.19` | Worker secrets management |
+| `kislerdm/neon` (Terraform) | `>= 0.9.0, < 1.0.0` | Neon DB provisioning |
+| `axllent/mailpit:v1.29` (Docker) | `v1.29` | Local SMTP — MailHog abandoned 2020, drop-in replacement |
+| Terraform CLI | `>= 1.9.0, < 2.0.0` | Required floor for all three providers |
+| HCP Terraform | free tier | Remote state CI/prod (500 resources) |
 
-All other XSS surfaces use a new `dom.ts` DOM construction helper (zero library weight).
+No new frontend npm deps. No new backend deps beyond `resend`.
+
+---
 
 ## Feature Table Stakes
 
-### Trip Builder Edit Page
-- `trip-edit.html?tripId=X` entry point; open from dashboard card
-- Edit trip metadata (name, description, dates, `is_public` toggle)
-- Add/edit/delete destinations (city, country, dates, lat/lng)
-- Add/edit/delete hotel per destination (name, URL, check-in/out)
-- Add/edit/delete days (label, date, color)
-- Add/edit/delete activities (name, notes, lat/lng); reorder via up/down buttons
-- Multi-step form: create parent → persist → add children against server-assigned ID
+### Passkey Campaign
+- AIA trigger: `kc_action=webauthn-register-passwordless`; KC 26.3+ `skip-if-exists` param eliminates redundant prompts
+- Per-device opt-out cookie `pnk_{userId}`: `max-age=2592000`, `SameSite=Strict` — UX hint only, not a security gate
+- Cookie written only after `initKeycloak()` resolves (userId unavailable before ID token)
+- `webAuthnPolicyPasswordlessRpId` must be set to production hostname before any user registers a passkey — no migration path
 
-### Security Hardening
-- New `dom.ts` helper replacing all template-literal `innerHTML` with DOM construction
-- `DOMPurify.sanitize()` for Leaflet popup strings only (`buildPopup`, `buildHotelPopup`)
-- Fix inline style injection: `cover_image_url` → `.style.backgroundImage` with `https://` validation; `day.color` → regex `#[0-9a-fA-F]{3,8}`
-- CORS: remove `credentials: true`; fix `origin ?? '*'` fallback → `null`
-- JWT: remove `'account'` from `validAudiences`; add audience mapper on Keycloak client
-- Remove stale D1 binding from `wrangler.toml`
+### Email OTP Fallback
+- Worker-side TypeScript: `POST /api/auth/otp-request` + `/api/auth/otp-verify` — no Java, no KC SPI
+- OTP: SHA-256 hash in `email_otp_codes` table, 6-digit, 10-min TTL, single-use, max 5 attempts
+- Timing-safe comparison: HMAC-SHA256 + XOR accumulator (Workers lacks `timingSafeEqual`)
+- After OTP verify: force `UPDATE_PASSWORD` Required Action so user never stays passkey-only
 
-### Public Trip Sharing
-- `is_public` toggle on trip edit page (covered by trip builder phase)
-- "Compartir" + copy-link button on trip detail (owner-only)
-- `public_slug uuid` column for share URLs — prevents integer ID enumeration
-- Backend route: `/api/public/trips/:slug` (replaces `:id`)
-- Read-only guest view: hide edit controls when not authenticated or not owner
+### Email Verification
+- `VERIFY_EMAIL` Required Action as realm default — must ship atomically with SMTP config
+- KC bug #41171: session expires if link opened in different tab — increase `accessCodeLifespanUserAction` to 900–1800s
 
-### Passkeys Functional
-- Fix `registerPasskey` action string → `'webauthn-register-passwordless'`
-- Set `webAuthnPolicyPasswordlessRpId` in `realm-export.json`
-- Delete passkey: `DELETE /realms/{realm}/account/credentials/{id}`
-- Rename passkey: `PUT /account/credentials/{id}/label`
-- Session refresh (`keycloak.updateToken(60)`) before registration
+### KC Flow Configuration
+- Switch `browserFlow` from `"browser"` to `"browser-passkey"` via Terraform
+- Must NOT happen until password-forms ALTERNATIVE branch exists in the flow
+- Safe flow: `auth-cookie` ALT → `passkey-forms` ALT → `password-forms` ALT
 
-## Key Architectural Points
+### Error Handling & Theme Localization
+- Create `keycloak/themes/japan-trip/login/messages/messages_es.properties` (directory missing)
+- Add `locales=es,en` to `theme.properties`
+- FreeMarker overrides: `login.ftl`, `login-otp.ftl`, `verify-email.ftl`, `error.ftl`
+- Key KC error keys: `invalidUserMessage`, `accountTemporarilyDisabledMessage`, `webauthn-error-*`
 
-- **`dom.ts`** — new shared module built in Phase 1; consumed by dashboard, tripDetail, map, widgets, SearchBar, profile, tripEdit
-- **Trip edit page** — `tripEdit.ts` uses surgical DOM updates keyed by entity ID; no auto-save; explicit save buttons per section
-- **Share URL** uses `public_slug` (UUID), not integer PK
+### Terraform IaC
+- Full migration away from `--import-realm` — Terraform is single source of truth per env
+- `realm-export.json` becomes read-only reference snapshot
+- Resources: `keycloak_realm`, `keycloak_openid_client`, auth flows + executions, `keycloak_required_action`
+- `cloudflare_worker_secret` for `RESEND_API_KEY`, `KC_ADMIN_CLIENT_SECRET`
 
-## Critical Pitfalls
-
-| # | Pitfall | Severity | Phase |
-|---|---------|----------|-------|
-| 1 | `webAuthnPolicyPasswordlessRpId = ""` — defaults to Keycloak hostname, not frontend domain | CRITICAL | 4 |
-| 2 | `cover_image_url` / `day.color` inline style injection bypasses innerHTML-only fix | HIGH | 1 |
-| 3 | Leaflet `bindPopup` calls innerHTML internally — needs DOMPurify, not `dom.ts` | HIGH | 1 |
-| 4 | Integer trip IDs enumerable in share URLs | HIGH | 3 |
-| 5 | Serial nested entity creation with no rollback | HIGH | 2 |
-| 6 | `credentials: true` in CORS is unused and harmful | HIGH | 1 |
-| 7 | Keycloak credential listing response shape — verify at runtime before implementing delete/rename | MEDIUM | 4 |
-
-## Recommended Phase Order
-
-1. **Security Hardening** — prerequisite for safe public sharing; creates `dom.ts` primitive
-2. **Trip Builder Edit Page** — largest feature; `is_public` toggle subsumes most of Phase 3
-3. **Public Trip Sharing** — minimal net-new code after Phase 2; requires `public_slug` migration
-4. **Passkeys Functional** — self-contained; verify credential listing shape before implementing
-
-## Open Decisions (Resolve Before Phase 2)
-
-- **Activity `time` field**: schema migration (nullable `time text` column) or name-prefix convention ("10:00 — Senso-ji")?
-- **Coordinate input UX**: plain lat/lng text fields or Nominatim geocoder lookup?
-- No existing share URLs in the wild, so `public_slug` migration needs no transition plan.
+### Playwright Real Auth
+- `storageState` via `globalSetup` — headless Chromium drives OIDC redirect, writes `tests/.auth/user.json`
+- ROPC disabled — cannot use username/password API auth; storageState is the only path
+- `storageState` does NOT capture `sessionStorage` (Playwright bug #31108) — workaround: `page.evaluate` + `addInitScript` replay
+- Virtual Authenticator (passkeys): Chromium-only — dedicated `chromium-passkeys` project
+- Mailpit REST API for reading OTP codes in E2E tests
 
 ---
-*Ready for roadmap: yes — 4 phases, all research flags resolved except Phase 4 runtime Keycloak verification*
+
+## Watch Out For
+
+1. **rpId lock-in** — Set production hostname in Terraform before any prod passkey registrations. No migration path.
+2. **Dual source of truth** — Remove `--import-realm` from docker-compose immediately after TF local confirmed.
+3. **browserFlow switch locks out password-only users** — Add password-forms ALTERNATIVE branch before switching.
+4. **OTP timing attack** — `timingSafeEqual` absent in CF Workers. Use HMAC-SHA256 + XOR accumulator.
+5. **VERIFY_EMAIL + SMTP must ship atomically** — Enabling Required Action before SMTP silently blocks registrations.
+
+---
+
+## Build Order
+
+1. Local infra — Mailpit, `terraform/keycloak/` module, local apply, remove `--import-realm`
+2. Backend hardening — `validAudiences` env var, `email?: string` relaxation
+3. DB migration + KC Admin client — `email_otp_codes`, admin service account
+4. Backend OTP routes + mailer (parallel with 5) — `/api/auth/otp-*`, `mailer.ts`
+5. KC theme extensions (parallel with 4) — FreeMarker, `messages_es.properties`, Required Actions
+6. Frontend passkey detection + fallback page — depends on 4
+7. Playwright real-auth overhaul — depends on 1–6
+8. Production Terraform — prod rpId, redirect_uris, Cloudflare secrets, Neon
+
+---
+
+## Open Questions Resolved
+
+| Question | Decision |
+|----------|----------|
+| Email OTP: KC SPI vs Worker-side TypeScript | Worker-side TypeScript |
+| Email provider | Resend `^6.0.0` |
+| Local SMTP | Mailpit v1.29 |
+| Terraform state | HCP Terraform free tier (CI/prod), local (dev) |
+| KC Terraform provider | `keycloak/keycloak >= 5.7.0` |
+| KC customization | FreeMarker themes + built-in flows only |
+
+---
+
+## Remaining Open Questions
+
+| Question | Impact |
+|----------|--------|
+| KC TF provider KC 26 compat for `browser-passkey` flow topology | May need `null_resource` REST fallback |
+| Exact Railway production hostname | Blocks prod rpId and redirect_uris |
+| Separate `japan-trip-worker` vs promote `japan-trip-api` for Admin API | Least-privilege design |
+| VERIFY_EMAIL vs webauthn-register-passwordless ordering | Conflicting defaults if wrong |

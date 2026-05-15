@@ -1,347 +1,287 @@
-# Domain Pitfalls
+# Pitfalls Research — v2.0 Auth Infrastructure & Hardening
 
-**Domain:** Vanilla TS / Hono / Keycloak 25 — adding trip builder UI, passkeys, public sharing, security hardening
-**Researched:** 2026-04-26
-**Stack:** Vanilla TypeScript (no framework), Hono on Cloudflare Workers, Neon PostgreSQL, Keycloak 25, keycloak-js 25.0, Leaflet, Vite MPA, GitHub Pages
+**Domain:** Terraform IaC for Keycloak 26 + WebAuthn passkey campaign + Email OTP + Playwright real auth
+**Researched:** 2026-05-15
+**Confidence:** MEDIUM-HIGH (grounded in actual realm-export.json, backend/src/auth/keycloak.ts, and prior phase 04 research)
 
 ---
 
-## 1. Vanilla TypeScript CRUD UI — Form & State Pitfalls
+## Critical Pitfalls (must address before shipping)
 
-### 1.1 Nested-Entity Creation Ordering (CRITICAL)
+### 1. rpId Lock-In: Production RP ID Must Be Set Before First Production Passkey Registration
 
-**What goes wrong:** The hierarchy is trip → destination → hotel → day → activity. Every level requires the server-assigned ID of the parent before the child can be created. Users click "save" expecting a complete trip to be created in one shot; instead, the UI fires serial API calls. If any call fails mid-chain (e.g., destination created, hotel PUT fails), the trip is in a partially-created state with no rollback mechanism.
-
-**Warning sign:** Code like `const dest = await createDestination(...); const day = await createDay(destId, ...); await createActivity(dayId, ...)` in a single submit handler with no error recovery — a partial success leaves orphaned rows the user can't see and can't delete from the UI.
+**Risk:** `keycloak/realm-export.json` line 42 has `"webAuthnPolicyPasswordlessRpId": "localhost"`. The rpId is cryptographically bound to every passkey a user registers — the credential stores the rpId at creation time and the WebAuthn API enforces an exact match on every subsequent assertion. If any production user registers a passkey before Terraform sets the correct production rpId (e.g., the Railway hostname), that credential is permanently locked to `localhost` and fails on every production login attempt. There is no migration path; affected credentials must be deleted and re-registered.
 
 **Prevention:**
-- Treat the trip builder as a multi-step form: create the trip and destination first (persist to get IDs), then add hotel/days/activities as separate interactions against already-persisted parents.
-- If offering a "create all at once" UX, make each step visually discrete so on failure the user knows exactly what was saved and what wasn't.
-- Never silently swallow errors mid-chain. Surface which step failed so the user can retry that step only.
-- Do not try to build client-side rollback (deleting previously created rows on failure) — the backend API does not expose a batch-delete and the cascade is complex. Partial state is survivable; silent corruption is not.
+- Terraform must set `webauthn_policy_passwordless_rp_id` in the `keycloak_realm` resource to the production hostname before production is opened to users.
+- Gate user access behind a "realm setup complete" check: verify rpId with `curl -s https://{kc-prod}/realms/japan-trip | jq .webAuthnPolicyPasswordlessRpId` before marking prod live.
+- Maintain two environment-specific rpId values: `"localhost"` for local docker-compose (already set), exact Railway/custom domain hostname for production. Never share realm state between environments.
 
-**Phase:** Trip Builder UI
+**Warning sign:** `InvalidStateError` or `NotAllowedError` on passkey assertion; browser console shows "The provided rpId is not a registrable domain suffix of, nor equal to the current domain."
 
----
-
-### 1.2 Double-Submit and Button State Drift
-
-**What goes wrong:** Without a reactive framework, disabling a button on submit requires explicit bookkeeping. Existing code does this correctly in `dashboard.ts:handleCreateTrip` (`submitBtn.disabled = true` in the try block, reset in `finally`). The trip builder will have many more forms (add destination, add day, add activity, edit hotel) — replicating this pattern manually across all of them leads to inconsistency. One missed `finally` causes the button to stay disabled after an error, leaving the user with a form that appears frozen.
-
-**Warning sign:** Any `catch` handler that sets an error message but doesn't re-enable the submit button. Any submit handler without a `finally` block.
-
-**Prevention:** Extract a single `withSubmitLock(button, asyncFn)` utility that wraps the button disable/enable lifecycle. All form handlers call it instead of managing state individually.
-
-**Phase:** Trip Builder UI
+**Phase:** Terraform bootstrap — must be configured before the passkey campaign phase begins.
 
 ---
 
-### 1.3 In-Place Edit Re-render Destroys Sibling Unsaved State
+### 2. Terraform Drift vs. realm-export.json: Dual Sources of Truth Will Conflict
 
-**What goes wrong:** In a framework-less MPA, every time you re-render a section (e.g., after saving an activity) you wipe and re-create the DOM. Any unsaved changes in an open edit form for a sibling entity get destroyed silently.
+**Risk:** The project boots via `start-dev --import-realm` against `keycloak/realm-export.json`. Terraform's `keycloak/terraform-provider-keycloak` provider (originally `mrparkers/keycloak`, repo transferred to the Keycloak org — redirect is transparent but verify KC 26 support in the provider's CHANGELOG before writing `.tf`) manages realm state via KC Admin API. If both operate simultaneously — realm imported from JSON, then `terraform apply` runs against the same KC instance — Terraform will fight the JSON on every apply: it attempts to modify already-imported resources and diffs will never converge. Conversely, removing realm-export.json from the import path without covering every resource in Terraform leaves silent gaps (missing authentication flows, missing protocol mappers, missing required actions).
 
-**Warning sign:** A `renderDestinations()` call inside the success handler of `saveActivity()` — unrelated but co-located state gets nuked.
-
-**Prevention:** Re-render only the minimal subtree that actually changed. Keyed renders: identify DOM nodes by entity ID, update only the node whose data changed rather than rebuilding the whole list. For a vanilla TS MPA this means `document.getElementById('dest-' + id)` surgical updates rather than `container.innerHTML = buildAllDestinations(...)`.
-
-**Phase:** Trip Builder UI
-
----
-
-### 1.4 Coordinate Validation Timing
-
-**What goes wrong:** Activity and destination entities require latitude/longitude. Users will type or paste coordinates. The API accepts numeric fields but the form collects strings. A silently-coerced `NaN` lat/lng creates a marker at `[NaN, NaN]`, which Leaflet silently ignores but the entity exists in the DB with null coordinates. The user sees no pin and no error.
-
-**Warning sign:** `parseFloat(formData.get('lat'))` with no range check, or a backend schema that allows null coordinates on entities expected to appear on the map.
-
-**Prevention:** Validate range (`lat` in [-90, 90], `lng` in [-180, 180]) client-side before enabling submit. Add a map preview of the pin inside the form so the user sees immediately whether the entered coordinates resolve to a visible location.
-
-**Phase:** Trip Builder UI
-
----
-
-## 2. DOMPurify for XSS Prevention
-
-### 2.1 Inline Style URL Injection Is a Separate Attack Surface
-
-**What goes wrong:** `dashboard.ts:38` builds an inline `style=` attribute: `background-image:url('${trip.cover_image_url}')`. DOMPurify operating on the innerHTML of the card template does not sanitize this — a malicious `cover_image_url` value is delivered directly into a CSS context without passing through DOMPurify at all. Similarly, `tripDetail.ts:303` and `map.ts:236` interpolate `day.color` into `style="background:${day.color}"`.
-
-**Warning sign:** Any `style="${userValue}"` or `style="...:${userValue}"` pattern where the value comes from the API response. These are not caught by `innerHTML`-focused sanitization.
+Additional risk: the provider does not expose every KC 26 realm field. Passkey policy fields, the `browser-passkey` custom flow, and the `webauthn-authenticator-passwordless` execution may require `keycloak_custom_identity_provider_mapper` resources or direct REST calls via `null_resource`. Provider KC 26 compatibility must be verified before writing `.tf` files.
 
 **Prevention:**
-- Do not put user-controlled strings into inline `style` attributes. Instead set `.style.backgroundImage` via JS after validating the URL is strictly `https://`, or use `element.style.setProperty('background-image', 'url(${sanitizedUrl})')`.
-- For color values (e.g., `day.color`): validate the value matches `/^#[0-9a-fA-F]{3,8}$/` before any interpolation. Low risk today with hardcoded data, real vector once users can pick custom destination colors.
-- Run DOMPurify on the full assembled innerHTML template string, not on individual field values in isolation, so nothing slips through template composition.
+- Decide on exactly one source of truth per environment before writing any `.tf`. The clean path: keep realm-export.json as the docker/local source; use Terraform exclusively for the Railway/production environment with environment-specific `.tfvars`. If Terraform also manages local, run `terraform import keycloak_realm.japan_trip japan-trip` on first apply to bring the existing realm under management, then remove realm-export.json from the Docker import volume.
+- Check `https://github.com/keycloak/terraform-provider-keycloak` CHANGELOG and open issues for KC 26-specific bugs before committing to the provider. Look specifically for issues tagged `keycloak-26`.
+- After every `terraform apply`, run `terraform plan` immediately to confirm zero diff — a perpetual non-empty plan is the symptom of drift.
 
-**Phase:** Security Hardening
+**Warning sign:** `terraform apply` reports changes on every run even with no `.tf` modifications; authentication flows defined in realm-export.json disappear after apply.
 
----
-
-### 2.2 Leaflet Popup Content Bypasses DOMPurify
-
-**What goes wrong:** `tripDetail.ts:188` calls `marker.bindPopup(buildPopup(activity, day, mapsUrl))`. Leaflet's `bindPopup` calls `innerHTML` internally on the string. `buildPopup` (`tripDetail.ts:108-126`) and `buildHotelPopup` (`tripDetail.ts:128-144`) concatenate `activity.name`, `activity.notes`, `day.label`, and `hotel.name` directly into the HTML string without sanitizing. If the focus of the XSS pass is on "convert `innerHTML` to `textContent`", this popup path is easy to miss because it looks like a Leaflet API call rather than a direct `innerHTML` call.
-
-**Warning sign:** `marker.bindPopup(buildPopup(...))` where `buildPopup` concatenates user strings without sanitizing.
-
-**Prevention:** Apply `DOMPurify.sanitize()` inside `buildPopup` and `buildHotelPopup` on the fully-assembled HTML string before returning it. Use a narrow allowlist:
-```
-DOMPurify.sanitize(html, {
-  ALLOWED_TAGS: ['div','h4','p','a','span','svg','path','circle'],
-  ALLOWED_ATTR: ['href','target','rel','class','viewBox','fill','stroke',
-                 'stroke-width','width','height','d','cx','cy','r']
-})
-```
-This keeps the popup links and SVG icons working while blocking injection.
-
-**Phase:** Security Hardening
+**Phase:** Terraform bootstrap — the import-vs-fresh-create decision must be the first task, not an afterthought.
 
 ---
 
-### 2.3 DOMPurify Requires a DOM — Cannot Be Imported in Workers Context
+### 3. Audience Hardcoded in Backend: New Clients Will Break Silently
 
-**What goes wrong:** DOMPurify requires a `window`/DOM environment. Any shared utility module that runs in both the Worker and the browser context cannot import DOMPurify at the top level. During Playwright E2E test runs (Node environment), a top-level DOMPurify import in a module loaded by the test runner will throw `ReferenceError: window is not defined`.
-
-**Warning sign:** DOMPurify imported in a module that is also reachable from `backend/src` or from a Playwright Node helper.
-
-**Prevention:** Import DOMPurify only inside frontend-only page modules (`dashboard.ts`, `tripDetail.ts`, etc.) and their direct helpers. Use dynamic `await import('dompurify')` if the call site may execute in multiple environments.
-
-**Phase:** Security Hardening
-
----
-
-### 2.4 Missed innerHTML Interpolation Sites — Full Inventory
-
-**What goes wrong:** Migrating from raw `innerHTML` to `textContent`/DOMPurify is mechanical but incomplete without a full audit. Known interpolation sites in this codebase (user-derived values in bold):
-
-- `dashboard.ts:47` — `**trip.name**` in template literal → innerHTML
-- `dashboard.ts:48` — `**trip.description**` → innerHTML
-- `dashboard.ts:194` — `**(err as Error).message**` → innerHTML (error messages can contain user-derived content if the API error echoes input)
-- `tripDetail.ts:50` — destination name in tab labels → innerHTML
-- `tripDetail.ts:110` — `**activity.name**`, `**activity.notes**`, `**day.label**` in `buildPopup` → Leaflet innerHTML
-- `tripDetail.ts:129` — `**hotel.name**` in `buildHotelPopup` → Leaflet innerHTML
-- `tripDetail.ts:344-350` — `**activity.name**`, `**noteText**`, `**markerColor**` → innerHTML
-- `tripDetail.ts:373` — `**hotel.name**` → innerHTML
-- `map.ts:236` — `**day.label**`, `**day.color**` → innerHTML
-- `map.ts:260` — `**activity.name**`, `**noteText**` → innerHTML
-- `map.ts:273` — `**hotel.name**` → innerHTML
-- `profile.ts:84` — `**c.userLabel**` from Keycloak credential → innerHTML
-
-**Warning sign:** A grep for `innerHTML` after the security pass that still shows user-derived strings.
-
-**Prevention:** For single-field text elements (title, greeting, count): replace `innerHTML` with `textContent`. For template-assembled HTML (cards, popup bodies): sanitize the full assembled string with DOMPurify before assignment.
-
-**Phase:** Security Hardening
-
----
-
-## 3. CORS on Cloudflare Workers with Hono
-
-### 3.1 credentials: true Is Unnecessary and Locks Out Wildcard Origins
-
-**What goes wrong:** `backend/src/middleware/cors.ts` sets `credentials: true`. The frontend API client (`client.ts`) sends auth via `Authorization: Bearer <token>` headers and never sets `credentials: 'include'` on any `fetch()` call. Cookies are not involved. `credentials: true` in the CORS response has no effect on Bearer-token auth, but the HTTP spec forbids `Access-Control-Allow-Origin: *` combined with `Access-Control-Allow-Credentials: true`. Any request from an origin not in the explicit allowlist — including the public trip endpoint loaded from an arbitrary domain — will receive a CORS error.
-
-**Warning sign:** `credentials: true` in the Hono CORS config while the frontend client has no `credentials: 'include'` in fetch calls.
-
-**Prevention:** Remove `credentials: true` from the CORS middleware. The allow-list origin callback is already present and correct for authenticated endpoints. The public endpoint (`/api/public/*`) can then safely return `*` for its origin.
-
-**Phase:** Security Hardening
-
----
-
-### 3.2 Preflight OPTIONS Handling Differs Between Wrangler Local Dev and Production
-
-**What goes wrong:** `corsMiddleware` is registered as `app.use('*', corsMiddleware)` which is correct for production. However, Wrangler local dev (`wrangler dev`) uses miniflare, which may inject its own CORS response headers before Hono's handler runs. This can cause double `Access-Control-Allow-Origin` headers or missing `Access-Control-Allow-Methods` on preflight responses. The symptom: CORS works in production (Workers runtime) but preflight fails locally, or vice versa.
-
-**Warning sign:** A preflight OPTIONS returning 405 in local dev, or duplicate CORS headers visible in browser DevTools.
-
-**Prevention:** Test preflight behaviour explicitly in both environments. Confirm that Hono's `cors()` middleware is returning 204 on OPTIONS before the route match. If Wrangler injects headers, check `compatibility_date` in `wrangler.toml` — use a current date to get stable behaviour.
-
-**Phase:** Security Hardening
-
----
-
-### 3.3 Public Trip Endpoint Needs CORS Open to All Origins
-
-**What goes wrong:** `GET /api/public/trips/:tripId` is unauthenticated and should load from any origin (the point of a shareable link). The current allow-list (`manud.github.io`, `localhost:3000`, `localhost:5173`) will reject requests from any other domain. With `credentials: true` still active (before pitfall 3.1 is fixed), this cannot be opened to `*`.
-
-**Prevention:** After removing `credentials: true` (3.1), the public route group can have its own CORS middleware that returns `origin: '*'`. Easiest implementation: mount a separate `publicCors` middleware on the `/api/public/*` path group that does not restrict origin.
-
-**Phase:** Public Trip Sharing + Security Hardening
-
----
-
-## 4. Keycloak 25 WebAuthn / Passkeys
-
-### 4.1 webAuthnPolicyPasswordlessRpId Left Blank (CRITICAL)
-
-**What goes wrong:** `keycloak/realm-export.json:43` has `"webAuthnPolicyPasswordlessRpId": ""`. An empty RP ID defaults to the hostname of the Keycloak server at registration time. In production, Keycloak runs on Railway (`*.railway.app` or a custom domain); the frontend runs on `manud.github.io`. The RP ID used at registration must exactly match the effective domain used at authentication. If they differ, the browser rejects the assertion with `NotAllowedError` and passkey login silently fails.
-
-**Warning sign:** Passkey registration succeeds locally but passkey login fails in production with `NotAllowedError` even though the credential appears to exist.
-
-**Prevention:** Set `webAuthnPolicyPasswordlessRpId` to the effective domain of the frontend (`manud.github.io`) before any user registers a passkey. This value must be set before the first registration — it cannot be changed afterwards for existing credentials. If the domain ever changes (custom domain), all existing passkeys become invalid.
-
-**Phase:** Passkeys
-
----
-
-### 4.2 JWT Audience Validator Still Accepts 'account' (CRITICAL)
-
-**What goes wrong:** `backend/src/auth/keycloak.ts:193` has `validAudiences = ['japan-trip-api', 'japan-trip-frontend', 'account']`. The `account` audience appears in tokens issued for Keycloak's own Account Console UI. Accepting it in the backend API means any token a user obtains for the Account Console is also valid for the trip API. This is the "JWT audience too broad" issue from PROJECT.md in concrete form.
-
-**Warning sign:** `'account'` in the `validAudiences` array.
+**Risk:** `backend/src/auth/keycloak.ts` line 198 has `const validAudiences = ['japan-trip-frontend']`. Adding any new OIDC client — E2E Playwright service account, admin tooling — will produce JWT audience values not in this list and return 401 with the message `JWT audience not accepted`. The same file's companion `KeycloakJwtPayload` in `backend/src/types/index.ts` line 40 types `email: string` as non-optional, but passkey-only auth flows do not guarantee an email claim. Any `payload.email` access returns `undefined` at runtime while TypeScript reports `string`.
 
 **Prevention:**
-1. Add an audience mapper to the `japan-trip-frontend` client in `realm-export.json`: add a protocol mapper of type `oidc-audience-mapper` with `includedClientAudience: japan-trip-frontend`. Tokens issued for the frontend will then contain `japan-trip-frontend` in `aud`.
-2. Remove `'account'` from `validAudiences`. Keep only `'japan-trip-frontend'`.
-3. The client already has `"fullScopeAllowed": false` which is correct — the audience mapper is the only missing piece.
+- Move `validAudiences` to env var `KEYCLOAK_VALID_AUDIENCES` (comma-separated), parsed in `verifyJwt`. Set it in `wrangler.toml` and `.env`.
+- Change `email: string` to `email?: string` in `KeycloakJwtPayload`. Audit all callers. `extractUserInfo` already handles this correctly (`payload.email ?? ''`), but the type lie will surface anywhere `email` is destructured directly.
+- Complete before Terraform introduces any new KC clients.
 
-**Phase:** Security Hardening
+**Warning sign:** New client tokens return 401; passkey-authenticated users cause runtime `undefined` errors on email field access.
 
----
-
-### 4.3 email Field Typed as Required, Absent in Passkey-Only Auth
-
-**What goes wrong:** `KeycloakJwtPayload` in `backend/src/types/index.ts:40` types `email: string` as required (not optional). When a user authenticates with a passkey and their Keycloak account has no email set, the JWT omits the `email` claim entirely. `extractUserInfo` in `keycloak.ts:254` already handles this gracefully (`payload.email ?? ''`), but any code that destructures `const { email } = payload` will get `undefined` at runtime while TypeScript believes it's a `string`.
-
-**Warning sign:** `email: string` in `KeycloakJwtPayload` (not `string | undefined`). Any `ensureUserProvisioned` logic that writes `email` to a NOT NULL database column.
-
-**Prevention:** Change `email` to `email?: string` in `KeycloakJwtPayload`. Audit the users table schema and the user provisioning middleware — the `email` column must be nullable.
-
-**Phase:** Passkeys
+**Phase:** Pre-Terraform hardening (prerequisite for any new KC client work).
 
 ---
 
-### 4.4 Keycloak Account REST API Credential Listing Shape May Be Nested
+### 4. Email OTP Timing Attack: Workers Has No `timingSafeEqual`
 
-**What goes wrong:** `profile.ts:57-65` calls `GET /realms/{realm}/account/credentials?type=webauthn` and treats the response as a flat `CredentialInfo[]`, filtering by `c.type === 'webauthn'`. In Keycloak 22+, this v1 Account API endpoint returns `CredentialContainer[]` where each container has a `userCredentialMetadatas` array containing the actual credential entries. If the actual shape is `[{ type: 'webauthn', userCredentialMetadatas: [{id, userLabel, createdDate, ...}] }]`, the current filter passes (the container has `type: 'webauthn'`) but the subsequent mapping reads `c.userLabel` from the container object rather than from the nested metadata — and every passkey shows as "Passkey" with no created date, or the list renders one item per type rather than one item per credential.
+**Risk:** `crypto.subtle.timingSafeEqual` does not exist in the Cloudflare Workers runtime. `crypto.getRandomValues` and the full Web Crypto `subtle` API are available, but direct string comparison of OTP codes (`storedOtp === submittedOtp`) is vulnerable to timing attacks — an attacker can measure response latency to determine partial matches and brute-force a 6-digit OTP in far fewer than 10^6 attempts.
 
-**Warning sign:** Passkey list always shows exactly one item labelled "Passkey" regardless of how many authenticators are registered; or list is always empty after successful registration.
+**Prevention:**
+- Implement constant-time comparison via HMAC: generate a 32-byte random key at Worker startup (store in Workers KV or `wrangler secret`); compute `HMAC-SHA256(key, storedOtp)` and `HMAC-SHA256(key, submittedOtp)` using `crypto.subtle.sign`; compare the resulting `ArrayBuffer`s using an XOR-accumulator — do NOT use an early-return byte compare, which leaks timing:
+  ```typescript
+  function timingSafeEqual(a: ArrayBuffer, b: ArrayBuffer): boolean {
+    const av = new Uint8Array(a);
+    const bv = new Uint8Array(b);
+    let diff = av.byteLength ^ bv.byteLength;
+    for (let i = 0; i < av.byteLength; i++) diff |= av[i] ^ bv[i];
+    return diff === 0;
+  }
+  ```
+  Both inputs go through the same keyed HMAC, producing equal-length 32-byte outputs — the XOR loop runs in constant time regardless of where bytes differ.
+- Rate-limit OTP submission attempts at the Workers layer: max 5 attempts per 10 minutes per email (keyed on hash of email address), stored in Workers KV or a short-TTL Neon row. Return 429 on excess.
+- Set OTP TTL to 10 minutes maximum. Invalidate on first successful use. Refuse to re-send within a 60-second window to prevent enumeration via re-send flooding.
 
-**Prevention:** Verify the response shape against the live Keycloak 25 instance. If nested, unwrap: `const creds = res.flatMap((c) => c.userCredentialMetadatas ?? [])` and map over `creds`. Confidence on exact shape: MEDIUM — needs runtime verification.
+**Warning sign:** OTP endpoint responds measurably faster for partially correct codes; no rate limit enforced; multiple submissions of the same OTP code all succeed.
 
-**Phase:** Passkeys
-
----
-
-### 4.5 keycloak.login action:'webauthn-register' Requires a Live Session
-
-**What goes wrong:** `profile.ts:104` calls `keycloak.login({ action: 'webauthn-register', redirectUri: window.location.href })`. If the user's Keycloak session has expired between page load and clicking "Add passkey" (access token lifespan is 300 seconds per realm-export), the `action` parameter is ignored and the user is redirected to a full login page. They see re-authentication, not a passkey registration screen.
-
-**Warning sign:** "Add passkey" button works immediately after login but silently redirects to login if the page is left open for more than 5 minutes.
-
-**Prevention:** Call `await keycloak.updateToken(60)` immediately before the `keycloak.login({ action: ... })` call. If `updateToken` throws (session fully expired), show a "Please log in again to add a passkey" prompt rather than letting the action redirect silently.
-
-**Phase:** Passkeys
-
----
-
-### 4.6 Platform-Only Authenticator Attachment Blocks Hardware Keys (Intentional Policy)
-
-**What goes wrong:** `realm-export.json:44` sets `"webAuthnPolicyPasswordlessAuthenticatorAttachment": "platform"`. This restricts passkey registration to on-device authenticators (Face ID, Windows Hello, Touch ID). Hardware security keys (YubiKey, etc.) will be rejected by the browser.
-
-**Warning sign:** Hardware security key registration silently fails or the browser shows no authenticator selection.
-
-**Prevention:** This is a deliberate policy choice, not a bug. Keep `"platform"` if platform-only passkeys are the intent (simpler UX, stronger binding to user's device). Change to `"not specified"` if roaming authenticators should also be supported. Document the decision explicitly so it is not accidentally changed.
-
-**Phase:** Passkeys (decision point, not a defect)
+**Phase:** Email OTP fallback implementation.
 
 ---
 
-## 5. Public Trip Sharing
+### 5. browser-passkey as Default Flow Locks Out Existing Password-Only Users
 
-### 5.1 Sequential Integer IDs Are Enumerable in Shareable URLs
+**Risk:** `realm-export.json` defines the `browser-passkey` flow (lines 146–194) with `webauthn-authenticator-passwordless` as `REQUIREMENT: REQUIRED`. But `"browserFlow": "browser"` (line 199) keeps the standard flow active — the passkey flow exists but is unused. If Terraform or admin UI switches `browserFlow` to `browser-passkey` as part of the passkey campaign, every existing user who has a password but no registered passkey hits a hard wall: the REQUIRED WebAuthn step has no credential to satisfy and no fallback path. Complete lockout.
 
-**What goes wrong:** `GET /api/public/trips/:tripId` uses the sequential integer PK as the shareable identifier. Any user who knows trip #42 is public can enumerate trips #1–#41 to find all other public trips. Any trip accidentally toggled to `is_public = true` is immediately discoverable by walking the integer range.
+**Prevention:**
+- Before switching `browserFlow`, modify the `passkey-forms` subflow to make `webauthn-authenticator-passwordless` `ALTERNATIVE` with a password-forms `ALTERNATIVE` sibling, not `REQUIRED`. Safe structure: `auth-cookie` ALTERNATIVE → `passkey-forms` ALTERNATIVE → `password-forms` ALTERNATIVE. The `passkey-forms` subflow can mark WebAuthn as REQUIRED internally, but the passkey-forms branch itself must be ALTERNATIVE to password-forms at the parent level.
+- Run the passkey campaign (register passkeys via required action for existing users) before switching `browserFlow`. Never switch the flow on a realm with active password-only users.
+- Terraform must manage this as a phased change: modify flow first (add password fallback), then switch `browserFlow`.
 
-**Warning sign:** The share URL contains a small integer (e.g., `/trip.html?tripId=42`).
+**Warning sign:** After `browserFlow` switch, existing users see "No passkey found" error with no login alternative; admin console shows zero passkey credentials for affected users.
 
-**Prevention:** Add a `public_slug` column (`text unique not null default gen_random_uuid()`) to the trips table. The public share URL uses the slug; the integer PK is used only in authenticated API calls. The public endpoint pattern becomes `GET /api/public/trips/:slug` with `where eq(trips.public_slug, slug)`. UUIDv4 is sufficient — cryptographic randomness not required.
-
-**Phase:** Public Trip Sharing
-
----
-
-### 5.2 is_public Toggle Does Not Invalidate Edge Cache
-
-**What goes wrong:** If Cloudflare caches the public trip GET response (via default caching of successful GET requests or an explicit `Cache-Control` header), toggling `is_public = false` on a trip does not purge the cached response. The trip continues to be served to anyone with the link until the TTL expires.
-
-**Warning sign:** Setting a trip to private does not stop it from loading via the share link for minutes or hours.
-
-**Prevention:** Do not add `Cache-Control: public` headers to the public trip endpoint. Default to `no-store` or set `Cache-Control: private, no-store`. If performance caching is needed, use the Cloudflare Cache API with an explicit cache purge when `is_public` is set to false in the PATCH handler.
-
-**Phase:** Public Trip Sharing
+**Phase:** Passkey campaign flow design — must be resolved before `browserFlow` is changed in any environment.
 
 ---
 
-### 5.3 Same Page Used for Owner-Edit and Public-View Creates Broken UI State
+### 6. Brute Force Protection Interacts With Email OTP: Account DoS Risk
 
-**What goes wrong:** The trip detail page (`trip.html?tripId=N`) currently shows edit controls for the trip owner. If the public shareable link uses the same page and same URL parameter, a logged-in user who opens someone else's public trip URL will see broken edit controls. The backend will 403 on any mutation (ownership is enforced), but the client-side code will render edit buttons and potentially throw errors when it tries to set up the edit UI for a trip it doesn't own.
+**Risk:** `realm-export.json` has `"bruteForceProtected": true` with `"failureFactor": 30` and `"maxFailureWaitSeconds": 900`. If email OTP verification routes through Keycloak (e.g., via a custom authenticator SPI or Application-Initiated Action), each wrong OTP submission increments the user's failure counter in KC. An attacker who knows a target's email can spam 30 wrong OTP codes to lock the legitimate account for 15 minutes — a trivial denial-of-service. The victim cannot log in during the lockout period even with a correct OTP.
 
-**Warning sign:** The same entry point handles both owner-edit and public-view, with the distinction made after rendering.
+This only applies if OTP validation touches KC's auth system. If the OTP is validated entirely at the Worker level (Worker generates the code, stores in KV/DB, validates the submission, then calls KC Admin API to mark the session) — without going through a KC login flow — then KC's brute force counter is not incremented and the risk does not apply. The architecture decision drives the answer.
 
-**Prevention:** Gate at the top of the page initialisation: if the user is not authenticated, call `getPublicTrip()` and render in strict read-only mode with no edit UI. If authenticated, call `getTrip()` and check whether the returned trip belongs to the current user before rendering edit controls. This is a single `if` branch at init time, not conditional rendering scattered through activity/hotel renderers.
+**Prevention:**
+- Decide explicitly: Worker-side OTP validation (recommended — KC brute force counter is bypassed, Worker-level rate limit applies from pitfall #4) vs. KC-SPI OTP authenticator (KC brute force counter applies, must tune `failureFactor` and `quickLoginCheckMilliSeconds`).
+- If using Worker-side OTP: enforce rate limiting at the Worker layer (pitfall #4) and never route OTP attempts through a KC login flow.
+- If using KC-SPI approach: set `failureFactor` high enough that legitimate retry attempts don't trigger lockout, or disable brute force for the OTP-specific flow and rely on OTP TTL + rate limiting instead.
 
-**Phase:** Public Trip Sharing + Trip Builder UI
+**Warning sign:** Account lockout (KC returns `Account is temporarily disabled`) after a small number of wrong OTP submissions; legitimate users locked out by an attacker who knows their email address.
 
----
-
-## 6. DB Connection Pool — Local Dev Stability
-
-### 6.1 New pg.Pool Per Request Under Playwright Load
-
-**What goes wrong:** `backend/src/db/index.ts:22-23` calls `new Pool({ connectionString })` inside `createDb(databaseUrl)`, which is called per-request in every route handler. In local dev (when the URL contains `localhost`), this creates a new connection pool on every incoming request. Under Playwright E2E tests that run many requests in parallel, this exhausts the local Postgres connection limit (Docker Compose default: 100).
-
-**Warning sign:** Local Playwright E2E tests failing with `ECONNREFUSED` or Postgres `FATAL: sorry, too many clients already`.
-
-**Prevention:** Memoize the pool per connection string:
-```typescript
-const pools = new Map<string, pg.Pool>();
-if (!pools.has(url)) pools.set(url, new Pool({ connectionString: url }));
-return drizzlePg(pools.get(url)!, { schema });
-```
-In production the `isLocal` branch is never taken (Neon uses HTTP), so this is a dev-only fix with no production impact.
-
-**Phase:** Trip Builder UI (prerequisite for stable E2E tests during development)
+**Phase:** Email OTP architecture decision — must be resolved before implementation begins.
 
 ---
 
-## 7. Wrangler / Workers Config
+## Medium Pitfalls
 
-### 7.1 Stale D1 Binding Blocks wrangler dev Startup
+### 7. VERIFY_EMAIL and Email OTP Must Ship Atomically
 
-**What goes wrong:** PROJECT.md notes a stale `[[d1_databases]]` binding in `wrangler.toml` from early scaffolding. Wrangler will attempt to initialise this binding at startup. If the binding references a D1 database that does not exist in the Cloudflare dashboard, `wrangler dev` fails immediately.
+**Risk:** `realm-export.json` has no `requiredActions` section — VERIFY_EMAIL is not enforced on new registrations. If email OTP is added first and VERIFY_EMAIL enforcement is added separately, there is a window where users register with unverified (potentially mistyped) emails, receive OTP codes at wrong addresses, and have no recovery path. Conversely, enabling VERIFY_EMAIL before SMTP is configured in KC blocks all new registrations — KC tries to send a verification email, delivery fails silently, and the user is stuck at an unresolvable "check your email" screen.
 
-**Warning sign:** `wrangler dev` fails with a binding resolution error on startup, even though the application code never references D1.
+**Prevention:**
+- SMTP configuration (KC `smtp` realm attribute in Terraform), VERIFY_EMAIL required action (`defaultAction: false` initially), and the email OTP Worker endpoint must all be deployed in the same `terraform apply` + `wrangler deploy`. Never enable VERIFY_EMAIL in isolation.
+- Test with a real SMTP provider in a staging environment before enabling VERIFY_EMAIL in production.
+- Set `defaultAction: false` for VERIFY_EMAIL initially; gate it behind a manual flag-flip after confirming end-to-end email delivery works.
 
-**Prevention:** Remove the `[[d1_databases]]` stanza from `wrangler.toml`. The backend uses Neon HTTP via the `DATABASE_URL` secret binding exclusively.
+**Warning sign:** New user registrations stop completing after VERIFY_EMAIL is enabled; no error message shown; KC logs show SMTP connection failures.
 
-**Phase:** Security Hardening (prerequisite for any backend deploy)
+**Phase:** Email OTP / SMTP infrastructure phase.
 
 ---
 
-## Phase-Specific Warning Index
+### 8. Playwright Real Auth: `directAccessGrantsEnabled: false` Means No ROPC
+
+**Risk:** `realm-export.json` client `japan-trip-frontend` has `"directAccessGrantsEnabled": false`. This is correct for security — Resource Owner Password Credentials (ROPC) grant is disabled. Many Playwright KC auth setups acquire tokens via ROPC (POST to `/token` with username/password). This pattern returns 401 here. Additionally, `keycloak-js` defaults to enabling `checkLoginIframe` which loads a cross-origin iframe for session state — this interferes with Playwright's cookie isolation in headless Chromium, causing `keycloak.authenticated` to be `false` in tests even when storageState has valid session cookies.
+
+**Prevention:**
+- Use Playwright `storageState`: authenticate once in a `setup` project (drive the full OIDC browser redirect flow), save the resulting cookies + localStorage, and load it in test projects via `use: { storageState: 'auth.json' }`.
+- Set `checkLoginIframe: false` in keycloak-js `init()` for test builds via `VITE_KC_CHECK_LOGIN_IFRAME=false` env var. The cross-origin iframe check breaks headless Chromium session replay.
+- Do not attempt to manually construct `Authorization` headers from hardcoded tokens in Playwright — the PKCE `code_verifier` is per-session and tokens expire in 300 seconds (realm-export.json line 23).
+
+**Warning sign:** `storageState` is loaded but Playwright test pages immediately redirect to login; `keycloak.authenticated` is `false` in test pages; Network tab shows 400 on `/token` when ROPC is attempted.
+
+**Phase:** Playwright E2E auth hardening.
+
+---
+
+### 9. JWKS Cache Is Per-Isolate: Intermittent 401s After Realm Rebuild
+
+**Risk:** `backend/src/auth/keycloak.ts` line 41 uses module-level `let jwksCache`. Cloudflare Workers spawns multiple isolates; each starts cold with no cache and fetches independently. After a Terraform-driven realm rebuild (KC generates new signing keys on fresh realm creation), isolates that have the old key cached will fail signature verification. The existing retry path (line 215: `jwksCache = null` on key-not-found) only triggers when the new key has a different `kid` — if KC reuses the same `kid` with a new key value, the old cached key fails verification indefinitely until the 1-hour TTL expires.
+
+**Prevention:**
+- After any `terraform apply` that rebuilds the realm or rotates keys, immediately redeploy the Worker (`wrangler deploy`) — new isolates start cold.
+- KC generates fresh `kid` values on realm rebuild by default; confirm this after first Terraform apply with `curl -s https://{kc-prod}/realms/japan-trip/protocol/openid-connect/certs | jq '.keys[].kid'` before and after.
+- Consider reducing `JWKS_CACHE_TTL_MS` from 3600000 (1 hour) to 300000 (5 minutes) during the Terraform setup phase; restore after realm config stabilises.
+
+**Warning sign:** Intermittent 401 errors from the API immediately after `terraform apply` or KC restart; errors vary by request (some succeed, some fail) because different isolates have different cache states.
+
+**Phase:** Terraform bootstrap / post-apply testing.
+
+---
+
+### 10. redirect_uri Wildcards: Production Domain Not Covered
+
+**Risk:** `realm-export.json` client `japan-trip-frontend` has `redirectUris: ["http://localhost:5173/*", "https://*.github.io/*"]`. The `account` client has hardcoded `webOrigins: ["http://localhost:5173", "https://manudubovis.github.io"]` (lines 110–113). If the production frontend URL uses a custom domain, Cloudflare Pages subdomain, or any other hostname not in these lists, KC returns `Invalid redirect_uri` on login. KC 26 has also tightened wildcard matching in OIDC redirect validation — the `*.github.io` wildcard may not match subpaths as expected in KC 26 vs KC 25.
+
+**Prevention:**
+- Terraform must parameterise `redirect_uris` and `web_origins` with environment-specific variables (`.tfvars`). Do not rely on wildcards for production — use exact URIs.
+- Confirm the exact production frontend URL before writing Terraform redirect_uris; add it explicitly.
+- The `account` client's `webOrigins` being hardcoded means CORS for `/account/credentials` calls from any new origin fails silently. Terraform must own this list.
+
+**Warning sign:** Login redirects return `error=invalid_redirect_uri` in the browser URL bar; passkey management API calls show CORS errors in browser DevTools.
+
+**Phase:** Terraform bootstrap / production deployment.
+
+---
+
+### 11. Keycloak Admin API Service Account Not Present in Current Realm
+
+**Risk:** The current realm-export.json has no service account client. The email OTP resetPassword flow requires calling KC Admin REST API (`POST /admin/realms/{realm}/users/{id}/reset-password`) from the Cloudflare Worker. This requires a service account with `manage-users` role from the `realm-management` client. Adding this incorrectly — e.g., granting `realm-admin` instead of `manage-users` — gives the Worker full realm administration capability including creating/deleting users and modifying auth flows.
+
+**Prevention:**
+- Create a dedicated service account client in Terraform (e.g., `japan-trip-worker`) with `service_accounts_enabled = true` and map only the `manage-users` role from `realm-management`. Do not grant `realm-admin`.
+- Store the client secret via `wrangler secret put KC_SERVICE_ACCOUNT_SECRET`, not in `wrangler.toml` vars.
+- In the Worker, acquire a service account token via Client Credentials grant (`grant_type=client_credentials`) with a TTL-aware cache; do not cache longer than `accessTokenLifespan` (currently 300 seconds per realm-export.json line 23).
+
+**Warning sign:** 403 on Admin API calls (under-privileged); or service account token can access `/admin/realms/{realm}/users` list endpoint without restriction (over-privileged).
+
+**Phase:** Email OTP / service account bootstrap.
+
+---
+
+### 12. KC Theme FreeMarker Caching in Dev Blocks OTP Template Iteration
+
+**Risk:** The `japan-trip` login theme CSS (`keycloak/themes/japan-trip/login/resources/css/login.css`) uses extensive `!important` overrides and inherits templates from the `keycloak` base theme without overriding any `.ftl` files. KC 26 caches theme resources and FreeMarker templates in-process — even with `start-dev`, the default `KC_SPI_THEME_STATIC_MAX_AGE` is 2592000 seconds (30 days) unless explicitly overridden. CSS edits will not be reflected without container restart. Adding new FreeMarker templates for the email OTP flow will also not hot-reload.
+
+**Prevention:**
+- Add to `keycloak/docker-compose.yml` environment block:
+  ```yaml
+  KC_SPI_THEME_STATIC_MAX_AGE: "-1"
+  KC_SPI_THEME_CACHE_THEMES: "false"
+  KC_SPI_THEME_CACHE_TEMPLATES: "false"
+  ```
+  These are officially documented KC dev flags and disable all theme caching without affecting production behavior.
+
+**Warning sign:** CSS or FreeMarker template edits are not reflected in the browser after a hard refresh; only a full container restart shows changes.
+
+**Phase:** Theme development / Email OTP FreeMarker template work.
+
+---
+
+## Low / Watch-Out
+
+### 13. Per-Device Passkey Cookie Degrades in Safari and Private Mode
+
+**Risk:** A "remember this device" cookie set by the Worker for per-device passkey detection is subject to Safari ITP. First-party cookies in a cross-site context receive a 7-day expiry cap; users on Safari who rely on device recognition will be re-prompted weekly. In private/incognito mode across all browsers, the cookie is blocked entirely — device recognition always fails silently.
+
+**Prevention:**
+- Use the per-device cookie only as a UX hint ("suggest passkey prompt") never as a security gate. Fall through to the standard login flow when the cookie is absent.
+- Document that device recognition degrades gracefully in Safari private mode.
+
+**Warning sign:** Safari users report being prompted to re-authenticate weekly; incognito users never see the passkey suggestion despite having registered one.
+
+**Phase:** Passkey campaign UX.
+
+---
+
+### 14. Account REST API DELETE Credential Is Deprecated in KC 26
+
+**Risk:** Phase 04 implemented `DELETE /realms/{realm}/account/credentials/{id}` for passkey removal. This endpoint is marked `@Deprecated` in KC 26 Javadoc (see phase 04 research). It still works now but will be removed in a future KC version. The replacement is Application-Initiated Action: `keycloak.login({ action: 'delete_credential:{id}' })`.
+
+**Prevention:**
+- If v2.0 modifies the passkey profile page, migrate DELETE to the AIA approach. If not touched in v2.0, add a TODO comment in profile.ts referencing the deprecation and the AIA alternative.
+
+**Warning sign:** After a future KC upgrade past the removal version, DELETE returns 404 or 410.
+
+**Phase:** Passkey campaign / profile page work in v2.0.
+
+---
+
+### 15. KC 26 Admin Env Var Deprecation Noise
+
+**Risk:** `keycloak/docker-compose.yml` uses `KEYCLOAK_ADMIN` and `KEYCLOAK_ADMIN_PASSWORD` (KC 25 names). KC 26 logs deprecation warnings for these on every container start. They still work but the noise can mask real startup errors.
+
+**Prevention:**
+- Update docker-compose.yml to `KC_BOOTSTRAP_ADMIN_USERNAME` and `KC_BOOTSTRAP_ADMIN_PASSWORD` in the same commit as any KC 26 image tag bump.
+
+**Warning sign:** KC startup logs contain `WARN: KEYCLOAK_ADMIN is deprecated` on every container start.
+
+**Phase:** Infrastructure / docker-compose update.
+
+---
+
+## Phase-Specific Warning Matrix
 
 | Phase | Pitfall | Severity |
 |-------|---------|----------|
-| Trip Builder UI | 1.1 Serial nested-entity creation with no rollback | HIGH |
-| Trip Builder UI | 1.2 Double-submit / missing finally in form handlers | MEDIUM |
-| Trip Builder UI | 1.3 Full-list re-render destroys open sibling edit forms | MEDIUM |
-| Trip Builder UI | 1.4 NaN coordinates silently accepted | MEDIUM |
-| Trip Builder UI | 6.1 New Pool per request under Playwright load | MEDIUM |
-| Security Hardening | 2.1 Inline style URL injection (separate from innerHTML XSS) | HIGH |
-| Security Hardening | 2.2 Leaflet popup bypasses DOMPurify | HIGH |
-| Security Hardening | 2.3 DOMPurify import requires DOM environment | LOW |
-| Security Hardening | 2.4 Missed innerHTML interpolation sites (full inventory above) | HIGH |
-| Security Hardening | 3.1 credentials: true unnecessary, prevents * origin fallback | HIGH |
-| Security Hardening | 3.2 OPTIONS preflight behaviour differs in Wrangler local dev | MEDIUM |
-| Security Hardening | 4.2 'account' audience accepted in JWT validator | HIGH |
-| Security Hardening | 7.1 Stale D1 binding blocks wrangler dev startup | HIGH |
-| Passkeys | 4.1 Empty RP ID breaks cross-origin passkey assertion in production | CRITICAL |
-| Passkeys | 4.3 email typed as required, absent in passkey-only auth tokens | MEDIUM |
-| Passkeys | 4.4 Credential listing assumes flat array, may be nested CredentialContainer | MEDIUM |
-| Passkeys | 4.5 Expired session redirects to login instead of webauthn-register | LOW |
-| Passkeys | 4.6 Platform-only attachment blocks hardware keys (intentional policy) | LOW |
-| Public Trip Sharing | 5.1 Sequential integer IDs enumerable in shareable URLs | HIGH |
-| Public Trip Sharing | 5.2 is_public toggle does not invalidate edge cache | MEDIUM |
-| Public Trip Sharing | 5.3 Same page used for owner-edit and public-view | MEDIUM |
-| Public Trip Sharing | 3.3 Public endpoint needs CORS open to all origins | MEDIUM |
+| Terraform bootstrap | Drift vs realm-export.json — decide source of truth first (#2) | CRITICAL |
+| Terraform bootstrap | rpId lock-in — set prod rpId before users can register (#1) | CRITICAL |
+| Terraform bootstrap | redirect_uri wildcards — confirm exact prod URL before authoring (#10) | HIGH |
+| Terraform bootstrap | JWKS cache isolate variance — redeploy Worker after realm rebuild (#9) | MEDIUM |
+| Pre-Terraform hardening | Audience hardcoded in backend — move to env var before new clients (#3) | HIGH |
+| Email OTP architecture | Brute force + OTP DoS — decide Worker-side vs KC-SPI before building (#6) | CRITICAL |
+| Email OTP | Timing attack — implement HMAC + XOR-accumulator, never `===` (#4) | CRITICAL |
+| Email OTP | Service account scope — grant manage-users only, not realm-admin (#11) | HIGH |
+| Email OTP + SMTP | VERIFY_EMAIL sequencing — ship SMTP + OTP + VERIFY_EMAIL atomically (#7) | HIGH |
+| Passkey campaign | browser-passkey as default — build ALTERNATIVE flow before switching (#5) | CRITICAL |
+| Passkey campaign | Per-device cookie Safari ITP — UX hint only, not security gate (#13) | LOW |
+| Passkey campaign | Account REST DELETE deprecated — migrate to AIA if page is touched (#14) | LOW |
+| Playwright E2E | No ROPC, iframe SSO — use storageState + checkLoginIframe=false (#8) | HIGH |
+| Theme dev / OTP templates | FreeMarker caching — add KC_SPI_THEME_CACHE_* flags to docker-compose (#12) | MEDIUM |
+| Infrastructure | Admin env var deprecation noise — update docker-compose.yml (#15) | LOW |
+
+---
+
+## Sources
+
+- `keycloak/realm-export.json` (this repo) — rpId value (line 42), browserFlow (line 199), bruteForceProtected + failureFactor (lines 13–17), client config, audience mapper, account client webOrigins (lines 110–113)
+- `backend/src/auth/keycloak.ts` (this repo) — hardcoded validAudiences (line 198), JWKS module-level cache (line 41), key-not-found retry path (line 215)
+- `backend/src/types/index.ts` (this repo) — `email: string` non-optional in KeycloakJwtPayload (line 40)
+- `.planning/phases/04-passkeys/04-RESEARCH.md` (this repo) — KC 25→26 upgrade findings, DELETE deprecation, admin env vars, docker compose down -v requirement
+- [Keycloak 26.0.0 Release Notes](https://www.keycloak.org/2024/10/keycloak-2600-released) — hostname v1 removal, admin env var deprecation
+- [Keycloak Import/Export Guide](https://www.keycloak.org/server/importExport) — --import-realm skips existing realm silently
+- [AccountCredentialResource Javadoc 26.6.1](https://www.keycloak.org/docs-api/latest/javadocs/org/keycloak/services/resources/account/AccountCredentialResource.html) — DELETE deprecated annotation
+- [Cloudflare Workers Runtime APIs — Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/) — crypto.getRandomValues available; timingSafeEqual not listed
+- [W3C WebAuthn Spec — Relying Party Identifier](https://www.w3.org/TR/webauthn-2/#relying-party-identifier) — rpId binding semantics and lock-in
+- [keycloak/terraform-provider-keycloak GitHub](https://github.com/keycloak/terraform-provider-keycloak) — canonical provider repo (transferred from mrparkers/keycloak to keycloak org; KC 26 compat needs verification via CHANGELOG)
+- [Keycloak Passkeys Support 26.4](https://www.keycloak.org/2025/09/passkeys-support-26-4) — native passkey UI additions in KC 26.3+

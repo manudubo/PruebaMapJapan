@@ -8,17 +8,18 @@ A web app for planning, visualizing, and sharing fully customizable trip itinera
 
 A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
 
-## Current Milestone: v1.0 Trip Builder
+## Current Milestone: v2.0 Auth Infrastructure & Hardening
 
-**Goal:** Build the end-to-end trip builder UI so a user can create and manage a complete trip itinerary from the web.
+**Goal:** Harden auth infrastructure with Terraform IaC, passkey campaign flow, email OTP fallback, KC theme i18n, and full Playwright real-auth coverage.
 
 **Target features:**
-- Dedicated trip edit page — destinations (dates/coordinates), hotels (name, URL, check-in/out), days (label, date), activities (name, time, notes, map pin)
-- Security hardening — XSS (`innerHTML` → `textContent`/DOMPurify), CORS fix, JWT audience tightened
-- Public trip sharing UI — toggle public/private per trip, shareable link without login
-- Passkeys functional — Keycloak 25 WebAuthn config, profile page passkey management wired to Keycloak Account REST API
+- Terraform IaC — KC realm HCL replaces `realm-export.json`; Cloudflare Worker secrets via `cloudflare_worker_secret`; Mailpit replaces MailHog for local SMTP
+- Backend hardening — `validAudiences` env var, `email?: string` relaxation, `email_otp_codes` migration, KC Admin client
+- KC Flows — `VERIFY_EMAIL` + SMTP, `browser-passkey` as default flow (with password ALTERNATIVE), theme i18n (es/en, FreeMarker overrides)
+- OTP + passkey campaign — email OTP fallback (`/api/auth/otp-*`), post-login passkey campaign with per-device cookie, last-credential guard, UPDATE_PASSWORD gated by WebAuthn support
+- Playwright real auth — storageState global setup, KC Admin fixtures, passkey tests (CDP), OTP tests (Mailpit REST)
 
-**Deferred to next milestone:** Production deployment, deployment runbook, landing demo enhancements.
+**Deferred to next milestone:** Production Terraform (prod rpId, Neon, Cloudflare prod secrets), deployment runbook, landing demo experience.
 
 ## Requirements
 

@@ -14,6 +14,11 @@ Four phases from security foundation through trip builder, public sharing, and p
 - [x] **Phase 2: Trip Builder** - Full trip edit UI: destinations, hotels, days, activities, is_public toggle
 - [x] **Phase 3: Public Sharing** - public_slug migration, copy-link button, read-only guest view
 - [x] **Phase 4: Passkeys** - Keycloak WebAuthn config, passkey registration fix, delete passkey UI
+- [x] **Phase 5: Internationalization** - Translate all user-facing strings from Spanish to English
+- [ ] **Phase 6: Local Infrastructure** - Terraform KC realm + CF Worker secrets; Mailpit replaces MailHog; --import-realm removed
+- [ ] **Phase 7: Backend Hardening + KC Config** - Env var hygiene, email optionality, OTP DB migration, KC flows + theme i18n via Terraform
+- [ ] **Phase 8: OTP + Passkey Campaign** - Email OTP fallback endpoint; post-login passkey campaign; last-credential guard; UPDATE_PASSWORD gate
+- [ ] **Phase 9: Playwright Real Auth** - E2E tests via real KC OIDC login; KC Admin fixtures; passkey and OTP tests automated
 
 ## Phase Details
 
@@ -103,6 +108,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 3. Public Sharing | 3/3 | Complete | 2026-05-06 |
 | 4. Passkeys | 2/2 | Complete | 2026-05-09 |
 | 5. Internationalization | 12/12 | Complete | 2026-05-15 |
+| 6. Local Infrastructure | 0/6 | Pending | - |
+| 7. Backend Hardening + KC Config | 0/10 | Pending | - |
+| 8. OTP + Passkey Campaign | 0/8 | Pending | - |
+| 9. Playwright Real Auth | 0/6 | Pending | - |
 
 ### Phase 5: Internationalization — translate all user-facing UI strings, HTML content, and TypeScript source strings from Spanish to English across all pages and components
 
@@ -125,32 +134,68 @@ Plans:
 - [x] 05-11-PLAN.md — Wave 2: itinerary.ts + manifest.json (I18N-TS, I18N-HTML)
 - [x] 05-12-PLAN.md — Wave 3: Final validation — accent audit + locale audit + typecheck + Playwright (I18N-ACCENT)
 
-### Phase 6: Multi-environment configuration — Vite env files per environment (local/dev/prod), Cloudflare Workers wrangler.toml environments, Keycloak realm per env, sslRequired prod hardening
+### Phase 6: Local Infrastructure
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 5
-**Plans:** 0 plans
+**Goal**: Terraform manages KC realm config as HCL and Cloudflare Worker secrets; Mailpit replaces MailHog as local SMTP; `--import-realm` removed from docker-compose
+**Depends on**: Phase 5
+**Requirements**: INFRA-01, INFRA-02, INFRA-03
+**Success Criteria** (what must be TRUE):
+  1. `terraform apply` against local Docker KC succeeds with no manual KC console edits required
+  2. `realm-export.json` is annotated as read-only reference; `--import-realm` line is removed from docker-compose
+  3. Cloudflare Worker secrets (`RESEND_API_KEY`, `KC_ADMIN_CLIENT_SECRET`) are managed via `cloudflare_worker_secret` resources; no plaintext secrets in `wrangler.toml`
+  4. Mailpit container starts on ports 1025/8025 and REST API at `/api/v1/messages` is reachable; MailHog is gone from docker-compose
+  5. Local dev stack brings up cleanly with `docker compose up`
+**Plans**: 6 plans
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 6 to break down)
 
-### Phase 7: Passkey login — wire browser-passkey Keycloak flow as default browser flow, enable AvoidSameAuthenticatorRegister, add Sign in with passkey entry point on landing page
+### Phase 7: Backend Hardening + KC Config
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 6
-**Plans:** 0 plans
+**Goal**: Backend env var hygiene, email optionality, OTP DB migration, and KC Admin client operational; Keycloak flows (VERIFY_EMAIL, browser-passkey, Required Actions) and theme i18n configured via Terraform
+**Depends on**: Phase 6
+**Requirements**: BACK-01, BACK-02, BACK-03, BACK-04, KC-01, KC-02, KC-03, KC-04
+**Success Criteria** (what must be TRUE):
+  1. `validAudiences` reads from `VALID_AUDIENCES` env var (comma-separated); no hardcoded audience strings in backend source
+  2. `email?: string` — passkey-only tokens with no email claim are accepted without error throughout the auth middleware chain
+  3. `email_otp_codes` table exists in DB with correct schema: id, user_id, code_hash, expires_at, used_at, attempts, created_at
+  4. KC Admin client (service account with `manage-users` role) is operational — Admin API calls succeed
+  5. `VERIFY_EMAIL` Required Action is enabled and SMTP config (Mailpit local / Resend prod) is wired; verification email is delivered in local E2E flow
+  6. `browserFlow` is `browser-passkey` in Terraform; password-forms ALTERNATIVE branch exists in flow before the switch
+  7. `webauthn-register-passwordless` Required Action registered in realm with `defaultAction: false`
+  8. `messages_es.properties` exists; `locales=es,en` in `theme.properties`; FreeMarker overrides present for login.ftl, login-otp.ftl, verify-email.ftl, error.ftl
+**Plans**: 10 plans
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 7 to break down)
 
-### Phase 8: Demo trip — seed a public demo trip in the database, add View demo trip button on landing page pointing to its public slug so guests can browse the trip builder without logging in
+### Phase 8: OTP + Passkey Campaign
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 7
-**Plans:** 0 plans
+**Goal**: Email OTP fallback endpoint live; post-login passkey campaign with per-device cookie; last-credential guard; UPDATE_PASSWORD gated by WebAuthn support
+**Depends on**: Phase 7
+**Requirements**: PASS-04, PASS-05, PASS-06, PASS-07
+**Success Criteria** (what must be TRUE):
+  1. `POST /api/auth/otp-request` delivers a 6-digit OTP via Resend (prod) / Mailpit (local) with 10-min TTL and max-5-attempts rate limit per email per window
+  2. `POST /api/auth/otp-verify` validates OTP with timing-safe HMAC-SHA256+XOR comparison; marks code used; returns 200 on match
+  3. Post-login: if device supports WebAuthn and no `pnk_{userId}` cookie exists, user is redirected to passkey campaign AIA; cookie is written after `initKeycloak()` resolves
+  4. Profile page delete passkey flow refuses if it would leave the user with zero credentials
+  5. UPDATE_PASSWORD Required Action is forced post-OTP only when device does NOT support WebAuthn; passkey-capable devices skip it
+**Plans**: 8 plans
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 8 to break down)
+
+### Phase 9: Playwright Real Auth
+
+**Goal**: E2E tests use real KC OIDC login via storageState; KC Admin fixtures reset state between runs; passkey and OTP tests automated end-to-end
+**Depends on**: Phase 8
+**Requirements**: E2E-01, E2E-02, E2E-03, E2E-04
+**Success Criteria** (what must be TRUE):
+  1. `globalSetup` completes OIDC login via headless Chromium and writes `tests/.auth/user.json`; sessionStorage replayed via `addInitScript` workaround for Playwright bug #31108; no ROPC used
+  2. `tests/fixtures/kc-admin.ts` helper can create/delete test users, reset credentials, and clear OTP codes between runs via KC Admin API
+  3. `chromium-passkeys` Playwright project runs passkey register/login/delete tests using CDP Virtual Authenticator API
+  4. OTP fallback tests: request → Mailpit REST fetch → verify → assert; expired OTP and max-attempts lockout cases covered
+**Plans**: 6 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 9 to break down)

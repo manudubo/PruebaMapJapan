@@ -1,36 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
+milestone: v2.0
+milestone_name: Auth Infrastructure & Hardening
 status: executing
-stopped_at: "Completed 05-12-PLAN.md: final audit pass, all Spanish strings removed"
+stopped_at: "Milestone v2.0 started — Phase 06 ready to plan"
 last_updated: "2026-05-15T00:00:00.000Z"
-last_activity: 2026-05-15 -- Phase 05 complete
+last_activity: 2026-05-15 -- Milestone v2.0 initialized
 progress:
-  total_phases: 8
-  completed_phases: 5
-  total_plans: 46
-  completed_plans: 34
-  percent: 74
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-26)
+See: .planning/PROJECT.md (updated 2026-05-15)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** Phase 06 — Multi-environment configuration
+**Current focus:** Phase 06 — Local Infrastructure (Terraform + Mailpit)
 
 ## Current Position
 
-Phase: 05 (Internationalization) — COMPLETE
-Plan: 12 of 12
-Status: Phase 05 complete — ready for Phase 06
-Last activity: 2026-05-15 -- Phase 05 execution complete
+Phase: 06 (Local Infrastructure) — READY TO PLAN
+Plan: 0 of ~6
+Status: Phase 06 not yet planned — run /gsd-plan-phase 6
+Last activity: 2026-05-15 -- Milestone v2.0 initialized
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -52,8 +52,6 @@ Progress: [██████████] 100%
 - Trend: —
 
 *Updated after each plan completion*
-| Phase 04-passkeys P01 | 15 | 2 tasks | 5 files |
-| Phase 04-passkeys P02 | 20min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -62,13 +60,11 @@ Progress: [██████████] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Phase 1: dom.ts is a shared helper built in Phase 1 and consumed by all subsequent phases — must ship before Phase 2
-- Phase 2: SHARE-01 (is_public toggle) delivered inside Phase 2 as a field on the trip metadata form, not Phase 3
-- Phase 4: Keycloak credential listing response shape must be verified at runtime before implementing delete
-- Phase 4: Keycloak upgraded from 25.0 to 26.6.1; KC_BOOTSTRAP_ADMIN env vars replace old KEYCLOAK_ADMIN vars
-- Phase 4: webAuthnPolicyPasswordlessRpId set to localhost in realm-export.json; docker compose down -v required to force re-import
-- D-03: registerPasskey() action string fixed to webauthn-register-passwordless (PASS-01 satisfied)
-- D-05: Delete passkey UI built dynamically; buildDeleteModal() injects CSS+DOM; openDeleteConfirm() handles full DELETE flow with Bearer token
+- v2.0 IaC: All KC realm config managed via Terraform HCL (`keycloak/keycloak >= 5.7.0`); `realm-export.json` becomes read-only reference; `--import-realm` removed once local apply confirmed
+- v2.0 Email OTP: Worker-side TypeScript only — no Java SPIs; Resend `^6.0.0` for prod, Mailpit for local
+- v2.0 UPDATE_PASSWORD: Forced post-OTP ONLY when device does NOT support WebAuthn; passkey-capable devices skip it
+- v2.0 Timing safety: HMAC-SHA256 + XOR accumulator for OTP comparison (Workers lacks `timingSafeEqual`)
+- v2.0 Passkey rpId: CRITICAL — `webAuthnPolicyPasswordlessRpId` must be set to prod hostname in Terraform before any prod user registers a passkey; no migration path exists
 
 ### Pending Todos
 
@@ -76,9 +72,8 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 4 CRITICAL: `webAuthnPolicyPasswordlessRpId` must be set before any user registers a passkey; cannot be changed retroactively
-- Phase 2: Serial nested entity creation has no rollback — handle gracefully in UI
-- `email` field typed as required but may be absent in passkey-only auth flows — address in Phase 4
+- CRITICAL: `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before Phase 9 prod Terraform — blocks prod passkey registration
+- `browser-passkey` flow switch (KC-02) must NOT happen until password-forms ALTERNATIVE branch exists in flow — would lock out password-only users
 
 ## Deferred Items
 

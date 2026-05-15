@@ -1,7 +1,7 @@
 # Stack Research
 
 **Project:** TravelMap (PruebaMapJapan)
-**Researched:** 2026-04-26 (updated for v1.0 milestone)
+**Researched:** 2026-04-26 (v1.0) | Updated 2026-05-15 (v2.0)
 **Note:** Version numbers verified via `npm show` against the live registry. Keycloak Account REST API usage verified against codebase. All DOMPurify findings HIGH confidence (npm registry + codebase-verified). WebSearch was unavailable; supplemental web claims are flagged.
 
 ---
@@ -16,7 +16,7 @@
 | DB ORM | Drizzle ORM | current |
 | DB (prod) | Neon PostgreSQL — serverless HTTP driver | @neondatabase/serverless |
 | DB (local) | node-postgres (pg) via Pool | pg |
-| Auth | Keycloak 25.0 with OIDC/PKCE + RS256 + WebAuthn | **LOCKED at 25.0** — keycloak-js compat |
+| Auth | Keycloak 26.6.1 with OIDC/PKCE + RS256 + WebAuthn | keycloak-js ^26.0.0 |
 | Maps | Leaflet | 1.9 |
 | Frontend deploy | GitHub Pages | — |
 | Backend deploy | Cloudflare Workers (free tier) | — |
@@ -213,7 +213,7 @@ No backend dependencies change. No new infrastructure. No new Cloudflare binding
 
 ---
 
-## Confidence Levels
+## Confidence Levels (v1.0)
 
 | Topic | Confidence | Reason |
 |-------|------------|--------|
@@ -227,3 +227,524 @@ No backend dependencies change. No new infrastructure. No new Cloudflare binding
 | Passkeys use Keycloak Account REST API (no WebAuthn library) | HIGH | Derived from `profile.ts` implementation |
 | Public sharing uses existing API + clipboard | HIGH | `getPublicTrip()` and `is_public` field already exist |
 | Keycloak Audience mapper behavior | MEDIUM | Training knowledge, not live-verified; but behavior is stable across Keycloak versions |
+
+---
+
+---
+
+# Stack Research — v2.0 Auth Infrastructure & Hardening
+
+**Researched:** 2026-05-15
+**Confidence:** HIGH (all critical items verified against official sources, GitHub releases, and current npm registry)
+
+---
+
+## New Dependencies (v2.0)
+
+### npm — backend (`backend/`)
+
+| Package | Version | Purpose | Notes |
+|---------|---------|---------|-------|
+| `resend` | `^6.0.0` | Email OTP delivery via HTTP API from Workers | Uses `fetch()` internally; no SMTP socket needed. Official CF tutorial + GitHub example exist. Current latest: `6.12.3` (verified via `npm show resend version`). |
+
+No other backend npm changes. `@hono/zod-validator`, `hono`, `zod` already present.
+
+### npm — tests (`tests/`)
+
+| Package | Version | Purpose | Notes |
+|---------|---------|---------|-------|
+| `@playwright/test` | `^1.60.0` | Upgrade from `^1.48.0` for Virtual Authenticator API stability and `addInitScript` bug fixes | Current latest: `1.60.0` (published ~May 2026). Also run `npx playwright install` after upgrade to sync browser binaries. |
+
+### npm — frontend (`frontend/`)
+
+No new dependencies. `keycloak-js ^26.0.0` already matches KC `26.6.1` in Docker.
+
+---
+
+## Terraform Providers
+
+### Keycloak: `keycloak/keycloak`
+
+| Field | Value |
+|-------|-------|
+| Registry source | `keycloak/keycloak` |
+| Current stable | `5.7.0` (released 2026-02-20) |
+| Recommended pin | `>= 5.7.0, < 6.0.0` |
+| KC 26 support | YES — v5.x explicitly targets KC 24/26 |
+| Status | Actively maintained — official Keycloak org took ownership from `mrparkers` with v5.0 release (Jan 2025) |
+
+Do NOT use `mrparkers/keycloak`. The mrparkers namespace still exists on the Terraform Registry but is no longer receiving updates. All active development is under `keycloak/keycloak`.
+
+```hcl
+terraform {
+  required_providers {
+    keycloak = {
+      source  = "keycloak/keycloak"
+      version = ">= 5.7.0, < 6.0.0"
+    }
+  }
+}
+
+provider "keycloak" {
+  client_id = "admin-cli"
+  username  = var.keycloak_admin_user
+  password  = var.keycloak_admin_password
+  url       = var.keycloak_url
+}
+```
+
+Key resources for this milestone:
+- `keycloak_realm` — realm settings, WebAuthn passwordless policy, OTP policy, session timeouts
+- `keycloak_openid_client` — travel-app PKCE client config
+- `keycloak_required_action` — enable `webauthn-register-passwordless`
+- `keycloak_authentication_flow` + `keycloak_authentication_subflow` + `keycloak_authentication_execution` — passkey-first browser flow
+- `keycloak_realm_user_profile` — make email optional (passkey-only accounts have no email)
+- `keycloak_openid_client_default_scopes` — scope binding
+
+### Cloudflare: `cloudflare/cloudflare`
+
+| Field | Value |
+|-------|-------|
+| Registry source | `cloudflare/cloudflare` |
+| Current stable | `5.19.1` (published 2026-04-30) |
+| Recommended pin | `~> 5.19` |
+| Status | GA since Feb 2025; auto-generated from OpenAPI. Major breaking changes from v4. |
+
+Start new Terraform configs at v5.19 directly — do not start at v5.0 and upgrade, as state-breaking changes accumulated across v5.x minor releases (v5.16→5.17 required an intermediate step).
+
+Resources relevant to this milestone:
+- `cloudflare_worker_secret` — manage `RESEND_API_KEY` and `DATABASE_URL` as Worker secrets (v5-only resource)
+- `cloudflare_worker_script` — optional; prefer `wrangler deploy` for code, use TF only for config/secrets
+- `cloudflare_pages_project` — NOT needed; frontend stays on GitHub Pages
+
+```hcl
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
+}
+```
+
+### Neon: `kislerdm/neon`
+
+| Field | Value |
+|-------|-------|
+| Registry source | `kislerdm/neon` |
+| Current stable | `0.9.0` (released 2025-02-25) |
+| Recommended pin | `>= 0.9.0, < 1.0.0` |
+| Status | Community-maintained (NOT officially by Neon), but linked from Neon's own docs at `neon.com/docs/reference/terraform` |
+
+Use for: `neon_project`, `neon_database`, `neon_role`, `neon_branch`. Do not expose Neon connection strings via Terraform outputs — pass them directly as wrangler secrets.
+
+### Terraform version requirement
+
+```hcl
+terraform {
+  required_version = ">= 1.9.0, < 2.0.0"
+}
+```
+
+Note: `kislerdm/neon 0.9.0` changelog mentions Go 1.23.6 dependency update but does not impose a specific Terraform version constraint beyond `>= 1.0.0`. `keycloak/keycloak 5.7.0` and `cloudflare/cloudflare 5.19.x` both work with Terraform 1.9+.
+
+### State Backend: HCP Terraform (Terraform Cloud)
+
+HCP Terraform free tier is available and covers this project's scale (~15-20 managed resources).
+
+- Legacy Free plan EOL'd on **2026-03-31** (already past); the enhanced Free tier is now the only Free option: 500 managed resources, unlimited workspaces, 1 concurrent run — sufficient for this project
+- Alternative: Terraform S3 backend against a Cloudflare R2 bucket (S3-compatible, free tier, no HashiCorp dependency)
+
+```hcl
+terraform {
+  cloud {
+    organization = "<your-org>"
+    workspaces {
+      name = "prueba-map-japan-prod"
+    }
+  }
+}
+```
+
+---
+
+## Email for Cloudflare Workers
+
+**Use Resend. No other option meets all constraints.**
+
+Workers run in V8 isolates with no TCP socket support. SMTP is impossible at the protocol level. All email must use `fetch()` over HTTPS.
+
+Cloudflare's MailChannels Workers integration was discontinued in mid-2024. There is no free Cloudflare-native email option.
+
+| Option | Workers-compatible | Free tier | Verdict |
+|--------|-------------------|-----------|---------|
+| **Resend** | YES — SDK uses `fetch()` | 3,000 emails/month | **Use this** |
+| SendGrid HTTP API | YES — `fetch()` to API | 100/day | Viable fallback if Resend is unavailable |
+| MailChannels | NO — discontinued | — | Do not use |
+| nodemailer / SMTP | NO — TCP socket required | — | Impossible in Workers |
+
+**Integration in Hono worker (`backend/src/routes/otp.ts`):**
+
+```typescript
+import { Resend } from 'resend';
+
+// Env type addition in backend/src/index.ts:
+// RESEND_API_KEY: string;
+// ENVIRONMENT: string;
+
+export function sendOtpEmail(env: Env, to: string, code: string) {
+  const resend = new Resend(env.RESEND_API_KEY);
+  return resend.emails.send({
+    from: 'noreply@yourdomain.com',
+    to,
+    subject: 'Your login code',
+    html: `<p>Your code: <strong>${code}</strong>. Expires in 10 minutes.</p>`,
+  });
+}
+```
+
+**wrangler.toml additions:**
+
+```toml
+[vars]
+ENVIRONMENT = "development"
+
+# Secrets — set via: wrangler secret put RESEND_API_KEY
+# RESEND_API_KEY is NOT in [vars]; it's a secret
+```
+
+**Local dev**: The Hono `dev.ts` uses `@hono/node-server` (already in devDeps). In `ENVIRONMENT=development`, bypass Resend and send SMTP to Mailpit using `nodemailer` (Node.js can open TCP sockets). Switch transport via env var check. This keeps the Workers production path clean while allowing full email inspection locally.
+
+---
+
+## KC Theme Extensions
+
+Current state in `keycloak/themes/japan-trip/login/`:
+- `theme.properties` — parent=keycloak, styles=css/login.css
+- `resources/css/login.css`
+
+No FreeMarker templates or message bundles exist yet.
+
+### What to add
+
+```
+keycloak/themes/japan-trip/login/
+  theme.properties          # MODIFY: add scripts= line
+  resources/
+    css/
+      login.css             # existing — no change
+    js/
+      passkey-hint.js       # NEW: client-side passkey availability check
+  messages/
+    messages_es.properties  # NEW: Spanish string overrides
+  login.ftl                 # NEW: override login page layout for OTP/passkey UX
+  login-otp.ftl             # NEW: override OTP entry page
+  error.ftl                 # NEW: friendlier error messages
+```
+
+### theme.properties update
+
+```properties
+parent=keycloak
+import=common/keycloak
+
+styles=css/login.css
+scripts=js/passkey-hint.js
+kcHtmlClass=login-pf
+kcBodyClass=login-pf-background
+```
+
+The `scripts=` property in `theme.properties` injects the JS file into **every page** in the theme type (login). It is global to the theme type, not per-template. To inject JS only on a specific page (e.g., only on the passkey prompt), use a `<#if>` conditional inside the specific `.ftl` template:
+
+```freemarker
+<#-- Inside login.ftl, section="scripts" -->
+<#if section = "scripts">
+  <script src="${url.resourcesPath}/js/passkey-hint.js" type="text/javascript"></script>
+</#if>
+```
+
+### FreeMarker template structure (KC 26)
+
+KC 26 login templates follow a two-layer pattern. Only override what you need:
+
+1. `template.ftl` — base layout. Do NOT copy unless structural HTML changes are needed. The parent theme's `template.ftl` fills `<#nested>` blocks from child pages.
+2. Individual page `.ftl` files import and call `template.ftl` via `<@layout.registrationLayout>`.
+
+**Minimal page override pattern:**
+
+```freemarker
+<#import "template.ftl" as layout>
+<@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password')
+                             displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled??>
+  <#if section = "header">
+    ${msg("loginAccountTitle")}
+  <#elseif section = "form">
+    <form id="kc-form-login" action="${url.loginAction}" method="post">
+      <!-- custom passkey + OTP layout -->
+    </form>
+  <#elseif section = "scripts">
+    <script src="${url.resourcesPath}/js/passkey-hint.js" type="text/javascript"></script>
+  </#if>
+</@layout.registrationLayout>
+```
+
+Available context variables in KC 26 login templates:
+- `realm`, `url`, `locale`, `auth`, `registrationDisabled`, `messagesPerField`, `login`
+- `msg("key")` — message bundle lookup (uses `messages_<locale>.properties`)
+- `properties` — theme.properties values
+
+### messages_es.properties
+
+File: `keycloak/themes/japan-trip/login/messages/messages_es.properties`
+
+KC 24+ handles UTF-8 natively in theme `.properties` files — use raw UTF-8 characters directly.
+
+Key overrides for this milestone:
+
+```properties
+# OTP flow
+loginOtpTitle=Introduce tu código
+loginOtpOneTime=Código de un uso
+loginTotpCode=Código de verificación
+
+# Passkey / WebAuthn flow
+passkey-unsupported-browser-text=Tu navegador no admite llaves de acceso.
+webauthn-login-title=Iniciar sesión con llave de acceso
+webauthn-registration-title=Registrar llave de acceso
+webauthn-error-auth-verification=No se pudo verificar la llave de acceso.
+
+# Error page
+errorTitle=Error de autenticación
+backToApplication=Volver a la aplicación
+```
+
+### No Java SPIs
+
+All KC customization in this milestone via:
+- FreeMarker `.ftl` templates (file overrides in mounted `themes/` volume)
+- Message bundles (`messages_*.properties`)
+- `theme.properties`
+- KC 26 built-in flows + `keycloak/keycloak` Terraform provider for realm config
+
+Do NOT add: Keycloak SPI JARs, custom authenticator Java classes, custom KC REST endpoints, KC extension providers, Maven builds of theme JARs.
+
+---
+
+## Playwright Auth Pattern
+
+### Current state
+
+`tests/e2e/auth.spec.ts` mocks all KC endpoints with `page.route('**/realms/**', ...)`. No real auth happens. `@playwright/test` is pinned at `^1.48.0` — needs upgrade to `^1.60.0`.
+
+### The sessionStorage problem
+
+`keycloak-js` stores tokens in `sessionStorage` (confirmed by `auth.spec.ts` usage of `sessionStorage.setItem('kc_token', ...)`).
+
+Playwright's `context.storageState()` captures cookies and `localStorage` only. It does NOT capture `sessionStorage`. This is a confirmed limitation — open feature request on the Playwright repo (issue #31108) with no resolution in 1.60.0.
+
+### Pattern 1: initScript workaround (recommended)
+
+Perform a real login once per worker, serialize sessionStorage manually, restore it in each test context via `addInitScript`:
+
+```typescript
+// tests/e2e/fixtures/auth.ts
+import { test as base, type BrowserContext } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const SESSION_FILE = path.join(__dirname, '.kc-session.json');
+
+export const test = base.extend<{ authedContext: BrowserContext }>({
+  authedContext: [async ({ browser }, use) => {
+    if (!fs.existsSync(SESSION_FILE)) {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await page.goto(process.env.FRONTEND_URL + '/dashboard.html');
+      // KC redirect fires — fill login form
+      await page.fill('#username', process.env.TEST_KC_USER!);
+      await page.fill('#password', process.env.TEST_KC_PASSWORD!);
+      await page.click('#kc-login');
+      await page.waitForURL('**/dashboard.html**', { timeout: 15000 });
+      const data = await page.evaluate(() => JSON.stringify({ ...sessionStorage }));
+      fs.writeFileSync(SESSION_FILE, data);
+      await ctx.close();
+    }
+    const sessionData = fs.readFileSync(SESSION_FILE, 'utf-8');
+    const ctx = await browser.newContext();
+    await ctx.addInitScript((data: string) => {
+      const items = JSON.parse(data) as Record<string, string>;
+      for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v);
+    }, sessionData);
+    await use(ctx);
+    await ctx.close();
+  }, { scope: 'worker' }],
+});
+```
+
+KC tokens expire (default session max). The `SESSION_FILE` must be regenerated in CI per run. Add to `.gitignore`. Set `TEST_KC_USER` and `TEST_KC_PASSWORD` as CI secrets.
+
+### Pattern 2: KC cookie-based auth (cleaner, requires realm config)
+
+Configure KC realm `SSO Session Max` to a long value and ensure `checkLoginIframe: false` in keycloak-js config. KC sets a `KEYCLOAK_SESSION` cookie that IS captured by `storageState`. This is the recommended path if you have control over KC realm settings — it removes the sessionStorage workaround entirely.
+
+### Virtual Authenticator API (passkey tests)
+
+The CDP Virtual Authenticator API is **Chromium-only**. Firefox and WebKit do not expose CDP WebAuthn APIs.
+
+Add a dedicated Playwright project in `playwright.config.ts` scoped to the passkey spec file and Chrome only. Do not add passkey tests to the existing multi-browser projects:
+
+```typescript
+// In playwright.config.ts, add to projects array:
+{
+  name: 'chromium-passkeys',
+  use: { ...devices['Desktop Chrome'] },
+  testMatch: '**/passkeys.spec.ts',
+},
+```
+
+CDP virtual authenticator usage in test:
+
+```typescript
+import { CDPSession } from '@playwright/test';
+
+test('register passkey', async ({ page, context }) => {
+  const cdp: CDPSession = await context.newCDPSession(page);
+  await cdp.send('WebAuthn.enable', { enableUI: false });
+
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: {
+      protocol: 'ctap2',
+      transport: 'internal',
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+
+  // trigger passkey registration on page, then:
+  await cdp.send('WebAuthn.disable');
+});
+```
+
+### Mailpit API integration for OTP tests
+
+After triggering an OTP email in a test, read the code from Mailpit's REST API:
+
+```typescript
+async function getLatestOtp(to: string): Promise<string> {
+  const res = await fetch('http://localhost:8025/api/v1/messages?limit=1');
+  const { messages } = await res.json();
+  const code = messages[0]?.Snippet?.match(/\d{6}/)?.[0];
+  if (!code) throw new Error('OTP not found in Mailpit');
+  return code;
+}
+```
+
+---
+
+## Local SMTP: Mailpit (not MailHog)
+
+The milestone brief says "MailHog" — use **Mailpit** instead. MailHog has had no releases since 2020 and is effectively abandoned. Mailpit is the maintained drop-in replacement with identical default ports.
+
+| | MailHog | Mailpit |
+|---|---|---|
+| Last release | 2020 (abandoned) | v1.29.7 (2026-04-16) |
+| Docker image | `mailhog/mailhog` | `axllent/mailpit` |
+| SMTP port default | 1025 | 1025 |
+| Web UI port default | 8025 | 8025 |
+| REST API | Basic | Full (supports message search, delete, attachments) |
+| TLS SMTP | No | Yes |
+| Migration effort | — | One-line image swap |
+
+**docker-compose.yml addition:**
+
+```yaml
+  mailpit:
+    image: axllent/mailpit:v1.29
+    ports:
+      - "1025:1025"   # SMTP (for local @hono/node-server dev)
+      - "8025:8025"   # Web UI + REST API
+    environment:
+      MP_MAX_MESSAGES: 500
+    restart: unless-stopped
+```
+
+Use `axllent/mailpit:v1.29` (minor version pin) rather than `:latest` for reproducibility in CI.
+
+---
+
+## What NOT to Add (v2.0)
+
+| Item | Why excluded |
+|------|--------------|
+| `mrparkers/keycloak` Terraform provider | Archived; replaced by `keycloak/keycloak` org-maintained provider (v5.7.0) |
+| Cloudflare Terraform provider v4 | Do not start new infra on v4; v5 is GA since Feb 2025 |
+| `mailhog/mailhog` Docker image | Unmaintained since 2020; use `axllent/mailpit:v1.29` |
+| Cloudflare MailChannels Workers binding | Discontinued mid-2024; not available |
+| `nodemailer` in Workers production code | TCP socket required for SMTP; impossible in CF Workers V8 isolate |
+| Keycloak SPI JARs / Java authenticators | Explicitly excluded per milestone scope |
+| `@simplewebauthn/browser` or `/server` | Keycloak handles WebAuthn ceremony end-to-end; adding these creates a conflicting parallel auth path |
+| React / Vue frontend migration | Stack is locked to Vanilla TS per PROJECT.md constraints |
+| Playwright passkey tests on Firefox / WebKit | CDP Virtual Authenticator is Chromium-only; not possible on other engines |
+| Terraform local state backend | Breaks CI state sharing; use HCP Terraform or R2 S3 backend |
+| AWS SES | Requires AWS account; no native Workers integration; overkill |
+| `keycloak-js` version change | Already at `^26.0.0` matching KC 26.6.1; no change |
+
+---
+
+## Confidence Levels (v2.0)
+
+| Topic | Confidence | Source |
+|-------|------------|--------|
+| `keycloak/keycloak` provider — v5.7.0, org-maintained | HIGH | keycloak.org announcement + GitHub releases |
+| `mrparkers/keycloak` deprecated | HIGH | keycloak.org blog Jan 2025 |
+| Cloudflare provider — v5.19.1 current | HIGH | Cloudflare changelog + Terraform Registry |
+| `kislerdm/neon` — v0.9.0 current | HIGH | GitHub releases + Terraform Registry |
+| HCP Terraform free tier available | HIGH | HashiCorp blog (Dec 2025) — enhanced free tier active |
+| Resend Workers-compatible | HIGH | Official CF Workers tutorial + GitHub example |
+| Resend free tier (3,000/month) | HIGH | Resend pricing page (verified May 2026) |
+| MailHog abandoned / Mailpit replacement | HIGH | Multiple 2025-2026 sources; Mailpit v1.29.7 April 2026 |
+| Playwright sessionStorage not in storageState | HIGH | Official PW docs + GitHub issue #31108 (unresolved) |
+| Virtual Authenticator CDP is Chromium-only | HIGH | PW GitHub issue #26621 + Corbado blog verification |
+| KC 26 theme `scripts=` is global to theme type | MEDIUM | Official Red Hat KC 26 theme docs (not template-scoped) |
+| KC 26 FreeMarker `<#if section = "scripts">` pattern | MEDIUM | Verified against published theme examples; official docs confirm section blocks |
+
+---
+
+## v2.0 Installation Delta
+
+```bash
+# backend/ — add email sender
+npm install resend@^6.0.0
+
+# tests/ — upgrade Playwright
+npm install -D @playwright/test@^1.60.0
+npx playwright install  # sync browser binaries
+```
+
+No frontend npm changes. No wrangler.toml structural changes (add `RESEND_API_KEY` secret via `wrangler secret put`).
+
+Add to `docker-compose.yml`: mailpit service (see above).
+
+Create new directory: `keycloak/themes/japan-trip/login/messages/` and `keycloak/themes/japan-trip/login/*.ftl` files.
+
+Create new directory: `terraform/` with provider configs, realm config, and Cloudflare Workers secret management.
+
+---
+
+## Sources (v2.0)
+
+- [keycloak/terraform-provider-keycloak GitHub](https://github.com/keycloak/terraform-provider-keycloak)
+- [Keycloak Terraform Provider Release 5 — keycloak.org](https://www.keycloak.org/2025/01/terraform-provider-release-5)
+- [Cloudflare Terraform Provider v5 GA — Cloudflare Changelog](https://developers.cloudflare.com/changelog/post/2025-02-03-terraform-v5-provider/)
+- [Cloudflare Terraform Provider v5.19.1 — Terraform Registry](https://registry.terraform.io/providers/cloudflare/cloudflare/latest)
+- [kislerdm/neon Terraform Provider — Terraform Registry](https://registry.terraform.io/providers/kislerdm/neon/latest)
+- [Neon Terraform docs — neon.com](https://neon.com/docs/reference/terraform)
+- [Send Emails With Resend — Cloudflare Workers Docs](https://developers.cloudflare.com/workers/tutorials/send-emails-with-resend/)
+- [resend-cloudflare-workers-example — GitHub](https://github.com/resend/resend-cloudflare-workers-example)
+- [Mailpit GitHub — axllent/mailpit](https://github.com/axllent/mailpit)
+- [Mailpit v1.29.7 release](https://github.com/axllent/mailpit/releases/tag/v1.29.7)
+- [Playwright Authentication docs](https://playwright.dev/docs/auth)
+- [Playwright sessionStorage not captured — Issue #31108](https://github.com/microsoft/playwright/issues/31108)
+- [Virtual Authenticator Webkit not supported — PW Issue #26621](https://github.com/microsoft/playwright/issues/26621)
+- [Passkeys E2E Playwright — Corbado blog](https://www.corbado.com/blog/passkeys-e2e-playwright-testing-webauthn-virtual-authenticator)
+- [Keycloak 26 Server Developer Guide — Themes — Red Hat Docs](https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak/26.0/html/server_developer_guide/themes)
+- [HCP Terraform Free Tier Changes — Spacelift](https://spacelift.io/blog/terraform-cloud-free-tier)
+- [HCP Terraform enhanced free tier — HashiCorp blog](https://www.hashicorp.com/en/blog/continuing-hcp-terraform-s-enhanced-free-tier-experience)
