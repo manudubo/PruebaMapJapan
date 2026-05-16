@@ -8,7 +8,7 @@
 
 ## CONTEXT.md Conflicts (Discuss-Phase Required)
 
-Two locked decisions in CONTEXT.md contain factual errors discovered during research. The planner MUST NOT implement these as written. They require user re-confirmation before planning proceeds.
+Three locked decisions in CONTEXT.md contain factual errors discovered during research. The planner MUST NOT implement these as written. They require user re-confirmation before planning proceeds.
 
 ### CONFLICT-01 — Provider registry path (D-04)
 
@@ -54,6 +54,34 @@ terraform {
 
 ---
 
+### CONFLICT-03 — JSON has no comment syntax (D-06)
+
+**Locked decision:** "Add a comment block at the top of the file marking it: `// READ-ONLY REFERENCE — managed by terraform/keycloak/. Do not edit manually.`"
+
+**Finding:** JSON does not support `//` comments or any comment syntax. Adding `//` to `realm-export.json` makes the file invalid JSON. KC's `--import-realm` flag (still active before D-07 is confirmed) will fail to parse the file and the realm will not be seeded. Even after `--import-realm` is removed, any tooling that reads `realm-export.json` as JSON will break. [VERIFIED: JSON specification (RFC 8259) §2 — no comment syntax defined]
+
+**Options for D-06 annotation:**
+
+| Option | Approach | Tradeoff |
+|--------|----------|----------|
+| `_comment` JSON key | Add `"_comment": "READ-ONLY REFERENCE — managed by terraform/keycloak/. Do not edit manually."` as first key in root object | Valid JSON; works with all parsers; slightly pollutes the schema |
+| Sibling README | Create `keycloak/REALM-EXPORT-README.md` (or `keycloak/realm-export.README`) explaining the file is read-only | Clean JSON; README may be missed |
+| Rename to `.jsonc` | Rename `realm-export.json` to `realm-export.jsonc`; `.jsonc` supports `//` comments | Requires any script that references the filename by exact path to be updated; KC `--import-realm` expects a `.json` file |
+
+**Recommended corrected approach:** Use a `_comment` key as the first key in the root JSON object. This is a widely-used JSON annotation convention, keeps the file valid, and does not require filename changes. [ASSUMED — no JSON specification mandates `_comment`; it is a de-facto convention]
+
+```json
+{
+  "_comment": "READ-ONLY REFERENCE — managed by terraform/keycloak/. Do not edit manually.",
+  "id": "japan-trip",
+  ...
+}
+```
+
+**Action:** User must confirm which annotation approach to use for D-06. The `_comment` key approach is recommended. The `//` comment approach in the locked decision is invalid JSON and must not be implemented.
+
+---
+
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
@@ -63,7 +91,7 @@ terraform {
 - D-03: Local vars via `.tfvars` per module (`terraform/keycloak/local.tfvars`, `terraform/cloudflare/local.tfvars`), both gitignored. Template `.tfvars.example` files committed.
 - D-04: KC provider: `mrparkers/keycloak >= 5.7.0`. CF provider: `cloudflare/cloudflare`. (**See CONFLICT-01 above — source must be `keycloak/keycloak`**.)
 - D-05: `terraform/keycloak/` manages: `keycloak_realm`, `keycloak_openid_client` (japan-trip-frontend), `keycloak_required_action`, auth flow executions, `webAuthnPolicyPasswordlessRpId`. All realm config in realm-export.json → HCL.
-- D-06: `realm-export.json` becomes read-only reference with comment annotation.
+- D-06: `realm-export.json` becomes read-only reference with comment annotation. (**See CONFLICT-03 above — JSON has no comment syntax; use `_comment` key or sibling README instead.**)
 - D-07: `--import-realm` removed from docker-compose once local `terraform apply` confirmed working.
 - D-08: TF connects to local KC at `http://localhost:8080` with admin credentials from `local.tfvars`. Boot order: `docker compose up -d keycloak` → `terraform apply`.
 - D-09: `terraform/cloudflare/` defines `cloudflare_worker_secret` for `RESEND_API_KEY` and `KC_ADMIN_CLIENT_SECRET`. HCL written and committed but NOT applied in Phase 6.
@@ -93,7 +121,7 @@ terraform {
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| INFRA-01 | Terraform KC module manages all realm config as HCL; `realm-export.json` becomes read-only; `--import-realm` removed | `keycloak_realm`, `keycloak_openid_client`, `keycloak_authentication_flow`, `keycloak_authentication_subflow`, `keycloak_authentication_execution`, `keycloak_required_action` resources verified; provider schema documented |
+| INFRA-01 | Terraform KC module manages all realm config as HCL; `realm-export.json` becomes read-only; `--import-realm` removed | `keycloak_realm`, `keycloak_openid_client`, `keycloak_authentication_flow`, `keycloak_authentication_subflow`, `keycloak_authentication_execution`, `keycloak_required_action` resources verified; **client scope mapper resources documented in Pattern 7** (`keycloak_openid_user_attribute_protocol_mapper`, `keycloak_openid_user_property_protocol_mapper`, `keycloak_openid_full_name_protocol_mapper` with `client_scope_id`) |
 | INFRA-02 | Terraform CF module manages Worker secrets via `cloudflare_worker_secret`; no plaintext in `wrangler.toml` | `cloudflare_worker_secret` schema verified; `wrangler.toml` `[vars]` removal strategy documented |
 | INFRA-03 | Mailpit v1.29 in docker-compose on ports 1025/8025 with REST API at `/api/v1/messages` | Mailpit Docker image, port config, and REST API verified via official docs |
 </phase_requirements>
@@ -104,11 +132,11 @@ terraform {
 
 Phase 6 is a pure infrastructure phase: no frontend/backend TypeScript changes, no user-visible behavior. The three workstreams are (1) greenfield Terraform for KC realm IaC, (2) a Cloudflare secrets module that is written but not applied, and (3) swapping in Mailpit for local email testing.
 
-The KC Terraform module is the most complex deliverable. The `realm-export.json` must be translated in full to HCL: realm settings, two WebAuthn policy blocks, one public PKCE client, two auth flows (`browser-passkey` top-level + `passkey-forms` subflow), and two existing Required Actions. The provider schema supports all of this through discrete resources. KC 26.6.1 is the CI test target for the `keycloak/keycloak` provider 5.7.0, so no compatibility risk.
+The KC Terraform module is the most complex deliverable. The `realm-export.json` must be translated in full to HCL: realm settings, two WebAuthn policy blocks, one public PKCE client, two auth flows (`browser-passkey` top-level + `passkey-forms` subflow), two existing Required Actions, **and six custom protocol mappers on the built-in `profile` and `email` client scopes** (avatar_url, preferences, preferred_username, full name, email claim, email verified). The provider schema supports all of this through discrete resources. KC 26.6.1 is the CI test target for the `keycloak/keycloak` provider 5.7.0, so no compatibility risk.
 
-Two decisions from the discuss phase require correction before planning: the KC provider source (`mrparkers/keycloak` → `keycloak/keycloak`) and the wrangler local override mechanism (`wrangler.dev.toml` → `.dev.vars`). Both are mechanical fixes with no impact on the rest of the plan.
+Three decisions from the discuss phase require correction before planning: the KC provider source (`mrparkers/keycloak` → `keycloak/keycloak`), the wrangler local override mechanism (`wrangler.dev.toml` → `.dev.vars`), and the realm-export.json annotation approach (`// comment` → `_comment` JSON key or sibling README). All are mechanical fixes with no impact on the rest of the plan.
 
-**Primary recommendation:** Plan the KC Terraform module as six resource types in dependency order: `keycloak_realm` → `keycloak_openid_client` + `keycloak_openid_audience_protocol_mapper` → `keycloak_authentication_flow` + `keycloak_authentication_subflow` + `keycloak_authentication_execution`. Apply against running KC container, then remove `--import-realm`.
+**Primary recommendation:** Plan the KC Terraform module as seven resource types in dependency order: `keycloak_realm` → `keycloak_openid_client` + `keycloak_openid_audience_protocol_mapper` + client scope mapper resources → `keycloak_authentication_flow` + `keycloak_authentication_subflow` + `keycloak_authentication_execution` → `keycloak_required_action`. Apply against running KC container, then remove `--import-realm`.
 
 ---
 
@@ -161,6 +189,18 @@ terraform/keycloak/
        │
        ├──► keycloak_openid_client "japan-trip-frontend" (PUBLIC, PKCE S256)
        │         └──► keycloak_openid_audience_protocol_mapper
+       │
+       ├──► keycloak_openid_client "japan-trip-api" (bearer-only)
+       │
+       ├──► [profile scope mappers — attached via client_scope_id]
+       │         ├──► keycloak_openid_user_property_protocol_mapper (preferred_username)
+       │         ├──► keycloak_openid_full_name_protocol_mapper (full name)
+       │         ├──► keycloak_openid_user_attribute_protocol_mapper (avatar_url)
+       │         └──► keycloak_openid_user_attribute_protocol_mapper (preferences)
+       │
+       ├──► [email scope mappers — attached via client_scope_id]
+       │         ├──► keycloak_openid_user_property_protocol_mapper (email)
+       │         └──► keycloak_openid_user_property_protocol_mapper (email_verified)
        │
        ├──► keycloak_authentication_flow "browser-passkey" (top-level)
        │         ├──► keycloak_authentication_execution (auth-cookie, ALTERNATIVE, priority=10)
@@ -395,11 +435,80 @@ mailpit:
   restart: unless-stopped
 ```
 
+### Pattern 7: Client Scope Protocol Mappers (BLOCKER — required for INFRA-01 completeness)
+
+**Why this matters:** The `profile` and `email` built-in KC client scopes in `realm-export.json` carry six custom protocol mappers (lines 222–334). These mappers emit `avatar_url` and `preferences` as token claims — custom user attributes used by the frontend. If these mappers are absent from TF HCL, the TF-managed realm will not emit those claims, silently breaking Phase 7 (VERIFY_EMAIL) and Phase 8 (passkey campaign) which depend on user attributes being present in tokens.
+
+Client scope mappers use `client_scope_id` (not `client_id`). To attach them to a built-in scope, the scope must first be imported into TF state or created as a `keycloak_openid_client_scope` resource referencing the built-in scope name. [ASSUMED: exact `terraform import` path for built-in scope IDs; verify via `GET /admin/realms/japan-trip/client-scopes` against running KC instance]
+
+**The six mappers and their resource types:**
+
+| realm-export.json mapper name | TF Resource Type | Key attribute |
+|-------------------------------|-----------------|---------------|
+| `profile-username` | `keycloak_openid_user_property_protocol_mapper` | `user_property = "username"`, `claim_name = "preferred_username"` |
+| `profile-full-name` | `keycloak_openid_full_name_protocol_mapper` | (no extra user_property — built-in full name logic) |
+| `profile-avatar-url` | `keycloak_openid_user_attribute_protocol_mapper` | `user_attribute = "avatar_url"`, `claim_name = "avatar_url"` |
+| `profile-preferences` | `keycloak_openid_user_attribute_protocol_mapper` | `user_attribute = "preferences"`, `claim_name = "preferences"` |
+| `email-claim` | `keycloak_openid_user_property_protocol_mapper` | `user_property = "email"`, `claim_name = "email"` |
+| `email-verified-claim` | `keycloak_openid_user_property_protocol_mapper` | `user_property = "emailVerified"`, `claim_name = "email_verified"` |
+
+**Example HCL for the two custom attribute mappers (avatar_url and preferences):** [ASSUMED: attribute names match provider schema; verify against keycloak/terraform-provider-keycloak docs/resources/openid_user_attribute_protocol_mapper.md]
+
+```hcl
+# Requires: data source or import to get the profile scope's TF id
+# data "keycloak_openid_client_scope" "profile" {
+#   realm_id = keycloak_realm.japan_trip.id
+#   name     = "profile"
+# }
+
+resource "keycloak_openid_user_attribute_protocol_mapper" "avatar_url" {
+  realm_id        = keycloak_realm.japan_trip.id
+  client_scope_id = data.keycloak_openid_client_scope.profile.id
+  name            = "avatar_url"
+  user_attribute  = "avatar_url"
+  claim_name      = "avatar_url"
+  claim_value_type = "String"
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_user_attribute_protocol_mapper" "preferences" {
+  realm_id        = keycloak_realm.japan_trip.id
+  client_scope_id = data.keycloak_openid_client_scope.profile.id
+  name            = "preferences"
+  user_attribute  = "preferences"
+  claim_name      = "preferences"
+  claim_value_type = "String"
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+```
+
+**Data source for built-in scope lookup:** [ASSUMED: `keycloak_openid_client_scope` data source exists in provider; verify against provider docs]
+
+```hcl
+data "keycloak_openid_client_scope" "profile" {
+  realm_id = keycloak_realm.japan_trip.id
+  name     = "profile"
+}
+
+data "keycloak_openid_client_scope" "email" {
+  realm_id = keycloak_realm.japan_trip.id
+  name     = "email"
+}
+```
+
+**Planner note:** The built-in `profile` and `email` scopes already exist in KC (created on realm boot). They should NOT be created by TF (`keycloak_openid_client_scope` resource) — use data sources to reference them. If the TF provider does not support a data source for built-in scopes, the alternative is `terraform import keycloak_openid_client_scope.profile <scope_id>` using the scope ID from KC Admin API.
+
 ### Anti-Patterns to Avoid
 
 - **Using `mrparkers/keycloak` as source string:** v5.x does not exist under this namespace. Use `keycloak/keycloak`.
 - **Creating `wrangler.dev.toml`:** Not recognized by Wrangler. Use `backend/.dev.vars` instead.
+- **Adding `//` comments to realm-export.json:** JSON has no comment syntax; this produces invalid JSON. Use a `_comment` key or a sibling README.
 - **Embedding protocol mappers inside keycloak_openid_client:** The provider does not support an inline `protocol_mappers` block; use separate `keycloak_openid_audience_protocol_mapper` resources.
+- **Omitting client scope mappers from HCL:** The `profile` and `email` built-in scope mappers (avatar_url, preferences, etc.) are NOT auto-created by TF — they exist because KC seeded them from realm-export.json. If TF does not manage them, they survive only as long as KC state is intact; a fresh KC instance will lack them.
 - **Applying CF Terraform in Phase 6:** Phase 6 is plan-only for the CF module. Applying requires real Cloudflare credentials and is deferred.
 - **Removing `--import-realm` before `terraform apply` succeeds:** Confirm TF apply works first (D-07). If TF apply fails and `--import-realm` is already removed, KC starts without a realm.
 - **Setting `browser_flow = "browser-passkey"` in Phase 6:** This is Phase 7 work. The passkey flow HCL is created in Phase 6 but not activated.
@@ -457,6 +566,12 @@ mailpit:
 **What goes wrong:** Using `localhost` or `127.0.0.1` as SMTP host in the KC realm config fails inside Docker.
 **Why it happens:** KC container resolves `mailpit` via docker-compose internal DNS, not host loopback.
 **How to avoid:** Use the docker-compose service name `mailpit` as the host in both the TF `smtp_server` block and any `realm-export.json` `smtpServer` annotation.
+
+### Pitfall 8: Omitting built-in scope mappers from TF scope
+**What goes wrong:** After TF applies and `--import-realm` is removed, a fresh KC container restart (e.g., after docker volume wipe) will not have the `avatar_url` and `preferences` mappers on the `profile` scope. Token claims will be absent. Frontend code that reads `avatar_url` from the token will silently receive `undefined`.
+**Why it happens:** The mappers currently exist because they were seeded from `realm-export.json` via `--import-realm`. Once `--import-realm` is removed (D-07), TF is the only source of truth. If TF does not declare the mappers, they are not in TF state, and a fresh KC instance will not have them.
+**How to avoid:** Include all six client scope mappers in the TF KC module (Pattern 7). Use `data "keycloak_openid_client_scope"` to reference built-in scopes rather than creating them.
+**Warning signs:** `avatar_url` and `preferences` missing from decoded access token after TF-managed KC restart; frontend avatar images fail to load.
 
 ---
 
@@ -655,6 +770,8 @@ Phase 6 is infrastructure-only (no TypeScript code). Tests for INFRA requirement
 | A3 | `keycloak_realm.realm` vs `keycloak_realm.japan_trip` — the `realm` attribute (not `id`) is used as `realm_id` in `keycloak_required_action` | Code Examples | Provider may expect `id` not `realm`; check required_action docs |
 | A4 | Terraform CLI >= 1.5 satisfies provider version requirements | Environment Availability | Lower TF version may lack features; install latest stable |
 | A5 | `account` and `japan-trip-api` KC clients in realm-export.json do NOT need explicit TF resources (they are KC built-ins or already exist from KC seeding) | Architecture | If TF creates them anew, it may conflict with KC's built-in `account` client |
+| A6 | `data "keycloak_openid_client_scope"` data source exists in keycloak/keycloak provider v5.7.0 for referencing built-in scopes | Pattern 7 | If data source absent, must use `terraform import` with scope ID from KC Admin API instead; planner should note both paths |
+| A7 | `_comment` JSON key approach is KC's `--import-realm` compatible (KC parser ignores unknown root-level keys) | CONFLICT-03 | If KC rejects unknown keys, the `_comment` approach fails; fall back to sibling README annotation |
 
 **A5 note:** The `account` client in realm-export.json is a KC built-in with custom `webOrigins`. The `japan-trip-api` client is bearer-only with no redirect URIs. Both require explicit `keycloak_openid_client` resources to be managed by TF — omitting them means TF does not manage drift on those clients.
 
@@ -676,6 +793,11 @@ Phase 6 is infrastructure-only (no TypeScript code). Tests for INFRA requirement
    - What we know: Both exist in realm-export.json with custom settings. D-05 says "all realm config that currently lives in realm-export.json moves here as HCL."
    - What's unclear: Whether `account` (KC built-in) can be safely managed by TF without conflicts.
    - Recommendation: Manage `japan-trip-frontend` and `japan-trip-api` explicitly; the built-in `account` client may need `terraform import` and should be tested carefully.
+
+4. **Built-in scope data source availability**
+   - What we know: Six custom mappers on built-in `profile` and `email` scopes must be managed by TF (see Pattern 7).
+   - What's unclear: Whether `data "keycloak_openid_client_scope"` is available in v5.7.0 for reading built-in scope IDs without creating the scope.
+   - Recommendation: Verify via provider docs or `terraform init && terraform plan` against a running KC. If unavailable, use `terraform import keycloak_openid_client_scope.profile <id>` where `<id>` comes from `GET /admin/realms/japan-trip/client-scopes`.
 
 ---
 
@@ -701,6 +823,7 @@ Phase 6 is infrastructure-only (no TypeScript code). Tests for INFRA requirement
 
 ### Tertiary (LOW confidence — see Assumptions Log)
 - Authenticator string `"webauthn-authenticator-passwordless"` — inferred from realm-export.json JSON value; not verified against TF provider accepted values [ASSUMED]
+- `data "keycloak_openid_client_scope"` data source — assumed to exist in v5.7.0 for built-in scope lookup; not confirmed against provider docs [ASSUMED]
 
 ---
 
@@ -712,6 +835,7 @@ Phase 6 is infrastructure-only (no TypeScript code). Tests for INFRA requirement
 - Mailpit Docker config: HIGH — verified against official Mailpit docs
 - Wrangler `.dev.vars` pattern: HIGH — verified against Cloudflare official docs
 - Authentication flow ordering (priority): HIGH — verified against provider docs
+- Client scope mapper resources: MEDIUM — resource types inferred from provider naming conventions; verify `client_scope_id` usage against provider docs
 - Authenticator string values: LOW — inferred from realm-export.json, not confirmed against provider
 
 **Research date:** 2026-05-15
