@@ -112,7 +112,6 @@ function buildModal(): void {
     swatch.style.width = '24px';
     swatch.style.height = '24px';
     swatch.style.border = '2px solid transparent';
-    swatch.style.borderRadius = '2px';
     swatch.style.cursor = 'pointer';
     swatch.style.flexShrink = '0';
 
@@ -122,12 +121,10 @@ function buildModal(): void {
         s.classList.remove('selected');
         s.setAttribute('aria-pressed', 'false');
         s.style.borderColor = 'transparent';
-        s.style.boxShadow = 'none';
       });
       swatch.classList.add('selected');
       swatch.setAttribute('aria-pressed', 'true');
       swatch.style.borderColor = 'var(--text-primary, #1d1d1f)';
-      swatch.style.boxShadow = '0 0 0 2px var(--bg-secondary, #ffffff)';
       selectedColor = varName;
     });
 
@@ -193,7 +190,6 @@ function openModal(day: ApiDay | null): void {
     s.classList.remove('selected');
     s.setAttribute('aria-pressed', 'false');
     s.style.borderColor = 'transparent';
-    s.style.boxShadow = 'none';
   });
 
   if (day?.color_hex) {
@@ -205,7 +201,6 @@ function openModal(day: ApiDay | null): void {
           s.classList.add('selected');
           s.setAttribute('aria-pressed', 'true');
           s.style.borderColor = 'var(--text-primary, #1d1d1f)';
-          s.style.boxShadow = '0 0 0 2px var(--bg-secondary, #ffffff)';
         }
       });
       selectedColor = existingVarName;
@@ -449,7 +444,6 @@ function renderDaysDisplay(
     const colorDot = document.createElement('div');
     colorDot.style.width = '24px';
     colorDot.style.height = '24px';
-    colorDot.style.borderRadius = '2px';
     colorDot.style.flexShrink = '0';
     if (day.color_hex) {
       colorDot.style.backgroundColor = day.color_hex;

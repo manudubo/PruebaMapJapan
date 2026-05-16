@@ -36,7 +36,7 @@ class SearchBar extends HTMLElement {
           top: 68px;
           right: 16px;
           z-index: 1000;
-          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+          font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
         }
         
         .search-container {
@@ -68,7 +68,7 @@ class SearchBar extends HTMLElement {
         }
         
         .search-container.expanded .search-input-wrapper {
-          box-shadow: var(--shadow-lg, 0 4px 24px rgba(0,0,0,0.12));
+          box-shadow: none;
         }
         
         .search-icon {
@@ -138,7 +138,7 @@ class SearchBar extends HTMLElement {
           right: 0;
           background: var(--bg-secondary, #fff);
           border: 1px solid var(--border-strong, #d1d1d6);
-          box-shadow: var(--shadow-lg, 0 4px 24px rgba(0,0,0,0.12));
+          box-shadow: none;
           max-height: 400px;
           overflow-y: auto;
           display: none;
@@ -293,7 +293,6 @@ class SearchBar extends HTMLElement {
           font-size: 10px;
           background: var(--bg-secondary, #fff);
           border: 1px solid var(--border-color, rgba(0,0,0,0.06));
-          border-radius: 2px;
           margin-right: 4px;
         }
         

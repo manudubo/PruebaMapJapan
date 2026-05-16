@@ -31,70 +31,15 @@
   </script>
 
   <style>
-    /* Dashboard-specific styles */
-    .dashboard-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 24px 0 16px;
-    }
-
-    .dashboard-header h1 {
-      margin: 0;
-      font-size: clamp(20px, 4vw, 28px);
-      font-weight: 700;
-      color: var(--text-primary, #1d1d1f);
-    }
-
-    .dashboard-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 16px;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      border: none;
-      font-family: inherit;
-      text-decoration: none;
-    }
-
-    .btn-primary {
-      background: var(--accent, #0071e3);
-      color: #fff;
-    }
-
-    .btn-primary:hover {
-      background: #0077ed;
-    }
-
-    .btn-secondary {
-      background: var(--bg-secondary, #fff);
-      border: 1px solid var(--border-strong, #d1d1d6);
-      color: var(--text-primary, #1d1d1f);
-    }
-
-    .btn-secondary:hover {
-      border-color: var(--text-secondary, #515154);
-    }
-
-    /* Trip grid */
     .trips-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 20px;
-      padding: 16px 0 32px;
+      padding: 16px 32px 32px;
+    }
+
+    .page-card > .dashboard-header {
+      padding: 28px 32px 16px;
     }
 
     .trip-card {
@@ -102,22 +47,20 @@
       flex-direction: column;
       background: var(--bg-secondary, #fff);
       border: 1px solid var(--border-color, rgba(0,0,0,0.1));
-      border-radius: 0;
       overflow: hidden;
       text-decoration: none;
       color: inherit;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      transition: border-color 0.15s ease;
     }
 
     .trip-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      border-color: var(--accent, #0071e3);
     }
 
     .trip-card-cover {
       position: relative;
       height: 140px;
-      background: linear-gradient(135deg, var(--accent-subtle, #e8f0fe) 0%, var(--border-color, #e5e5ea) 100%);
+      background: var(--accent-subtle, rgba(0,113,227,0.08));
       display: flex;
       align-items: flex-start;
       justify-content: flex-end;
@@ -130,8 +73,6 @@
       padding: 3px 8px;
       background: rgba(0,0,0,0.45);
       color: #fff;
-      border-radius: 2px;
-      backdrop-filter: blur(4px);
     }
 
     .trip-card-badge--public {
@@ -179,6 +120,11 @@
       color: var(--text-tertiary, #86868b);
     }
 
+    .trip-card-actions {
+      padding: 8px 16px 12px;
+      border-top: 1px solid var(--border-color, rgba(0,0,0,0.08));
+    }
+
     /* Empty / error states */
     .trips-empty,
     .trips-error {
@@ -189,84 +135,23 @@
       font-size: 15px;
     }
 
-    /* Create-trip overlay */
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 2000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      backdrop-filter: blur(4px);
+    .login-prompt {
+      padding: 32px;
+      text-align: center;
     }
 
-    .overlay[hidden] { display: none; }
-
-    .modal {
-      background: var(--bg-primary, #f5f5f7);
-      border-radius: 4px;
-      padding: 28px;
-      width: 100%;
-      max-width: 480px;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
-    }
-
-    .modal h2 {
-      margin: 0 0 20px;
-      font-size: 20px;
-      font-weight: 600;
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-bottom: 16px;
-    }
-
-    .form-group label {
-      font-size: 13px;
-      font-weight: 500;
+    .login-prompt p {
+      margin: 0 0 16px;
       color: var(--text-secondary, #515154);
     }
 
-    .form-group input,
-    .form-group textarea {
-      padding: 10px 12px;
-      border: 1px solid var(--border-strong, #d1d1d6);
-      border-radius: 4px;
-      font-size: 14px;
-      font-family: inherit;
-      background: var(--bg-secondary, #fff);
-      color: var(--text-primary, #1d1d1f);
-      transition: border-color 0.15s;
-      outline: none;
-    }
-
-    .form-group input:focus,
-    .form-group textarea:focus {
-      border-color: var(--accent, #0071e3);
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .form-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-      margin-top: 20px;
-    }
-
-    .error-msg {
-      color: #ff3b30;
-      font-size: 13px;
-      margin-top: 8px;
+    @media (max-width: 768px) {
+      .page-card > .dashboard-header,
+      .trips-grid,
+      .login-prompt {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
     }
   </style>
 </head>
@@ -293,14 +178,13 @@
         </div>
 
         <!-- Login prompt shown to unauthenticated users (managed by dashboard.ts) -->
-        <div id="dashboard-login-prompt" hidden style="padding:32px 0;text-align:center;">
-          <p style="color:var(--text-secondary,#515154);margin-bottom:16px;">Sign in to view and manage your trips.</p>
+        <div id="dashboard-login-prompt" class="login-prompt" hidden>
+          <p>Sign in to view and manage your trips.</p>
           <button id="auth-login-prompt-btn" class="btn btn-primary" type="button">Sign in</button>
         </div>
 
-        <div class="trips-grid" id="trips-grid">
+        <div class="trips-grid" id="trips-grid" hidden>
           <!-- Trip cards rendered by dashboard.ts -->
-          <div class="trips-empty">Loading trips…</div>
         </div>
       </div>
     </main>

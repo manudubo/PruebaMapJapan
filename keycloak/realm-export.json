@@ -3,6 +3,7 @@
   "realm": "japan-trip",
   "displayName": "Japan Trip",
   "loginTheme": "japan-trip",
+  "accountTheme": "japan-trip",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": true,

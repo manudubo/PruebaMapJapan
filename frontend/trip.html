@@ -49,12 +49,11 @@
 
     .dest-tabs::-webkit-scrollbar-thumb {
       background: var(--text-tertiary, #86868b);
-      border-radius: 3px;
     }
 
     .dest-tab {
-      padding: 6px 14px;
-      border-radius: 20px;
+      padding: 8px 14px;
+      border-radius: 0;
       border: 1px solid var(--border-strong, #d1d1d6);
       background: var(--bg-secondary, #fff);
       color: var(--text-secondary, #515154);
@@ -64,7 +63,7 @@
       cursor: pointer;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: all 0.15s ease;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
 
     .dest-tab:hover {

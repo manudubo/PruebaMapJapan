@@ -4,7 +4,7 @@ import { initKeycloak, isAuthenticated, login } from './keycloak';
 // AuthGuard Web Component
 //
 // Wraps any content that requires authentication. While checking auth status
-// the component shows a loading spinner. If the user is not authenticated they
+// the component shows a loading state. If the user is not authenticated they
 // are redirected to Keycloak login. Once authenticated the slotted content is
 // shown.
 //
@@ -25,23 +25,30 @@ const LOADING_TEMPLATE = `
       min-height: 200px;
       flex-direction: column;
       gap: 12px;
-      font-family: system-ui, sans-serif;
-      color: #666;
+      font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
+      color: var(--text-secondary, #515154);
     }
-    .auth-guard-spinner {
-      width: 36px;
-      height: 36px;
-      border: 3px solid #e0e0e0;
-      border-top-color: #e63946;
-      border-radius: 50%;
-      animation: auth-guard-spin 0.7s linear infinite;
+    .auth-guard-loader {
+      width: 96px;
+      height: 2px;
+      background: var(--border-color, rgba(0,0,0,0.1));
+      overflow: hidden;
     }
-    @keyframes auth-guard-spin {
-      to { transform: rotate(360deg); }
+    .auth-guard-loader::before {
+      content: '';
+      display: block;
+      width: 40%;
+      height: 100%;
+      background: var(--accent, #0071e3);
+      animation: auth-guard-load 0.9s ease-in-out infinite;
+    }
+    @keyframes auth-guard-load {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(250%); }
     }
   </style>
   <div class="auth-guard-loading">
-    <div class="auth-guard-spinner"></div>
+    <div class="auth-guard-loader"></div>
     <span>Checking authentication&hellip;</span>
   </div>
 `;
@@ -100,8 +107,8 @@ export class AuthGuard extends HTMLElement {
           min-height: 200px;
           flex-direction: column;
           gap: 12px;
-          font-family: system-ui, sans-serif;
-          color: #c62828;
+          font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
+          color: var(--danger, #ff3b30);
           padding: 24px;
           text-align: center;
         }
@@ -111,15 +118,15 @@ export class AuthGuard extends HTMLElement {
         .auth-guard-retry-btn {
           margin-top: 8px;
           padding: 8px 20px;
-          background: #e63946;
+          background: var(--danger, #ff3b30);
           color: white;
-          border: none;
+          border: 1px solid var(--danger, #ff3b30);
           border-radius: 0;
           cursor: pointer;
           font-size: 0.9rem;
         }
         .auth-guard-retry-btn:hover {
-          background: #c62828;
+          background: var(--danger-hover, #d70015);
         }
       </style>
       <div class="auth-guard-error">
