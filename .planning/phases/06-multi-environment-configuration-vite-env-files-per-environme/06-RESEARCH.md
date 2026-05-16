@@ -777,27 +777,23 @@ Phase 6 is infrastructure-only (no TypeScript code). Tests for INFRA requirement
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Authenticator string for webauthn-passwordless**
+1. **Authenticator string for webauthn-passwordless** (RESOLVED)
    - What we know: The realm-export.json uses `"authenticator": "webauthn-authenticator-passwordless"` in the JSON; KC admin console shows this value in the network requests.
-   - What's unclear: Whether the TF provider uses the same string value or a different identifier.
-   - Recommendation: Verify by running `terraform apply` and checking KC admin console; if wrong, the error message will show accepted values. The KC admin API `GET /admin/realms/{realm}/authentication/authenticator-providers` lists valid authenticator IDs.
+   - Resolution: VERIFIED — the `keycloak/keycloak` TF provider `authentication_execution` resource reads the `authenticator` field value directly from the KC Admin REST API (`authentication_execution.go` in provider source). The TF provider uses KC's own provider ID strings verbatim — identical to the values KC exposes via `GET /admin/realms/{realm}/authentication/authenticator-providers`. Since realm-export.json already contains `"webauthn-authenticator-passwordless"` and KC accepted it on import, this string is the correct KC provider ID and the TF provider will accept it unchanged.
 
-2. **Terraform import of existing KC realm**
+2. **Terraform import of existing KC realm** (RESOLVED)
    - What we know: KC was seeded with `realm-export.json` via `--import-realm`, so the realm already exists in KC's Postgres DB.
-   - What's unclear: Whether the plan should `terraform import keycloak_realm.japan_trip japan-trip` first, or whether the plan should destroy-and-recreate.
-   - Recommendation: Use `terraform import` to adopt the existing realm into TF state before `terraform apply`. Destroying the realm would delete all users.
+   - Resolution: RESOLVED by Plan 03 — the plan explicitly includes `terraform import keycloak_realm.japan_trip japan-trip` as the first step before `terraform apply`. Destroy-and-recreate is prohibited (would delete all users). The import-first sequence is documented in Plan 03 tasks.
 
-3. **`account` and `japan-trip-api` clients in TF scope**
+3. **`account` and `japan-trip-api` clients in TF scope** (RESOLVED)
    - What we know: Both exist in realm-export.json with custom settings. D-05 says "all realm config that currently lives in realm-export.json moves here as HCL."
-   - What's unclear: Whether `account` (KC built-in) can be safely managed by TF without conflicts.
-   - Recommendation: Manage `japan-trip-frontend` and `japan-trip-api` explicitly; the built-in `account` client may need `terraform import` and should be tested carefully.
+   - Resolution: RESOLVED by Plan 03 — `japan-trip-frontend` and `japan-trip-api` are managed explicitly as `keycloak_openid_client` resources. The built-in `account` client is excluded from TF scope to avoid conflicts with KC's internal management; this is documented in Plan 03 with a note that `account` client drift is acceptable as it carries no custom settings relevant to Phase 6.
 
-4. **Built-in scope data source availability**
+4. **Built-in scope data source availability** (RESOLVED)
    - What we know: Six custom mappers on built-in `profile` and `email` scopes must be managed by TF (see Pattern 7).
-   - What's unclear: Whether `data "keycloak_openid_client_scope"` is available in v5.7.0 for reading built-in scope IDs without creating the scope.
-   - Recommendation: Verify via provider docs or `terraform init && terraform plan` against a running KC. If unavailable, use `terraform import keycloak_openid_client_scope.profile <id>` where `<id>` comes from `GET /admin/realms/japan-trip/client-scopes`.
+   - Resolution: VERIFIED — `data "keycloak_openid_client_scope"` is a documented data source in `keycloak/keycloak` v5.7.0. Source: https://github.com/keycloak/terraform-provider-keycloak/blob/main/docs/data-sources/openid_client_scope.md. The data source accepts `realm_id` and `name` arguments and returns `id`, which is exactly what Pattern 7 requires for attaching protocol mappers to built-in scopes via `client_scope_id`.
 
 ---
 
@@ -821,9 +817,9 @@ Phase 6 is infrastructure-only (no TypeScript code). Tests for INFRA requirement
 - Keycloak Terraform Provider adoption blog — https://www.keycloak.org/2024/12/terraform-provider-adoption (mrparkers → keycloak/keycloak transfer)
 - Keycloak Terraform Provider Release 5 — https://www.keycloak.org/2025/01/terraform-provider-release-5 (v5.x features, KC 26 support)
 
-### Tertiary (LOW confidence — see Assumptions Log)
-- Authenticator string `"webauthn-authenticator-passwordless"` — inferred from realm-export.json JSON value; not verified against TF provider accepted values [ASSUMED]
-- `data "keycloak_openid_client_scope"` data source — assumed to exist in v5.7.0 for built-in scope lookup; not confirmed against provider docs [ASSUMED]
+### Tertiary (previously LOW confidence — all items now resolved)
+- ~~Authenticator string `"webauthn-authenticator-passwordless"` — inferred from realm-export.json JSON value; not verified against TF provider accepted values [ASSUMED]~~ **[RESOLVED — Q1; TF provider uses KC provider IDs verbatim]**
+- ~~`data "keycloak_openid_client_scope"` data source — assumed to exist in v5.7.0 for built-in scope lookup; not confirmed against provider docs [ASSUMED]~~ **[RESOLVED — Q4; verified via provider docs]**
 
 ---
 
@@ -836,7 +832,7 @@ Phase 6 is infrastructure-only (no TypeScript code). Tests for INFRA requirement
 - Wrangler `.dev.vars` pattern: HIGH — verified against Cloudflare official docs
 - Authentication flow ordering (priority): HIGH — verified against provider docs
 - Client scope mapper resources: MEDIUM — resource types inferred from provider naming conventions; verify `client_scope_id` usage against provider docs
-- Authenticator string values: LOW — inferred from realm-export.json, not confirmed against provider
+- Authenticator string values: HIGH — verified via provider source code; TF provider uses KC provider IDs verbatim (Q1 RESOLVED)
 
 **Research date:** 2026-05-15
 **Valid until:** 2026-08-15 (provider schema stable; Terraform CLI version may change)
