@@ -148,7 +148,12 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 6 to break down)
+- [ ] 06-01-PLAN.md -- Wave 1: Bootstrap -- Terraform CLI, .gitignore, KC + CF module scaffold files, terraform init
+- [ ] 06-02-PLAN.md -- Wave 2: KC module core -- main.tf (realm + clients + audience mapper), Mailpit in docker-compose, KC healthcheck
+- [ ] 06-03-PLAN.md -- Wave 3: KC auth flows -- flows.tf (browser-passkey flow + passkey-forms subflow + executions + required action)
+- [ ] 06-04-PLAN.md -- Wave 3: CF module -- cloudflare/main.tf (worker secrets), terraform plan mock validation
+- [ ] 06-05-PLAN.md -- Wave 4: KC scope mappers -- mappers.tf (data sources + 6 protocol mapper resources)
+- [ ] 06-06-PLAN.md -- Wave 5: Final wiring -- terraform import + apply checkpoint, --import-realm removal, realm-export.json annotation, wrangler cleanup, .dev.vars
 
 ### Phase 7: Backend Hardening + KC Config
 
