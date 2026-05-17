@@ -42,8 +42,6 @@ function renderTripCard(trip: ApiTrip): HTMLElement {
     setStyle(cover, 'background-image', `url('${trip.cover_image_url}')`);
     setStyle(cover, 'background-size', 'cover');
     setStyle(cover, 'background-position', 'center');
-  } else {
-    setStyle(cover, 'background', 'linear-gradient(135deg, var(--accent-subtle,#e8f0fe) 0%, var(--border-color,#e5e5ea) 100%)');
   }
   if (trip.is_public) {
     const badge = document.createElement('span');
@@ -86,11 +84,9 @@ function renderTripCard(trip: ApiTrip): HTMLElement {
   // Edit link (TRIP-01)
   const editRow = document.createElement('div');
   editRow.className = 'trip-card-actions';
-  editRow.style.cssText = 'padding: 8px 16px 12px; border-top: 1px solid var(--border-color,rgba(0,0,0,0.08))';
   const editLink = document.createElement('a');
   editLink.href = `trip-edit.html?tripId=${trip.id}`;
-  editLink.className = 'btn btn-secondary';
-  editLink.style.cssText = 'font-size: 13px; padding: 6px 12px; text-decoration: none;';
+  editLink.className = 'btn btn-secondary btn-small';
   editLink.textContent = 'Edit';
   editRow.appendChild(editLink);
   card.appendChild(editRow);
@@ -175,11 +171,14 @@ async function handleCreateTrip(e: Event): Promise<void> {
 function setupAuthButtons(authenticated: boolean): void {
   const loginPrompt = document.getElementById('dashboard-login-prompt');
   const tripsGrid = document.getElementById('trips-grid');
+  const newTripBtn = document.getElementById('new-trip-btn');
   const promptLoginBtn = document.getElementById('auth-login-prompt-btn');
 
   if (!authenticated && loginPrompt && tripsGrid) {
     loginPrompt.removeAttribute('hidden');
+    tripsGrid.innerHTML = '';
     tripsGrid.setAttribute('hidden', '');
+    newTripBtn?.setAttribute('hidden', '');
     if (promptLoginBtn) {
       promptLoginBtn.addEventListener('click', () => login(window.location.href));
     }
@@ -223,6 +222,12 @@ async function init(): Promise<void> {
 
   if (authenticated) {
     // Load real user profile and trips
+    const grid = document.getElementById('trips-grid');
+    if (grid) {
+      grid.removeAttribute('hidden');
+      grid.innerHTML = '<div class="trips-empty">Loading trips...</div>';
+    }
+
     let user: ApiUser | null = null;
     try {
       user = await getMe();

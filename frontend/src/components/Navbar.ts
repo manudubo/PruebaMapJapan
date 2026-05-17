@@ -96,9 +96,7 @@ class TravelNav extends HTMLElement {
         }
 
         nav {
-          background: var(--bg-glass, rgba(255,255,255,0.8));
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
+          background: var(--bg-secondary, #fff);
           border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.1));
           position: sticky;
           top: 0;
@@ -203,6 +201,12 @@ class TravelNav extends HTMLElement {
           align-items: center;
           gap: 6px;
           flex-shrink: 0;
+        }
+
+        .nav-auth-user[hidden],
+        .nav-auth-login[hidden],
+        .nav-auth-logout[hidden] {
+          display: none !important;
         }
 
         .nav-auth-user {
@@ -310,11 +314,9 @@ class TravelNav extends HTMLElement {
   }
 
   private renderNavLinks(currentPage: string): string {
-    // Default links always present
-    const indexActive = currentPage === 'index' || currentPage === '';
     const dashboardActive = currentPage === 'dashboard';
 
-    let links = `<a href="index.html" class="nav-link${indexActive ? ' is-active' : ''}" ${indexActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${indexActive}">Home</a>`;
+    let links = '';
     links += `<a href="dashboard.html" class="nav-link${dashboardActive ? ' is-active' : ''}" ${dashboardActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${dashboardActive}">My Trips</a>`;
 
     // Dynamic destination links

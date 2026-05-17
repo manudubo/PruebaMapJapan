@@ -75,7 +75,7 @@ async function loadPasskeys(): Promise<void> {
 
     if (credentials.length === 0) {
       list.innerHTML =
-        '<li style="font-size:14px;color:var(--text-secondary,#515154);padding:8px 0;">You don\'t have any passkeys registered yet.</li>';
+        '<li class="passkey-empty">You don\'t have any passkeys registered yet.</li>';
       return;
     }
 
@@ -110,7 +110,7 @@ async function loadPasskeys(): Promise<void> {
     });
   } catch {
     list.innerHTML =
-      '<li style="font-size:14px;color:var(--text-secondary,#515154);padding:8px 0;">Could not load passkey list.</li>';
+      '<li class="passkey-empty">Could not load passkey list.</li>';
   }
 }
 
@@ -129,24 +129,26 @@ async function registerPasskey(): Promise<void> {
   }
 }
 
+async function changePassword(): Promise<void> {
+  const btn = document.getElementById('btn-change-password') as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
+
+  try {
+    await keycloak.login({
+      action: 'UPDATE_PASSWORD',
+      redirectUri: window.location.href,
+    });
+  } catch {
+    showStatus('passkey-status', 'Error starting password change.', 'error');
+    if (btn) btn.disabled = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Delete passkey modal
 // ---------------------------------------------------------------------------
 
 function buildDeleteModal(): void {
-  const style = document.createElement('style');
-  style.textContent = `
-    .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000;
-      display:flex; align-items:center; justify-content:center; padding:16px;
-      backdrop-filter:blur(4px); }
-    .overlay[hidden] { display:none; }
-    .modal { background:var(--bg-primary,#f5f5f7); border-radius:4px; padding:28px;
-      width:100%; max-width:480px; box-shadow:0 24px 64px rgba(0,0,0,0.2); }
-    .modal h2 { margin:0 0 20px; font-size:20px; font-weight:600; }
-    .form-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:24px; }
-  `;
-  document.head.appendChild(style);
-
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
   overlay.id = 'passkey-delete-overlay';
@@ -236,12 +238,6 @@ async function init(): Promise<void> {
     setText('info-username', info.preferredUsername || '—');
   }
 
-  // Change-password link → Keycloak account page
-  const pwLink = document.getElementById('btn-change-password') as HTMLAnchorElement | null;
-  if (pwLink) {
-    pwLink.href = `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/account/password`;
-  }
-
   // Try to enrich name from API user record
   try {
     const user = await getMe();
@@ -263,6 +259,7 @@ async function init(): Promise<void> {
 
   // Wire buttons
   document.getElementById('btn-add-passkey')?.addEventListener('click', registerPasskey);
+  document.getElementById('btn-change-password')?.addEventListener('click', changePassword);
   document.getElementById('btn-logout')?.addEventListener('click', () => {
     logout(new URL('index.html', window.location.href).href);
   });

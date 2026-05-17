@@ -44,6 +44,59 @@
       text-align: center;
       padding: 48px 24px;
       gap: 0;
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      background: var(--bg-primary, #f5f5f7);
+      color: var(--text-primary, #1d1d1f);
+      --landing-image-opacity: 0.18;
+      --landing-image-blur: 9px;
+      --landing-image-scale: 1.08;
+      --landing-image-shift: 0px;
+      --landing-copy-shift: 0px;
+      --landing-copy-opacity: 1;
+    }
+
+    html[data-theme="dark"] .landing-hero {
+      --landing-image-opacity: 0.28;
+      background: var(--bg-primary, #000);
+    }
+
+    .landing-hero::before {
+      content: '';
+      position: absolute;
+      inset: -32px;
+      z-index: -2;
+      background: var(--landing-hero-image, none) center / cover no-repeat;
+      filter: blur(var(--landing-image-blur));
+      opacity: var(--landing-image-opacity);
+      transform: translate3d(0, var(--landing-image-shift), 0) scale(var(--landing-image-scale));
+      transform-origin: center;
+      will-change: transform, opacity;
+    }
+
+    .landing-hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(180deg, rgba(245, 245, 247, 0.78) 0%, rgba(245, 245, 247, 0.88) 58%, var(--bg-primary, #f5f5f7) 100%),
+        linear-gradient(90deg, var(--bg-primary, #f5f5f7) 0%, rgba(245, 245, 247, 0.72) 46%, var(--bg-primary, #f5f5f7) 100%);
+    }
+
+    html[data-theme="dark"] .landing-hero::after {
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.58) 0%, rgba(0, 0, 0, 0.72) 58%, var(--bg-primary, #000) 100%),
+        linear-gradient(90deg, var(--bg-primary, #000) 0%, rgba(0, 0, 0, 0.54) 46%, var(--bg-primary, #000) 100%);
+    }
+
+    .landing-hero > * {
+      position: relative;
+      z-index: 1;
+      transform: translate3d(0, var(--landing-copy-shift), 0);
+      opacity: var(--landing-copy-opacity);
+      will-change: transform, opacity;
     }
 
     .landing-eyebrow {
@@ -51,7 +104,7 @@
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--accent, #0071e3);
+      color: var(--text-secondary, #515154);
       margin-bottom: 16px;
     }
 
@@ -88,7 +141,7 @@
       font-size: 14px;
       font-weight: 600;
       font-family: inherit;
-      border-radius: 4px;
+      border-radius: 0;
       cursor: pointer;
       transition: all 0.15s ease;
       text-decoration: none;
@@ -117,6 +170,13 @@
       border-color: var(--text-secondary, #515154);
     }
 
+    @media (prefers-reduced-motion: reduce) {
+      .landing-hero::before,
+      .landing-hero > * {
+        transform: none;
+      }
+    }
+
     /* Loading state */
     .landing-loading {
       display: none;
@@ -138,16 +198,24 @@
     }
 
     .loading-spinner {
-      width: 20px;
-      height: 20px;
-      border: 2px solid var(--border-strong, rgba(0,0,0,0.1));
-      border-top-color: var(--accent, #0071e3);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      width: 96px;
+      height: 2px;
+      background: var(--border-strong, rgba(0,0,0,0.1));
+      overflow: hidden;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .loading-spinner::before {
+      content: '';
+      display: block;
+      width: 40%;
+      height: 100%;
+      background: var(--accent, #0071e3);
+      animation: loading-bar 0.9s ease-in-out infinite;
+    }
+
+    @keyframes loading-bar {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(250%); }
     }
 
     /* Demo section */
@@ -306,6 +374,32 @@
 
     const hero = document.getElementById('landing-hero');
     const loading = document.getElementById('landing-loading');
+
+    if (hero) {
+      hero.style.setProperty('--landing-hero-image', "url('/PruebaMapJapan/demo-hero.jpg')");
+
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!reduceMotion) {
+        var ticking = false;
+        var updateHeroScroll = function() {
+          ticking = false;
+          var rect = hero.getBoundingClientRect();
+          var progress = Math.min(Math.max(-rect.top / Math.max(rect.height * 0.85, 1), 0), 1);
+          hero.style.setProperty('--landing-image-shift', String(progress * 34) + 'px');
+          hero.style.setProperty('--landing-image-scale', String(1.08 + progress * 0.04));
+          hero.style.setProperty('--landing-copy-shift', String(progress * -18) + 'px');
+          hero.style.setProperty('--landing-copy-opacity', String(1 - progress * 0.3));
+        };
+        var requestHeroScrollUpdate = function() {
+          if (ticking) return;
+          ticking = true;
+          window.requestAnimationFrame(updateHeroScroll);
+        };
+        window.addEventListener('scroll', requestHeroScrollUpdate, { passive: true });
+        window.addEventListener('resize', requestHeroScrollUpdate);
+        updateHeroScroll();
+      }
+    }
 
     // Show loading while auth check runs
     if (loading) loading.classList.add('is-visible');
