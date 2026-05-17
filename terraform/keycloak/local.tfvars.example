@@ -1,0 +1,3 @@
+kc_url        = "http://localhost:8080"
+kc_admin_user = "admin"
+kc_admin_pass = "REPLACE_WITH_ADMIN_PASSWORD"

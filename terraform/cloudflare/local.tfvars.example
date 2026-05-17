@@ -1,0 +1,4 @@
+cf_account_id          = "00000000000000000000000000000000"
+cf_api_token           = "REPLACE_WITH_CF_API_TOKEN"
+resend_api_key         = "REPLACE_WITH_RESEND_API_KEY"
+kc_admin_client_secret = "REPLACE_WITH_KC_ADMIN_CLIENT_SECRET"

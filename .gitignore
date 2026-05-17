@@ -34,3 +34,16 @@ tests/playwright-report/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Terraform state and secrets
+terraform/keycloak/local.tfvars
+terraform/keycloak/terraform.tfstate
+terraform/keycloak/terraform.tfstate.backup
+terraform/keycloak/.terraform/
+terraform/cloudflare/local.tfvars
+terraform/cloudflare/terraform.tfstate
+terraform/cloudflare/terraform.tfstate.backup
+terraform/cloudflare/.terraform/
+
+# Wrangler local dev vars
+backend/.dev.vars
