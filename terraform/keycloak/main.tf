@@ -1,0 +1,91 @@
+resource "keycloak_realm" "japan_trip" {
+  realm        = "japan-trip"
+  enabled      = true
+  display_name = "Japan Trip"
+  login_theme  = "japan-trip"
+
+  registration_allowed     = true
+  login_with_email_allowed = true
+  duplicate_emails_allowed = false
+  reset_password_allowed   = true
+  edit_username_allowed    = false
+
+  ssl_required = "external"
+
+  access_token_lifespan            = 300
+  sso_session_idle_timeout         = 1800
+  sso_session_max_lifespan         = 36000
+  offline_session_idle_timeout     = 2592000
+  access_code_lifespan             = 60
+  access_code_lifespan_user_action = 300
+  access_code_lifespan_login       = 1800
+
+  password_policy = "length(8) and upperCase(1) and digits(1) and specialChars(1)"
+
+  # Phase 6: keep as "browser"; switch to "browser-passkey" is Phase 7 (KC-02)
+  browser_flow = "browser"
+
+  # Standard (non-passwordless) WebAuthn — rpId is empty per realm-export.json line 32
+  web_authn_policy {
+    relying_party_entity_name = "japan-trip"
+    relying_party_id          = ""
+    signature_algorithms      = ["ES256"]
+  }
+
+  # Passwordless WebAuthn — rpId = "localhost" per Phase 4 (MUST be preserved; changing to prod hostname
+  # requires full passkey re-registration by all users)
+  web_authn_passwordless_policy {
+    relying_party_entity_name     = "japan-trip"
+    relying_party_id              = "localhost"
+    signature_algorithms          = ["ES256"]
+    authenticator_attachment      = "platform"
+    require_resident_key          = "Yes"
+    user_verification_requirement = "required"
+  }
+
+  smtp_server {
+    host = "mailpit"
+    port = 1025
+    from = "noreply@japan-trip.local"
+    ssl  = false
+    # auth block omitted — Mailpit requires no authentication (D-14)
+  }
+}
+
+resource "keycloak_openid_client" "japan_trip_frontend" {
+  realm_id  = keycloak_realm.japan_trip.id
+  client_id = "japan-trip-frontend"
+  name      = "Japan Trip Frontend"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  pkce_code_challenge_method   = "S256"
+  direct_access_grants_enabled = false
+
+  valid_redirect_uris             = ["http://localhost:5173/*", "https://*.github.io/*"]
+  valid_post_logout_redirect_uris = ["http://localhost:5173/*", "https://*.github.io/*"]
+  web_origins                     = ["+"]
+
+  full_scope_allowed = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "audience" {
+  realm_id                 = keycloak_realm.japan_trip.id
+  client_id                = keycloak_openid_client.japan_trip_frontend.id
+  name                     = "audience-mapper"
+  included_client_audience = keycloak_openid_client.japan_trip_frontend.client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_client" "japan_trip_api" {
+  realm_id  = keycloak_realm.japan_trip.id
+  client_id = "japan-trip-api"
+  name      = "Japan Trip API"
+  enabled   = true
+
+  access_type           = "BEARER_ONLY"
+  standard_flow_enabled = false
+  full_scope_allowed    = false
+}
