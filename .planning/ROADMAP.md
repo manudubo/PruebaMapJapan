@@ -109,7 +109,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 4. Passkeys | 2/2 | Complete | 2026-05-09 |
 | 5. Internationalization | 12/12 | Complete | 2026-05-15 |
 | 6. Local Infrastructure | 6/6 | Complete | 2026-05-19 |
-| 7. Backend Hardening + KC Config | 0/10 | Pending | - |
+| 7. Backend Hardening + KC Config | 0/9 | Pending | - |
 | 8. OTP + Passkey Campaign | 0/8 | Pending | - |
 | 9. Playwright Real Auth | 0/6 | Pending | - |
 
@@ -169,10 +169,18 @@ Plans:
   6. `browserFlow` is `browser-passkey` in Terraform; password-forms ALTERNATIVE branch exists in flow before the switch
   7. `webauthn-register-passwordless` Required Action registered in realm with `defaultAction: false`
   8. `messages_es.properties` exists; `locales=es,en` in `theme.properties`; FreeMarker overrides present for login.ftl, login-otp.ftl, verify-email.ftl, error.ftl
-**Plans**: 10 plans
+**Plans**: 9 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 7 to break down)
+- [ ] 07-01-PLAN.md — Wave 1: BACK-01 + BACK-02: VALID_AUDIENCES env extraction + email optional (types, keycloak.ts, users.ts, .dev.vars)
+- [ ] 07-02-PLAN.md — Wave 1: BACK-03: emailOtpCodes schema + [BLOCKING] drizzle-kit generate migration
+- [ ] 07-03-PLAN.md — Wave 1: Terraform additive: password-forms subflow (flows.tf) + worker client + VERIFY_EMAIL + browserFlow flip (main.tf)
+- [ ] 07-04-PLAN.md — Wave 1: KC-04 theme i18n foundation: theme.properties locales + messages_es.properties
+- [ ] 07-05-PLAN.md — Wave 1: KC-04 FTL batch A: login.ftl + error.ftl
+- [ ] 07-06-PLAN.md — Wave 1: KC-04 FTL batch B: login-otp.ftl + verify-email.ftl
+- [ ] 07-07-PLAN.md — Wave 2: Terraform apply + KC-03 verify-only + human checkpoint
+- [ ] 07-08-PLAN.md — Wave 2: Retrieve worker secret from terraform output + Admin API smoke test
+- [ ] 07-09-PLAN.md — Wave 2: Integration verification — all 8 success criteria + VERIFY_EMAIL Mailpit smoke + human sign-off
 
 ### Phase 8: OTP + Passkey Campaign
 
