@@ -46,7 +46,7 @@
 | BACK-01 | Extract `validAudiences` from hardcode to `VALID_AUDIENCES` env var | `Env` interface change + `keycloak.ts:198` surgery + test update |
 | BACK-02 | Relax `email` to `email?: string` in `KeycloakJwtPayload`; all consumers handle absent email | Four call sites identified; two in users.ts need `?? ''` fallback added |
 | BACK-03 | `email_otp_codes` Drizzle migration | `timestamp('col', { withTimezone: true })` pattern; drizzle-kit generate |
-| BACK-04 | KC Admin client (service account + manage-users role) operational | Terraform `keycloak_openid_client_service_account_realm_role` pattern researched |
+| BACK-04 | KC Admin client (service account + manage-users role) operational | `keycloak_openid_client_service_account_role` with `client_id` pointing to `realm-management` data source |
 | KC-01 | `VERIFY_EMAIL` Required Action enabled; `accessCodeLifespanUserAction = 1200s` | `keycloak_required_action` resource; realm attribute update |
 | KC-02 | `browserFlow = "browser-passkey"`; password-forms ALTERNATIVE branch must pre-exist | **BLOCKER: branch does NOT exist — must be added first** |
 | KC-03 | `webauthn-register-passwordless` Required Action with `defaultAction = false` | **ALREADY EXISTS in flows.tf lines 42-48 — verify/no-op** |
@@ -245,7 +245,7 @@ CREATE TABLE IF NOT EXISTS "email_otp_codes" (
 
 ### Pattern 4: KC Admin client Terraform (BACK-04 + D-01/D-02)
 
-**CRITICAL:** `manage-users` is a CLIENT role on the built-in `realm-management` client, NOT a realm role. Use `keycloak_openid_client_service_account_realm_role`, which requires a data source lookup to get the `realm-management` client ID. [CITED: registry.terraform.io/providers/mrparkers/keycloak/latest/docs]
+**CRITICAL:** `manage-users` is a CLIENT role on the built-in `realm-management` client, NOT a top-level realm role. Use `keycloak_openid_client_service_account_role` (no `_realm_` infix) with a `client_id` argument pointing to the `realm-management` data source. [CITED: registry.terraform.io/providers/mrparkers/keycloak/latest/docs/resources/openid_client_service_account_role]
 
 ```hcl
 # Add to terraform/keycloak/main.tf
@@ -263,28 +263,22 @@ resource "keycloak_openid_client" "japan_trip_worker" {
   direct_access_grants_enabled = false
 }
 
-# Lookup the built-in realm-management client (contains manage-users role)
+# Lookup the built-in realm-management client (contains manage-users as a client role)
 data "keycloak_openid_client" "realm_management" {
   realm_id  = keycloak_realm.japan_trip.id
   client_id = "realm-management"
 }
 
-# Lookup the manage-users role within realm-management
-data "keycloak_role" "manage_users" {
-  realm_id  = keycloak_realm.japan_trip.id
-  client_id = data.keycloak_openid_client.realm_management.id
-  name      = "manage-users"
-}
-
-# D-02: Assign manage-users to the worker service account
-resource "keycloak_openid_client_service_account_realm_role" "worker_manage_users" {
+# D-02: Assign manage-users client role to the worker service account
+resource "keycloak_openid_client_service_account_role" "worker_manage_users" {
   realm_id                = keycloak_realm.japan_trip.id
   service_account_user_id = keycloak_openid_client.japan_trip_worker.service_account_user_id
-  role                    = data.keycloak_role.manage_users.name
+  client_id               = data.keycloak_openid_client.realm_management.id
+  role                    = "manage-users"
 }
 ```
 
-**Note on resource name:** The resource is `keycloak_openid_client_service_account_realm_role` (with `realm_`), NOT `keycloak_openid_client_service_account_role`. The `realm_role` variant assigns a realm-level role name; the non-realm variant assigns a client role ID. Since `manage-users` is scoped to the `realm-management` client, we need the version that can reference it by name via `data.keycloak_role`. [CITED: registry.terraform.io/providers/mrparkers/keycloak]
+**Note on resource name:** `keycloak_openid_client_service_account_role` (no `_realm_`) assigns a CLIENT role from a specific client (`client_id` required). The `_realm_role` variant (with `realm_`) assigns a top-level realm role and does NOT accept a `client_id`. Since `manage-users` lives on the `realm-management` client, the non-realm variant is correct. No `data "keycloak_role"` block is needed — the role name is passed as a string literal. [CITED: registry.terraform.io/providers/mrparkers/keycloak/latest/docs/resources/openid_client_service_account_role]
 
 ### Pattern 5: KC-01 VERIFY_EMAIL + access_code_lifespan update
 
@@ -353,7 +347,7 @@ KC-03 is a verification step in Phase 7, not new work. The plan should include a
 ### Anti-Patterns to Avoid
 
 - **Duplicate keycloak_required_action for webauthn-register-passwordless:** Already exists in flows.tf. Do NOT add another resource.
-- **Using `keycloak_openid_client_service_account_role` (no `_realm_`) for manage-users:** `manage-users` is a client role in `realm-management`, not a top-level realm role. Wrong resource type causes apply failure.
+- **Using `keycloak_openid_client_service_account_realm_role` (with `_realm_`) for manage-users:** `manage-users` is a CLIENT role inside `realm-management`, not a top-level realm role. The `_realm_role` resource does not accept a `client_id` and will fail to find the role.
 - **Flipping `browser_flow` before password-forms subflow exists:** Password-only users lose login access immediately. Must add subflow first.
 - **Using `wrangler.dev.toml` for local env vars:** Phase 6 used `.dev.vars` (see Open Questions). Writing to a non-existent file is a silent no-op.
 
@@ -390,11 +384,11 @@ KC-03 is a verification step in Phase 7, not new work. The plan should include a
 **How to avoid:** Add `VALID_AUDIENCES`, `KC_ADMIN_CLIENT_ID`, `KC_ADMIN_CLIENT_SECRET` to `backend/.dev.vars` and `backend/.dev.vars.example`. Do not create `wrangler.dev.toml`.
 **Warning signs:** `backend/.dev.vars` and `backend/.dev.vars.example` exist; no `wrangler.dev.toml` found. [VERIFIED: glob]
 
-### Pitfall 4: manage-users is a client role, not a realm role
-**What goes wrong:** Using `keycloak_openid_client_service_account_realm_role` with `role = "manage-users"` when manage-users is a role inside the `realm-management` client — not a top-level realm role. The resource type distinction matters.
-**Why it happens:** KC naming is confusing: there are realm roles AND client roles. `manage-users` exists on the `realm-management` built-in client.
-**How to avoid:** Use the data sources `data.keycloak_openid_client.realm_management` + `data.keycloak_role.manage_users` as shown in Pattern 4. The `role` argument takes the role name string; `service_account_user_id` comes from `keycloak_openid_client.japan_trip_worker.service_account_user_id`.
-**Warning signs:** `terraform apply` error mentioning unknown role or role not found on realm.
+### Pitfall 4: Wrong Terraform resource for assigning manage-users client role
+**What goes wrong:** Using `keycloak_openid_client_service_account_realm_role` (with `_realm_`) attempts to assign a top-level realm role. `manage-users` is a CLIENT role on `realm-management`, not a realm role. Terraform will error: role not found on realm.
+**Why it happens:** KC naming is confusing — realm roles and client roles share similar names. The `_realm_role` and non-`_realm_` variants look similar but serve different scopes.
+**How to avoid:** Use `keycloak_openid_client_service_account_role` (no `_realm_`) with `client_id = data.keycloak_openid_client.realm_management.id` and `role = "manage-users"` as a string literal. See Pattern 4.
+**Warning signs:** `terraform apply` error mentioning role not found or invalid role reference.
 
 ### Pitfall 5: BACK-02 TypeScript strict-mode breakage at users.ts:49 and :96
 **What goes wrong:** Making `KeycloakJwtPayload.email?: string` causes TypeScript to infer `jwtUser.email` as `string | undefined`. The `getOrCreateUser` function accepts `email: string`. `npm run typecheck` fails.
@@ -602,7 +596,7 @@ Uses `displayMessage=false`. Key variables: `message.summary`, `traceId` (option
 
 ### Secondary (MEDIUM confidence)
 - `keycloak_required_action` resource schema — confirmed via WebSearch against registry.terraform.io [CITED: registry.terraform.io/providers/mrparkers/keycloak/latest/docs/resources/required_action]
-- `keycloak_openid_client_service_account_realm_role` resource schema — confirmed via WebSearch [CITED: registry.terraform.io/providers/mrparkers/keycloak/latest/docs/resources/openid_client_service_account_realm_role]
+- `keycloak_openid_client_service_account_role` resource schema — confirmed via WebSearch [CITED: registry.terraform.io/providers/mrparkers/keycloak/latest/docs/resources/openid_client_service_account_role]
 - Drizzle `timestamp({ withTimezone: true })` → TIMESTAMPTZ — confirmed via WebSearch + existing schema.ts pattern [CITED: orm.drizzle.team/docs/column-types/pg]
 
 ### Tertiary (LOW confidence — tagged [ASSUMED])
