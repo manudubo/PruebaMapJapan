@@ -15,7 +15,7 @@ Four phases from security foundation through trip builder, public sharing, and p
 - [x] **Phase 3: Public Sharing** - public_slug migration, copy-link button, read-only guest view
 - [x] **Phase 4: Passkeys** - Keycloak WebAuthn config, passkey registration fix, delete passkey UI
 - [x] **Phase 5: Internationalization** - Translate all user-facing strings from Spanish to English
-- [ ] **Phase 6: Local Infrastructure** - Terraform KC realm + CF Worker secrets; Mailpit replaces MailHog; --import-realm removed
+- [x] **Phase 6: Local Infrastructure** - Terraform KC realm + CF Worker secrets; Mailpit replaces MailHog; --import-realm removed
 - [ ] **Phase 7: Backend Hardening + KC Config** - Env var hygiene, email optionality, OTP DB migration, KC flows + theme i18n via Terraform
 - [ ] **Phase 8: OTP + Passkey Campaign** - Email OTP fallback endpoint; post-login passkey campaign; last-credential guard; UPDATE_PASSWORD gate
 - [ ] **Phase 9: Playwright Real Auth** - E2E tests via real KC OIDC login; KC Admin fixtures; passkey and OTP tests automated
@@ -108,7 +108,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 3. Public Sharing | 3/3 | Complete | 2026-05-06 |
 | 4. Passkeys | 2/2 | Complete | 2026-05-09 |
 | 5. Internationalization | 12/12 | Complete | 2026-05-15 |
-| 6. Local Infrastructure | 0/6 | Pending | - |
+| 6. Local Infrastructure | 6/6 | Complete | 2026-05-19 |
 | 7. Backend Hardening + KC Config | 0/10 | Pending | - |
 | 8. OTP + Passkey Campaign | 0/8 | Pending | - |
 | 9. Playwright Real Auth | 0/6 | Pending | - |
@@ -148,12 +148,12 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- Wave 1: Bootstrap -- Terraform CLI, .gitignore, KC + CF module scaffold files, terraform init
-- [ ] 06-02-PLAN.md -- Wave 2: KC module core -- main.tf (realm + clients + audience mapper), Mailpit in docker-compose, KC healthcheck
-- [ ] 06-03-PLAN.md -- Wave 3: KC auth flows -- flows.tf (browser-passkey flow + passkey-forms subflow + executions + required action)
-- [ ] 06-04-PLAN.md -- Wave 3: CF module -- cloudflare/main.tf (worker secrets), terraform plan mock validation
-- [ ] 06-05-PLAN.md -- Wave 4: KC scope mappers -- mappers.tf (data sources + 6 protocol mapper resources)
-- [ ] 06-06-PLAN.md -- Wave 5: Final wiring -- terraform import + apply checkpoint, --import-realm removal, realm-export.json annotation, wrangler cleanup, .dev.vars
+- [x] 06-01-PLAN.md -- Wave 1: Bootstrap -- Terraform CLI, .gitignore, KC + CF module scaffold files, terraform init
+- [x] 06-02-PLAN.md -- Wave 2: KC module core -- main.tf (realm + clients + audience mapper), Mailpit in docker-compose, KC healthcheck
+- [x] 06-03-PLAN.md -- Wave 3: KC auth flows -- flows.tf (browser-passkey flow + passkey-forms subflow + executions + required action)
+- [x] 06-04-PLAN.md -- Wave 3: CF module -- cloudflare/main.tf (worker secrets), terraform plan mock validation
+- [x] 06-05-PLAN.md -- Wave 4: KC scope mappers -- mappers.tf (data sources + 6 protocol mapper resources)
+- [x] 06-06-PLAN.md -- Wave 5: Final wiring -- terraform import + apply checkpoint, --import-realm removal, realm-export.json annotation, wrangler cleanup, .dev.vars
 
 ### Phase 7: Backend Hardening + KC Config
 
