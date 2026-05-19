@@ -12,13 +12,13 @@ resource "keycloak_realm" "japan_trip" {
 
   ssl_required = "external"
 
-  access_token_lifespan            = 300
-  sso_session_idle_timeout         = 1800
-  sso_session_max_lifespan         = 36000
-  offline_session_idle_timeout     = 2592000
-  access_code_lifespan             = 60
-  access_code_lifespan_user_action = 300
-  access_code_lifespan_login       = 1800
+  access_token_lifespan            = "5m"
+  sso_session_idle_timeout         = "30m"
+  sso_session_max_lifespan         = "10h"
+  offline_session_idle_timeout     = "720h"
+  access_code_lifespan             = "1m"
+  access_code_lifespan_user_action = "5m"
+  access_code_lifespan_login       = "30m"
 
   password_policy = "length(8) and upperCase(1) and digits(1) and specialChars(1)"
 
@@ -85,7 +85,7 @@ resource "keycloak_openid_client" "japan_trip_api" {
   name      = "Japan Trip API"
   enabled   = true
 
-  access_type           = "BEARER_ONLY"
+  access_type           = "BEARER-ONLY"
   standard_flow_enabled = false
   full_scope_allowed    = false
 }

@@ -42,11 +42,11 @@ AUDIENCE_ID=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
   jq -r '.[] | select(.name=="audience-mapper") | .id')
 echo "=== Importing audience mapper ==="
 terraform import keycloak_openid_audience_protocol_mapper.audience \
-  "${KC_REALM}/${FRONTEND_ID}/${AUDIENCE_ID}"
+  "${KC_REALM}/client/${FRONTEND_ID}/${AUDIENCE_ID}"
 
 echo "=== Importing authentication flows ==="
 terraform import keycloak_authentication_flow.browser_passkey "${KC_REALM}/browser-passkey"
-terraform import keycloak_authentication_subflow.passkey_forms "${KC_REALM}/passkey-forms"
+terraform import keycloak_authentication_subflow.passkey_forms "${KC_REALM}/browser-passkey/passkey-forms"
 
 echo "=== Fetching execution IDs ==="
 EXECUTIONS=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
@@ -59,9 +59,9 @@ USERNAME_ID=$(echo "$SUBFLOW_EXECUTIONS" | jq -r '.[] | select(.providerId=="aut
 WEBAUTHN_ID=$(echo "$SUBFLOW_EXECUTIONS" | jq -r '.[] | select(.providerId=="webauthn-authenticator-passwordless") | .id')
 
 echo "=== Importing executions ==="
-terraform import keycloak_authentication_execution.cookie "${KC_REALM}/${COOKIE_ID}"
-terraform import keycloak_authentication_execution.username_form "${KC_REALM}/${USERNAME_ID}"
-terraform import keycloak_authentication_execution.webauthn_passwordless "${KC_REALM}/${WEBAUTHN_ID}"
+terraform import keycloak_authentication_execution.cookie "${KC_REALM}/browser-passkey/${COOKIE_ID}"
+terraform import keycloak_authentication_execution.username_form "${KC_REALM}/passkey-forms/${USERNAME_ID}"
+terraform import keycloak_authentication_execution.webauthn_passwordless "${KC_REALM}/passkey-forms/${WEBAUTHN_ID}"
 
 echo "=== Importing required action ==="
 terraform import keycloak_required_action.webauthn_register_passwordless \

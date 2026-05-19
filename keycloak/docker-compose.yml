@@ -23,17 +23,21 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8080
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/japan_trip
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
     ports:
       - "8080:8080"
     volumes:
       - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
       - ./themes:/opt/keycloak/themes
-    command: start-dev --import-realm
+    command: start-dev
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/japan-trip || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15

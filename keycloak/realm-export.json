@@ -1,4 +1,5 @@
 {
+  "_comment": "READ-ONLY REFERENCE — managed by terraform/keycloak/. Do not edit manually.",
   "id": "japan-trip",
   "realm": "japan-trip",
   "displayName": "Japan Trip",
@@ -335,5 +336,13 @@
     }
   ],
   "defaultDefaultClientScopes": ["role_list", "profile", "email", "roles", "web-origins", "acr", "basic"],
-  "defaultOptionalClientScopes": ["offline_access", "address", "phone", "microprofile-jwt"]
+  "defaultOptionalClientScopes": ["offline_access", "address", "phone", "microprofile-jwt"],
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@japan-trip.local",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  }
 }
