@@ -195,7 +195,7 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
     throw new Error(`JWT issuer mismatch: got "${payload.iss}", expected "${expectedIssuer}"`);
   }
 
-  const validAudiences = ['japan-trip-frontend'];
+  const validAudiences = env.VALID_AUDIENCES.split(',').map(s => s.trim());
   const aud = payload.aud;
   if (!validateAudience(aud, validAudiences)) {
     throw new Error(`JWT audience not accepted: ${JSON.stringify(aud)}`);

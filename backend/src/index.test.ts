@@ -8,6 +8,9 @@ const mockEnv: Env = {
   DATABASE_URL: 'postgresql://mock:mock@localhost/mockdb',
   KEYCLOAK_URL: 'http://localhost:8080',
   KEYCLOAK_REALM: 'japan-trip',
+  VALID_AUDIENCES: 'japan-trip-frontend',
+  KC_ADMIN_CLIENT_ID: 'japan-trip-worker',
+  KC_ADMIN_CLIENT_SECRET: 'mock-secret',
 };
 
 describe('Hono app — in-process unit tests', () => {

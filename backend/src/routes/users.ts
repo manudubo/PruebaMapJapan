@@ -46,7 +46,7 @@ usersRoute.get('/me', authMiddleware, async (c) => {
   const { user, created } = await getOrCreateUser(
     db,
     jwtUser.sub,
-    jwtUser.email,
+    jwtUser.email ?? '',
     jwtUser.name ?? jwtUser.preferred_username,
   );
 
@@ -93,7 +93,7 @@ usersRoute.get('/me/trips', authMiddleware, async (c) => {
   const { user } = await getOrCreateUser(
     db,
     jwtUser.sub,
-    jwtUser.email,
+    jwtUser.email ?? '',
     jwtUser.name ?? jwtUser.preferred_username,
   );
 
