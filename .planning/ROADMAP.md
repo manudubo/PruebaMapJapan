@@ -179,7 +179,7 @@ Plans:
 - [x] 07-05-PLAN.md — Wave 1: KC-04 FTL batch A: login.ftl + error.ftl
 - [x] 07-06-PLAN.md — Wave 1: KC-04 FTL batch B: login-otp.ftl + verify-email.ftl
 - [x] 07-07-PLAN.md — Wave 2: Terraform apply + KC-03 verify-only + human checkpoint
-- [ ] 07-08-PLAN.md — Wave 2: Retrieve worker secret from terraform output + Admin API smoke test
+- [x] 07-08-PLAN.md — Wave 2: Retrieve worker secret from terraform output + Admin API smoke test
 - [ ] 07-09-PLAN.md — Wave 2: Integration verification — all 8 success criteria + VERIFY_EMAIL Mailpit smoke + human sign-off
 
 ### Phase 8: OTP + Passkey Campaign
