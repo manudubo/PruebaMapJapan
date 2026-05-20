@@ -29,6 +29,9 @@ export interface Env {
   DATABASE_URL: string;
   KEYCLOAK_URL: string;
   KEYCLOAK_REALM: string;
+  VALID_AUDIENCES: string;        // comma-separated, e.g. "japan-trip-frontend"
+  KC_ADMIN_CLIENT_ID: string;     // D-03: worker client credentials
+  KC_ADMIN_CLIENT_SECRET: string; // D-03: worker client credentials
 }
 
 // ---------------------------------------------------------------------------
@@ -38,7 +41,7 @@ export interface KeycloakJwtPayload {
   sub: string;
   iss: string;
   aud?: string | string[];
-  email: string;
+  email?: string;
   name: string;
   preferred_username: string;
   email_verified: boolean;
