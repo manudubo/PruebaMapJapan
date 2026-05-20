@@ -172,3 +172,18 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
     references: [days.id],
   }),
 }));
+
+// ---------------------------------------------------------------------------
+// email_otp_codes
+// ---------------------------------------------------------------------------
+export const emailOtpCodes = pgTable('email_otp_codes', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  code_hash: text('code_hash').notNull(),
+  expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
+  used_at: timestamp('used_at', { withTimezone: true }),
+  attempts: integer('attempts').notNull().default(0),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
