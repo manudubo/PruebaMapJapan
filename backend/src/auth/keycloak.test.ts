@@ -32,3 +32,18 @@ describe('validateAudience — SEC-04', () => {
     expect(validateAudience(undefined, valid)).toBe(false);
   });
 });
+
+describe('validateAudience — BACK-01 env extraction', () => {
+  it('parses comma-separated VALID_AUDIENCES env string', () => {
+    const envString = 'japan-trip-frontend, japan-trip-worker';
+    const parsed = envString.split(',').map(s => s.trim());
+    expect(validateAudience('japan-trip-frontend', parsed)).toBe(true);
+    expect(validateAudience('japan-trip-worker', parsed)).toBe(true);
+    expect(validateAudience('other', parsed)).toBe(false);
+  });
+
+  it('handles single-value VALID_AUDIENCES without trailing comma', () => {
+    const parsed = 'japan-trip-frontend'.split(',').map(s => s.trim());
+    expect(validateAudience('japan-trip-frontend', parsed)).toBe(true);
+  });
+});
