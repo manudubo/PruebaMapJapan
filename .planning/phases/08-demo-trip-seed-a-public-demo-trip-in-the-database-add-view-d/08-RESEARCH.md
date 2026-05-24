@@ -208,19 +208,18 @@ async function hashOtp(code: string, secret: string): Promise<string> {
 
 ### Pattern 3: XOR Accumulator Timing-Safe Comparison (locked per D-07)
 
+`hashOtp` returns a base64 string. The stored `code_hash` column is also a base64 string (written by `hashOtp` at request time). At verify time, hash only the submitted code, then XOR-compare the two base64 strings byte-by-byte. Do NOT re-hash the stored value.
+
 ```typescript
 // XOR accumulator — constant time regardless of mismatch position [ASSUMED pattern]
 async function timingSafeCompareHmac(
-  submitted: string,
-  stored: string,
+  submittedCode: string,
+  storedHash: string,
   secret: string,
 ): Promise<boolean> {
-  const [hashA, hashB] = await Promise.all([
-    hashOtp(submitted, secret),
-    hashOtp(stored, secret),   // stored is already the hash — re-hash for comparison
-  ]);
-  const a = new TextEncoder().encode(hashA);
-  const b = new TextEncoder().encode(hashB);
+  const submittedHash = await hashOtp(submittedCode, secret);
+  const a = new TextEncoder().encode(submittedHash);
+  const b = new TextEncoder().encode(storedHash);  // already base64 HMAC from DB
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
@@ -257,7 +256,7 @@ await fetch('http://localhost:8025/api/v1/send', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    From: { Name: 'TravelMap', Email: 'noreply@localhost' },
+    From: { Name: 'TravelMap', Email: 'noreply@example.com' },
     To: [{ Name: '', Email: userEmail }],
     Subject: 'Your verification code',
     Text: `Your code is: ${code}. It expires in 10 minutes.`,
@@ -320,6 +319,7 @@ if (credentialCount === 1) {
 - **Calling KC Account API for credential count on every delete click:** D-16 locks module-level variable from `loadPasskeys()` — do not make an extra API call.
 - **Applying `SameSite=Secure` to the per-device cookie:** Breaks localhost. Omit `Secure` per D-13.
 - **Using `react` parameter in Resend:** The Worker is `.ts`, not `.tsx`. Use `text` or `html`.
+- **Re-hashing the stored `code_hash` during verify:** `storedHash` is already `HMAC(code, secret)`; call `hashOtp` only on the submitted user input, then XOR-compare against the stored value directly.
 
 ---
 
@@ -414,7 +414,7 @@ if (credentialCount === 1) {
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | HMAC+XOR stores the HASH in `code_hash` and re-hashes the submitted code to compare — NOT the raw code | Architecture Patterns / Pattern 3 | Wrong comparison direction would never match; low risk since both sides hash |
+| A1 | `hashOtp` is called only on the submitted code at verify time; the stored `code_hash` value is used as-is for XOR comparison (not re-hashed) | Architecture Patterns / Pattern 3 | Re-hashing stored would produce HMAC(HMAC(code)) — never matches; verify would always fail |
 | A2 | Mailpit `/api/v1/send` is accessible via fetch in local Workers dev without CORS issues | Architecture Patterns / Pattern 5 | If CORS blocks: add `MP_SEND_AUTH` or use Mailpit's `--cors` flag |
 | A3 | `RESEND_API_KEY` env var name matches what already exists in prod Worker secrets | Standard Stack | Name mismatch means prod emails fail silently |
 
@@ -489,11 +489,10 @@ if (credentialCount === 1) {
 - **Phase gate:** Full suite green before `/gsd-verify-work`
 
 ### Wave 0 Gaps
-- [ ] `backend/src/routes/auth.test.ts` — covers PASS-05 (request + verify, 429, 422, 401 unauthed)
+- [ ] `backend/src/routes/auth.test.ts` — covers PASS-05 (request + verify, 429, 422, 401 unauthed); use `app.request()` pattern from `backend/src/index.test.ts`, mock env must include `OTP_SECRET`
 - [ ] `backend/src/db/queries/otp.test.ts` — optional: unit test OTP query helpers with mock DB
-- [ ] `frontend/src/modules/passkeyCampaign.test.ts` — covers PASS-04 (cookie logic, redirect trigger)
+- [ ] `frontend/src/modules/passkeyCampaign.test.ts` — covers PASS-04 (cookie logic, redirect trigger); use `vi.mock` pattern from `frontend/tests/modules.test.ts`
 - [ ] `frontend/src/pages/dashboard.test.ts` — covers PASS-07 (UPDATE_PASSWORD gate, webauthnCapable flag)
-- [ ] Mock env in `backend/src/routes/auth.test.ts` must include `OTP_SECRET` (new field)
 
 **Existing test infrastructure:** `backend/src/index.test.ts` provides the mock env pattern and `app.request()` Hono test pattern — new `auth.test.ts` follows the same structure.
 
