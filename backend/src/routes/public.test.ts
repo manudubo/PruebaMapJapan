@@ -9,6 +9,7 @@ const mockEnv: Env = {
   VALID_AUDIENCES: 'japan-trip-frontend',
   KC_ADMIN_CLIENT_ID: 'japan-trip-worker',
   KC_ADMIN_CLIENT_SECRET: 'mock-secret',
+  OTP_SECRET: 'a3f8c2d1e4b7f0a9d6c3e8b1f4a7d0c2e5b8f3a6d9c0e3b6f1a4d7c0e3b6f1',
 };
 
 describe('Public trip route — slug-based (SHARE-02, SHARE-04)', () => {

@@ -92,3 +92,11 @@ export const UpdateUserSchema = z.object({
   avatar_url: z.string().url().nullable().optional(),
   preferences: z.record(z.unknown()).optional(),
 });
+
+// ---------------------------------------------------------------------------
+// OTP schemas
+// ---------------------------------------------------------------------------
+
+export const OtpVerifySchema = z.object({
+  code: z.string().length(6).regex(/^\d{6}$/, 'code must be 6 digits'),
+});
