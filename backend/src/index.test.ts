@@ -11,6 +11,7 @@ const mockEnv: Env = {
   VALID_AUDIENCES: 'japan-trip-frontend',
   KC_ADMIN_CLIENT_ID: 'japan-trip-worker',
   KC_ADMIN_CLIENT_SECRET: 'mock-secret',
+  OTP_SECRET: 'aaaabbbbccccddddeeeeffffaaaabbbbccccddddeeeeffffaaaabbbbccccddd0',
 };
 
 describe('Hono app — in-process unit tests', () => {
