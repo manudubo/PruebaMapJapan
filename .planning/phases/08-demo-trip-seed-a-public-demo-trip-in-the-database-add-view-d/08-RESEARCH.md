@@ -420,24 +420,24 @@ if (credentialCount === 1) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`crypto.subtle.timingSafeEqual` vs HMAC+XOR (D-07)**
    - What we know: Cloudflare Workers exposes `crypto.subtle.timingSafeEqual` as a non-standard extension [VERIFIED: developers.cloudflare.com/workers/examples/protect-against-timing-attacks/]
    - What D-07 says: "Workers lacks `crypto.timingSafeEqual`" — this premise is factually incorrect
    - Decision impact: ZERO — HMAC+XOR (D-07) is a valid timing-safe approach regardless
-   - Recommendation: Proceed with HMAC+XOR per D-07; note for tech debt cleanup that `crypto.subtle.timingSafeEqual` is available if ever simplified
+   - RESOLVED: Proceed with HMAC+XOR per D-07; note for tech debt cleanup that `crypto.subtle.timingSafeEqual` is available if ever simplified
 
 2. **`skip-if-exists` AIA parameter for campaign (D-15)**
    - What we know: KC 26.3+ supports `kc_action=webauthn-register-passwordless:skip-if-exists` [VERIFIED: keycloak.org 26.3.0 release notes]
    - What D-15 says: Use bare `webauthn-register-passwordless`
    - Impact: Without `skip-if-exists`, users who already have a passkey on ANOTHER device and visit on the SAME device will be redirected to register again (per-device cookie stops this only for the current device)
-   - Recommendation: D-15 is locked; proceed with bare action string; document this as a known UX limitation
+   - RESOLVED: D-15 is locked; proceed with bare action string; document this as a known UX limitation
 
 3. **Mailpit CORS on localhost**
    - What we know: Mailpit HTTP API documented; no CORS headers confirmed
    - What's unclear: Whether the Workers `fetch()` to `localhost:8025` hits CORS — this is server-to-server (Worker dev server to Mailpit), not browser-to-Mailpit, so CORS does NOT apply
-   - Recommendation: No issue — Worker `fetch()` is not a browser CORS-restricted call
+   - RESOLVED: No issue — Worker `fetch()` is not a browser CORS-restricted call
 
 ---
 
