@@ -41,3 +41,4 @@ export * from './queries/trips';
 export * from './queries/destinations';
 export * from './queries/days';
 export * from './queries/activities';
+export * from './queries/otp';

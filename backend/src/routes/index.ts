@@ -4,6 +4,7 @@ import health from './health';
 import usersRoute from './users';
 import tripsRoute from './trips';
 import publicRoute from './public';
+import authRoute from './auth';
 
 /**
  * Aggregates all API routes and mounts them under their respective prefixes.
@@ -18,5 +19,7 @@ routes.route('/trips', tripsRoute);
 // Public routes — no authentication middleware applied here.
 // Individual route handlers are responsible for not requiring auth.
 routes.route('/public', publicRoute);
+
+routes.route('/auth', authRoute);
 
 export default routes;
