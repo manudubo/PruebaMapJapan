@@ -196,7 +196,14 @@ Plans:
 **Plans**: 8 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 8 to break down)
+- [ ] 08-01-PLAN.md -- Wave 1: Install resend + extend Env interface (OTP_SECRET, RESEND_API_KEY?) + OtpVerifySchema + .dev.vars seeding (PASS-05)
+- [ ] 08-02-PLAN.md -- Wave 1: RED test stubs -- backend/src/routes/auth.test.ts (PASS-05)
+- [ ] 08-03-PLAN.md -- Wave 1: RED test stubs -- frontend/src/modules/passkeyCampaign.test.ts (PASS-04)
+- [ ] 08-04-PLAN.md -- Wave 2: Backend OTP routes -- auth.ts + db/queries/otp.ts + routes/index.ts mount (PASS-05)
+- [ ] 08-05-PLAN.md -- Wave 2: Frontend passkeyCampaign.ts -- checkPasskeyCampaign (PASS-04)
+- [ ] 08-06-PLAN.md -- Wave 2: profile.ts last-credential guard -- credentialCount + guard modal (PASS-06)
+- [ ] 08-07-PLAN.md -- Wave 3: dashboard.ts OTP banner + modal + campaign wiring + UPDATE_PASSWORD gate (PASS-04, PASS-05, PASS-07)
+- [ ] 08-08-PLAN.md -- Wave 4: Full verification -- typecheck + test suites + human smoke test (all)
 
 ### Phase 9: Playwright Real Auth
 
