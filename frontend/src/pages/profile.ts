@@ -14,6 +14,8 @@ import { getMe } from '@/api/client';
 const KEYCLOAK_URL = import.meta.env['VITE_KEYCLOAK_URL'] as string ?? 'http://localhost:8080';
 const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string ?? 'japan-trip';
 
+let credentialCount = 0;
+
 // ---------------------------------------------------------------------------
 // DOM helpers
 // ---------------------------------------------------------------------------
@@ -72,6 +74,7 @@ async function loadPasskeys(): Promise<void> {
     const credentialTypes: CredentialTypeResponse[] = await res.json() as CredentialTypeResponse[];
     const passkeyType = credentialTypes.find((c) => c.type === 'webauthn-passwordless');
     const credentials = passkeyType?.userCredentialMetadatas.map((m) => m.credential) ?? [];
+    credentialCount = credentials.length; // D-16: no extra API call
 
     if (credentials.length === 0) {
       list.innerHTML =
@@ -149,6 +152,7 @@ async function changePassword(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 function buildDeleteModal(): void {
+  if (document.getElementById('passkey-delete-overlay')) return;
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
   overlay.id = 'passkey-delete-overlay';
@@ -188,25 +192,54 @@ function openDeleteConfirm(credentialId: string): void {
   const close = (): void => {
     overlay.setAttribute('hidden', '');
     document.removeEventListener('keydown', onEscape);
+    // Reset guard state so the modal is clean for the next open
+    overlay.querySelector('[data-passkey-guard]')?.remove();
+    const modalP = overlay.querySelector('p');
+    if (modalP) modalP.textContent = 'This action cannot be undone.';
+    freshConfirm.removeAttribute('hidden');
   };
   const onEscape = (e: KeyboardEvent): void => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onEscape);
 
   freshCancel.addEventListener('click', close, { once: true });
 
-  // KC 26 DELETE /account/credentials/{id} returns 405 for WebAuthn credentials.
-  // Use the AIA flow instead: KC deletes the credential server-side and redirects back.
-  freshConfirm.addEventListener('click', () => {
-    freshConfirm.disabled = true;
-    freshConfirm.textContent = 'Deleting…';
-    keycloak.login({
-      action: `delete_credential:${credentialId}`,
-      redirectUri: window.location.href,
-    }).catch(() => {
-      freshConfirm.disabled = false;
-      freshConfirm.textContent = 'Delete';
-    });
-  }, { once: true });
+  if (credentialCount === 1) {
+    // D-17/D-18: Last credential guard — hide Delete, show Register button
+    const modalP = overlay.querySelector('p');
+    if (modalP) {
+      modalP.textContent =
+        'You must register another passkey on another device before deleting this one.';
+    }
+    freshConfirm.setAttribute('hidden', '');
+
+    const guardBtn = document.createElement('button');
+    guardBtn.className = 'btn btn-primary';
+    guardBtn.setAttribute('data-passkey-guard', '');
+    guardBtn.textContent = 'Register another passkey first';
+    freshConfirm.parentNode?.insertBefore(guardBtn, freshConfirm);
+
+    // D-19: same AIA call as registerPasskey()
+    guardBtn.addEventListener('click', () => {
+      keycloak.login({
+        action: 'webauthn-register-passwordless',
+        redirectUri: window.location.href,
+      }).catch(() => { /* non-fatal if KC unavailable */ });
+    }, { once: true });
+  } else {
+    // KC 26 DELETE /account/credentials/{id} returns 405 for WebAuthn credentials.
+    // Use the AIA flow instead: KC deletes the credential server-side and redirects back.
+    freshConfirm.addEventListener('click', () => {
+      freshConfirm.disabled = true;
+      freshConfirm.textContent = 'Deleting…';
+      keycloak.login({
+        action: `delete_credential:${credentialId}`,
+        redirectUri: window.location.href,
+      }).catch(() => {
+        freshConfirm.disabled = false;
+        freshConfirm.textContent = 'Delete';
+      });
+    }, { once: true });
+  }
 }
 
 // ---------------------------------------------------------------------------
