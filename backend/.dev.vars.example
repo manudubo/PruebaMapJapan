@@ -3,3 +3,7 @@ KEYCLOAK_REALM=japan-trip
 VALID_AUDIENCES=japan-trip-frontend
 KC_ADMIN_CLIENT_ID=japan-trip-worker
 KC_ADMIN_CLIENT_SECRET=replace-with-local-uuid
+# OTP_SECRET: random hex string for HMAC-SHA256 OTP hashing.
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# For prod: wrangler secret put OTP_SECRET
+OTP_SECRET=replace-with-64-char-hex
