@@ -259,6 +259,12 @@ async function init(): Promise<void> {
   document.body.classList.add('ready');
 }
 
+// Stub — exported for test access; implementation added in Plan 08-07
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function handleVerifyOtp(_webauthnCapable: boolean): Promise<void> {
+  // no-op until 08-07 implements this
+}
+
 // Bootstrap when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
