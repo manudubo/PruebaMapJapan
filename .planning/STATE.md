@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Auth Infrastructure & Hardening
 status: executing
-stopped_at: "Phase 07 complete — all 9 plans done"
-last_updated: "2026-05-24T19:25:00.000Z"
-last_activity: 2026-05-24 -- Phase 07 all 9 plans complete; all 8 success criteria verified
+stopped_at: "Phase 08 Wave 3 complete — 7/8 plans done; Wave 4 human checkpoint pending"
+last_updated: "2026-05-26T00:05:00.000Z"
+last_activity: 2026-05-26 -- Wave 3 complete (08-07 implemented inline); 79 frontend + 26 backend tests all GREEN; human smoke test pending (08-08)
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 15
-  completed_plans: 15
-  percent: 50
+  total_plans: 23
+  completed_plans: 21
+  percent: 65
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-15)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** Phase 08 — Email OTP Worker
+**Current focus:** Phase 08 — OTP + Passkey Campaign
 
 ## Current Position
 
-Phase: 07 (Backend Hardening + KC Config) — COMPLETE
-Plan: 9 of 9
-Status: All 9 plans executed and verified; all 8 Phase 7 success criteria confirmed; run /gsd-execute-phase 08 to begin Phase 08
-Last activity: 2026-05-24 -- Phase 07 final verification complete
+Phase: 08 (OTP + Passkey Campaign) — Awaiting human smoke test (08-08)
+Plan: 7 of 8
+Status: All automated checks GREEN; human-verify checkpoint blocking phase completion
+Last activity: 2026-05-26 -- 79 frontend + 26 backend tests all GREEN; OTP_SECRET added to .dev.vars
 
 Progress: [████░░░░░░] 50%
 
@@ -85,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-24T19:25:00.000Z
-Stopped at: Phase 07 complete — all 9 plans done, all 8 success criteria verified
-Resume: run /gsd-execute-phase 08 to begin Phase 08 (Email OTP Worker)
+Last session: 2026-05-25T00:00:00.000Z
+Stopped at: Phase 08 planned — 8 plans (4 waves) verified and ready to execute
+Resume: /clear then /gsd-execute-phase 8

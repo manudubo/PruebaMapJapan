@@ -16,6 +16,11 @@ const env = {
   DATABASE_URL: process.env.DATABASE_URL ?? '',
   KEYCLOAK_URL: process.env.KEYCLOAK_URL ?? '',
   KEYCLOAK_REALM: process.env.KEYCLOAK_REALM ?? '',
+  VALID_AUDIENCES: process.env.VALID_AUDIENCES ?? '',
+  KC_ADMIN_CLIENT_ID: process.env.KC_ADMIN_CLIENT_ID ?? '',
+  KC_ADMIN_CLIENT_SECRET: process.env.KC_ADMIN_CLIENT_SECRET ?? '',
+  OTP_SECRET: process.env.OTP_SECRET ?? '',
+  RESEND_API_KEY: process.env.RESEND_API_KEY,
 };
 
 serve(
