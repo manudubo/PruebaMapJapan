@@ -10,7 +10,8 @@ import '@/components/Navbar';
 import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
-import { initKeycloak, getUserInfo, login } from '@/auth/keycloak';
+import { initKeycloak, getUserInfo, login, getToken, keycloak } from '@/auth/keycloak';
+import { checkPasskeyCampaign } from '@/modules/passkeyCampaign';
 import { getMyTrips, getMe } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
@@ -186,6 +187,180 @@ function setupAuthButtons(authenticated: boolean): void {
 }
 
 // ---------------------------------------------------------------------------
+// OTP banner + modal (PASS-05, PASS-07)
+// ---------------------------------------------------------------------------
+
+let webauthnCapable = false;
+
+function buildOtpModal(): void {
+  if (document.getElementById('otp-modal-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'otp-modal-overlay';
+  overlay.setAttribute('hidden', '');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Verify your email';
+
+  const desc = document.createElement('p');
+  desc.textContent = 'Check your email for a 6-digit code.';
+
+  const input = document.createElement('input');
+  input.className = 'otp-input';
+  input.id = 'otp-code-input';
+  input.type = 'text';
+  input.inputMode = 'numeric';
+  input.maxLength = 6;
+  input.pattern = '\\d{6}';
+  input.autocomplete = 'one-time-code';
+
+  const errP = document.createElement('p');
+  errP.id = 'otp-error';
+  errP.setAttribute('hidden', '');
+  errP.className = 'status-msg status-msg--error';
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+
+  const resendBtn = document.createElement('button');
+  resendBtn.className = 'btn btn-secondary';
+  resendBtn.id = 'otp-resend-btn';
+  resendBtn.disabled = true;
+  resendBtn.textContent = 'Resend';
+
+  const verifyBtn = document.createElement('button');
+  verifyBtn.className = 'btn btn-primary';
+  verifyBtn.id = 'otp-verify-btn';
+  verifyBtn.textContent = 'Verify';
+
+  actions.appendChild(resendBtn);
+  actions.appendChild(verifyBtn);
+  modal.appendChild(h2);
+  modal.appendChild(desc);
+  modal.appendChild(input);
+  modal.appendChild(errP);
+  modal.appendChild(actions);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+function openOtpModal(): void {
+  document.getElementById('otp-modal-overlay')?.removeAttribute('hidden');
+  document.getElementById('otp-verify-btn')?.addEventListener('click', () => {
+    void handleVerifyOtp(webauthnCapable);
+  }, { once: true });
+}
+
+function closeOtpModal(): void {
+  document.getElementById('otp-modal-overlay')?.setAttribute('hidden', '');
+  const errEl = document.getElementById('otp-error');
+  if (errEl) errEl.setAttribute('hidden', '');
+}
+
+async function handleSendOtp(): Promise<void> {
+  const sendBtn = document.getElementById('otp-send-btn') as HTMLButtonElement | null;
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const token = await getToken();
+    const res = await fetch('/api/auth/otp-request', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json() as { success: boolean; error?: string; retryAfter?: number };
+
+    if (res.status === 201) {
+      openOtpModal();
+    } else if (res.status === 429 && body.retryAfter) {
+      const resendBtn = document.getElementById('otp-resend-btn') as HTMLButtonElement | null;
+      if (resendBtn) {
+        resendBtn.textContent = `Resend (${body.retryAfter}s)`;
+        resendBtn.disabled = true;
+      }
+      openOtpModal();
+    }
+  } catch {
+    // Non-critical — user can retry
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+// Exported so dashboard.test.ts can test the UPDATE_PASSWORD gate independently.
+// Production call site in openOtpModal passes the module-level webauthnCapable.
+export async function handleVerifyOtp(capable: boolean): Promise<void> {
+  const codeInput = document.getElementById('otp-code-input') as HTMLInputElement | null;
+  const errEl = document.getElementById('otp-error');
+  if (!codeInput) return;
+
+  const code = codeInput.value.trim();
+  if (code.length !== 6) {
+    if (errEl) { errEl.textContent = 'Enter a 6-digit code'; errEl.removeAttribute('hidden'); }
+    return;
+  }
+
+  try {
+    const token = await getToken();
+    const res = await fetch('/api/auth/otp-verify', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+
+    if (res.ok) {
+      closeOtpModal();
+      // D-21: force password reset only for non-WebAuthn devices
+      if (!capable) {
+        await keycloak.login({ action: 'UPDATE_PASSWORD', redirectUri: window.location.href });
+      }
+    } else {
+      const body = await res.json() as { success: boolean; error?: string };
+      if (errEl) {
+        const msg = body.error === 'max_attempts'
+          ? 'Too many attempts. Request a new code.'
+          : body.error === 'otp_not_found'
+          ? 'Code expired. Request a new one.'
+          : 'Incorrect code. Try again.';
+        errEl.textContent = msg;
+        errEl.removeAttribute('hidden');
+      }
+    }
+  } catch {
+    if (errEl) { errEl.textContent = 'Verification failed. Try again.'; errEl.removeAttribute('hidden'); }
+  }
+}
+
+function buildOtpBanner(): void {
+  buildOtpModal();
+
+  const banner = document.createElement('div');
+  banner.className = 'otp-banner';
+  banner.id = 'otp-banner';
+
+  const p = document.createElement('p');
+  p.textContent = "Your device doesn't support passkeys. Verify your email to set a password.";
+
+  const sendBtn = document.createElement('button');
+  sendBtn.className = 'btn btn-primary';
+  sendBtn.id = 'otp-send-btn';
+  sendBtn.textContent = 'Send code';
+
+  banner.appendChild(p);
+  banner.appendChild(sendBtn);
+
+  const main = document.querySelector('main') ?? document.body;
+  main.prepend(banner);
+
+  sendBtn.addEventListener('click', () => { void handleSendOtp(); });
+}
+
+// ---------------------------------------------------------------------------
 // Main init
 // ---------------------------------------------------------------------------
 
@@ -221,6 +396,16 @@ async function init(): Promise<void> {
   });
 
   if (authenticated) {
+    webauthnCapable = typeof PublicKeyCredential !== 'undefined';
+    const info = getUserInfo();
+    if (info) {
+      if (webauthnCapable) {
+        checkPasskeyCampaign(info.id);
+      } else {
+        buildOtpBanner();
+      }
+    }
+
     // Load real user profile and trips
     const grid = document.getElementById('trips-grid');
     if (grid) {
@@ -257,12 +442,6 @@ async function init(): Promise<void> {
   }
 
   document.body.classList.add('ready');
-}
-
-// Stub — exported for test access; implementation added in Plan 08-07
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function handleVerifyOtp(_webauthnCapable: boolean): Promise<void> {
-  // no-op until 08-07 implements this
 }
 
 // Bootstrap when DOM is ready
