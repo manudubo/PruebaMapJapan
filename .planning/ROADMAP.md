@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 (Phase 4 depends only on Ph
 | 6. Local Infrastructure | 6/6 | Complete | 2026-05-19 |
 | 7. Backend Hardening + KC Config | 8/9 | In Progress | - |
 | 8. OTP + Passkey Campaign | 8/8 | Complete | 2026-05-26 |
-| 9. Playwright Real Auth | 0/6 | Pending | - |
+| 9. Playwright Real Auth | 0/7 | Pending | - |
 
 ### Phase 5: Internationalization — translate all user-facing UI strings, HTML content, and TypeScript source strings from Spanish to English across all pages and components
 
@@ -212,10 +212,16 @@ Plans:
 **Requirements**: E2E-01, E2E-02, E2E-03, E2E-04
 **Success Criteria** (what must be TRUE):
   1. `globalSetup` completes OIDC login via headless Chromium and writes `tests/.auth/user.json`; sessionStorage replayed via `addInitScript` workaround for Playwright bug #31108; no ROPC used
-  2. `tests/fixtures/kc-admin.ts` helper can create/delete test users, reset credentials, and clear OTP codes between runs via KC Admin API
+  2. `tests/e2e/fixtures/kc-admin.ts` helper can create/delete test users, reset credentials, and clear OTP codes between runs via KC Admin API
   3. `chromium-passkeys` Playwright project runs passkey register/login/delete tests using CDP Virtual Authenticator API
   4. OTP fallback tests: request → Mailpit REST fetch → verify → assert; expired OTP and max-attempts lockout cases covered
-**Plans**: 6 plans
+**Plans**: 7 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 9 to break down)
+- [ ] 09-01-PLAN.md — Wave 1: Scaffolding — gitignore, deps install, .env.test.example, Mailpit spike + mailpit-helpers.ts (E2E-01, E2E-04)
+- [ ] 09-02-PLAN.md — Wave 1: KC test user seeding via Terraform — e2e-test@local + otp-test@local (E2E-01, E2E-04)
+- [ ] 09-03-PLAN.md — Wave 2: globalSetup OIDC login + playwright.config.ts storageState + chromium-passkeys project (E2E-01)
+- [ ] 09-04-PLAN.md — Wave 2: kc-admin.ts fixture — createUser, deleteUser, resetCredentials, clearOtpCodes (E2E-02)
+- [ ] 09-05-PLAN.md — Wave 3: auth.spec.ts real-auth migration + CI SKIP_REAL_AUTH env (E2E-01)
+- [ ] 09-06-PLAN.md — Wave 4: passkeys.spec.ts — CDP Virtual Authenticator register/login/delete (E2E-03)
+- [ ] 09-07-PLAN.md — Wave 4: otp.spec.ts — serial Mailpit OTP tests (request, expired, lockout, UPDATE_PASSWORD gate) (E2E-04)
