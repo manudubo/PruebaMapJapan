@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Auth Infrastructure & Hardening
 status: executing
-stopped_at: "Phase 08 Wave 3 complete — 7/8 plans done; Wave 4 human checkpoint pending"
-last_updated: "2026-05-26T00:05:00.000Z"
-last_activity: 2026-05-26 -- Wave 3 complete (08-07 implemented inline); 79 frontend + 26 backend tests all GREEN; human smoke test pending (08-08)
+stopped_at: "Phase 08 COMPLETE — all 8 plans done; resume: /gsd-plan-phase 9"
+last_updated: "2026-05-26T03:20:00.000Z"
+last_activity: 2026-05-26 -- Phase 08 complete; all 5 criteria verified live against local stack; 79+26 tests GREEN
 progress:
   total_phases: 4
   completed_phases: 2
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-15)
 
 ## Current Position
 
-Phase: 08 (OTP + Passkey Campaign) — Awaiting human smoke test (08-08)
-Plan: 7 of 8
-Status: All automated checks GREEN; human-verify checkpoint blocking phase completion
-Last activity: 2026-05-26 -- 79 frontend + 26 backend tests all GREEN; OTP_SECRET added to .dev.vars
+Phase: 08 (OTP + Passkey Campaign) — COMPLETE
+Plan: 8 of 8
+Status: All 5 criteria verified; Phase 9 (Playwright Real Auth) is next
+Last activity: 2026-05-26 -- OTP delivery and verify confirmed live; all tests GREEN
 
 Progress: [████░░░░░░] 50%
 
