@@ -17,7 +17,7 @@ provides:
   - @playwright/test@1.60.0 in tests workspace
   - @keycloak/keycloak-admin-client@26.6.2 in tests workspace
   - postgres npm package in tests workspace
-  - mailpit-helpers.ts PENDING (Task 2 blocked on human Mailpit spike)
+  - mailpit-helpers.ts with verified field names: messages (list wrapper), ID (message id), Text (plain text body)
 affects:
   - 09-02 through 09-07 (all depend on env template and upgraded deps)
 
@@ -34,6 +34,7 @@ tech-stack:
 key-files:
   created:
     - tests/.env.test.example
+    - tests/e2e/fixtures/mailpit-helpers.ts
   modified:
     - .gitignore (added tests/.auth/ and tests/.env.test)
     - tests/package.json (upgraded playwright, added kc-admin-client + postgres)
@@ -55,14 +56,14 @@ completed: 2026-05-27
 
 # Phase 09 Plan 01: Gitignore + Env Template + Dependency Install Summary
 
-**Playwright 1.60.0 + KC Admin client 26.6.2 + postgres installed in tests workspace; .auth/ and .env.test gitignored; 12-var env template committed — Task 2 (Mailpit field-name spike) awaiting human action**
+**Playwright 1.60.0 + KC Admin client 26.6.2 + postgres installed in tests workspace; .auth/ and .env.test gitignored; 12-var env template committed; mailpit-helpers.ts written with verified field names (messages, ID, Text)**
 
 ## Performance
 
 - **Duration:** ~15 min
 - **Started:** 2026-05-27T00:00:00Z
 - **Completed:** 2026-05-27T00:15:00Z
-- **Tasks:** 1 of 2 complete (Task 2 blocked at checkpoint:human-action)
+- **Tasks:** 2 of 2 complete
 - **Files modified:** 4
 
 ## Accomplishments
@@ -75,7 +76,7 @@ completed: 2026-05-27
 ## Task Commits
 
 1. **Task 1: Gitignore + env template + dependency install** - `43906df` (feat)
-2. **Task 2: Spike Mailpit response shape + write mailpit-helpers.ts** - PENDING (checkpoint:human-action)
+2. **Task 2: Spike Mailpit response shape + write mailpit-helpers.ts** - `62458cb` (feat) — field names verified by human: `messages` (list wrapper), `ID` (message id), `Text` (plain text body)
 
 **Plan metadata:** (committed below with SUMMARY.md)
 
@@ -85,6 +86,7 @@ completed: 2026-05-27
 - `tests/.env.test.example` - All 12 required env vars with placeholder values (safe to commit)
 - `tests/package.json` - @playwright/test ^1.60.0, @keycloak/keycloak-admin-client ^26.6.2, postgres ^3.4.9
 - `tests/package-lock.json` - Lockfile updated for all three packages
+- `tests/e2e/fixtures/mailpit-helpers.ts` - Created with verified Mailpit API types: `messages` list wrapper, `ID` per-message field, `Text` plain-text body
 
 ## Decisions Made
 
@@ -101,31 +103,19 @@ Note: `tests/.auth/.gitkeep` was not committed — the directory is correctly gi
 
 None for Task 1.
 
-## Checkpoint: Task 2 Awaiting Human Action
+## Task 2: Mailpit Field Names Verified
 
-**Status:** STOPPED at `type="checkpoint:human-action"`
+Human verified Mailpit API response shapes via live API calls:
 
-Task 2 requires Mailpit to be running locally to verify the actual REST response field names before committing typed code. The RESEARCH.md marks these as ASSUMED (Assumption A1):
+- `GET /api/v1/messages` returns `{ messages: [...] }` — lowercase `messages` key wrapping the array
+- Each message object has `ID` (uppercase string) for the message identifier
+- `GET /api/v1/message/{id}` returns object with `Text` field (uppercase) for plain text body
 
-- Is the message ID field `ID` or `id`?
-- Is the list wrapper `{ messages: [...] }` or a bare array?
-- Is the plain-text body field `Text`, `Body.Text`, or something else?
-
-**To resume:**
-
-1. Start docker-compose (Mailpit must be on localhost:8025)
-2. Run: `curl http://localhost:8025/api/v1/messages | jq .`
-3. Note the message ID field name and list wrapper structure
-4. Send a test email via Mailpit UI (http://localhost:8025), then run:
-   `curl http://localhost:8025/api/v1/message/<ID> | jq .`
-5. Note the plain-text body field name
-6. Type: **"mailpit verified: [ID field] and [Text field] confirmed"** (e.g., "mailpit verified: ID and Text confirmed")
-
-The continuation agent will then write `tests/e2e/fixtures/mailpit-helpers.ts` with the verified types.
+The OTP regex `msg.Text.match(/(\d{6})/)` is correct. `mailpit-helpers.ts` committed with these verified types.
 
 ## Known Stubs
 
-- `tests/e2e/fixtures/mailpit-helpers.ts` — NOT YET CREATED. Plan 01 goal requires this file; it will be written by the continuation agent after Mailpit field names are verified.
+None — `mailpit-helpers.ts` is now complete with verified field names.
 
 ## Threat Flags
 
@@ -139,6 +129,10 @@ Files exist:
 - [x] `tests/.env.test.example` exists with `POSTGRES_URL` — verified
 - [x] `tests/package.json` contains all three deps — verified
 - [x] `npx playwright test --list` exits 0 with SKIP_REAL_AUTH=true (219 tests) — verified
+- [x] `tests/e2e/fixtures/mailpit-helpers.ts` exports `purgeInbox` and `fetchLatestOtp` — verified
+
+Commits:
+- [x] `62458cb` — feat(09-01) mailpit-helpers commit verified in git log
 
 Commits:
 - [x] `43906df` — feat(09-01) commit verified in git log
@@ -153,4 +147,4 @@ Commits:
 
 ---
 *Phase: 09-playwright-real-auth*
-*Completed: 2026-05-27 (partial — Task 2 pending)*
+*Completed: 2026-05-27*
