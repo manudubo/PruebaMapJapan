@@ -23,6 +23,8 @@ coverage/
 test-results/
 tests/test-results/
 tests/playwright-report/
+tests/.auth/
+tests/.env.test
 
 # Claude Code
 .claude/
