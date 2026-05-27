@@ -135,3 +135,35 @@ output "worker_client_secret" {
   value     = keycloak_openid_client.japan_trip_worker.client_secret
   sensitive = true
 }
+
+# E2E-01: Pre-seeded test user for general auth + passkey tests
+resource "keycloak_user" "e2e_test_user" {
+  realm_id       = keycloak_realm.japan_trip.id
+  username       = "e2e-test@local"
+  enabled        = true
+  email          = "e2e-test@local"
+  email_verified = true
+  first_name     = "E2E"
+  last_name      = "Test"
+
+  initial_password {
+    value     = var.e2e_test_password
+    temporary = false
+  }
+}
+
+# E2E-04: Pre-seeded test user for OTP tests — no passkeys registered (D-13)
+resource "keycloak_user" "otp_test_user" {
+  realm_id       = keycloak_realm.japan_trip.id
+  username       = "otp-test@local"
+  enabled        = true
+  email          = "otp-test@local"
+  email_verified = true
+  first_name     = "OTP"
+  last_name      = "Test"
+
+  initial_password {
+    value     = var.e2e_otp_password
+    temporary = false
+  }
+}
