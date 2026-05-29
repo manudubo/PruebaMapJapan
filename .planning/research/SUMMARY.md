@@ -1,113 +1,164 @@
-# Research Summary — v2.0 Auth Infrastructure & Hardening
+# Research Summary — v3.0 Quality, Polish & DevX
 
 **Project:** TravelMap / PruebaMapJapan
-**Researched:** 2026-05-15
-**Confidence:** HIGH (stack/arch) | MEDIUM-HIGH (pitfalls)
+**Researched:** 2026-05-28
+**Confidence:** HIGH
+
+---
+
+## Executive Summary
+
+v3.0 is a brownfield quality milestone on a mature Hono + Vanilla TS MPA + Keycloak 26.6.1 stack. No significant new runtime dependencies are needed — the delta is two dev-orchestration packages (`concurrently@9.2.1`, `wait-on@9.0.10`) in the root workspace, and an optional `eslint-plugin-security@4.0.0` in the backend if ESLint is already configured. The bulk of the work is architectural retrofits: CSS token consolidation across two origins, centralized error handling across four page entry points, a cross-platform dev startup script, Terraform expansion for reproducible test users, and Playwright E2E coverage for the full new-user trip creation path.
+
+**Phase ordering is non-negotiable:** tokens before error UI, both before E2E. Two tracks (Terraform + dev script) are independent and can run in parallel with token work.
 
 ---
 
 ## Stack Additions
 
-| Package / Tool | Version | Purpose |
-|----------------|---------|---------|
-| `resend` (npm, backend) | `^6.0.0` | Email OTP via HTTP API — only Workers-compatible option |
-| `@playwright/test` | `^1.60.0` | Virtual Authenticator stability + addInitScript fixes |
-| `keycloak/keycloak` (Terraform) | `>= 5.7.0, < 6.0.0` | Official KC org provider since Dec 2024; mrparkers archived |
-| `cloudflare/cloudflare` (Terraform) | `~> 5.19` | Worker secrets management |
-| `kislerdm/neon` (Terraform) | `>= 0.9.0, < 1.0.0` | Neon DB provisioning |
-| `axllent/mailpit:v1.29` (Docker) | `v1.29` | Local SMTP — MailHog abandoned 2020, drop-in replacement |
-| Terraform CLI | `>= 1.9.0, < 2.0.0` | Required floor for all three providers |
-| HCP Terraform | free tier | Remote state CI/prod (500 resources) |
+**New packages (v3.0 only):**
 
-No new frontend npm deps. No new backend deps beyond `resend`.
+| Package | Version | Location | Purpose |
+|---------|---------|----------|---------|
+| `concurrently` | `^9.2.1` | root devDeps | Parallel process orchestration with labeled prefixes |
+| `wait-on` | `^9.0.10` | root devDeps | Health-check polling before starting app processes |
+| `eslint-plugin-security` | `^4.0.0` | backend devDeps (conditional) | Static analysis — ReDoS, eval, path traversal |
+
+`concurrently` v10.0.0 released 2026-05-28 — pin v9 as stable.
+
+**New files to create (not packages):**
+- `scripts/dev.mjs` — Node ESM dev orchestration script
+- `.vscode/extensions.json` — FreeMarker LSP recommendation (`Nokia.lsp-for-freemarker`)
+
+**Docker Compose addition** — KC cache-disable flags:
+```yaml
+command: >
+  start-dev
+  --spi-theme-static-max-age=-1
+  --spi-theme-cache-themes=false
+  --spi-theme-cache-templates=false
+```
+
+**What NOT to add:** task runners (just, mask, turbo, nx), Keycloakify (requires React), dual `.ps1` + `.sh` scripts.
 
 ---
 
 ## Feature Table Stakes
 
-### Passkey Campaign
-- AIA trigger: `kc_action=webauthn-register-passwordless`; KC 26.3+ `skip-if-exists` param eliminates redundant prompts
-- Per-device opt-out cookie `pnk_{userId}`: `max-age=2592000`, `SameSite=Strict` — UX hint only, not a security gate
-- Cookie written only after `initKeycloak()` resolves (userId unavailable before ID token)
-- `webAuthnPolicyPasswordlessRpId` must be set to production hostname before any user registers a passkey — no migration path
+**Must-deliver in v3.0:**
 
-### Email OTP Fallback
-- Worker-side TypeScript: `POST /api/auth/otp-request` + `/api/auth/otp-verify` — no Java, no KC SPI
-- OTP: SHA-256 hash in `email_otp_codes` table, 6-digit, 10-min TTL, single-use, max 5 attempts
-- Timing-safe comparison: HMAC-SHA256 + XOR accumulator (Workers lacks `timingSafeEqual`)
-- After OTP verify: force `UPDATE_PASSWORD` Required Action so user never stays passkey-only
+| Feature | Area | Complexity |
+|---------|------|------------|
+| Empty-state dashboard with "Create your first trip" CTA | New user flow | Low |
+| Nominatim geocoder widget parity across destinations, hotels, activities forms | New user flow | Low (audit) |
+| Map renders immediately on first activity save | New user flow | Low (verify) |
+| Search indexes newly created trips | New user flow | Low (verify) |
+| Playwright E2E covering full create-trip-to-map flow | New user flow | Medium |
+| No raw browser errors or unhandled rejections visible to users | Error handling | Low-Medium |
+| Inline form validation errors at field level | Error handling | Low |
+| API errors rendered as human-readable messages in context | Error handling | Low |
+| Auth 401 triggers re-login, not blank page | Error handling | Low |
+| `VITE_API_URL` missing fails build loudly in production mode | Error handling | Low |
+| Single `npm run dev` entry command | Dev script | Low-Medium |
+| Service health-check wait before backend starts | Dev script | Medium |
+| PKCE S256 enforced server-side in Terraform | OAuth audit | Low |
+| Strict redirect URIs separated by environment (no wildcards in prod) | OAuth audit | Low |
+| JWKS cache invalidation on key rotation (retry once on verify failure) | OAuth audit | Low |
+| `email` optional typing throughout (passkey users have no email) | OAuth audit | Low |
+| Login page typography and colors match app (font-family, border-radius: 0, color palette) | KC theme | Low |
+| No KC logo on login page | KC theme | Low |
+| Email templates branded with inline styles | KC theme | Low |
 
-### Email Verification
-- `VERIFY_EMAIL` Required Action as realm default — must ship atomically with SMTP config
-- KC bug #41171: session expires if link opened in different tab — increase `accessCodeLifespanUserAction` to 900–1800s
+**Hard limit — KC account console:** KC 26 Account Console is a React/PatternFly SPA. CSS can change fonts and colors only. Component geometry cannot be restyled via FreeMarker. Accepted limitation for this milestone.
 
-### KC Flow Configuration
-- Switch `browserFlow` from `"browser"` to `"browser-passkey"` via Terraform
-- Must NOT happen until password-forms ALTERNATIVE branch exists in the flow
-- Safe flow: `auth-cookie` ALT → `passkey-forms` ALT → `password-forms` ALT
+---
 
-### Error Handling & Theme Localization
-- Create `keycloak/themes/japan-trip/login/messages/messages_es.properties` (directory missing)
-- Add `locales=es,en` to `theme.properties`
-- FreeMarker overrides: `login.ftl`, `login-otp.ftl`, `verify-email.ftl`, `error.ftl`
-- Key KC error keys: `invalidUserMessage`, `accountTemporarilyDisabledMessage`, `webauthn-error-*`
+## Architecture Highlights
 
-### Terraform IaC
-- Full migration away from `--import-realm` — Terraform is single source of truth per env
-- `realm-export.json` becomes read-only reference snapshot
-- Resources: `keycloak_realm`, `keycloak_openid_client`, auth flows + executions, `keycloak_required_action`
-- `cloudflare_worker_secret` for `RESEND_API_KEY`, `KC_ADMIN_CLIENT_SECRET`
+### Key Integration Points
 
-### Playwright Real Auth
-- `storageState` via `globalSetup` — headless Chromium drives OIDC redirect, writes `tests/.auth/user.json`
-- ROPC disabled — cannot use username/password API auth; storageState is the only path
-- `storageState` does NOT capture `sessionStorage` (Playwright bug #31108) — workaround: `page.evaluate` + `addInitScript` replay
-- Virtual Authenticator (passkeys): Chromium-only — dedicated `chromium-passkeys` project
-- Mailpit REST API for reading OTP codes in E2E tests
+**CSS token cross-origin gap:** Frontend on `localhost:5173`; KC login on `localhost:8080`. Different origins — `localStorage` theme state cannot sync. Decision: accept divergence; KC login uses `@media (prefers-color-scheme: dark)` only. KC `login.css` currently has hardcoded hex inside `@media` blocks — fix this in Phase 1 regardless.
+
+**Multiple frontend entry points:** `main.ts` is the legacy city-page entry. `dashboard.ts`, `tripDetail.ts`, `trip-edit.ts`, and `profile.ts` are separate Vite entry points. Error handling must be applied to all four individually.
+
+**Shadow DOM CSS inheritance:** `Navbar.ts` and `SearchBar.ts` inline all styles as TS template literals using CSS custom properties. `[data-theme]` attribute selectors do not pierce Shadow DOM. Components must consume custom properties only.
+
+**Playwright sessionStorage workaround:** `keycloak-js` stores tokens in `sessionStorage`. Playwright's `storageState()` captures cookies and `localStorage` only (issue #31108, unresolved in v1.60.0). The existing `addInitScript` workaround must be used for all new auth-dependent specs.
+
+### New vs Modified Components
+
+**New files:**
+
+| File | Phase | Purpose |
+|------|-------|---------|
+| `frontend/src/modules/toast.ts` | 2 | Central toast; consumes CSS tokens |
+| `frontend/src/modules/errorHandler.ts` | 2 | Global unhandledrejection handler |
+| `scripts/dev.mjs` | 3 | Docker Desktop detection + sequenced startup |
+| `scripts/lib/wait-for-server.mjs` | 3 | Shared polling helper |
+| `tests/e2e/new-user-trip-creation.spec.ts` | 4 | Full CRUD + map E2E |
+| `tests/e2e/fixtures/trip-helpers.ts` | 4 | `createTestTrip` / `deleteTestTrip` API helpers |
+
+**Modified files:**
+
+| File | Change | Phase |
+|------|--------|-------|
+| `keycloak/themes/japan-trip/login/resources/css/login.css` | Remove hardcoded hex; use `--jp-*` tokens | 1 |
+| `keycloak/themes/japan-trip/account/resources/css/account.css` | Token alignment | 1 |
+| `keycloak/themes/japan-trip/login/*.ftl` (5 files) | Remove inline styles | 1 |
+| `frontend/src/styles/main.css` | Audit hardcoded hex | 1 |
+| `frontend/src/api/client.ts` | Typed `ApiError` (status + code) | 2 |
+| `backend/src/index.ts` | Error code taxonomy in `onError` | 2 |
+| `frontend/src/pages/dashboard.ts`, `tripDetail.ts`, `trip-edit.ts`, `profile.ts` | try/catch + showToast | 2 |
+| `terraform/keycloak/main.tf` | `trip_edit_test_user`, `new_user_test` resources | 3 |
+| `tests/e2e/trip-edit-integration.spec.ts` | Remove ROPC; use storageState | 4 |
+
+### Suggested Phase Order
+
+```
+Phase 10 (Design Tokens + IDP Theme)
+  └─ Phase 11 (Error Handling) — blocked on Phase 10 tokens
+
+Phase 12a (Terraform Expansion) ─┐ parallel, independent
+Phase 12b (Dev Script)          ─┤
+                                 └─ Phase 13 (E2E + New User Parity) — blocked on Phases 11 + 12
+```
 
 ---
 
 ## Watch Out For
 
-1. **rpId lock-in** — Set production hostname in Terraform before any prod passkey registrations. No migration path.
-2. **Dual source of truth** — Remove `--import-realm` from docker-compose immediately after TF local confirmed.
-3. **browserFlow switch locks out password-only users** — Add password-forms ALTERNATIVE branch before switching.
-4. **OTP timing attack** — `timingSafeEqual` absent in CF Workers. Use HMAC-SHA256 + XOR accumulator.
-5. **VERIFY_EMAIL + SMTP must ship atomically** — Enabling Required Action before SMTP silently blocks registrations.
+**Top 5 pitfalls (ranked by severity):**
+
+**1. Terraform `webAuthnPolicyPasswordlessRpId` drift — CATASTROPHIC/IRREVERSIBLE**
+If any `terraform apply` resets this field, all passkey registrations are permanently invalidated. No migration path. Prevention: pin value explicitly in HCL; add `lifecycle { prevent_destroy = true }` to realm resource; run `terraform plan` before any apply and verify zero changes on the realm resource. **First action in Phase 12a — verify the pin before touching anything else.**
+
+**2. KC passkey AIA templates break silently on macro restructure — CRITICAL**
+The passkey enrollment flow uses AIA FreeMarker templates. Renaming macros or restructuring `login.ftl` causes the passkey prompt to silently break. Prevention: treat passkey AIA templates as frozen. Run `passkeys.spec.ts` after every theme change.
+
+**3. KC startup race causes 401 wall on first dev run — HIGH**
+KC takes 15-30s after the Docker healthcheck passes to serve JWKS. If backend starts before KC's OIDC discovery endpoint is reachable, all requests return 401 until backend restarts. Prevention: startup script must poll `{KEYCLOAK_URL}/health/ready` and block backend start.
+
+**4. JWT audience regression during audit — HIGH**
+v2.0 tightened `VALID_AUDIENCES` to `['japan-trip-api']`. A Terraform change can silently re-add `account`, widening the security boundary. Prevention: add E2E assertion — a token with `aud: account` only must return 401.
+
+**5. CSS token rename misses Shadow DOM TS template literals — HIGH**
+IDE refactoring and CSS linters do not scan TS string literals in `Navbar.ts` / `SearchBar.ts`. Prevention: before any rename, run `rg "var\(--old-token-name" --type ts --type css` across the entire repo.
+
+**Additional mandatory items:**
+- ROPC removal from `trip-edit-integration.spec.ts` is mandatory — PROJECT.md prohibits ROPC
+- `testuser` is not in Terraform; must be added in Phase 12a before Phase 13 E2E expansion
+- Fix existing loose assertions in `trips.spec.ts` and `auth.spec.ts` before adding new coverage
 
 ---
 
-## Build Order
+## Confidence Assessment
 
-1. Local infra — Mailpit, `terraform/keycloak/` module, local apply, remove `--import-realm`
-2. Backend hardening — `validAudiences` env var, `email?: string` relaxation
-3. DB migration + KC Admin client — `email_otp_codes`, admin service account
-4. Backend OTP routes + mailer (parallel with 5) — `/api/auth/otp-*`, `mailer.ts`
-5. KC theme extensions (parallel with 4) — FreeMarker, `messages_es.properties`, Required Actions
-6. Frontend passkey detection + fallback page — depends on 4
-7. Playwright real-auth overhaul — depends on 1–6
-8. Production Terraform — prod rpId, redirect_uris, Cloudflare secrets, Neon
-
----
-
-## Open Questions Resolved
-
-| Question | Decision |
-|----------|----------|
-| Email OTP: KC SPI vs Worker-side TypeScript | Worker-side TypeScript |
-| Email provider | Resend `^6.0.0` |
-| Local SMTP | Mailpit v1.29 |
-| Terraform state | HCP Terraform free tier (CI/prod), local (dev) |
-| KC Terraform provider | `keycloak/keycloak >= 5.7.0` |
-| KC customization | FreeMarker themes + built-in flows only |
-
----
-
-## Remaining Open Questions
-
-| Question | Impact |
-|----------|--------|
-| KC TF provider KC 26 compat for `browser-passkey` flow topology | May need `null_resource` REST fallback |
-| Exact Railway production hostname | Blocks prod rpId and redirect_uris |
-| Separate `japan-trip-worker` vs promote `japan-trip-api` for Admin API | Least-privilege design |
-| VERIFY_EMAIL vs webauthn-register-passwordless ordering | Conflicting defaults if wrong |
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Stack additions (packages, versions) | HIGH | Verified against npm registry |
+| Feature table stakes | HIGH | Derived from codebase analysis |
+| Architecture — component boundaries | HIGH | Grounded in actual codebase file review |
+| Cross-origin theme constraint | HIGH | Architectural fact; Option D is the correct call |
+| Terraform rpId risk | HIGH | PROJECT.md explicitly flags; codebase-verified |
+| OAuth audit scope | HIGH | RFC 9700 (Jan 2025) is current IETF BCP |
+| KC account console limitations | HIGH | Confirmed via official KC 26 docs |

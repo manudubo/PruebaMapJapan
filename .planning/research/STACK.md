@@ -735,7 +735,7 @@ Create new directory: `terraform/` with provider configs, realm config, and Clou
 - [Keycloak Terraform Provider Release 5 — keycloak.org](https://www.keycloak.org/2025/01/terraform-provider-release-5)
 - [Cloudflare Terraform Provider v5 GA — Cloudflare Changelog](https://developers.cloudflare.com/changelog/post/2025-02-03-terraform-v5-provider/)
 - [Cloudflare Terraform Provider v5.19.1 — Terraform Registry](https://registry.terraform.io/providers/cloudflare/cloudflare/latest)
-- [kislerdm/neon Terraform Provider — Terraform Registry](https://registry.terraform.io/providers/kislerdm/neon/latest)
+- [kislydm/neon Terraform Provider — Terraform Registry](https://registry.terraform.io/providers/kislerdm/neon/latest)
 - [Neon Terraform docs — neon.com](https://neon.com/docs/reference/terraform)
 - [Send Emails With Resend — Cloudflare Workers Docs](https://developers.cloudflare.com/workers/tutorials/send-emails-with-resend/)
 - [resend-cloudflare-workers-example — GitHub](https://github.com/resend/resend-cloudflare-workers-example)
@@ -748,3 +748,220 @@ Create new directory: `terraform/` with provider configs, realm config, and Clou
 - [Keycloak 26 Server Developer Guide — Themes — Red Hat Docs](https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak/26.0/html/server_developer_guide/themes)
 - [HCP Terraform Free Tier Changes — Spacelift](https://spacelift.io/blog/terraform-cloud-free-tier)
 - [HCP Terraform enhanced free tier — HashiCorp blog](https://www.hashicorp.com/en/blog/continuing-hcp-terraform-s-enhanced-free-tier-experience)
+
+---
+
+---
+
+# Stack Research — v3.0 Quality, Polish & DevX
+
+**Researched:** 2026-05-28
+**Confidence:** HIGH (versions verified via web search against npm registry and official Docker docs)
+
+---
+
+## New Dependencies (v3.0)
+
+### npm — root workspace
+
+| Package | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| `concurrently` | `^9.2.1` | Run Wrangler dev + Vite dev in parallel after services are up | 8.6M weekly downloads; battle-tested for Node monorepo multi-process orchestration. Pin v9 (stable). v10.0.0 released 2026-05-28 — too fresh to pin yet. |
+| `wait-on` | `^9.0.10` | Poll HTTP endpoints and TCP ports before starting app processes | Cross-platform port/URL readiness; no daemon; works with `http://localhost:8080/realms/japan-trip` and `tcp:1025` syntax. |
+
+Both go in **root** `package.json` devDependencies only. They are dev orchestration tools, not app dependencies.
+
+### npm — backend (`backend/`)
+
+| Package | Version | Purpose | When to Add |
+|---------|---------|---------|-------------|
+| `eslint-plugin-security` | `^4.0.0` | Static analysis: flags unsafe regex, `eval`, prototype pollution, path traversal | Add only if ESLint is already configured in `backend/`; skip if it requires standing up ESLint from scratch solely for this plugin |
+
+### npm — frontend (`frontend/`)
+
+No new dependencies.
+
+### npm — tests (`tests/`)
+
+No new dependencies. Playwright version is already current from v2.0.
+
+---
+
+## Dev Environment Script
+
+### Architecture
+
+One Node.js ESM script at `scripts/dev.mjs` in the repo root. Invoked via `npm run dev` added to root `package.json`:
+
+```json
+{
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend"
+  }
+}
+```
+
+The script performs these steps in sequence:
+
+1. **Docker daemon check:** spawn `docker info` — exit 0 means running
+2. **Start Docker Desktop if not running:** issue `docker desktop start` (Docker Desktop 4.37+ CLI), then poll `docker info` every 3s up to 60s timeout
+3. **Start services:** `docker compose -f keycloak/docker-compose.yml up -d`
+4. **Wait for services:** `wait-on` polls `http://localhost:8080/realms/japan-trip` (Keycloak) and `tcp:1025` (Mailpit SMTP)
+5. **Start app processes:** `concurrently` starts `npm run dev --workspace=backend` and `npm run dev --workspace=frontend`
+
+### Docker Desktop Detection
+
+| Step | Command | Notes |
+|------|---------|-------|
+| Detect daemon running | `docker info` (exit 0 = running) | Universal — works on all platforms and Docker Desktop versions |
+| Start Desktop (primary) | `docker desktop start` | Docker Desktop CLI, introduced in 4.37 (Windows/macOS/Linux). Preferred — no path guessing. |
+| Start Desktop (macOS fallback) | `open -a Docker` | For DD < 4.37 on macOS |
+| Start Desktop (Windows fallback) | `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"` | For DD < 4.37 on Windows; path may vary |
+| Start Desktop (Linux fallback) | `systemctl --user start docker-desktop` | For DD < 4.37 on Linux |
+
+Use `process.platform` (`'win32'` / `'darwin'` / `'linux'`) for fallback branching. Try `docker desktop start` first universally; fall back to platform-specific only on non-zero exit.
+
+### Why not dual PowerShell + Bash scripts
+
+- Node 22+ is already required — no additional runtime to install
+- Two scripts = duplicated logic, certain to drift
+- `process.platform` handles all platform differences in one place
+- `concurrently` and `wait-on` provide cross-platform process management without shell quoting differences
+
+### Why not task runners (just, mask, turbo, nx)
+
+Four processes to orchestrate (Keycloak, Mailpit, Wrangler, Vite) plus Docker Desktop detection does not justify a task runner dependency. `concurrently` + `wait-on` + Node script is the minimal surface that solves exactly this problem.
+
+---
+
+## OAuth/OIDC Security Audit
+
+### Approach: Checklist-driven review, no new runtime dependencies
+
+The audit is a process against RFC 9700 (IETF, January 2025 — the current authoritative OAuth 2.0 Security BCP). The existing stack already implements the correct patterns (PKCE, RS256 JWT, audience validation, no ROPC). The work is verifying compliance, not installing a library.
+
+**Audit surface for this stack:**
+
+| Area | What to verify | RFC 9700 reference |
+|------|---------------|-------------------|
+| Frontend (`keycloak-js`) | `response_type=code` enforced, PKCE enabled (`code_challenge_method=S256`), no token in URL fragment, `state` param present | §2.1, §2.1.1 |
+| Backend JWT validation | `iss`, `aud`, `exp`, `nbf` all validated; no `alg: none` accepted; `VALID_AUDIENCES` locked to `['japan-trip-api']` | §2.1.3 |
+| Keycloak realm config | Implicit Flow disabled, ROPC unavailable to public clients, refresh token rotation enabled | §2.1.2, §2.6 |
+| CSRF | `state` param validated on callback; `nonce` included in ID token requests | §4.7 |
+| Redirect URI | Exact match enforced in KC client config (no wildcard, no open redirect) | §4.1 |
+| Token storage | `keycloak-js` stores tokens in sessionStorage — acceptable for SPA; document the choice | §4.2 |
+
+**No new tools needed for the audit itself.** OWASP ZAP can be run ad-hoc externally if desired; it is not a repo dependency.
+
+### Optional: `eslint-plugin-security` (backend only)
+
+- Version: `^4.0.0` (published ~Feb 2026, actively maintained by eslint-community)
+- Detects: unsafe regex (ReDoS), `eval`, prototype pollution patterns, path traversal via string concat
+- Add to `backend/` only — the frontend is browser code where the threat model differs and the plugin is less applicable
+- Condition: add only if `eslint` is already configured or being configured for the backend in v3.0; do not introduce ESLint solely for this plugin
+
+---
+
+## Keycloak FreeMarker Theme Tooling
+
+### No new build tooling needed
+
+The existing setup (`docker-compose.yml` volume mount of `./keycloak/themes` + `start-dev` command) already gives near-instant reload for `.ftl` edits. In `start-dev` mode, Keycloak does not cache FreeMarker templates by default.
+
+**To ensure caching is fully disabled, add these flags to the `docker-compose.yml` keycloak command:**
+
+```yaml
+command: >
+  start-dev
+  --spi-theme-static-max-age=-1
+  --spi-theme-cache-themes=false
+  --spi-theme-cache-templates=false
+```
+
+Edit `.ftl` file → refresh browser → change visible immediately. No Keycloak restart required.
+
+### VSCode Extension (add to `.vscode/extensions.json`)
+
+| Extension | ID | Last Updated | Status |
+|-----------|----|-------------|--------|
+| Freemarker Template Language Support (Nokia) | `Nokia.lsp-for-freemarker` | April 2026 | Actively maintained — PREFERRED |
+| Freemarker Plus | `sj1cn.freemarker-plus` | June 2025 | Actively maintained — fallback |
+
+Avoid `dcortes92.FreeMarker` — unmaintained per the author.
+
+### What NOT to add for FreeMarker development
+
+| Tool | Why not |
+|------|---------|
+| Keycloakify | Requires React; explicitly out of scope (PROJECT.md: "all KC customization via built-in flows + FreeMarker themes only") |
+| Maven/Gradle + theme JAR build | No JVM toolchain in project; theme lives in volume mount, not a JAR |
+| Chromatic / Percy visual diffing | External paid service; overkill for a personal portfolio project |
+| Separate FreeMarker test harness | Playwright covers login flow visually already; no separate FreeMarker runner needed |
+
+---
+
+## What NOT to Add (v3.0)
+
+| Item | Why excluded |
+|------|--------------|
+| Dual `.ps1` + `.sh` dev scripts | Logic duplication, drift; Node script is universal |
+| `npm-run-all` | Fewer features than `concurrently` for this use case; lower weekly downloads |
+| `just`, `mask`, `turbo`, `nx` | Overkill for 4-process orchestration |
+| Keycloakify | Requires React; out of scope by PROJECT.md |
+| `eslint-plugin-security` on frontend | Browser threat model differs; less applicable; add to backend only if ESLint is already there |
+| Snyk, Burp Suite, Checkmarx | Paid tools; violates "free or minimal" cost constraint |
+| OWASP ZAP as repo dependency | External scanner; run ad-hoc if needed; not a commit-able dependency |
+| `oidc-provider` or alternative OIDC server | Project is committed to Keycloak; stack change is out of scope |
+| Any Playwright upgrade | Already at current version from v2.0 |
+| Any new Terraform providers | v3.0 scope is Terraform expansion of existing KC provider, not new providers |
+
+---
+
+## v3.0 Installation Delta
+
+```bash
+# Root workspace — dev orchestration
+npm install -D concurrently@^9.2.1 wait-on@^9.0.10
+
+# Backend workspace — optional static analysis (only if ESLint already configured)
+npm install -D eslint-plugin-security@^4.0.0 --workspace=backend
+```
+
+New files to create:
+- `scripts/dev.mjs` — Node.js dev orchestration script
+- Update root `package.json` scripts: add `"dev": "node scripts/dev.mjs"`
+- Update `keycloak/docker-compose.yml`: add cache-disable flags to keycloak command
+- Add `.vscode/extensions.json` with FreeMarker extension recommendation
+
+---
+
+## Confidence Levels (v3.0)
+
+| Topic | Confidence | Source |
+|-------|------------|--------|
+| `concurrently` v9.2.1 latest stable | HIGH | npm registry search (v10.0.0 just released 2026-05-28 — confirmed too fresh; GitHub releases show v9.2.1 as last stable) |
+| `wait-on` v9.0.10 latest | HIGH | npm registry (published ~May 2026) |
+| `docker desktop start` CLI (DD 4.37+) | HIGH | Docker Desktop 4.37 release blog; Docker Desktop CLI docs |
+| RFC 9700 as current OAuth BCP | HIGH | IETF Datatracker — published January 2025 |
+| `eslint-plugin-security` v4.0.0 | HIGH | npm registry (published ~Feb 2026, eslint-community org) |
+| KC `start-dev` + volume mount = no cache | MEDIUM | Keycloak GitHub discussions; cache flags documented but default behavior in `start-dev` not explicitly stated in official docs — adding flags explicitly is safer |
+| Nokia FreeMarker LSP extension actively maintained | HIGH | VS Marketplace — last updated April 2026 |
+| Keycloakify requires React | HIGH | Keycloakify official docs; confirmed in PROJECT.md out-of-scope |
+
+---
+
+## Sources (v3.0)
+
+- [concurrently npm page](https://www.npmjs.com/package/concurrently) — v9.2.1 latest stable; v10.0.0 released 2026-05-28
+- [concurrently GitHub releases](https://github.com/open-cli-tools/concurrently/releases)
+- [wait-on npm page](https://www.npmjs.com/package/wait-on) — v9.0.10 latest (May 2026)
+- [Docker Desktop 4.37 release blog](https://www.docker.com/blog/docker-desktop-4-37/) — `docker desktop start` CLI introduced
+- [Docker Desktop CLI docs](https://docs.docker.com/desktop/features/desktop-cli/)
+- [RFC 9700 at IETF Datatracker](https://datatracker.ietf.org/doc/rfc9700/) — OAuth 2.0 Security BCP, January 2025
+- [eslint-plugin-security npm](https://www.npmjs.com/package/eslint-plugin-security) — v4.0.0 (eslint-community)
+- [eslint-plugin-security GitHub](https://github.com/eslint-community/eslint-plugin-security)
+- [Keycloak theme caching discussion](https://github.com/keycloak/keycloak/discussions/12595) — `start-dev` + volume mount hot reload
+- [Nokia LSP for FreeMarker — VS Marketplace](https://marketplace.visualstudio.com/items?itemName=Nokia.lsp-for-freemarker) — updated April 2026
+- [Freemarker Plus — VS Marketplace](https://marketplace.visualstudio.com/items?itemName=sj1cn.freemarker-plus) — updated June 2025
