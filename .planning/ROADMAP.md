@@ -43,7 +43,12 @@
   2. The Keycloak login page displays with Helvetica-style font, `border-radius: 0`, matching color palette, and no Keycloak logo
   3. Keycloak email templates (OTP verification, email confirmation) apply the app's typography and color palette via inline styles
   4. Toggling light/dark theme persists across MPA page navigations; the Leaflet map switches tile layers when the theme changes
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 10-01-PLAN.md — Rename --jp-* tokens + add D-03 new tokens + fix all hardcoded component values in main.css
+- [ ] 10-02-PLAN.md — Rename old token names in 7 TypeScript source files (inline CSS strings)
+- [ ] 10-03-PLAN.md — Fix residual hardcoded values in login.css and account.css (KC CSS files)
+- [ ] 10-04-PLAN.md — Create KC email theme: template.ftl card chrome + 4 html FTLs + 4 text FTLs + messages_es/en.properties
 **UI hint**: yes
 
 ### Phase 11: Error Handling
@@ -109,7 +114,7 @@
 | 7. Backend Hardening + KC Config | v2.0 | 9/9 | Complete | 2026-05-24 |
 | 8. OTP + Passkey Campaign | v2.0 | 8/8 | Complete | 2026-05-26 |
 | 9. Playwright Real Auth | v2.0 | 7/7 | Complete | 2026-05-28 |
-| 10. Design Tokens + IDP Theme | v3.0 | 0/TBD | Not started | - |
+| 10. Design Tokens + IDP Theme | v3.0 | 0/4 | Not started | - |
 | 11. Error Handling | v3.0 | 0/TBD | Not started | - |
 | 12. Terraform Expansion + Dev Script | v3.0 | 0/TBD | Not started | - |
 | 13. Security Audit + Documentation | v3.0 | 0/TBD | Not started | - |
