@@ -580,22 +580,22 @@ POSTGRES_URL=postgres://user:pass@localhost:5432/japan_trip
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Mailpit exact response shape**
    - What we know: Mailpit has `GET /api/v1/messages` and `GET /api/v1/message/{id}` endpoints; community shows fields named `ID`, `Text`, `Subject`
    - What's unclear: exact casing (`ID` vs `id`), whether list response wraps in `{ messages: [...] }` or returns the array directly, whether `Text` vs `Body.Text`
-   - Recommendation: Wave-0 spike — start Mailpit locally and run `curl http://localhost:8025/api/v1/messages | jq .`
+   - RESOLVED: Plan 01 Task 2 includes a Wave-0 Mailpit spike (`curl http://localhost:8025/api/v1/messages | jq .`) that captures the actual field names at execution time and records them in `tests/e2e/helpers/mailpit.ts`. OTP parsing in Plan 07 reads from that helper.
 
 2. **KC WebAuthn credential type name**
    - What we know: KC has separate "webauthn" (MFA) and "webauthn-passwordless" policies
    - What's unclear: exact `type` value returned by `getCredentials()` for passwordless passkeys registered via `webauthn-register-passwordless` action
-   - Recommendation: After seeding first passkey in dev, call `GET /admin/realms/japan-trip/users/{id}/credentials` and inspect the `type` field
+   - RESOLVED: Plan 04 handles both `"webauthn"` and `"webauthn-passwordless"` credential type strings in `resetCredentials()` — credentials matching either type are deleted, making the exact value irrelevant at the plan level.
 
 3. **storageState token expiry detection**
    - What we know: KC default access token lifetime is 5 minutes; refresh token lifetime is longer; file mtime check is simpler than introspection
    - What's unclear: Whether KC refresh tokens are stored in storageState cookies or only in sessionStorage
-   - Recommendation: Use `MAX_AGE_MS = 50 * 60 * 1000` (50 min) as file age threshold — safe for KC's default 5-min access token + 60-min session lifetime. If refresh token is in sessionStorage, the page will auto-refresh within the session window.
+   - RESOLVED: Plan 03 uses `MAX_AGE_MS = 50 * 60 * 1000` (50 min) as the file age threshold. This is safe for KC's default 5-min access token + 60-min session lifetime. If the session is expired, globalSetup re-runs the OIDC login flow transparently.
 
 ---
 
