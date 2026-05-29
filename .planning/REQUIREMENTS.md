@@ -81,37 +81,35 @@
 
 ## Traceability
 
-*Filled by roadmapper during Phase creation.*
-
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| DEVENV-01 | — | — |
-| DEVENV-02 | — | — |
-| DEVENV-03 | — | — |
-| INFRA-01 | — | — |
-| INFRA-02 | — | — |
-| INFRA-03 | — | — |
-| INFRA-04 | — | — |
-| SEC-01 | — | — |
-| SEC-02 | — | — |
-| SEC-03 | — | — |
-| SEC-04 | — | — |
-| SEC-05 | — | — |
-| DOC-01 | — | — |
-| DOC-02 | — | — |
-| DOC-03 | — | — |
-| ERR-01 | — | — |
-| ERR-02 | — | — |
-| ERR-03 | — | — |
-| ERR-04 | — | — |
-| ERR-05 | — | — |
-| UX-01 | — | — |
-| UX-02 | — | — |
-| UX-03 | — | — |
-| UX-04 | — | — |
-| UX-05 | — | — |
-| UX-06 | — | — |
-| DESIGN-01 | — | — |
-| DESIGN-02 | — | — |
-| DESIGN-03 | — | — |
-| DESIGN-04 | — | — |
+| DEVENV-01 | Phase 12 | Pending |
+| DEVENV-02 | Phase 12 | Pending |
+| DEVENV-03 | Phase 13 | Pending |
+| INFRA-01 | Phase 12 | Pending |
+| INFRA-02 | Phase 12 | Pending |
+| INFRA-03 | Phase 12 | Pending |
+| INFRA-04 | Phase 12 | Pending |
+| SEC-01 | Phase 13 | Pending |
+| SEC-02 | Phase 13 | Pending |
+| SEC-03 | Phase 12 | Pending |
+| SEC-04 | Phase 13 | Pending |
+| SEC-05 | Phase 13 | Pending |
+| DOC-01 | Phase 13 | Pending |
+| DOC-02 | Phase 13 | Pending |
+| DOC-03 | Phase 13 | Pending |
+| ERR-01 | Phase 11 | Pending |
+| ERR-02 | Phase 11 | Pending |
+| ERR-03 | Phase 11 | Pending |
+| ERR-04 | Phase 11 | Pending |
+| ERR-05 | Phase 11 | Pending |
+| UX-01 | Phase 14 | Pending |
+| UX-02 | Phase 14 | Pending |
+| UX-03 | Phase 14 | Pending |
+| UX-04 | Phase 14 | Pending |
+| UX-05 | Phase 14 | Pending |
+| UX-06 | Phase 14 | Pending |
+| DESIGN-01 | Phase 10 | Pending |
+| DESIGN-02 | Phase 10 | Pending |
+| DESIGN-03 | Phase 10 | Pending |
+| DESIGN-04 | Phase 10 | Pending |

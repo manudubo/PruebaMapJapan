@@ -4,10 +4,10 @@ milestone: v3.0
 milestone_name: Quality, Polish & DevX
 status: active
 stopped_at: ""
-last_updated: "2026-05-28T00:00:00.000Z"
-last_activity: 2026-05-28 -- Milestone v3.0 started
+last_updated: "2026-05-29T00:00:00.000Z"
+last_activity: 2026-05-29 -- Roadmap created (phases 10-14)
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-28 — v3.0 started)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** v3.0 Quality, Polish & DevX — defining requirements
+**Current focus:** v3.0 Phase 10: Design Tokens + IDP Theme (not started)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 10 of 14 (Phase 10 — Design Tokens + IDP Theme)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-28 — Milestone v3.0 started
+Status: Ready to plan
+Last activity: 2026-05-29 — Roadmap created (5 phases, 10–14)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -36,9 +36,9 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 7 (Phase 09 alone)
-- Average duration: ~15 minutes/plan
-- Total execution time: ~2 hours (waves 1-3 with session-limit recovery)
+- Total plans completed: 0 (v3.0)
+- Average duration: ~15 min/plan (v2.0 baseline)
+- Total execution time: 0 hours
 
 ## Accumulated Context
 
@@ -49,9 +49,8 @@ Recent decisions affecting current work:
 
 - v2.0 E2E: Real-auth via OIDC PKCE headless Chromium (not ROPC); storageState + addInitScript workaround for keycloak-js sessionStorage (Playwright bug #31108)
 - v2.0 SKIP_REAL_AUTH: CI guard env var — all real-auth tests gated; mocked tests unchanged
-- v2.0 KC Admin: `client_credentials` grant with `japan-trip-worker`; manage-users CLIENT role
 - v2.0 OTP serial: `test.describe.configure({ mode: 'serial' })` mandatory for Mailpit inbox isolation
-- v2.0 CDP passkeys: `hasUserVerification` (not `haUserVerification`) — critical spelling; two-context login flow for clean KC redirect
+- v2.0 CDP passkeys: `hasUserVerification` (not `haUserVerification`) — critical spelling; two-context login flow
 
 ### Pending Todos
 
@@ -59,31 +58,22 @@ None.
 
 ### Blockers/Concerns
 
-- CRITICAL: `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before any prod passkey registration — no migration path exists (carry-forward to v3.0)
-- Production deployment (Cloudflare + Neon + Railway) deferred to v3.0
-- Passkey/OTP real-auth tests run locally only — skipped in CI via SKIP_REAL_AUTH
+- CRITICAL: `webAuthnPolicyPasswordlessRpId` must be pinned in Terraform HCL before Phase 12 apply — no migration path if reset
+- Phase 12: Verify `webAuthnPolicyPasswordlessRpId` pin and run `terraform plan` with zero realm changes before touching any other resource
+- Passkey AIA templates are frozen — run `passkeys.spec.ts` after any Phase 10 theme change
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| DEPLOY | Production deployment (Cloudflare + Neon + Railway) | Deferred to v3.0 | v1.0 planning |
-| DEMO | Landing demo experience | Deferred to v3.0 | v1.0 planning |
-| PASS | Rename passkey (PUT credentials/{id}/label) | Deferred to v3.0 | v1.0 planning |
-| PROD | prod rpId for passkeys (Railway hostname in Terraform) | Deferred to v3.0 | Phase 09 |
-| PROD | Real-auth E2E in CI (requires KC in CI environment) | Deferred to v3.0 | Phase 09 |
-
-Items acknowledged and deferred at v2.0 milestone close on 2026-05-29:
-
-| Category | Item | Status |
-|----------|------|--------|
-| uat_gap | Phase 03: 03-HUMAN-UAT.md | resolved (0 pending scenarios) |
-| verification | Phase 02: 02-VERIFICATION.md | human_needed |
-| verification | Phase 03: 03-VERIFICATION.md | human_needed |
-| verification | Phase 04: 04-VERIFICATION.md | human_needed |
+| DEPLOY | Production deployment (Cloudflare + Neon + Railway) | Deferred to post-v3.0 | v1.0 planning |
+| DEMO | Landing demo experience | Deferred to post-v3.0 | v1.0 planning |
+| PASS | Rename passkey (PUT credentials/{id}/label) | Deferred to post-v3.0 | v1.0 planning |
+| PROD | prod rpId for passkeys (Railway hostname in Terraform) | Deferred to post-v3.0 | Phase 09 |
+| PROD | Real-auth E2E in CI (requires KC in CI environment) | Deferred to post-v3.0 | Phase 09 |
 
 ## Session Continuity
 
-Last session: 2026-05-28T00:00:00.000Z
-Stopped at: v3.0 milestone started — requirements in progress
-Resume: /clear then /gsd-new-milestone (continue requirements + roadmap)
+Last session: 2026-05-29T00:00:00.000Z
+Stopped at: Roadmap written — phases 10–14 defined, ready to plan Phase 10
+Resume: /gsd-plan-phase 10
