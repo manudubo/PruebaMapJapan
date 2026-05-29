@@ -2,7 +2,22 @@
 
 ## What This Is
 
-A full-stack web app for planning, visualizing, and sharing trip itineraries. Users build trips with destinations, hotels, day-by-day chronograms, and activities — all rendered on an interactive Leaflet map. Keycloak OIDC auth with passkeys and OTP fallback. Built as both a portfolio piece and a personally useful tool. v2.0 shipped a hardened auth infrastructure with Terraform IaC, email OTP fallback, passkey campaign, and Playwright real-auth E2E coverage.
+A full-stack web app for planning, visualizing, and sharing trip itineraries. Users build trips with destinations, hotels, day-by-day chronograms, and activities — all rendered on an interactive Leaflet map. Keycloak OIDC auth with passkeys and OTP fallback. Built as both a portfolio piece and a personally useful tool. v2.0 shipped a hardened auth infrastructure with Terraform IaC, email OTP fallback, passkey campaign, and Playwright real-auth E2E coverage. v3.0 targets quality, polish, and developer experience: feature-complete new-user trip creation, design consistency, dev environment script, and full E2E coverage.
+
+## Current Milestone: v3.0 Quality, Polish & DevX
+
+**Goal:** Llevar la app a un estado sólido y consistente — experiencia de usuario completa y probada, dev environment de un solo comando, diseño coherente en toda la app, y documentación actualizada.
+
+**Target features:**
+- Dev environment script: single-command local startup, cross-platform (Windows + macOS/Linux), auto-opens Docker Desktop if not running
+- Terraform expansion: test users, clients, and all remaining KC resources managed as IaC
+- OAuth/OIDC security audit: review and enforce current best practices
+- Documentation: updated README.md + non-local environment setup guide (dependencies, instructions)
+- Use case audit: identify untested scenarios, add missing Playwright E2E coverage
+- New user feature parity with demo (CRITICAL): new users can build any trip with full demo capabilities (map, days, activities, hotel, search) for any city/dates — Playwright E2E covers full creation-to-visualization flow
+- Error handling: no native browser/API error messages visible to users; all errors caught and presented gracefully
+- Design consistency: demo aesthetic applied throughout (minimalist, no rounded borders, Helvetica-style font) including Keycloak IDP theme
+- Light/dark theme consistency: theme toggle works correctly across all flows and pages
 
 ## Core Value
 
@@ -26,12 +41,24 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - ✓ Passkey campaign: post-login flow, per-device cookie, last-credential guard, UPDATE_PASSWORD gated by WebAuthn support — Phase 8
 - ✓ Playwright real-auth E2E: OIDC PKCE globalSetup, storageState + sessionStorage replay, kc-admin fixture, passkeys.spec.ts (CDP), otp.spec.ts (serial) — Phase 9
 
-### Active
+### Active (v3.0)
 
-- [ ] **Production deployment**: Cloudflare Workers (backend) + Neon (DB) + Railway (Keycloak) all live with public URLs and correct env vars — deferred to v3.0
-- [ ] **Landing demo experience**: Landing page showcases Japan trip as demo without requiring login; link to create own trip — deferred to v3.0
-- [ ] **Deployment runbook**: Document how to bring up all three services in both local and production environments — deferred to v3.0
-- [ ] **Real-auth E2E in CI**: Keycloak in CI environment; SKIP_REAL_AUTH removed from pipeline — deferred to v3.0
+- [ ] **Dev environment script**: Single-command local startup (cross-platform), auto-opens Docker Desktop — v3.0
+- [ ] **Terraform expansion**: All KC test users, clients, and resources managed as IaC — v3.0
+- [ ] **OAuth/OIDC security audit**: Compliance with current best practices reviewed and enforced — v3.0
+- [ ] **Documentation**: README updated; non-local setup guide written — v3.0
+- [ ] **Use case audit + E2E**: Untested scenarios identified; Playwright coverage added — v3.0
+- [ ] **New user feature parity with demo**: Full trip creation flow (map/days/activities/hotel/search) for any city/dates; Playwright E2E — v3.0 (CRITICAL)
+- [ ] **Error handling**: No native error messages to users; all errors caught and presented gracefully — v3.0
+- [ ] **Design consistency**: Demo aesthetic throughout app and IDP (minimalist, no rounded borders, Helvetica) — v3.0
+- [ ] **Theme consistency**: Light/dark toggle works correctly across all flows — v3.0
+
+### Future (post-v3.0)
+
+- [ ] **Production deployment**: Cloudflare Workers (backend) + Neon (DB) + Railway (Keycloak) all live with public URLs — post-v3.0
+- [ ] **Landing demo experience**: Landing page showcases Japan trip as demo without requiring login — post-v3.0
+- [ ] **Deployment runbook**: Document how to bring up all three services in both local and production environments — post-v3.0
+- [ ] **Real-auth E2E in CI**: Keycloak in CI environment; SKIP_REAL_AUTH removed from pipeline — post-v3.0
 
 ### Out of Scope
 
@@ -45,7 +72,7 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 
 ## Context
 
-**Codebase state (as of 2026-05-28, v2.0 shipped):**
+**Codebase state (as of 2026-05-28, v2.0 shipped; v3.0 planning started 2026-05-28):**
 - Full-stack brownfield: Hono + Cloudflare Workers backend, Vanilla TypeScript frontend (MPA), Keycloak 26.6.1 OIDC auth
 - 9 phases complete; 62 plans shipped
 - Backend: `email_otp_codes` table, OTP endpoints, VALID_AUDIENCES env var, email-optional JWT
@@ -82,5 +109,22 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 | Terraform KC realm (vs realm-export.json import) | IaC: idempotent applies, no manual KC console work, auditable | ✓ Good — all 16 resources managed; import took effort but worth it |
 | CF Terraform provider pinned `>= 4.0, < 5.0` | v5 removed `cloudflare_worker_secret` | ✓ Good — v4.52.7 stable |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-05-29 after v2.0 milestone*
+*Last updated: 2026-05-28 — v3.0 milestone started*
