@@ -20,7 +20,10 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
+      },
     },
     {
       name: 'firefox',
@@ -29,6 +32,11 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'chromium-passkeys',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/passkeys.spec.ts'],
     },
   ],
   globalSetup: './global-setup.ts',

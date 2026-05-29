@@ -1,9 +1,19 @@
 import { chromium, FullConfig } from '@playwright/test';
+import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
+
+dotenv.config({ path: path.join(__dirname, '.env.test') });
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8787';
 const MAX_RETRIES = 30;
 const RETRY_INTERVAL_MS = 1000;
+
+const AUTH_DIR = path.join(__dirname, '.auth');
+const STORAGE_STATE_PATH = path.join(AUTH_DIR, 'user.json');
+const SESSION_STORAGE_PATH = path.join(AUTH_DIR, 'session.json');
+const MAX_AGE_MS = 50 * 60 * 1000; // 50 min — KC session lifetime default
 
 async function waitForServer(url: string, name: string): Promise<void> {
   console.log(`Waiting for ${name} at ${url}...`);
@@ -22,6 +32,35 @@ async function waitForServer(url: string, name: string): Promise<void> {
   throw new Error(`${name} did not become ready at ${url} after ${MAX_RETRIES} attempts`);
 }
 
+function isStorageStateFresh(): boolean {
+  if (!fs.existsSync(STORAGE_STATE_PATH)) return false;
+  const age = Date.now() - fs.statSync(STORAGE_STATE_PATH).mtimeMs;
+  return age < MAX_AGE_MS;
+}
+
+async function kcLogin(): Promise<void> {
+  fs.mkdirSync(AUTH_DIR, { recursive: true });
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.goto(`${FRONTEND_URL}/PruebaMapJapan/dashboard.html`);
+  // KC login form appears after PKCE redirect from keycloak-js
+  await page.getByLabel(/username|email/i).fill(process.env.E2E_TEST_USERNAME!);
+  await page.getByLabel(/password/i).fill(process.env.E2E_TEST_PASSWORD!);
+  await page.getByRole('button', { name: /sign in|log in/i }).click();
+  await page.waitForURL(/dashboard\.html/);
+
+  // Capture cookies + localStorage (storageState)
+  await context.storageState({ path: STORAGE_STATE_PATH });
+
+  // Capture sessionStorage — keycloak-js stores tokens here (Playwright bug #31108)
+  const sessionEntries = await page.evaluate(() => Object.entries(sessionStorage));
+  fs.writeFileSync(SESSION_STORAGE_PATH, JSON.stringify(sessionEntries), 'utf-8');
+
+  await browser.close();
+}
+
 async function globalSetup(_config: FullConfig): Promise<() => Promise<void>> {
   // Only wait for servers when they are actually being started by the test runner.
   // In CI the servers are started before npx playwright test runs.
@@ -35,6 +74,15 @@ async function globalSetup(_config: FullConfig): Promise<() => Promise<void>> {
 
   if (shouldWaitForBackend) {
     await waitForServer(`${BACKEND_URL}/api/health`, 'Backend dev server');
+  }
+
+  // OIDC login — skipped entirely when SKIP_REAL_AUTH is set (D-03)
+  if (!process.env.SKIP_REAL_AUTH) {
+    if (!isStorageStateFresh()) {
+      await kcLogin();
+    } else {
+      console.log('Reusing fresh storageState from .auth/user.json');
+    }
   }
 
   // Return teardown function
