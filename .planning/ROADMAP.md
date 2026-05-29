@@ -16,9 +16,9 @@ Four phases from security foundation through trip builder, public sharing, and p
 - [x] **Phase 4: Passkeys** - Keycloak WebAuthn config, passkey registration fix, delete passkey UI
 - [x] **Phase 5: Internationalization** - Translate all user-facing strings from Spanish to English
 - [x] **Phase 6: Local Infrastructure** - Terraform KC realm + CF Worker secrets; Mailpit replaces MailHog; --import-realm removed
-- [ ] **Phase 7: Backend Hardening + KC Config** - Env var hygiene, email optionality, OTP DB migration, KC flows + theme i18n via Terraform
-- [ ] **Phase 8: OTP + Passkey Campaign** - Email OTP fallback endpoint; post-login passkey campaign; last-credential guard; UPDATE_PASSWORD gate
-- [ ] **Phase 9: Playwright Real Auth** - E2E tests via real KC OIDC login; KC Admin fixtures; passkey and OTP tests automated
+- [x] **Phase 7: Backend Hardening + KC Config** - Env var hygiene, email optionality, OTP DB migration, KC flows + theme i18n via Terraform
+- [x] **Phase 8: OTP + Passkey Campaign** - Email OTP fallback endpoint; post-login passkey campaign; last-credential guard; UPDATE_PASSWORD gate
+- [x] **Phase 9: Playwright Real Auth** - E2E tests via real KC OIDC login; KC Admin fixtures; passkey and OTP tests automated
 
 ## Phase Details
 

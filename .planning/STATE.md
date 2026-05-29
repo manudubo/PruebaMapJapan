@@ -2,56 +2,43 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Auth Infrastructure & Hardening
-status: executing
-stopped_at: "Phase 08 COMPLETE — all 8 plans done; resume: /gsd-plan-phase 9"
-last_updated: "2026-05-26T03:20:00.000Z"
-last_activity: 2026-05-26 -- Phase 08 complete; all 5 criteria verified live against local stack; 79+26 tests GREEN
+status: complete
+stopped_at: "Phase 09 COMPLETE — all 7 plans done; UAT 8/8 passed; milestone v2.0 COMPLETE"
+last_updated: "2026-05-28T00:00:00.000Z"
+last_activity: 2026-05-28 -- Phase 09 complete; Playwright real-auth infra, kc-admin fixture, passkeys.spec.ts, otp.spec.ts all done; milestone v2.0 finished
 progress:
-  total_phases: 4
-  completed_phases: 2
-  total_plans: 23
-  completed_plans: 21
-  percent: 65
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 7
+  completed_plans: 7
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-15)
+See: .planning/PROJECT.md (updated 2026-05-28)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** Phase 08 — OTP + Passkey Campaign
+**Current focus:** Milestone v2.0 COMPLETE — ready for v3.0 planning (production deployment)
 
 ## Current Position
 
-Phase: 08 (OTP + Passkey Campaign) — COMPLETE
-Plan: 8 of 8
-Status: All 5 criteria verified; Phase 9 (Playwright Real Auth) is next
-Last activity: 2026-05-26 -- OTP delivery and verify confirmed live; all tests GREEN
+Phase: 09 (Playwright Real Auth) — COMPLETE
+Plan: 7 of 7
+Status: All success criteria verified; milestone v2.0 done
+Last activity: 2026-05-28 -- Playwright real-auth infrastructure complete; 82 tests listed; all UAT checks passed
 
-Progress: [████░░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
+- Total plans completed: 7 (Phase 09 alone)
 - Average duration: ~15 minutes/plan
-- Total execution time: ~2.5 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 07 | 9 | ~2.5h | ~15min |
-
-**Recent Trend:**
-
-- Last 5 plans: 07-05, 07-06, 07-07, 07-08, 07-09
-- Trend: steady
-
-*Updated after each plan completion*
+- Total execution time: ~2 hours (waves 1-3 with session-limit recovery)
 
 ## Accumulated Context
 
@@ -60,31 +47,34 @@ Progress: [████░░░░░░] 50%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- v2.0 IaC: All KC realm config managed via Terraform HCL (`keycloak/keycloak >= 5.7.0`); `realm-export.json` becomes read-only reference; `--import-realm` removed once local apply confirmed
-- v2.0 Email OTP: Worker-side TypeScript only — no Java SPIs; Resend `^6.0.0` for prod, Mailpit for local
-- v2.0 UPDATE_PASSWORD: Forced post-OTP ONLY when device does NOT support WebAuthn; passkey-capable devices skip it
-- v2.0 Timing safety: HMAC-SHA256 + XOR accumulator for OTP comparison (Workers lacks `timingSafeEqual`)
-- v2.0 Passkey rpId: CRITICAL — `webAuthnPolicyPasswordlessRpId` must be set to prod hostname in Terraform before any prod user registers a passkey; no migration path exists
+- v2.0 E2E: Real-auth via OIDC PKCE headless Chromium (not ROPC); storageState + addInitScript workaround for keycloak-js sessionStorage (Playwright bug #31108)
+- v2.0 SKIP_REAL_AUTH: CI guard env var — all real-auth tests gated; mocked tests unchanged
+- v2.0 KC Admin: `client_credentials` grant with `japan-trip-worker`; manage-users CLIENT role
+- v2.0 OTP serial: `test.describe.configure({ mode: 'serial' })` mandatory for Mailpit inbox isolation
+- v2.0 CDP passkeys: `hasUserVerification` (not `haUserVerification`) — critical spelling; two-context login flow for clean KC redirect
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-- CRITICAL: `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before Phase 9 prod Terraform — blocks prod passkey registration
-- `browser-passkey` flow switch (KC-02) — RESOLVED: password-forms ALTERNATIVE branch is live; switch applied in Phase 7
+- CRITICAL: `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before any prod passkey registration — no migration path exists (carry-forward to v3.0)
+- Production deployment (Cloudflare + Neon + Railway) deferred to v3.0
+- Passkey/OTP real-auth tests run locally only — skipped in CI via SKIP_REAL_AUTH
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| DEPLOY | Production deployment (Cloudflare + Neon + Railway) | Deferred to next milestone | v1.0 planning |
-| DEMO | Landing demo experience | Deferred to next milestone | v1.0 planning |
-| PASS | Rename passkey (PUT credentials/{id}/label) | Deferred to next milestone | v1.0 planning |
+| DEPLOY | Production deployment (Cloudflare + Neon + Railway) | Deferred to v3.0 | v1.0 planning |
+| DEMO | Landing demo experience | Deferred to v3.0 | v1.0 planning |
+| PASS | Rename passkey (PUT credentials/{id}/label) | Deferred to v3.0 | v1.0 planning |
+| PROD | prod rpId for passkeys (Railway hostname in Terraform) | Deferred to v3.0 | Phase 09 |
+| PROD | Real-auth E2E in CI (requires KC in CI environment) | Deferred to v3.0 | Phase 09 |
 
 ## Session Continuity
 
-Last session: 2026-05-25T00:00:00.000Z
-Stopped at: Phase 08 planned — 8 plans (4 waves) verified and ready to execute
-Resume: /clear then /gsd-execute-phase 8
+Last session: 2026-05-28T00:00:00.000Z
+Stopped at: Milestone v2.0 complete — all 9 phases done; ready to plan v3.0
+Resume: /clear then /gsd-complete-milestone v2.0

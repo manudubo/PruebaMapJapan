@@ -34,16 +34,20 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - ✓ Profile page with passkey management UI stub — existing
 - ✓ Docker Compose local dev stack (Keycloak + PostgreSQL) — existing
 - ✓ GitHub Actions CI/CD + Playwright E2E test suite — existing
+- ✓ Terraform KC realm IaC — keycloak provider HCL; test users seeded; KC Admin worker client — Phase 6, 7, 9
+- ✓ Email OTP fallback — /api/auth/otp-request + otp-verify; Mailpit local SMTP; 10-min TTL; 5-attempt lockout — Phase 8
+- ✓ Passkey campaign — post-login flow, per-device cookie, last-credential guard, UPDATE_PASSWORD gated by WebAuthn support — Phase 8
+- ✓ Playwright real-auth E2E — OIDC PKCE globalSetup, storageState + sessionStorage replay, kc-admin fixture, passkeys.spec.ts (CDP), otp.spec.ts (serial) — Phase 9
 
 ### Active
 
-- [ ] **Trip builder UI**: Add/edit destinations (with dates), hotels (name, URL, check-in/out), days, and activities (name, time, location, notes) from the web — the API exists, the UI does not
-- [ ] **Passkeys functional**: Configure Keycloak 25 for WebAuthn passkey auth, wire up profile page to Keycloak Account REST API, verify stashed changes on `feature/backend`
-- [ ] **Production deployment**: Cloudflare Workers (backend) + Neon (DB) + Railway (Keycloak) all live with public URLs and correct env vars — currently local-only
-- [ ] **Public trip sharing**: Mark any trip as public/private from the UI, share via link that works without login
-- [ ] **Landing demo experience**: Landing page showcases Japan trip as demo without requiring login; link to create own trip
-- [ ] **Security hardening**: Fix XSS (`innerHTML` → `textContent`/DOMPurify), CORS misconfiguration (`*` + credentials), JWT audience tightened to specific API client
-- [ ] **Deployment runbook**: Document how to bring up all three services (frontend/backend/Keycloak) together in both local and production environments
+- [x] **Trip builder UI**: Add/edit destinations (with dates), hotels (name, URL, check-in/out), days, and activities (name, time, location, notes) from the web — shipped Phase 2
+- [x] **Passkeys functional**: Keycloak WebAuthn passkey auth, profile page passkey management, last-credential guard — shipped Phase 4, 8
+- [x] **Public trip sharing**: Mark trip public/private, share via link, read-only guest view — shipped Phase 3
+- [x] **Security hardening**: XSS fixed (dom.ts helper), CORS corrected, JWT audience tightened — shipped Phase 1
+- [ ] **Production deployment**: Cloudflare Workers (backend) + Neon (DB) + Railway (Keycloak) all live with public URLs and correct env vars — deferred to v3.0
+- [ ] **Landing demo experience**: Landing page showcases Japan trip as demo without requiring login; link to create own trip — deferred to v3.0
+- [ ] **Deployment runbook**: Document how to bring up all three services (frontend/backend/Keycloak) together in both local and production environments — deferred to v3.0
 
 ### Out of Scope
 
