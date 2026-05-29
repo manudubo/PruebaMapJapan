@@ -275,6 +275,24 @@ The D-03 decision lists 4 new tokens. The actual file has more uncovered uses:
 
 These are inside the CSS, not in token definitions, so they count under DESIGN-01.
 
+### login.css hardcoded values (DESIGN-01 scope)
+
+[VERIFIED: keycloak/themes/japan-trip/login/resources/css/login.css]
+
+login.css has three residual hardcoded values in component rules (outside its own :root token definitions). Architecture wrinkle: login.css uses @media (prefers-color-scheme: dark) to override individual properties per element, NOT :root token redefinition. Adding new tokens requires appending them to login.css's own :root block (D-02: independent definitions; no shared import).
+
+| Line | Selector | Value | Proposed Resolution |
+|------|----------|-------|---------------------|
+| 40 | dark body background | #000000 | Add --jp-bg-dark: #000000 to login.css :root, use var(--jp-bg-dark) |
+| 58 | .card-pf, #kc-form-wrapper background | #ffffff | --jp-surface: #ffffff already in login.css :root (L10) -> var(--jp-surface) |
+| 171 | .btn-primary color | #ffffff | Add --jp-white: #ffffff to login.css :root, use var(--jp-white) |
+| 273 | hr, .login-pf-signup border-color | rgba(0,0,0,0.1) | --jp-border already in login.css :root (L17) -> var(--jp-border) |
+
+Tokens to add to login.css :root: --jp-bg-dark: #000000 and --jp-white: #ffffff.
+
+Note: L40's #000000 is inside @media (prefers-color-scheme: dark) overriding a component value (not a token definition) — counts under DESIGN-01.
+
+
 ---
 
 ## DESIGN-02 Status: Already Satisfied
@@ -370,12 +388,12 @@ The fallback hex values in these `.ts` files are not "in CSS files" per the lite
 
 ```bash
 # Find all usages of old tokens in CSS (for verify step)
-rg "var\(--(?!jp-)" "C:/path/to/frontend/src/styles/main.css"
+rg -o "var\(--[a-z][a-z0-9-]*" "C:/path/to/frontend/src/styles/main.css" | rg -v "^var\(--jp-"
 ```
 
 ```bash
 # Find usages in TS files
-rg "var\(--(?!jp-)" "C:/path/to/frontend/src/" --type ts
+rg -o "var\(--[a-z][a-z0-9-]*" "C:/path/to/frontend/src/" --type ts | rg -v "^var\(--jp-"
 ```
 
 ### KC email template.ftl override structure
@@ -502,18 +520,18 @@ executeActionsBodyHtml=<p style="margin:0 0 16px;font-size:15px;color:#1d1d1f;li
 | DESIGN-02 | KC login: Inter font, radius 0, no logo | E2E | `npx playwright test tests/e2e/idp-theme.spec.ts --project=chromium` | Yes |
 | DESIGN-03 | KC emails render branded card | Manual (Mailpit UI) | KC → trigger email → check localhost:8025 | Manual only |
 | DESIGN-04 | Theme persists across MPA navigation | E2E (ui-consistency.spec.ts) | `npx playwright test tests/e2e/ui-consistency.spec.ts` | Yes |
-| Regression | Passkey flows unaffected | E2E | `cd tests && npx playwright test tests/e2e/passkeys.spec.ts --project=chromium-passkeys` | Yes |
+| Regression | Passkey flows unaffected | E2E | `cd tests && npx playwright test e2e/passkeys.spec.ts --project=chromium-passkeys` (KC must be up; do not set SKIP_REAL_AUTH) | Yes |
 
 ### Verification Commands (DESIGN-01)
 
 ```bash
 # 1. Verify no old token names remain in main.css
-rg "var\(--(?!jp-)" "frontend/src/styles/main.css"
-# Expected: 0 matches (token definitions use --jp-*; only legacy var() usages are invalid)
+rg -o "var\(--[a-z][a-z0-9-]*" "frontend/src/styles/main.css" | rg -v "^var\(--jp-"
+# Expected: empty output
 
 # 2. Verify no old token names remain in TS component files
-rg "var\(--(?!jp-)" "frontend/src/" --type ts
-# Expected: 0 matches
+rg -o "var\(--[a-z][a-z0-9-]*" "frontend/src/" --type ts | rg -v "^var\(--jp-"
+# Expected: empty output
 
 # 3. Verify no hardcoded hex/rgba remain in component rules (outside token definition blocks)
 # This requires manual review — a line-number-based approach:
@@ -539,8 +557,9 @@ cd frontend && npm run test:run
 cd tests && npx playwright test e2e/idp-theme.spec.ts --project=chromium
 
 # 8. passkeys.spec.ts confirms no KC regression
-cd tests && SKIP_REAL_AUTH=0 npx playwright test e2e/passkeys.spec.ts --project=chromium-passkeys
-# (KC must be running — use docker-compose up first)
+# Do NOT set SKIP_REAL_AUTH — "0" is truthy in JS (!!"0" === true), tests would be skipped
+# Requires KC running (docker-compose up) and .auth/user.json present
+cd tests && npx playwright test e2e/passkeys.spec.ts --project=chromium-passkeys
 ```
 
 ### Sampling Rate
