@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mockTrip, mockTripsApiResponse } from './fixtures/mockTrip';
+import * as fs from 'fs';
+import * as path from 'path';
 
 test.describe('Auth flow', () => {
   test('Login prompt is visible on dashboard when unauthenticated', async ({ page }) => {
@@ -188,5 +190,51 @@ test.describe('Auth flow', () => {
 
     const refreshAfter = await page.evaluate(() => sessionStorage.getItem('kc_refreshToken'));
     expect(refreshAfter).toBeNull();
+  });
+});
+
+test.describe('Auth flow — real session', () => {
+  test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
+
+  const sessionEntries: [string, string][] = (() => {
+    try {
+      return JSON.parse(
+        fs.readFileSync(path.join(__dirname, '../.auth/session.json'), 'utf-8')
+      ) as [string, string][];
+    } catch {
+      return [];
+    }
+  })();
+
+  test.use({
+    storageState: path.join(__dirname, '../.auth/user.json'),
+  });
+
+  test.beforeEach(async ({ context }) => {
+    if (sessionEntries.length) {
+      await context.addInitScript((entries) => {
+        for (const [k, v] of entries) {
+          window.sessionStorage.setItem(k, v);
+        }
+      }, sessionEntries);
+    }
+  });
+
+  test('authenticated dashboard does not show login prompt', async ({ page }) => {
+    await page.goto('dashboard.html');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1000);
+
+    const loginPrompt = page.locator('#dashboard-login-prompt');
+    await expect(loginPrompt).not.toBeVisible({ timeout: 10000 });
+  });
+
+  test('authenticated dashboard renders trips grid', async ({ page }) => {
+    await page.goto('dashboard.html');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1500);
+
+    const tripsGrid = page.locator('#trips-grid, .trips-grid');
+    await expect(tripsGrid).toBeVisible({ timeout: 10000 });
   });
 });

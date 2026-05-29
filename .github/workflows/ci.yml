@@ -65,6 +65,8 @@ jobs:
       - name: Run E2E tests (chromium only)
         run: npx playwright test --project=chromium
         working-directory: tests
+        env:
+          SKIP_REAL_AUTH: 'true'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
