@@ -467,20 +467,20 @@ executeActionsBodyHtml=<p style="margin:0 0 16px;font-size:15px;color:#1d1d1f;li
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should D-04 replace the existing anti-FOUC script or leave it?**
    - What we know: existing script is a functional superset (also handles `prefers-color-scheme`)
    - What's unclear: D-04 spec says "if no localStorage value, do not set attribute" — contradicts existing behavior
-   - Recommendation: keep existing script; mark D-04 satisfied. If user intended the exact D-04 spec behavior, they lose system-preference detection on first visit.
+   - RESOLVED: keep existing script; mark D-04 satisfied. If user intended the exact D-04 spec behavior, they lose system-preference detection on first visit.
 
 2. **Does `--jp-white` become a token or stay as literal `#fff`?**
    - What we know: used 15+ times as foreground-on-color (always white-on-accent/colored, never as a background that themes)
-   - Recommendation: add `--jp-white: #fff` as Claude's discretion permits, so all uses are via token
+   - RESOLVED: add `--jp-white: #fff` as Claude's discretion permits, so all uses are via token
 
 3. **How many email body message keys need overriding?**
    - What we know: DESIGN-03 says "OTP verification, email confirmation" — maps to `emailVerificationBodyCodeHtml` and `emailVerificationBodyHtml`
-   - Recommendation: also override `passwordResetBodyHtml` and `executeActionsBodyHtml` for completeness; `event-*` emails are low-priority and can inherit from base
+   - RESOLVED: also override `passwordResetBodyHtml` and `executeActionsBodyHtml` for completeness; `event-*` emails are low-priority and can inherit from base
 
 ---
 
