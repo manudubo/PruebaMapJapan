@@ -64,14 +64,14 @@ use independent values. Anti-FOUC inline `<style>` blocks are exempt.
 > This phase renames `--font-sans` → `--jp-font` but does not change font loading or
 > type scale. Values below reflect the actual system.
 
-### App (main.css — unchanged this phase, documented for contract completeness)
+### App (main.css — out of scope this phase, not verified)
 
-| Role | Size | Weight | Line Height | Notes |
-|------|------|--------|-------------|-------|
-| Body | 15px | 400 | ~1.5 | Majority of component text |
-| Label / UI text | 13px | 500 | 1.3 | Form labels, badges |
-| Subheading | 15px | 600 | 1.3 | Card titles, section labels |
-| Heading | 22px | 600 | 1.3 | Page-level headings |
+> App typography is unchanged in Phase 10 and is not tokenized. main.css has 15+
+> distinct font-size values with no enforced scale — listing a representative subset
+> as the contract table would create false audit failures.
+>
+> What IS verified: font family token renamed from --font-sans to --jp-font.
+> Font sizes and weights are out of scope for Phase 10 validation.
 
 ### KC login page (login.css — already satisfies DESIGN-02, net-new work: none)
 
