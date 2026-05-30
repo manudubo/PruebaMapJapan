@@ -4,14 +4,14 @@ import type { ApiDay, ApiDestination } from '@/types';
 import { renderActivitiesSection } from './activities';
 
 const COLOR_MAP: Record<string, string> = {
-  '--marker-1': '#ff3b30',
-  '--marker-2': '#ff9500',
-  '--marker-3': '#ffcc00',
-  '--marker-4': '#34c759',
-  '--marker-5': '#5ac8fa',
-  '--marker-6': '#007aff',
-  '--marker-7': '#af52de',
-  '--marker-8': '#ff2d55',
+  '--jp-marker-1': '#ff3b30',
+  '--jp-marker-2': '#ff9500',
+  '--jp-marker-3': '#ffcc00',
+  '--jp-marker-4': '#34c759',
+  '--jp-marker-5': '#5ac8fa',
+  '--jp-marker-6': '#007aff',
+  '--jp-marker-7': '#af52de',
+  '--jp-marker-8': '#ff2d55',
 };
 
 const REVERSE_COLOR_MAP: Record<string, string> = Object.fromEntries(
@@ -101,7 +101,7 @@ function buildModal(): void {
   swatches.style.flexWrap = 'wrap';
 
   for (let n = 1; n <= 8; n++) {
-    const varName = `--marker-${n}`;
+    const varName = `--jp-marker-${n}`;
     const swatch = document.createElement('button');
     swatch.type = 'button';
     swatch.className = 'color-swatch';
