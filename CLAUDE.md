@@ -52,6 +52,14 @@ Day       → { label, color, hasOptions?, activities }
 Activity  → { name, coords, notes, optional?, isGeneric? }
 ```
 
+## Engineering standards
+Follow Google Engineering Practices (https://github.com/google/eng-practices) for all code written or reviewed in this repo:
+- CLs must be small and focused — one logical change per commit
+- CL description: short imperative first line + WHY in body
+- Approve when code improves health, not only when perfect
+- Review comments: must-fix vs suggestion vs nit (prefix accordingly)
+- Self-review your own diff before declaring done
+
 ## TypeScript rules (tsconfig.json)
 - Strict mode ON — `strict: true`
 - `noUnusedLocals` and `noUnusedParameters` — no dead variables
