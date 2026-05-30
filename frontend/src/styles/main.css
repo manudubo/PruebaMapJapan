@@ -6,92 +6,100 @@
    ============================================ */
 :root {
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --jp-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
 
   /* Background Colors */
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #ffffff;
-  --bg-glass: #ffffff;
-  --bg-glass-strong: #ffffff;
-  --bg-glass-subtle: #ffffff;
-  
+  --jp-bg: #f5f5f7;
+  --jp-surface: #ffffff;
+  --jp-surface-raised: #ffffff;
+  --jp-surface-subtle: #ffffff;
+
   /* Border Colors */
-  --border-color: rgba(0, 0, 0, 0.06);
-  --border-strong: rgba(0, 0, 0, 0.1);
-  --border-glass: rgba(255, 255, 255, 0.7);
-  
+  --jp-border: rgba(0, 0, 0, 0.06);
+  --jp-border-strong: rgba(0, 0, 0, 0.1);
+  --jp-border-glass: rgba(255, 255, 255, 0.7);
+
   /* Text Colors */
-  --text-primary: #1d1d1f;
-  --text-secondary: #515154;
-  --text-tertiary: #86868b;
-  
+  --jp-text: #1d1d1f;
+  --jp-text-secondary: #515154;
+  --jp-text-tertiary: #86868b;
+
   /* Accent Colors */
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-subtle: rgba(0, 113, 227, 0.08);
-  --success: #34c759;
-  --success-subtle: rgba(52, 199, 89, 0.1);
-  --danger: #ff3b30;
-  --danger-hover: #d70015;
-  --danger-subtle: rgba(255, 59, 48, 0.08);
-  
+  --jp-accent: #0071e3;
+  --jp-accent-hover: #0077ed;
+  --jp-accent-subtle: rgba(0, 113, 227, 0.08);
+  --jp-success: #34c759;
+  --jp-success-subtle: rgba(52, 199, 89, 0.1);
+  --jp-danger: #ff3b30;
+  --jp-danger-hover: #d70015;
+  --jp-danger-subtle: rgba(255, 59, 48, 0.08);
+
   /* Shadows */
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
-  --shadow-glass: none;
-  --shadow-glass-hover: none;
-  
+  --jp-shadow-sm: none;
+  --jp-shadow-md: none;
+  --jp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
+  --jp-shadow-glass: none;
+  --jp-shadow-glass-hover: none;
+
   /* Effects */
-  --radius: 0;
-  --blur: 0;
-  --blur-strong: 0;
-  --gradient-glass: var(--bg-secondary);
-  --gradient-shine: transparent;
-  
+  --jp-radius: 0;
+  --jp-blur: 0;
+  --jp-blur-strong: 0;
+  --jp-gradient-glass: var(--jp-surface);
+  --jp-gradient-shine: transparent;
+
   /* Semantic Colors */
-  --hotel: #ff9500;
-  --optional: #af52de;
-  --directions: #34c759;
-  
+  --jp-hotel: #ff9500;
+  --jp-optional: #af52de;
+  --jp-directions: #34c759;
+
   /* Marker Colors */
-  --marker-1: #ff3b30;
-  --marker-2: #ff9500;
-  --marker-3: #ffcc00;
-  --marker-4: #34c759;
-  --marker-5: #5ac8fa;
-  --marker-6: #007aff;
-  --marker-7: #af52de;
-  --marker-8: #ff2d55;
+  --jp-marker-1: #ff3b30;
+  --jp-marker-2: #ff9500;
+  --jp-marker-3: #ffcc00;
+  --jp-marker-4: #34c759;
+  --jp-marker-5: #5ac8fa;
+  --jp-marker-6: #007aff;
+  --jp-marker-7: #af52de;
+  --jp-marker-8: #ff2d55;
+
+  /* D-03 Extended Semantic Tokens */
+  --jp-hotel-subtle: rgba(255, 149, 0, 0.08);
+  --jp-hotel-border: rgba(255, 149, 0, 0.2);
+  --jp-optional-subtle: rgba(175, 82, 222, 0.1);
+  --jp-optional-bg: rgba(175, 82, 222, 0.05);
+  --jp-white: #fff;
+  --jp-overlay: rgba(0, 0, 0, 0.5);
+  --jp-accent-border: rgba(0, 113, 227, 0.2);
+  --jp-marker-dash: rgba(255, 255, 255, 0.6);
 }
 
 [data-theme="dark"] {
-  --bg-primary: #000000;
-  --bg-secondary: #1c1c1e;
-  --bg-glass: #1c1c1e;
-  --bg-glass-strong: #2c2c2e;
-  --bg-glass-subtle: #1c1c1e;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --border-glass: rgba(255, 255, 255, 0.1);
-  --text-primary: #f5f5f7;
-  --text-secondary: #a1a1a6;
-  --text-tertiary: #6e6e73;
-  --accent: #0a84ff;
-  --accent-hover: #409cff;
-  --accent-subtle: rgba(10, 132, 255, 0.15);
-  --success: #30d158;
-  --success-subtle: rgba(48, 209, 88, 0.14);
-  --danger: #ff6961;
-  --danger-hover: #ff8a80;
-  --danger-subtle: rgba(255, 105, 97, 0.14);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: none;
-  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
-  --shadow-glass: none;
-  --shadow-glass-hover: none;
-  --gradient-glass: var(--bg-secondary);
-  --gradient-shine: transparent;
+  --jp-bg: #000000;
+  --jp-surface: #1c1c1e;
+  --jp-surface-raised: #2c2c2e;
+  --jp-surface-subtle: #1c1c1e;
+  --jp-border: rgba(255, 255, 255, 0.08);
+  --jp-border-strong: rgba(255, 255, 255, 0.12);
+  --jp-border-glass: rgba(255, 255, 255, 0.1);
+  --jp-text: #f5f5f7;
+  --jp-text-secondary: #a1a1a6;
+  --jp-text-tertiary: #6e6e73;
+  --jp-accent: #0a84ff;
+  --jp-accent-hover: #409cff;
+  --jp-accent-subtle: rgba(10, 132, 255, 0.15);
+  --jp-success: #30d158;
+  --jp-success-subtle: rgba(48, 209, 88, 0.14);
+  --jp-danger: #ff6961;
+  --jp-danger-hover: #ff8a80;
+  --jp-danger-subtle: rgba(255, 105, 97, 0.14);
+  --jp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --jp-shadow-md: none;
+  --jp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --jp-shadow-glass: none;
+  --jp-shadow-glass-hover: none;
+  --jp-gradient-glass: var(--jp-surface);
+  --jp-gradient-shine: transparent;
 }
 
 /* ============================================
@@ -1871,12 +1879,12 @@ body {
 
 @media (prefers-contrast: high) {
   :root {
-    --border-color: #000;
-    --text-secondary: #333;
+    --jp-border: #000;
+    --jp-text-secondary: #333;
   }
   [data-theme="dark"] {
-    --border-color: #fff;
-    --text-secondary: #ccc;
+    --jp-border: #fff;
+    --jp-text-secondary: #ccc;
   }
 }
 
