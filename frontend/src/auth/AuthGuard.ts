@@ -25,13 +25,13 @@ const LOADING_TEMPLATE = `
       min-height: 200px;
       flex-direction: column;
       gap: 12px;
-      font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
-      color: var(--text-secondary, #515154);
+      font-family: var(--jp-font, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
+      color: var(--jp-text-secondary, #515154);
     }
     .auth-guard-loader {
       width: 96px;
       height: 2px;
-      background: var(--border-color, rgba(0,0,0,0.1));
+      background: var(--jp-border, rgba(0,0,0,0.1));
       overflow: hidden;
     }
     .auth-guard-loader::before {
@@ -39,7 +39,7 @@ const LOADING_TEMPLATE = `
       display: block;
       width: 40%;
       height: 100%;
-      background: var(--accent, #0071e3);
+      background: var(--jp-accent, #0071e3);
       animation: auth-guard-load 0.9s ease-in-out infinite;
     }
     @keyframes auth-guard-load {
@@ -107,8 +107,8 @@ export class AuthGuard extends HTMLElement {
           min-height: 200px;
           flex-direction: column;
           gap: 12px;
-          font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
-          color: var(--danger, #ff3b30);
+          font-family: var(--jp-font, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
+          color: var(--jp-danger, #ff3b30);
           padding: 24px;
           text-align: center;
         }
@@ -118,15 +118,15 @@ export class AuthGuard extends HTMLElement {
         .auth-guard-retry-btn {
           margin-top: 8px;
           padding: 8px 20px;
-          background: var(--danger, #ff3b30);
-          color: white;
-          border: 1px solid var(--danger, #ff3b30);
+          background: var(--jp-danger, #ff3b30);
+          color: var(--jp-white);
+          border: 1px solid var(--jp-danger, #ff3b30);
           border-radius: 0;
           cursor: pointer;
           font-size: 0.9rem;
         }
         .auth-guard-retry-btn:hover {
-          background: var(--danger-hover, #d70015);
+          background: var(--jp-danger-hover, #d70015);
         }
       </style>
       <div class="auth-guard-error">
