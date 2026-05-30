@@ -21,6 +21,8 @@
   --jp-accent-hover: #0077ed;
   --jp-danger: #d70015;
   --jp-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --jp-bg-dark: #000000;
+  --jp-white: #ffffff;
 }
 
 /* ---- Page background ---- */
@@ -37,7 +39,7 @@ body,
   body,
   .login-pf-background,
   .login-pf body {
-    background: #000000 !important;
+    background: var(--jp-bg-dark) !important;
   }
 }
 
@@ -55,7 +57,7 @@ body,
 .card-pf,
 #kc-content,
 #kc-container-wrapper .card-pf {
-  background: #ffffff !important;
+  background: var(--jp-surface) !important;
   border: 1px solid var(--jp-border) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -168,7 +170,7 @@ button[type="submit"],
 #kc-login,
 .pf-c-button.pf-m-primary {
   background: var(--jp-accent) !important;
-  color: #ffffff !important;
+  color: var(--jp-white) !important;
   border: none !important;
   border-radius: 0 !important;
   padding: 11px 20px !important;
@@ -270,7 +272,7 @@ a:hover,
 /* ---- Dividers / separators ---- */
 .login-pf-signup,
 hr {
-  border-color: rgba(0, 0, 0, 0.1) !important;
+  border-color: var(--jp-border) !important;
 }
 
 /* ---- Remove default Keycloak branding chrome ---- */
