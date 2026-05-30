@@ -12,6 +12,8 @@
   --jp-accent-hover: #0077ed;
   --jp-danger: #d70015;
   --jp-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --jp-accent-subtle: rgba(0, 113, 227, 0.08);
+  --jp-white: #ffffff;
 }
 
 body,
@@ -51,7 +53,7 @@ body,
 .pf-v5-c-nav__link.pf-m-current,
 .pf-v5-c-nav__link.pf-m-current::after {
   color: var(--jp-accent) !important;
-  background: rgba(0, 113, 227, 0.08) !important;
+  background: var(--jp-accent-subtle) !important;
 }
 
 .pf-v5-c-button {
@@ -64,7 +66,7 @@ body,
 .pf-v5-c-button.pf-m-primary {
   background: var(--jp-accent) !important;
   border-color: var(--jp-accent) !important;
-  color: #ffffff !important;
+  color: var(--jp-white) !important;
 }
 
 .pf-v5-c-button.pf-m-primary:hover {
