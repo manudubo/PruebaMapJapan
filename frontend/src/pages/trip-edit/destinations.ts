@@ -421,7 +421,7 @@ function renderList(): void {
     if (dateRange) {
       const dateSpan = document.createElement('span');
       dateSpan.style.fontSize = '13px';
-      dateSpan.style.color = 'var(--text-secondary)';
+      dateSpan.style.color = 'var(--jp-text-secondary)';
       setText(dateSpan, dateRange);
       header.appendChild(dateSpan);
     }

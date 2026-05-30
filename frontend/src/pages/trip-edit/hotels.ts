@@ -383,7 +383,7 @@ function renderHotelDisplay(
   if (!dest.hotel) {
     const empty = document.createElement('p');
     setText(empty, 'No hotel assigned.');
-    empty.style.color = 'var(--text-secondary, #515154)';
+    empty.style.color = 'var(--jp-text-secondary, #515154)';
     empty.style.margin = '0 0 8px';
     container.appendChild(empty);
 
@@ -413,7 +413,7 @@ function renderHotelDisplay(
     const urlEl = document.createElement('p');
     urlEl.style.margin = '0 0 4px';
     urlEl.style.fontSize = '13px';
-    urlEl.style.color = 'var(--text-secondary, #515154)';
+    urlEl.style.color = 'var(--jp-text-secondary, #515154)';
     setText(urlEl, hotel.url);
     container.appendChild(urlEl);
   }
@@ -422,7 +422,7 @@ function renderHotelDisplay(
     const datesEl = document.createElement('p');
     datesEl.style.margin = '0 0 8px';
     datesEl.style.fontSize = '13px';
-    datesEl.style.color = 'var(--text-secondary, #515154)';
+    datesEl.style.color = 'var(--jp-text-secondary, #515154)';
     const dateText = [hotel.check_in_date, hotel.check_out_date]
       .filter(Boolean)
       .join(' – ');
