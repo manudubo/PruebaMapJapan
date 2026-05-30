@@ -124,7 +124,7 @@ function buildModal(): void {
       });
       swatch.classList.add('selected');
       swatch.setAttribute('aria-pressed', 'true');
-      swatch.style.borderColor = 'var(--text-primary, #1d1d1f)';
+      swatch.style.borderColor = 'var(--jp-text, #1d1d1f)';
       selectedColor = varName;
     });
 
@@ -200,7 +200,7 @@ function openModal(day: ApiDay | null): void {
         if (isSelected) {
           s.classList.add('selected');
           s.setAttribute('aria-pressed', 'true');
-          s.style.borderColor = 'var(--text-primary, #1d1d1f)';
+          s.style.borderColor = 'var(--jp-text, #1d1d1f)';
         }
       });
       selectedColor = existingVarName;
@@ -423,7 +423,7 @@ function renderDaysDisplay(
   if (dest.days.length === 0) {
     const emptyP = document.createElement('p');
     setText(emptyP, 'No days. Add a day or use "Generate all days".');
-    emptyP.style.color = 'var(--text-secondary, #515154)';
+    emptyP.style.color = 'var(--jp-text-secondary, #515154)';
     emptyP.style.margin = '0';
     container.appendChild(emptyP);
     return;
@@ -438,7 +438,7 @@ function renderDaysDisplay(
     row.style.alignItems = 'center';
     row.style.gap = '8px';
     row.style.padding = '8px 0';
-    row.style.borderBottom = '1px solid var(--border-color, rgba(0,0,0,0.1))';
+    row.style.borderBottom = '1px solid var(--jp-border, rgba(0,0,0,0.1))';
 
     // Color swatch square
     const colorDot = document.createElement('div');
@@ -448,7 +448,7 @@ function renderDaysDisplay(
     if (day.color_hex) {
       colorDot.style.backgroundColor = day.color_hex;
     } else {
-      colorDot.style.backgroundColor = 'var(--border-color, rgba(0,0,0,0.1))';
+      colorDot.style.backgroundColor = 'var(--jp-border, rgba(0,0,0,0.1))';
     }
     row.appendChild(colorDot);
 
@@ -471,7 +471,7 @@ function renderDaysDisplay(
     const dateEl = document.createElement('p');
     dateEl.style.margin = '0';
     dateEl.style.fontSize = '13px';
-    dateEl.style.color = 'var(--text-secondary, #515154)';
+    dateEl.style.color = 'var(--jp-text-secondary, #515154)';
     setText(dateEl, day.date);
     info.appendChild(dateEl);
 

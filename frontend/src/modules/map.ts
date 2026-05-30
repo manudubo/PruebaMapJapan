@@ -391,7 +391,7 @@ export function initOverviewMap(): void {
       iconSize: [32, 32],
       iconAnchor: [16, 16]
     });
-    const popupHtml = `<h4>${city.name}</h4><p>${city.dates}</p><p><a href="${city.link}" style="color:var(--accent);">View itinerary</a></p>`;
+    const popupHtml = `<h4>${city.name}</h4><p>${city.dates}</p><p><a href="${city.link}" style="color:var(--jp-accent);">View itinerary</a></p>`;
     L.marker(city.coords as L.LatLngExpression, { icon, alt: city.name })
       .bindPopup(DOMPurify.sanitize(popupHtml))
       .addTo(map);
