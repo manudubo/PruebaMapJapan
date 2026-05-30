@@ -462,7 +462,7 @@ function renderActivitiesDisplay(
 
   if (day.activities.length === 0) {
     const emptyP = document.createElement('p');
-    emptyP.style.color = 'var(--text-secondary, #515154)';
+    emptyP.style.color = 'var(--jp-text-secondary, #515154)';
     emptyP.style.margin = '0';
     setText(emptyP, 'No activities. Add the first one.');
     container.appendChild(emptyP);
@@ -482,7 +482,7 @@ function renderActivitiesDisplay(
     row.style.alignItems = 'center';
     row.style.gap = '8px';
     row.style.padding = '6px 0';
-    row.style.borderBottom = '1px solid var(--border-color, rgba(0,0,0,0.1))';
+    row.style.borderBottom = '1px solid var(--jp-border, rgba(0,0,0,0.1))';
 
     // Up button
     const upBtn = document.createElement('button');
@@ -542,7 +542,7 @@ function renderActivitiesDisplay(
       const timeSpan = document.createElement('span');
       timeSpan.className = 'activity-time';
       timeSpan.style.fontSize = '13px';
-      timeSpan.style.color = 'var(--text-secondary, #515154)';
+      timeSpan.style.color = 'var(--jp-text-secondary, #515154)';
       timeSpan.style.flexShrink = '0';
       setText(timeSpan, act.time);
       row.appendChild(timeSpan);

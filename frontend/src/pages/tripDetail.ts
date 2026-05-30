@@ -468,12 +468,12 @@ function showError(message: string): void {
   card.style.padding = '32px';
   card.style.textAlign = 'center';
   const p = document.createElement('p');
-  p.style.color = 'var(--text-secondary,#515154)';
+  p.style.color = 'var(--jp-text-secondary,#515154)';
   setText(p, message);
   card.appendChild(p);
   const link = document.createElement('a');
   link.href = 'dashboard.html';
-  link.style.color = 'var(--accent,#0071e3)';
+  link.style.color = 'var(--jp-accent,#0071e3)';
   link.textContent = 'Back to dashboard';
   card.appendChild(link);
   main.appendChild(card);

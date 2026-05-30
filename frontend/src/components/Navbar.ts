@@ -96,8 +96,8 @@ class TravelNav extends HTMLElement {
         }
 
         nav {
-          background: var(--bg-secondary, #fff);
-          border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.1));
+          background: var(--jp-surface, #fff);
+          border-bottom: 1px solid var(--jp-border, rgba(0,0,0,0.1));
           position: sticky;
           top: 0;
           z-index: 100;
@@ -116,7 +116,7 @@ class TravelNav extends HTMLElement {
         .nav-brand {
           font-weight: 600;
           font-size: 15px;
-          color: var(--text-primary, #1d1d1f);
+          color: var(--jp-text, #1d1d1f);
           text-decoration: none;
           display: flex;
           align-items: center;
@@ -127,8 +127,8 @@ class TravelNav extends HTMLElement {
         }
 
         .nav-brand:hover {
-          color: var(--accent, #0071e3);
-          background: var(--accent-subtle, rgba(0, 113, 227, 0.08));
+          color: var(--jp-accent, #0071e3);
+          background: var(--jp-accent-subtle, rgba(0, 113, 227, 0.08));
         }
 
         .nav-brand svg {
@@ -152,7 +152,7 @@ class TravelNav extends HTMLElement {
           gap: 4px;
           overflow-x: auto;
           scrollbar-width: thin;
-          scrollbar-color: var(--text-tertiary, #86868b) transparent;
+          scrollbar-color: var(--jp-text-tertiary, #86868b) transparent;
           -ms-overflow-style: auto;
           padding: 4px;
           flex: 1;
@@ -168,18 +168,18 @@ class TravelNav extends HTMLElement {
         }
 
         .top-nav::-webkit-scrollbar-thumb {
-          background: var(--text-tertiary, #86868b);
+          background: var(--jp-text-tertiary, #86868b);
         }
 
         .top-nav::-webkit-scrollbar-thumb:hover {
-          background: var(--text-primary, #1d1d1f);
+          background: var(--jp-text, #1d1d1f);
         }
 
         .nav-link {
           padding: 8px 12px;
           font-size: 13px;
           font-weight: 500;
-          color: var(--text-secondary, #515154);
+          color: var(--jp-text-secondary, #515154);
           text-decoration: none;
           white-space: nowrap;
           transition: all 0.2s ease;
@@ -187,13 +187,13 @@ class TravelNav extends HTMLElement {
         }
 
         .nav-link:hover {
-          color: var(--text-primary, #1d1d1f);
-          background: var(--border-color, rgba(0,0,0,0.1));
+          color: var(--jp-text, #1d1d1f);
+          background: var(--jp-border, rgba(0,0,0,0.1));
         }
 
         .nav-link.is-active {
-          color: var(--accent, #0071e3);
-          background: var(--accent-subtle, rgba(0,113,227,0.1));
+          color: var(--jp-accent, #0071e3);
+          background: var(--jp-accent-subtle, rgba(0,113,227,0.1));
         }
 
         .nav-auth {
@@ -212,13 +212,13 @@ class TravelNav extends HTMLElement {
         .nav-auth-user {
           font-size: 13px;
           font-weight: 500;
-          color: var(--text-secondary, #515154);
+          color: var(--jp-text-secondary, #515154);
           padding: 0 4px;
           text-decoration: none;
         }
 
         .nav-auth-user:hover {
-          color: var(--text-primary, #1d1d1f);
+          color: var(--jp-text, #1d1d1f);
         }
 
         .nav-auth-btn {
@@ -236,25 +236,25 @@ class TravelNav extends HTMLElement {
         }
 
         .nav-auth-login {
-          background: var(--accent, #0071e3);
-          color: #fff;
-          border: 1px solid var(--accent, #0071e3);
+          background: var(--jp-accent, #0071e3);
+          color: var(--jp-white);
+          border: 1px solid var(--jp-accent, #0071e3);
         }
 
         .nav-auth-login:hover {
-          background: var(--accent-hover, #0077ed);
-          border-color: var(--accent-hover, #0077ed);
+          background: var(--jp-accent-hover, #0077ed);
+          border-color: var(--jp-accent-hover, #0077ed);
         }
 
         .nav-auth-logout {
           background: transparent;
-          color: var(--text-secondary, #515154);
-          border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+          color: var(--jp-text-secondary, #515154);
+          border: 1px solid var(--jp-border, rgba(0,0,0,0.1));
         }
 
         .nav-auth-logout:hover {
-          color: var(--text-primary, #1d1d1f);
-          border-color: var(--text-secondary, #515154);
+          color: var(--jp-text, #1d1d1f);
+          border-color: var(--jp-text-secondary, #515154);
         }
 
         .theme-toggle {
@@ -264,9 +264,9 @@ class TravelNav extends HTMLElement {
           padding: 8px 12px;
           font-size: 13px;
           font-weight: 500;
-          color: var(--text-secondary, #515154);
+          color: var(--jp-text-secondary, #515154);
           background: transparent;
-          border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+          border: 1px solid var(--jp-border, rgba(0,0,0,0.1));
           cursor: pointer;
           transition: all 0.2s ease;
           flex-shrink: 0;
@@ -274,8 +274,8 @@ class TravelNav extends HTMLElement {
         }
 
         .theme-toggle:hover {
-          color: var(--text-primary, #1d1d1f);
-          border-color: var(--text-secondary, #515154);
+          color: var(--jp-text, #1d1d1f);
+          border-color: var(--jp-text-secondary, #515154);
         }
 
         .theme-toggle svg {
