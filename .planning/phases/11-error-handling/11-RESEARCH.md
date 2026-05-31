@@ -503,17 +503,11 @@ window.addEventListener('unhandledrejection', (event) => {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **window 'error' handler scope**
-   - What we know: D-09 and ERR-03 name only `unhandledrejection`. Synchronous throws in event handlers fire `window 'error'`.
-   - What's unclear: Whether ERR-01's "users never see a raw browser error" implies both event types.
-   - Recommendation: Implement `unhandledrejection` only as locked. Flag in plan notes for user confirmation on `window 'error'`.
+1. **window 'error' handler scope** — RESOLVED: D-09 locks scope to `unhandledrejection` only. ERR-01's "never see a raw browser error" is satisfied by the unhandledrejection handler for async rejections; synchronous throws are out of scope per the locked decisions. Plans implement `installGlobalErrorHandler()` with `unhandledrejection` only and do not add `window 'error'` listeners.
 
-2. **Which trip-edit sub-module mutations get D-08 success toasts**
-   - What we know: D-08 says "callers decide the message text." All 15 sub-module mutation call sites already provide visual success feedback (modal closes, list re-renders, button text changes). Mutation call-site inventory is in the research above.
-   - What's unclear: Whether any specific mutation warrants an additional success toast beyond existing visual feedback.
-   - Recommendation: Planner decides based on D-08 discretion. Suggest `updateTrip` (metadata save) as the most valuable since the button feedback ("Saved") is subtle; all destructive deletes and modal-closing creates already have sufficient visual confirmation.
+2. **Which trip-edit sub-module mutations get D-08 success toasts** — RESOLVED: `updateTrip` in `metadata.ts` (button feedback "Saved" is subtle; adding a success toast provides clearer confirmation). All other sub-module mutations rely on sufficient existing visual feedback (modal closes, list re-renders). Implemented in plan 11-04 Task 2.
 
 ---
 
