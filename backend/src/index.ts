@@ -39,7 +39,7 @@ app.notFound((c) => {
 // ---------------------------------------------------------------------------
 app.onError((err, c) => {
   console.error('Unhandled error:', err);
-  return c.json({ success: false, error: 'Internal server error' }, 500);
+  return c.json({ success: false, error: 'Internal server error', code: 'internal_error' }, 500);
 });
 
 // ---------------------------------------------------------------------------
