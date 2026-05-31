@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Quality, Polish & DevX
 status: idle
-stopped_at: Phase 11 context gathered — 2026-05-31
-last_updated: "2026-05-31T22:00:00.000Z"
-last_activity: 2026-05-31 — Phase 11 discuss-phase complete (4 areas discussed, CONTEXT.md written)
+stopped_at: Phase 11 UI-SPEC approved — 2026-05-31
+last_updated: "2026-05-31T23:00:00.000Z"
+last_activity: 2026-05-31 — Phase 11 UI-SPEC approved (6/6 dimensions passed, toast component contract locked)
 progress:
   total_phases: 5
   completed_phases: 1
@@ -78,4 +78,4 @@ None.
 Last session: 2026-05-31
 Stopped at: Phase 11 context gathered (discuss-phase complete)
 Resume: /gsd-plan-phase 11
-Resume file: .planning/phases/11-error-handling/11-CONTEXT.md
+Resume file: .planning/phases/11-error-handling/11-UI-SPEC.md
