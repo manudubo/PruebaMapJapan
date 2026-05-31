@@ -1925,3 +1925,108 @@ body {
     border: 1px solid #000;
   }
 }
+
+/* ---- Toast notifications (Phase 11) ---- */
+@keyframes toast-in {
+  from { transform: translateX(calc(100% + 16px)); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+#toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+@media (max-width: 479px) {
+  #toast-container {
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid var(--jp-border-strong);
+  background: var(--jp-surface-raised);
+  color: var(--jp-text);
+  border-radius: var(--jp-radius);
+  box-shadow: var(--jp-shadow-lg);
+  font-family: var(--jp-font);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  min-width: 0;
+  pointer-events: all;
+  animation: toast-in 0.2s ease;
+}
+
+.toast--error {
+  background: var(--jp-danger-subtle);
+  border-color: color-mix(in srgb, var(--jp-danger) 35%, transparent);
+  color: var(--jp-danger);
+}
+
+.toast--success {
+  background: var(--jp-success-subtle);
+  border-color: color-mix(in srgb, var(--jp-success) 35%, transparent);
+  color: var(--jp-success);
+}
+
+.toast--info {
+  background: var(--jp-accent-subtle);
+  border-color: color-mix(in srgb, var(--jp-accent) 35%, transparent);
+  color: var(--jp-accent);
+}
+
+.toast-msg {
+  flex: 1;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--jp-text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  margin: -4px -4px -4px 4px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.toast-close:hover {
+  color: var(--jp-text);
+}
+
+.toast--exiting {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+  .toast--exiting {
+    transition: opacity 0.15s ease;
+  }
+}

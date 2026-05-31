@@ -82,8 +82,10 @@ describe('installGlobalErrorHandler', () => {
 
   it('shows error toast on unhandledrejection', () => {
     installGlobalErrorHandler();
+    const handled = Promise.reject(new Error('test'));
+    handled.catch(() => {});
     const event = new PromiseRejectionEvent('unhandledrejection', {
-      promise: Promise.reject(new Error('test')),
+      promise: handled,
       reason: new Error('test'),
       cancelable: true,
     });
@@ -94,8 +96,10 @@ describe('installGlobalErrorHandler', () => {
 
   it('calls event.preventDefault() to suppress console output', () => {
     installGlobalErrorHandler();
+    const handled = Promise.reject(new Error('test'));
+    handled.catch(() => {});
     const event = new PromiseRejectionEvent('unhandledrejection', {
-      promise: Promise.reject(new Error('test')),
+      promise: handled,
       reason: new Error('test'),
       cancelable: true,
     });
