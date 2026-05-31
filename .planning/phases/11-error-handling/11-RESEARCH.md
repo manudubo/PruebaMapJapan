@@ -314,22 +314,46 @@ Current error handling:
 - Lines 38-40: `catch { window.location.href = 'dashboard.html'; }` — silent redirect on trip load failure
 - **D-14:** Replace with `showToast('Could not load trip — returning to dashboard', 'error')` then `setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500)`
 
-Sub-modules `metadata.ts` and `destinations.ts` have their own inline error elements:
-- `metadata.ts` line 48-50: `#metadata-error` element — inline catch display, NOT in D-13/D-14 scope (these are contextual form errors, user decision preserved them as-is per D-16 parallel; they are not the "D-13" inline errors)
-- `destinations.ts` lines 320-322, 376-380: `formError` and `confirmError` inline — same: contextual form errors, not retrofit targets
+### Mutation Call-Site Inventory (trip-edit sub-modules)
+[VERIFIED: all 5 sub-module files read — metadata.ts, destinations.ts, days.ts, hotels.ts, activities.ts]
 
-**D-16 applies to tripDetail.ts, not trip-edit sub-modules.** The sub-module inline errors are contextual (inside modal dialogs), distinct from the page-level error handling. Do not toast-ify them.
+All 5 sub-modules follow the same error pattern: inline `formError`/`confirmError` element shown on API failure, with the form element re-enabled in `finally`. This is contextual feedback inside modal dialogs. **None of these are D-13 or D-14 retrofit targets** — they are not page-level error elements.
+
+The planner must decide which success cases get D-08 toasts. The table below lists every mutation call site:
+
+| Mutation | File | Current error handling | Current success | D-08 toast candidate? |
+|----------|------|----------------------|-----------------|----------------------|
+| `createTrip` | dashboard.ts | #create-trip-error → **D-13: toast** | navigate to trip.html | No — page navigates immediately |
+| `getMyTrips` (read) | dashboard.ts | .trips-error → **D-13: toast** | renders grid | n/a (read, not mutation) |
+| `updateTrip` | trip-edit/metadata.ts | #metadata-error inline | setText(saveBtn, 'Saved') + 1.5s reset | Toast optional — button already gives feedback |
+| `createDestination` | trip-edit/destinations.ts | formError inline | closeModal() + renderList() | Toast optional — modal closes as confirmation |
+| `updateDestination` | trip-edit/destinations.ts | formError inline | closeModal() + renderList() | Toast optional |
+| `deleteDestination` | trip-edit/destinations.ts | confirmError inline | close confirm + renderList() | No — destructive; confirm modal already confirms intent |
+| `createDay` | trip-edit/days.ts | formError inline | closeModal() + re-render | Toast optional |
+| `updateDay` | trip-edit/days.ts | formError inline | closeModal() + re-render | Toast optional |
+| `deleteDay` | trip-edit/days.ts | confirmError inline | close + re-render | No — destructive |
+| `generateDays` (bulk createDay) | trip-edit/days.ts | genError inline | re-render | Toast optional |
+| `upsertHotel` | trip-edit/hotels.ts | formError inline | closeModal() + re-render | Toast optional |
+| `deleteHotel` | trip-edit/hotels.ts | confirmError inline | close + re-render | No — destructive |
+| `createActivity` | trip-edit/activities.ts | formError inline | closeModal() + re-render | Toast optional |
+| `updateActivity` | trip-edit/activities.ts | formError inline | closeModal() + re-render | Toast optional |
+| `deleteActivity` | trip-edit/activities.ts | confirmError inline | close + re-render | No — destructive |
+| `reorderActivities` | trip-edit/activities.ts | appended error-msg p | optimistic revert | No — invisible action |
+
+**D-08 scope recommendation (planner discretion):** The sub-module mutations already provide immediate visual feedback (modal closes, list re-renders, button state changes). D-08 says "callers decide the message text" — meaning success toasts are opt-in per caller, not mandated everywhere. The planner should decide which mutations warrant an explicit success toast vs relying on existing visual feedback. No inline sub-module error elements need to be replaced with toast.
 
 ### frontend/src/pages/tripDetail.ts
 [VERIFIED: read]
 
-Current error handling:
-- `showError(message)` at line 462-480: renders a custom inline card in `#main-content` — this is the primary error path for trip not found / no access
-- Slug path catch (line 496-499): calls `showError()` — retrofit to `showToast()` per D-16
-- Authenticated trip fetch catch (line 533-535): silent `// Fall through to public` — stays silent (it's a fallback logic, not a user-visible error)
-- "You don't have access" check (line 538-540): calls `showError()` — this is a policy message, not an API error — **D-16: leave showError() for the "no access" path** since it includes a "Back to dashboard" link, which a toast cannot provide. Toast only for API errors where `showError()` wraps an API failure.
+D-16 net effect: add `installGlobalErrorHandler()` inside `init()`. No existing catch in this file "currently shows nothing" that represents an unhandled user-facing error — they are all either handled by `showError()` or are intentional silent fallbacks.
 
-Clarification: D-16 says "existing error handling that currently shows nothing should use toast." `showError()` already shows something. The retrofit target is the silent `catch` at line 533-535 and any other catch that shows nothing. The `showError()` card with its navigation link is appropriate for the "no access" / "not found" terminal states.
+Detailed state:
+- `showError(message)` at line 462-480: renders a custom inline card in `#main-content` with a "Back to dashboard" link — this is appropriate for terminal error states ("no access", "not found") where a toast would disappear before the user could act. **Keep showError() as-is.**
+- Slug path catch (line 496-499): calls `showError()` with the raw error message — this currently exposes `(err as Error).message` to the user. However since `showError()` already shows *something*, it does not qualify as "currently shows nothing" per D-16. **Keep as-is.** (The message is already wrapped in an inline card, not a raw browser error.)
+- Authenticated trip fetch catch (line 533-535): silent `// Fall through to public` — intentional fallback logic, not a user-visible error path. **Keep silent.**
+- "You don't have access" check (line 538-540): calls `showError()` — policy message with navigation link. **Keep as-is.**
+
+**Result:** tripDetail.ts changes are limited to adding `installGlobalErrorHandler()` to `init()`.
 
 ### frontend/src/pages/profile.ts
 [VERIFIED: read]
@@ -475,7 +499,7 @@ window.addEventListener('unhandledrejection', (event) => {
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | `window.addEventListener('unhandledrejection', ...)` alone satisfies ERR-01 ("no stack trace or native browser dialog"). Synchronous uncaught exceptions fire `window 'error'`, not `unhandledrejection`, and are not in locked scope. | ERR-03 / Common Pitfalls | If user interprets ERR-01 to require `window 'error'` handler too, scope expands by one listener per entry point |
-| A2 | Sub-module inline error elements in `trip-edit/metadata.ts` (#metadata-error) and `trip-edit/destinations.ts` (#dest-form-error, #confirm-error) are contextual form errors excluded from D-13 retrofit scope | Retrofit Scope | If these should also use toast, scope expands to 3 additional files |
+| A2 | All 5 trip-edit sub-module inline error elements (metadata.ts #metadata-error, destinations.ts #dest-form-error / #confirm-error, days.ts #day-form-error / genError, hotels.ts #hotel-form-error, activities.ts #act-form-error / reorder errEl) are contextual form errors inside modal dialogs, excluded from D-13 retrofit scope | Mutation Call-Site Inventory | If these should also use toast, scope expands to 5 additional files with ~10 catch sites |
 
 ---
 
@@ -486,10 +510,10 @@ window.addEventListener('unhandledrejection', (event) => {
    - What's unclear: Whether ERR-01's "users never see a raw browser error" implies both event types.
    - Recommendation: Implement `unhandledrejection` only as locked. Flag in plan notes for user confirmation on `window 'error'`.
 
-2. **trip-edit sub-module form error retrofit**
-   - What we know: `metadata.ts` and `destinations.ts` have inline error elements inside modals (contextual, not page-level).
-   - What's unclear: Whether D-13 was intended only for the page-level errors (create-trip-error, trips-error) or all inline errors.
-   - Recommendation: Leave sub-module inline errors as-is. They are contextual feedback within modal dialogs where toast would be disorienting.
+2. **Which trip-edit sub-module mutations get D-08 success toasts**
+   - What we know: D-08 says "callers decide the message text." All 15 sub-module mutation call sites already provide visual success feedback (modal closes, list re-renders, button text changes). Mutation call-site inventory is in the research above.
+   - What's unclear: Whether any specific mutation warrants an additional success toast beyond existing visual feedback.
+   - Recommendation: Planner decides based on D-08 discretion. Suggest `updateTrip` (metadata save) as the most valuable since the button feedback ("Saved") is subtle; all destructive deletes and modal-closing creates already have sufficient visual confirmation.
 
 ---
 
@@ -556,9 +580,12 @@ No additional ASVS categories apply.
 - `frontend/src/api/client.ts` — read directly; request() implementation confirmed
 - `frontend/src/pages/dashboard.ts` — read directly; error elements and catches confirmed
 - `frontend/src/pages/trip-edit.ts` — read directly; silent redirect confirmed
-- `frontend/src/pages/trip-edit/metadata.ts` — read directly; #metadata-error inline error confirmed
-- `frontend/src/pages/trip-edit/destinations.ts` — read directly; formError / confirmError inline patterns confirmed
-- `frontend/src/pages/tripDetail.ts` — read directly; showError() and silent catches confirmed
+- `frontend/src/pages/trip-edit/metadata.ts` — read directly; #metadata-error inline error + updateTrip call confirmed
+- `frontend/src/pages/trip-edit/destinations.ts` — read directly; formError / confirmError + create/update/deleteDestination calls confirmed
+- `frontend/src/pages/trip-edit/days.ts` — read directly; formError / confirmError / genError + create/update/deleteDay + generateDays calls confirmed
+- `frontend/src/pages/trip-edit/hotels.ts` — read directly; formError / confirmError + upsertHotel / deleteHotel calls confirmed
+- `frontend/src/pages/trip-edit/activities.ts` — read directly; formError / confirmError / reorder errEl + create/update/deleteActivity / reorderActivities calls confirmed
+- `frontend/src/pages/tripDetail.ts` — read directly; showError() and silent catches confirmed; no catch "shows nothing"
 - `frontend/src/pages/profile.ts` — read directly; showStatus() pattern confirmed
 - `frontend/src/auth/keycloak.ts` — read directly; login() signature confirmed
 - `frontend/src/modules/dom.ts` — read directly; export pattern confirmed
@@ -580,7 +607,7 @@ None.
 ## Metadata
 
 **Confidence breakdown:**
-- Current code state: HIGH — all files read directly
+- Current code state: HIGH — all 20 source files read directly
 - CSS token availability: HIGH — verified from main.css
 - Implementation patterns: HIGH — derived from existing conventions in the codebase
 - Test strategy: HIGH — existing vitest.config.ts read, gaps identified from requirements
