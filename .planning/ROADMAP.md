@@ -60,7 +60,12 @@ Plans:
   2. Triggering an unhandled promise rejection on any of the four frontend entry points (`dashboard`, `tripDetail`, `trip-edit`, `profile`) produces a toast notification, not a silent failure
   3. Backend API errors carry a typed `ApiError` with `status` and `code`; the frontend renders the code as a human-readable message in context
   4. Receiving a 401 response from the backend API automatically redirects the user to Keycloak login instead of showing a blank or broken page
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 11-01-PLAN.md — Create toast.ts module + CSS block in main.css + toast.test.ts (Wave 1)
+- [ ] 11-02-PLAN.md — Add code field to backend ApiResponse + update onError (Wave 1, parallel)
+- [ ] 11-03-PLAN.md — Add ApiError class + 401 detection to client.ts + client.test.ts (Wave 2)
+- [ ] 11-04-PLAN.md — Retrofit 4 entry points + dashboard.html + metadata.ts D-08 success toast (Wave 2)
 **UI hint**: yes
 
 ### Phase 12: Terraform Expansion + Dev Script
@@ -115,7 +120,7 @@ Plans:
 | 8. OTP + Passkey Campaign | v2.0 | 8/8 | Complete | 2026-05-26 |
 | 9. Playwright Real Auth | v2.0 | 7/7 | Complete | 2026-05-28 |
 | 10. Design Tokens + IDP Theme | v3.0 | 0/4 | Not started | - |
-| 11. Error Handling | v3.0 | 0/TBD | Not started | - |
+| 11. Error Handling | v3.0 | 0/4 | Not started | - |
 | 12. Terraform Expansion + Dev Script | v3.0 | 0/TBD | Not started | - |
 | 13. Security Audit + Documentation | v3.0 | 0/TBD | Not started | - |
 | 14. E2E Expansion + New User Parity | v3.0 | 0/TBD | Not started | - |
