@@ -26,7 +26,7 @@
 
 **Milestone Goal:** Bring the app to a solid, consistent state — complete and tested user experience, single-command dev environment, coherent design throughout, and accurate documentation.
 
-- [ ] **Phase 10: Design Tokens + IDP Theme** - CSS token consolidation, KC login page alignment, email templates, light/dark theme consistency
+- [x] **Phase 10: Design Tokens + IDP Theme** - CSS token consolidation, KC login page alignment, email templates, light/dark theme consistency — completed 2026-05-31
 - [ ] **Phase 11: Error Handling** - Centralized toast module, global unhandledrejection handler, typed ApiError, 401 auto-redirect
 - [ ] **Phase 12: Terraform Expansion + Dev Script** - Test users as IaC, PKCE S256 + strict redirect URIs, single-command local startup
 - [ ] **Phase 13: Security Audit + Documentation** - RFC 9700 checklist, JWKS retry, CSP/security headers, SEC-05 assertion, README + SETUP.md + use case inventory
@@ -45,10 +45,10 @@
   4. Toggling light/dark theme persists across MPA page navigations; the Leaflet map switches tile layers when the theme changes
 **Plans**: 4 plans
 Plans:
-- [ ] 10-01-PLAN.md — Rename --jp-* tokens + add D-03 new tokens + fix all hardcoded component values in main.css
-- [ ] 10-02-PLAN.md — Rename old token names in 7 TypeScript source files (inline CSS strings)
-- [ ] 10-03-PLAN.md — Fix residual hardcoded values in login.css and account.css (KC CSS files)
-- [ ] 10-04-PLAN.md — Create KC email theme: template.ftl card chrome + 4 html FTLs + 4 text FTLs + messages_es/en.properties
+- [x] 10-01-PLAN.md — Rename --jp-* tokens + add D-03 new tokens + fix all hardcoded component values in main.css
+- [x] 10-02-PLAN.md — Rename old token names in 7 TypeScript source files (inline CSS strings)
+- [x] 10-03-PLAN.md — Fix residual hardcoded values in login.css and account.css (KC CSS files)
+- [x] 10-04-PLAN.md — Create KC email theme: template.ftl card chrome + 4 html FTLs + 4 text FTLs + messages_es/en.properties
 **UI hint**: yes
 
 ### Phase 11: Error Handling

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Quality, Polish & DevX
-status: planning
-stopped_at: Phase 10 plans verified (ready to execute)
-last_updated: "2026-05-30T00:00:00.000Z"
-last_activity: 2026-05-30 — Phase 10 plans created and verified (4 plans, wave 1, plan checker passed)
+status: idle
+stopped_at: Phase 10 complete — verified 2026-05-31
+last_updated: "2026-05-31T21:10:00.000Z"
+last_activity: 2026-05-31 — Phase 10 verified (4/4 must-haves, idp-theme.spec.ts passed)
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 4
+  percent: 20
 ---
 
 # Project State
@@ -21,24 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-28 — v3.0 started)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** v3.0 Phase 10: Design Tokens + IDP Theme (ready to execute)
+**Current focus:** v3.0 Phase 11: Error Handling (next)
 
 ## Current Position
 
-Phase: 10 of 14 (Phase 10 — Design Tokens + IDP Theme)
-Plan: 4 plans created (10-01 through 10-04), all wave 1
-Status: Ready to execute
-Last activity: 2026-05-30 — Phase 10 plans verified (4 plans, plan checker passed round 2)
+Phase: 11 of 14 (Phase 11 — Error Handling)
+Plan: not yet planned
+Status: Ready to plan
+Last activity: 2026-05-31 — Phase 10 complete (4 plans executed, 4/4 must-haves verified)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0 (v3.0)
+- Total plans completed: 4 (v3.0)
 - Average duration: ~15 min/plan (v2.0 baseline)
-- Total execution time: 0 hours
+- Total execution time: ~1 hour (Phase 10)
 
 ## Accumulated Context
 
@@ -51,6 +51,7 @@ Recent decisions affecting current work:
 - v2.0 SKIP_REAL_AUTH: CI guard env var — all real-auth tests gated; mocked tests unchanged
 - v2.0 OTP serial: `test.describe.configure({ mode: 'serial' })` mandatory for Mailpit inbox isolation
 - v2.0 CDP passkeys: `hasUserVerification` (not `haUserVerification`) — critical spelling; two-context login flow
+- v3.0 Phase 10: COLOR_MAP keys must match --jp-marker-N (not --marker-N); CR-01 fix in dc4d440
 
 ### Pending Todos
 
@@ -74,7 +75,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-30
-Stopped at: Phase 10 plans verified (ready to execute)
-Resume: /gsd-execute-phase 10
-Resume file: .planning/phases/10-design-tokens-idp-theme/10-01-PLAN.md
+Last session: 2026-05-31
+Stopped at: Phase 10 complete and verified
+Resume: /gsd-plan-phase 11 or /gsd-execute-phase 11
+Resume file: .planning/phases/11-error-handling/ (not yet created)
