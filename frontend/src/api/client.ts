@@ -5,7 +5,8 @@
  * Unauthenticated users can still access public trips via getPublicTrip().
  */
 
-import { getToken, isAuthenticated } from '@/auth/keycloak';
+import { getToken, isAuthenticated, login } from '@/auth/keycloak';
+import { showToast } from '@/modules/toast';
 import type {
   ApiTrip,
   ApiDestination,
@@ -53,7 +54,20 @@ interface ApiEnvelope<T> {
   success: boolean;
   data?: T;
   error?: string;
+  code?: string;
   message?: string;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message?: string,
+  ) {
+    super(message ?? `API error ${status}`);
+    this.name = 'ApiError';
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -67,9 +81,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
+  if (response.status === 401) {
+    showToast('Session expired — redirecting to login', 'info');
+    setTimeout(() => { void login('dashboard.html'); }, 1500);
+    return new Promise<never>(() => { /* intentionally never resolves — prevents double-toast */ });
+  }
+
   if (!response.ok) {
-    const text = await response.text().catch(() => response.statusText);
-    throw new Error(`API error ${response.status}: ${text}`);
+    const envelope = await response.json().catch(() => null) as { code?: string } | null;
+    throw new ApiError(response.status, envelope?.code ?? 'unknown');
   }
 
   if (response.status === 204) {

@@ -52,12 +52,10 @@ describe('request() 401 handling', () => {
 
   it('calls showToast with session-expired message and info type', async () => {
     const { getMyTrips } = await import('@/api/client');
-    void Promise.race([
-      getMyTrips(),
-      new Promise(resolve => setTimeout(() => resolve('timeout'), 50)),
-    ]);
-    await Promise.resolve();
-    await Promise.resolve();
+    void getMyTrips();
+    // runAllTimersAsync flushes pending microtasks (buildHeaders->getToken->fetch)
+    // then advances fake timers — covers the full async chain in one call
+    await vi.runAllTimersAsync();
     expect(showToast).toHaveBeenCalledWith(
       'Session expired — redirecting to login',
       'info',
@@ -66,24 +64,17 @@ describe('request() 401 handling', () => {
 
   it('schedules login("dashboard.html") after 1500ms', async () => {
     const { getMyTrips } = await import('@/api/client');
-    void Promise.race([
-      getMyTrips(),
-      new Promise(resolve => setTimeout(() => resolve('timeout'), 50)),
-    ]);
-    await Promise.resolve();
-    await Promise.resolve();
+    void getMyTrips();
     await vi.runAllTimersAsync();
     expect(login).toHaveBeenCalledWith('dashboard.html');
   });
 
   it('returns a promise that does not resolve (never-resolving)', async () => {
     const { getMyTrips } = await import('@/api/client');
-    const result = await Promise.race([
-      getMyTrips().then(() => 'resolved'),
-      new Promise<string>(resolve => setTimeout(() => resolve('timeout'), 50)),
-    ]);
+    let resolved = false;
+    void getMyTrips().then(() => { resolved = true; });
     await vi.runAllTimersAsync();
-    expect(result).toBe('timeout');
+    expect(resolved).toBe(false);
   });
 });
 
