@@ -27,7 +27,7 @@
 **Milestone Goal:** Bring the app to a solid, consistent state — complete and tested user experience, single-command dev environment, coherent design throughout, and accurate documentation.
 
 - [x] **Phase 10: Design Tokens + IDP Theme** - CSS token consolidation, KC login page alignment, email templates, light/dark theme consistency — completed 2026-05-31
-- [ ] **Phase 11: Error Handling** - Centralized toast module, global unhandledrejection handler, typed ApiError, 401 auto-redirect
+- [x] **Phase 11: Error Handling** - Centralized toast module, global unhandledrejection handler, typed ApiError, 401 auto-redirect — completed 2026-06-01
 - [ ] **Phase 12: Terraform Expansion + Dev Script** - Test users as IaC, PKCE S256 + strict redirect URIs, single-command local startup
 - [ ] **Phase 13: Security Audit + Documentation** - RFC 9700 checklist, JWKS retry, CSP/security headers, SEC-05 assertion, README + SETUP.md + use case inventory
 - [ ] **Phase 14: E2E Expansion + New User Parity** - Full new-user creation E2E spec, ROPC removal, empty-state dashboard, geocoder parity across all forms
@@ -120,7 +120,7 @@ Plans:
 | 8. OTP + Passkey Campaign | v2.0 | 8/8 | Complete | 2026-05-26 |
 | 9. Playwright Real Auth | v2.0 | 7/7 | Complete | 2026-05-28 |
 | 10. Design Tokens + IDP Theme | v3.0 | 0/4 | Not started | - |
-| 11. Error Handling | v3.0 | 0/4 | Not started | - |
+| 11. Error Handling | v3.0 | 4/4 | Complete | 2026-06-01 |
 | 12. Terraform Expansion + Dev Script | v3.0 | 0/TBD | Not started | - |
 | 13. Security Audit + Documentation | v3.0 | 0/TBD | Not started | - |
 | 14. E2E Expansion + New User Parity | v3.0 | 0/TBD | Not started | - |
