@@ -16,6 +16,7 @@ import { getMyTrips, getMe } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
 import { setText, setStyle } from '@/modules/dom';
+import { showToast, installGlobalErrorHandler } from '@/modules/toast';
 
 // ---------------------------------------------------------------------------
 // Render helpers
@@ -157,9 +158,8 @@ async function handleCreateTrip(e: Event): Promise<void> {
       is_public: false,
     });
     window.location.href = `trip.html?tripId=${newTrip.id}`;
-  } catch (err) {
-    const msg = document.getElementById('create-trip-error');
-    if (msg) msg.textContent = (err as Error).message;
+  } catch {
+    showToast('Something went wrong. Please try again.', 'error');
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
@@ -366,6 +366,7 @@ function buildOtpBanner(): void {
 
 async function init(): Promise<void> {
   initTheme();
+  installGlobalErrorHandler();
 
   // Attempt silent SSO — never redirect the user
   let authenticated = false;
@@ -426,15 +427,8 @@ async function init(): Promise<void> {
       renderGrid(trips);
       // Extend search index with the user's trips
       trips.forEach((t) => extendSearchIndexWithApiTrip(t));
-    } catch (err) {
-      const grid = document.getElementById('trips-grid');
-      if (grid) {
-        grid.innerHTML = '';
-        const errP = document.createElement('p');
-        errP.className = 'trips-error';
-        setText(errP, `Could not load trips: ${(err as Error).message}`);
-        grid.appendChild(errP);
-      }
+    } catch {
+      showToast('Something went wrong. Please try again.', 'error');
     }
   } else {
     // Guest mode — show login prompt (grid is hidden by setupAuthButtons)

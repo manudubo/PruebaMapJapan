@@ -10,6 +10,7 @@ import {
   keycloak,
 } from '@/auth/keycloak';
 import { getMe } from '@/api/client';
+import { installGlobalErrorHandler } from '@/modules/toast';
 
 const KEYCLOAK_URL = import.meta.env['VITE_KEYCLOAK_URL'] as string ?? 'http://localhost:8080';
 const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string ?? 'japan-trip';
@@ -248,6 +249,7 @@ function openDeleteConfirm(credentialId: string): void {
 
 async function init(): Promise<void> {
   initTheme();
+  installGlobalErrorHandler();
 
   let authenticated = false;
   try {

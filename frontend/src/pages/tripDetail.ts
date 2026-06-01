@@ -23,6 +23,7 @@ import { createDirectionsUrl, announceToScreenReader } from '@/modules/utils';
 import type { ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
+import { installGlobalErrorHandler } from '@/modules/toast';
 
 // ---------------------------------------------------------------------------
 // URL params
@@ -485,6 +486,7 @@ function showError(message: string): void {
 
 async function init(): Promise<void> {
   initTheme();
+  installGlobalErrorHandler();
 
   const { tripId, slug, destIndex } = getUrlParams();
 

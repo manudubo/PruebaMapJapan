@@ -1,4 +1,5 @@
 import { updateTrip } from '@/api/client';
+import { showToast } from '@/modules/toast';
 import { setText } from '@/modules/dom';
 import type { ApiTrip } from '@/types';
 
@@ -43,6 +44,7 @@ export function initMetadataSection(trip: ApiTrip): void {
         is_public: publicInput?.checked ?? false,
       });
       setText(saveBtn, 'Saved');
+      showToast('Trip saved', 'success');
       setTimeout(() => { if (saveBtn) setText(saveBtn, 'Save changes'); }, 1500);
     } catch {
       if (errorEl) {
