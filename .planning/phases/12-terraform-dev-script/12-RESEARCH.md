@@ -296,12 +296,12 @@ resource "keycloak_user" "testuser" {
 }
 ```
 
-Key behavior: `import = true` means Terraform will adopt the existing user by username. The `initial_password` block is ignored for imported users — it only applies at creation time. This preserves `testuser`'s existing password (`Test1234!`) and any registered passkeys.
+Key behavior: `import = true` means Terraform will adopt the existing user by username. The exact behavior of `initial_password` on imported users is unverified — the provider may ignore it or re-assert it on each apply. Because the variable default (`Test1234!`) matches the existing password, either behavior leaves testuser authenticating correctly. Existing passkeys and profile state are preserved by the import semantics. [ASSUMED: initial_password ignored on import — see A3]
 
 ### Pattern 5: Standard keycloak_user (INFRA-02, INFRA-03)
 
 **What:** New users with no pre-existing state.
-**Pattern:** Follow `keycloak_user.e2e_test_user` exactly — no `import = true`.
+**Pattern:** Follow `keycloak_user.e2e_test_user` exactly — no `import = true`. **Must include `first_name` and `last_name`** to prevent KC's "Update Profile" required-action prompt at first browser login. The existing `e2e_test_user` in main.tf sets these fields precisely to skip the interstitial. (testuser's HCL intentionally omits them because `import = true` preserves existing profile state — not an oversight.)
 
 ```hcl
 # Source: existing terraform/keycloak/main.tf pattern
@@ -311,6 +311,8 @@ resource "keycloak_user" "new_user_test" {
   enabled        = true
   email          = "new_user_test@local"
   email_verified = true
+  first_name     = "New"
+  last_name      = "UserTest"
 
   initial_password {
     value     = var.new_user_test_password
@@ -324,6 +326,8 @@ resource "keycloak_user" "trip_edit_test_user" {
   enabled        = true
   email          = "trip_edit_test_user@local"
   email_verified = true
+  first_name     = "TripEdit"
+  last_name      = "TestUser"
 
   initial_password {
     value     = var.trip_edit_test_user_password
@@ -497,6 +501,10 @@ Defaults satisfy the realm password policy: `length(8) and upperCase(1) and digi
 
 **How to avoid:** Use `require()` syntax in `scripts/dev.js` (CommonJS is the root default). Alternatively, name the file `scripts/dev.mjs` to force ESM regardless of package.json. [VERIFIED: root package.json has no "type" field]
 
+### Container Teardown Note
+
+`docker compose up -d` is detached — containers (KC, postgres, mailpit) persist after Ctrl+C exits concurrently. This is desirable for fast restarts but means `npm run dev` does not clean up on exit. To stop all containers: `docker compose down` from `keycloak/` directory. The plan should document this in a usage note but does not need to implement auto-teardown.
+
 ---
 
 ## Runtime State Inventory
@@ -596,7 +604,7 @@ Defaults satisfy the realm password policy: `length(8) and upperCase(1) and digi
 |---|-------|---------|---------------|
 | A1 | concurrently v10 programmatic API is backward-compatible with v9 (`killOthersOn`, `prefixColors`, per-command `name`) | Standard Stack, Code Examples | Plan would reference wrong option names; fix by pinning 9.x |
 | A2 | KC `valid_redirect_uris` path matching does not include query strings (e.g., `dashboard.html` matches `dashboard.html?foo=bar`) | Open Questions | If KC does include query strings, `dashboard.html` registrations would fail for URIs with params |
-| A3 | `keycloak_user.import = true` behavior on official `keycloak/keycloak` provider v5.7+ matches the behavior documented for the former mrparkers provider | Architecture Patterns | If the attribute was renamed or removed in official provider, import strategy changes; fall back to `terraform import` CLI |
+| A3 | `keycloak_user.initial_password` is ignored (not re-asserted) for users declared with `import = true` | Architecture Patterns | If provider re-asserts the password on each apply, testuser is unaffected (default matches existing password), but the claim in Pattern 4 is wrong. Fallback: validate testuser authenticates after apply. |
 
 ---
 
