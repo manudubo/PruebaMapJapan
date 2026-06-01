@@ -64,8 +64,8 @@ Plans:
 Plans:
 - [x] 11-01-PLAN.md — Create toast.ts module + CSS block in main.css + toast.test.ts (Wave 1)
 - [x] 11-02-PLAN.md — Add code field to backend ApiResponse + update onError (Wave 1, parallel)
-- [ ] 11-03-PLAN.md — Add ApiError class + 401 detection to client.ts + client.test.ts (Wave 2)
-- [ ] 11-04-PLAN.md — Retrofit 4 entry points + dashboard.html + metadata.ts D-08 success toast (Wave 2)
+- [x] 11-03-PLAN.md — Add ApiError class + 401 detection to client.ts + client.test.ts (Wave 2)
+- [x] 11-04-PLAN.md — Retrofit 4 entry points + dashboard.html + metadata.ts D-08 success toast (Wave 2)
 **UI hint**: yes
 
 ### Phase 12: Terraform Expansion + Dev Script
