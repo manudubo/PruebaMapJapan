@@ -6,6 +6,7 @@
     "backend"
   ],
   "scripts": {
+    "dev": "node scripts/dev.js",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
@@ -17,6 +18,7 @@
     "install:all": "npm install && npm install --prefix tests"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1"
+    "@playwright/test": "^1.59.1",
+    "concurrently": "10.0.1"
   }
 }
