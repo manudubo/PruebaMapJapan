@@ -28,7 +28,7 @@
 
 - [x] **Phase 10: Design Tokens + IDP Theme** - CSS token consolidation, KC login page alignment, email templates, light/dark theme consistency — completed 2026-05-31
 - [x] **Phase 11: Error Handling** - Centralized toast module, global unhandledrejection handler, typed ApiError, 401 auto-redirect — completed 2026-06-01
-- [ ] **Phase 12: Terraform Expansion + Dev Script** - Test users as IaC, PKCE S256 + strict redirect URIs, single-command local startup
+- 🚧 **Phase 12: Terraform Expansion + Dev Script** - Test users as IaC, PKCE S256 + strict redirect URIs, single-command local startup
 - [ ] **Phase 13: Security Audit + Documentation** - RFC 9700 checklist, JWKS retry, CSP/security headers, SEC-05 assertion, README + SETUP.md + use case inventory
 - [ ] **Phase 14: E2E Expansion + New User Parity** - Full new-user creation E2E spec, ROPC removal, empty-state dashboard, geocoder parity across all forms
 
@@ -77,7 +77,10 @@ Plans:
   2. Terminal output shows color-labeled prefixes for each process (Keycloak, backend, frontend) via `concurrently`
   3. `terraform apply` creates `testuser`, `new_user_test`, and `trip_edit_test_user` as idempotent KC resources with no manual KC console steps required
   4. The KC client Terraform HCL enforces PKCE S256 challenge method server-side and uses strict redirect URIs with dev and prod URIs separated (no wildcards in either environment)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 12-01-PLAN.md — Dev script: scripts/dev.js + concurrently + package.json (Wave 1)
+- [ ] 12-02-PLAN.md — Terraform: 3 new test users + strict redirect URIs (Wave 1, autonomous: false)
 
 ### Phase 13: Security Audit + Documentation
 **Goal**: OAuth/OIDC compliance is audited with evidence; a 401 audience assertion guards JWT scope regression; all documentation is accurate and complete for a fresh setup
