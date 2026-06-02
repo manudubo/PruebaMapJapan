@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Quality, Polish & DevX
 status: idle
-stopped_at: Phase 11 complete — all 4 plans shipped and smoke-tested
-last_updated: "2026-06-01T21:49:00.000Z"
-last_activity: 2026-06-01 -- Phase 11 complete
+stopped_at: Phase 12 complete — dev script + KC users + redirect URI hardening shipped
+last_updated: "2026-06-02T17:15:00.000Z"
+last_activity: 2026-06-02 -- Phase 12 complete
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 12
-  completed_plans: 8
-  percent: 40
+  completed_phases: 3
+  total_plans: 14
+  completed_plans: 10
+  percent: 60
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-28 — v3.0 started)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** Phase 12 — Terraform Expansion + Dev Script
+**Current focus:** Phase 13 — Security Audit + Documentation
 
 ## Current Position
 
-Phase: 11 — COMPLETE
-Next: Phase 12 — Terraform Expansion + Dev Script
+Phase: 12 — COMPLETE
+Next: Phase 13 — Security Audit + Documentation
 Status: Idle — ready for next phase
-Last activity: 2026-06-01 -- Phase 11 complete
+Last activity: 2026-06-02 -- Phase 12 complete
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -59,9 +59,9 @@ None.
 
 ### Blockers/Concerns
 
-- CRITICAL: `webAuthnPolicyPasswordlessRpId` must be pinned in Terraform HCL before Phase 12 apply — no migration path if reset
-- Phase 12: Verify `webAuthnPolicyPasswordlessRpId` pin and run `terraform plan` with zero realm changes before touching any other resource
 - Passkey AIA templates are frozen — run `passkeys.spec.ts` after any Phase 10 theme change
+- Phase 12 deviation: `import = true` removed from testuser (KC volume doesn't persist between fresh starts); users are now fully Terraform-managed
+- Phase 12: Pre-existing Terraform drift (protocol mapper replacements, email_theme) remains open — not Phase 12 scope; targeted apply used to isolate our changes
 
 ## Deferred Items
 
@@ -75,7 +75,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-01
-Stopped at: Phase 11 complete
-Resume: /gsd-execute-phase 12
-Resume file: .planning/phases/12-terraform-dev-script/
+Last session: 2026-06-02
+Stopped at: Phase 12 complete
+Resume: /gsd-discuss-phase 13
+Resume file: .planning/phases/ (Phase 13 not yet planned)

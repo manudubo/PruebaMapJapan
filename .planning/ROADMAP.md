@@ -28,7 +28,7 @@
 
 - [x] **Phase 10: Design Tokens + IDP Theme** - CSS token consolidation, KC login page alignment, email templates, light/dark theme consistency — completed 2026-05-31
 - [x] **Phase 11: Error Handling** - Centralized toast module, global unhandledrejection handler, typed ApiError, 401 auto-redirect — completed 2026-06-01
-- 🚧 **Phase 12: Terraform Expansion + Dev Script** - Test users as IaC, PKCE S256 + strict redirect URIs, single-command local startup
+- [x] **Phase 12: Terraform Expansion + Dev Script** - Test users as IaC, PKCE S256 + strict redirect URIs, single-command local startup — completed 2026-06-02
 - [ ] **Phase 13: Security Audit + Documentation** - RFC 9700 checklist, JWKS retry, CSP/security headers, SEC-05 assertion, README + SETUP.md + use case inventory
 - [ ] **Phase 14: E2E Expansion + New User Parity** - Full new-user creation E2E spec, ROPC removal, empty-state dashboard, geocoder parity across all forms
 
