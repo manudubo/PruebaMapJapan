@@ -183,15 +183,15 @@ resource "keycloak_user" "otp_test_user" {
   }
 }
 
-# INFRA-01: testuser adopted from manually-created KC user (import = true preserves credentials and passkeys)
+# INFRA-01: testuser for trip-edit-integration.spec.ts (Test1234! matches hardcoded spec credential)
 resource "keycloak_user" "testuser" {
   realm_id       = keycloak_realm.japan_trip.id
   username       = "testuser"
   enabled        = true
   email          = "testuser@local"
   email_verified = true
-
-  import = true
+  first_name     = "Test"
+  last_name      = "User"
 
   initial_password {
     value     = var.testuser_password
