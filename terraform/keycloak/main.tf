@@ -185,13 +185,14 @@ resource "keycloak_user" "otp_test_user" {
 
 # INFRA-01: testuser for trip-edit-integration.spec.ts (Test1234! matches hardcoded spec credential)
 resource "keycloak_user" "testuser" {
-  realm_id       = keycloak_realm.japan_trip.id
-  username       = "testuser"
-  enabled        = true
-  email          = "testuser@local"
-  email_verified = true
-  first_name     = "Test"
-  last_name      = "User"
+  realm_id         = keycloak_realm.japan_trip.id
+  username         = "testuser"
+  enabled          = true
+  email            = "testuser@local"
+  email_verified   = true
+  first_name       = "Test"
+  last_name        = "User"
+  required_actions = []
 
   initial_password {
     value     = var.testuser_password
@@ -201,13 +202,14 @@ resource "keycloak_user" "testuser" {
 
 # INFRA-02: new_user_test for new-user E2E spec (starts with no trips)
 resource "keycloak_user" "new_user_test" {
-  realm_id       = keycloak_realm.japan_trip.id
-  username       = "new_user_test"
-  enabled        = true
-  email          = "new_user_test@local"
-  email_verified = true
-  first_name     = "New"
-  last_name      = "UserTest"
+  realm_id         = keycloak_realm.japan_trip.id
+  username         = "new_user_test"
+  enabled          = true
+  email            = "new_user_test@local"
+  email_verified   = true
+  first_name       = "New"
+  last_name        = "UserTest"
+  required_actions = []
 
   initial_password {
     value     = var.new_user_test_password
@@ -217,13 +219,14 @@ resource "keycloak_user" "new_user_test" {
 
 # INFRA-03: trip_edit_test_user for trip-edit-integration.spec.ts
 resource "keycloak_user" "trip_edit_test_user" {
-  realm_id       = keycloak_realm.japan_trip.id
-  username       = "trip_edit_test_user"
-  enabled        = true
-  email          = "trip_edit_test_user@local"
-  email_verified = true
-  first_name     = "TripEdit"
-  last_name      = "TestUser"
+  realm_id         = keycloak_realm.japan_trip.id
+  username         = "trip_edit_test_user"
+  enabled          = true
+  email            = "trip_edit_test_user@local"
+  email_verified   = true
+  first_name       = "TripEdit"
+  last_name        = "TestUser"
+  required_actions = []
 
   initial_password {
     value     = var.trip_edit_test_user_password
