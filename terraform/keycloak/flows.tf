@@ -35,7 +35,7 @@ resource "keycloak_authentication_execution" "webauthn_passwordless" {
   realm_id          = keycloak_realm.japan_trip.id
   parent_flow_alias = keycloak_authentication_subflow.passkey_forms.alias
   authenticator     = "webauthn-authenticator-passwordless"
-  requirement       = "REQUIRED"
+  requirement       = "ALTERNATIVE"
   priority          = 20
 }
 
