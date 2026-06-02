@@ -31,6 +31,11 @@ resource "keycloak_authentication_execution" "username_form" {
   priority          = 10
 }
 
+# SECURITY-NOTE: ALTERNATIVE (not REQUIRED) lets password-only users fall through to
+# password-forms. This weakens the subflow's credential guarantee — see Phase 13 backlog
+# for proper restructure: single REQUIRED credential subflow with webauthn|password as
+# ALTERNATIVES inside it. Current setup is not an auth bypass (password-forms is still
+# enforced), but the design is not as explicitly safe as the restructured version.
 resource "keycloak_authentication_execution" "webauthn_passwordless" {
   realm_id          = keycloak_realm.japan_trip.id
   parent_flow_alias = keycloak_authentication_subflow.passkey_forms.alias
