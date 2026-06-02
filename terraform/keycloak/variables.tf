@@ -26,3 +26,24 @@ variable "e2e_otp_password" {
   sensitive   = true
   default     = "Otp-Test-Password-1!"
 }
+
+variable "testuser_password" {
+  description = "Password for testuser Playwright test user"
+  type        = string
+  sensitive   = true
+  default     = "Test1234!"
+}
+
+variable "new_user_test_password" {
+  description = "Password for new_user_test Playwright test user"
+  type        = string
+  sensitive   = true
+  default     = "New-User-Test-1!"
+}
+
+variable "trip_edit_test_user_password" {
+  description = "Password for trip_edit_test_user Playwright test user"
+  type        = string
+  sensitive   = true
+  default     = "Trip-Edit-Test-1!"
+}

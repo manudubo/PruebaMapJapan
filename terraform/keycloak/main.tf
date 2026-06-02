@@ -63,8 +63,23 @@ resource "keycloak_openid_client" "japan_trip_frontend" {
   pkce_code_challenge_method   = "S256"
   direct_access_grants_enabled = false
 
-  valid_redirect_uris             = ["http://localhost:5173/*", "https://*.github.io/*"]
-  valid_post_logout_redirect_uris = ["http://localhost:5173/*", "https://*.github.io/*"]
+  valid_redirect_uris = [
+    "http://localhost:5173/PruebaMapJapan/dashboard.html",
+    "http://localhost:5173/PruebaMapJapan/profile.html",
+    "http://localhost:5173/PruebaMapJapan/index.html",
+    "http://localhost:5173/PruebaMapJapan/silent-check-sso.html",
+    "https://manud.github.io/PruebaMapJapan/dashboard.html",
+    "https://manud.github.io/PruebaMapJapan/profile.html",
+    "https://manud.github.io/PruebaMapJapan/index.html",
+    "https://manud.github.io/PruebaMapJapan/silent-check-sso.html",
+  ]
+
+  valid_post_logout_redirect_uris = [
+    "http://localhost:5173/PruebaMapJapan/index.html",
+    "http://localhost:5173/",
+    "https://manud.github.io/PruebaMapJapan/index.html",
+    "https://manud.github.io/",
+  ]
   web_origins                     = ["+"]
 
   full_scope_allowed = true
@@ -164,6 +179,54 @@ resource "keycloak_user" "otp_test_user" {
 
   initial_password {
     value     = var.e2e_otp_password
+    temporary = false
+  }
+}
+
+# INFRA-01: testuser adopted from manually-created KC user (import = true preserves credentials and passkeys)
+resource "keycloak_user" "testuser" {
+  realm_id       = keycloak_realm.japan_trip.id
+  username       = "testuser"
+  enabled        = true
+  email          = "testuser@local"
+  email_verified = true
+
+  import = true
+
+  initial_password {
+    value     = var.testuser_password
+    temporary = false
+  }
+}
+
+# INFRA-02: new_user_test for new-user E2E spec (starts with no trips)
+resource "keycloak_user" "new_user_test" {
+  realm_id       = keycloak_realm.japan_trip.id
+  username       = "new_user_test"
+  enabled        = true
+  email          = "new_user_test@local"
+  email_verified = true
+  first_name     = "New"
+  last_name      = "UserTest"
+
+  initial_password {
+    value     = var.new_user_test_password
+    temporary = false
+  }
+}
+
+# INFRA-03: trip_edit_test_user for trip-edit-integration.spec.ts
+resource "keycloak_user" "trip_edit_test_user" {
+  realm_id       = keycloak_realm.japan_trip.id
+  username       = "trip_edit_test_user"
+  enabled        = true
+  email          = "trip_edit_test_user@local"
+  email_verified = true
+  first_name     = "TripEdit"
+  last_name      = "TestUser"
+
+  initial_password {
+    value     = var.trip_edit_test_user_password
     temporary = false
   }
 }
