@@ -83,7 +83,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (response.status === 401) {
     showToast('Session expired — redirecting to login', 'info');
-    setTimeout(() => { void login('dashboard.html'); }, 1500);
+    setTimeout(() => { void login(new URL('dashboard.html', window.location.href).href); }, 1500);
     return new Promise<never>(() => { /* intentionally never resolves — prevents double-toast */ });
   }
 

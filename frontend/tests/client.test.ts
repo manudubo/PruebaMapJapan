@@ -62,11 +62,11 @@ describe('request() 401 handling', () => {
     );
   });
 
-  it('schedules login("dashboard.html") after 1500ms', async () => {
+  it('schedules login with absolute dashboard.html URL after 1500ms', async () => {
     const { getMyTrips } = await import('@/api/client');
     void getMyTrips();
     await vi.runAllTimersAsync();
-    expect(login).toHaveBeenCalledWith('dashboard.html');
+    expect(login).toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\/.*dashboard\.html$/));
   });
 
   it('returns a promise that does not resolve (never-resolving)', async () => {
