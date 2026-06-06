@@ -46,15 +46,22 @@ export async function initKeycloak(): Promise<boolean> {
     pkceMethod: 'S256',
     responseMode: 'fragment',
     checkLoginIframe: false,
-    // Tokens stored in sessionStorage — cleared on tab close, not shared across tabs
-    // keycloak-js uses sessionStorage by default when token store is 'sessionStorage'
-    // (default in keycloak-js v21+)
+  }).then((authenticated) => {
+    if (import.meta.env.DEV) {
+      const tokenState = !authenticated
+        ? 'unauthenticated'
+        : keycloak.token
+          ? `token=present (sub=${keycloak.tokenParsed?.['sub']?.slice(0, 8)})`
+          : 'WARN: authenticated=true but token=null — broken auth state';
+      console.debug(`[auth] init: ${tokenState}`);
+    }
+    return authenticated;
   });
 
   keycloak.onTokenExpired = () => {
+    if (import.meta.env.DEV) console.debug('[auth] token expired, refreshing');
     refreshToken().catch(() => {
-      // If refresh fails the user will need to log in again
-      console.warn('Token refresh failed — session may have expired');
+      console.warn('[auth] token refresh failed — session may have expired');
     });
   };
 

@@ -63,6 +63,20 @@ export async function clearOtpCodes(username: string): Promise<void> {
   }
 }
 
+export async function getUserSessions(username: string) {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) return [];
+  return client.users.listSessions({ id: user.id });
+}
+
+export async function logoutUser(username: string): Promise<void> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) return;
+  await client.users.logout({ id: user.id });
+}
+
 export async function expireOtpCodes(username: string): Promise<void> {
   // Back-dates expires_at to one minute ago for all unused codes belonging to username.
   // Enables the expired-OTP test without requiring real time to pass or a test-only API.
@@ -87,10 +101,12 @@ export const test = base.extend<{
     expireOtpCodes: typeof expireOtpCodes;
     createUser: typeof createUser;
     deleteUser: typeof deleteUser;
+    getUserSessions: typeof getUserSessions;
+    logoutUser: typeof logoutUser;
   };
 }>({
   kcAdmin: async ({}, use) => {
-    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, createUser, deleteUser });
+    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, createUser, deleteUser, getUserSessions, logoutUser });
   },
 });
 

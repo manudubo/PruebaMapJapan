@@ -82,8 +82,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (response.status === 401) {
+    const redirectTarget = new URL('dashboard.html', window.location.href).href;
+    if (import.meta.env.DEV) {
+      console.warn(`[auth] 401 on ${method} ${path} — isAuthenticated=${isAuthenticated()}, redirecting to ${redirectTarget}`);
+    }
     showToast('Session expired — redirecting to login', 'info');
-    setTimeout(() => { void login(new URL('dashboard.html', window.location.href).href); }, 1500);
+    setTimeout(() => { void login(redirectTarget); }, 1500);
     return new Promise<never>(() => { /* intentionally never resolves — prevents double-toast */ });
   }
 
