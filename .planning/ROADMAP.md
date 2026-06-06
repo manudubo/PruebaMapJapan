@@ -94,11 +94,11 @@ Plans:
   5. README.md accurately documents the `npm run dev` setup; SETUP.md provides step-by-step instructions for a fresh environment; a use case inventory document lists all user scenarios and their E2E coverage status
 **Plans**: 5 plans
 Plans:
-- [ ] 13-01-PLAN.md -- security.ts middleware (CSP, X-Frame-Options, HSTS, Referrer-Policy) + unit tests (SEC-04)
-- [ ] 13-02-PLAN.md -- verifyJwt JWKS retry on signature failure with DoS guard + unit tests (SEC-02)
+- [x] 13-01-PLAN.md -- security.ts middleware (CSP, X-Frame-Options, HSTS, Referrer-Policy) + unit tests (SEC-04)
+- [x] 13-02-PLAN.md -- verifyJwt JWKS retry on signature failure with DoS guard + unit tests (SEC-02)
 - [ ] 13-03-PLAN.md -- SEC-05 E2E audience rejection test in api.spec.ts (wrong-aud token to 401)
 - [ ] 13-04-PLAN.md -- docs/security/rfc9700-checklist.md (SEC-01)
-- [ ] 13-05-PLAN.md -- README.md update + SETUP.md + docs/use-cases.md (DOC-01, DOC-02, DOC-03, DEVENV-03)
+- [x] 13-05-PLAN.md -- README.md update + SETUP.md + docs/use-cases.md (DOC-01, DOC-02, DOC-03, DEVENV-03)
 
 ### Phase 14: E2E Expansion + New User Parity
 **Goal**: A new user can complete the full trip creation flow end-to-end without errors; Playwright E2E covers this path; ROPC is eliminated from all test files
