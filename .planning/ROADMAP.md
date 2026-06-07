@@ -96,8 +96,8 @@ Plans:
 Plans:
 - [x] 13-01-PLAN.md -- security.ts middleware (CSP, X-Frame-Options, HSTS, Referrer-Policy) + unit tests (SEC-04)
 - [x] 13-02-PLAN.md -- verifyJwt JWKS retry on signature failure with DoS guard + unit tests (SEC-02)
-- [ ] 13-03-PLAN.md -- SEC-05 E2E audience rejection test in api.spec.ts (wrong-aud token to 401)
-- [ ] 13-04-PLAN.md -- docs/security/rfc9700-checklist.md (SEC-01)
+- [x] 13-03-PLAN.md -- SEC-05 E2E audience rejection test in api.spec.ts (wrong-aud token to 401)
+- [x] 13-04-PLAN.md -- docs/security/rfc9700-checklist.md (SEC-01)
 - [x] 13-05-PLAN.md -- README.md update + SETUP.md + docs/use-cases.md (DOC-01, DOC-02, DOC-03, DEVENV-03)
 
 ### Phase 14: E2E Expansion + New User Parity
