@@ -225,12 +225,30 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   const signingInputBytes = new TextEncoder().encode(signingInput);
   const signatureBytes = base64urlToArrayBuffer(encodedSignature);
 
-  const isValid = await crypto.subtle.verify(
+  let jwksRefreshed = false;
+
+  let isValid = await crypto.subtle.verify(
     { name: 'RSASSA-PKCS1-v1_5' },
     publicKey,
     signatureBytes,
     signingInputBytes,
   );
+
+  if (!isValid && !jwksRefreshed) {
+    // Retry once: invalidate cache and refetch JWKS (handles stale key after rotation)
+    jwksRefreshed = true;
+    jwksCache = null;
+    const retryKeyMap = await getKeycloakJwks(env);
+    const retryKey = retryKeyMap.get(header.kid);
+    if (retryKey) {
+      isValid = await crypto.subtle.verify(
+        { name: 'RSASSA-PKCS1-v1_5' },
+        retryKey,
+        signatureBytes,
+        signingInputBytes,
+      );
+    }
+  }
 
   if (!isValid) {
     throw new Error('JWT signature verification failed');
@@ -242,6 +260,10 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
 // ---------------------------------------------------------------------------
 // Extract standardized user info from a verified Keycloak JWT payload
 // ---------------------------------------------------------------------------
+
+export function __resetJwksCacheForTests(): void {
+  jwksCache = null;
+}
 
 export function extractUserInfo(payload: KeycloakJwtPayload): UserInfo {
   const roles = payload.realm_access?.roles ?? [];
