@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { corsMiddleware } from './middleware/cors';
+import { securityMiddleware } from './middleware/security';
 import routes from './routes';
 import type { Env } from './types';
 
@@ -9,6 +10,7 @@ const app = new Hono<{ Bindings: Env }>();
 // Global middleware
 // ---------------------------------------------------------------------------
 app.use('*', corsMiddleware);
+app.use('*', securityMiddleware);
 
 // ---------------------------------------------------------------------------
 // Root health check (unauthenticated)

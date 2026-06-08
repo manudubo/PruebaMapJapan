@@ -68,3 +68,20 @@ describe('Hono app — in-process unit tests', () => {
     expect(body.success).toBe(false);
   });
 });
+
+describe('Security headers middleware', () => {
+  it('sets all 4 security headers on every response', async () => {
+    const res = await app.request('/api/health', {}, mockEnv);
+    expect(res.headers.get('content-security-policy')).toBe("default-src 'none'");
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+    expect(res.headers.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains');
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+  });
+
+  it('sets security headers on 401 unauthenticated responses', async () => {
+    const res = await app.request('/api/trips', {}, mockEnv);
+    expect(res.status).toBe(401);
+    expect(res.headers.get('content-security-policy')).toBe("default-src 'none'");
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+  });
+});
