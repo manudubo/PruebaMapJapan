@@ -29,7 +29,7 @@
 - [x] **Phase 10: Design Tokens + IDP Theme** - CSS token consolidation, KC login page alignment, email templates, light/dark theme consistency — completed 2026-05-31
 - [x] **Phase 11: Error Handling** - Centralized toast module, global unhandledrejection handler, typed ApiError, 401 auto-redirect — completed 2026-06-01
 - [x] **Phase 12: Terraform Expansion + Dev Script** - Test users as IaC, PKCE S256 + strict redirect URIs, single-command local startup — completed 2026-06-02
-- [ ] **Phase 13: Security Audit + Documentation** - RFC 9700 checklist, JWKS retry, CSP/security headers, SEC-05 assertion, README + SETUP.md + use case inventory
+- [x] **Phase 13: Security Audit + Documentation** - RFC 9700 checklist, JWKS retry, CSP/security headers, SEC-05 assertion, README + SETUP.md + use case inventory — completed 2026-06-07
 - [ ] **Phase 14: E2E Expansion + New User Parity** - Full new-user creation E2E spec, ROPC removal, empty-state dashboard, geocoder parity across all forms
 
 ## Phase Details
@@ -137,7 +137,7 @@ Plans:
 | 10. Design Tokens + IDP Theme | v3.0 | 0/4 | Not started | - |
 | 11. Error Handling | v3.0 | 4/4 | Complete | 2026-06-01 |
 | 12. Terraform Expansion + Dev Script | v3.0 | 0/TBD | Not started | - |
-| 13. Security Audit + Documentation | v3.0 | 0/TBD | Not started | - |
+| 13. Security Audit + Documentation | v3.0 | 5/5 | Complete | 2026-06-07 |
 | 14. E2E Expansion + New User Parity | v3.0 | 0/TBD | Not started | - |
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*
