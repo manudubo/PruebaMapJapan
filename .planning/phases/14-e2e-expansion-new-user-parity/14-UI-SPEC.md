@@ -35,7 +35,7 @@ Declared values (must be multiples of 4):
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Icon gaps within button (`gap: 6px` is project convention — see `.btn` rule) |
+| xs | 4px | Icon gaps within button |
 | sm | 8px | Compact element spacing |
 | md | 16px | Default element spacing |
 | lg | 24px | Section padding |
@@ -55,10 +55,10 @@ Typography for the new element matches existing `.btn` styles exactly. No new ty
 |------|------|--------|-------------|
 | Body (empty-state paragraphs) | 15px | 400 | 1.5 |
 | Button label | 14px | 500 | 1 |
-| Label | 13px | 500 | 1.5 |
-| Heading (modal, adjacent) | 20px | 600 | 1.2 |
 
 Source: `.btn` in `main.css:306-323` (14px, weight 500); `.trips-empty` inline style in `dashboard.html:129-136` (15px); `main.css:248-255` (body line-height 1.5).
+
+Note: The adjacent modal heading (`.create-trip-form`) uses 20px/600 — that element is out of scope for this phase's UI change and is not governed by this spec.
 
 ---
 
@@ -103,7 +103,7 @@ This section is the primary deliverable. It defines the single UI element introd
 - Min-height: 36px (from `.btn`)
 - Padding: `8px 16px` (from `.btn`)
 - Icon: inline SVG plus-sign, `width="15" height="15"`, `stroke-width="2.5"`, `aria-hidden="true"` — same icon as `#new-trip-btn` in `dashboard.html:171-174`
-- Icon gap: `gap: 6px` (from `.btn`)
+- Icon gap: `gap: 6px` — pre-existing `.btn` rule, not introduced by this spec
 - Margin-top: `16px` above the button (separating from the preceding paragraph)
 
 ### Hover state
@@ -183,11 +183,11 @@ No registry components are introduced. The button is implemented using the exist
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-06-07
