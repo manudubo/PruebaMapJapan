@@ -21,34 +21,30 @@ Includes a pre-loaded demo for a 30-day Japan 2026 itinerary.
 | Frontend | Vite 5 + TypeScript, Leaflet, Keycloak.js |
 | Backend | Hono (Node.js / Cloudflare Workers), Drizzle ORM |
 | Database | PostgreSQL (local Docker / Neon in production) |
-| Auth | Keycloak 25 (local Docker / Railway in production) |
+| Auth | Keycloak 26 (local Docker / Railway in production) |
 | Testing | Vitest (unit), Playwright (E2E + integration) |
 | Deployment | GitHub Pages (frontend), Cloudflare Workers (backend) |
 
+## Prerequisites
+
+- Docker Desktop 3.0+
+- Node.js 22+
+- Terraform >= 1.0
+- git
+- [gh CLI](https://cli.github.com/) (optional — for GitHub operations)
+
 ## Getting Started
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for the full local setup guide.
+First-time setup (fresh machine): see [SETUP.md](SETUP.md).
 
-**Quick start:**
+**Quick start** (after first-time setup):
 
 ```bash
-# 1. Install dependencies
 npm install
-npm install --prefix tests
-
-# 2. Start infrastructure (PostgreSQL + Keycloak)
-cd keycloak && docker compose up -d && cd ..
-
-# 3. Initialise database
-cd backend
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/japan_trip npx drizzle-kit push --force
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/japan_trip npx tsx src/db/seed.ts
-cd ..
-
-# 4. Start backend + frontend (two terminals)
-npm run dev:backend   # → http://localhost:8787
-npm run dev:frontend  # → http://localhost:5173/PruebaMapJapan/
+npm run dev
 ```
+
+`npm run dev` starts Docker Desktop if needed, launches Keycloak via Docker Compose, waits for it to be healthy, then starts the backend (http://localhost:8787) and frontend (http://localhost:5173/PruebaMapJapan/) with color-labeled output.
 
 ## Project Structure
 
@@ -74,14 +70,14 @@ PruebaMapJapan/
 │   │   └── validation/# Zod schemas
 │   └── wrangler.toml  # Cloudflare Workers config
 │
-├── keycloak/          # Keycloak 25 (Docker + Railway)
+├── keycloak/          # Keycloak 26 (Docker + Railway)
 │   ├── realm-export.json
 │   └── docker-compose.yml
 │
 ├── tests/             # Playwright E2E + integration tests
 │   └── e2e/
 │
-└── DEVELOPMENT.md     # Full local + production setup guide
+└── SETUP.md           # Fresh machine setup guide
 ```
 
 ## API
@@ -119,7 +115,7 @@ npm run test:all
 
 ## Deployment
 
-See [DEVELOPMENT.md § Production deployment](DEVELOPMENT.md#production-deployment) for step-by-step instructions covering Neon (database), Railway (Keycloak), Cloudflare Workers (backend), and GitHub Pages (frontend).
+Production deployment instructions are not yet documented (post-v3.0 scope — Cloudflare Workers + Neon + Railway).
 
 ## License
 
