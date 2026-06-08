@@ -3,9 +3,24 @@
  * Requires: frontend + backend running, Keycloak up, testuser/Test1234! created.
  */
 import { test, expect, Page } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
+
+test.describe.configure({ mode: 'serial' });
 
 // Integration tests include a full Keycloak login round-trip — allow extra time
 test.setTimeout(90000);
+
+// sessionStorage replay for Playwright bug #31108 — keycloak-js stores tokens here
+const sessionEntries: [string, string][] = (() => {
+  try {
+    return JSON.parse(
+      fs.readFileSync(path.join(__dirname, '../.auth/session.json'), 'utf-8')
+    ) as [string, string][];
+  } catch {
+    return [];
+  }
+})();
 
 const FRONTEND_BASE = 'http://localhost:5173/PruebaMapJapan';
 const API_BASE = 'http://localhost:8787/api';
@@ -17,52 +32,6 @@ async function isFrontendRunning(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-/**
- * Establish a Keycloak browser session and return a valid bearer token.
- * Browser login creates the session cookie that trip-edit.html's auth guard needs.
- * Token is fetched directly via password grant — reliable, no timing dependency.
- */
-async function loginAndGetToken(page: Page): Promise<string> {
-  await page.goto(`${FRONTEND_BASE}/dashboard.html`);
-
-  // Fresh browser context has no session → login prompt appears within seconds
-  const loginBtn = page.locator('#auth-login-prompt-btn');
-  const needsLogin = await loginBtn.isVisible({ timeout: 20000 }).catch(() => false);
-
-  if (needsLogin) {
-    await loginBtn.click();
-    await page.waitForURL(/localhost:8080/, { timeout: 15000 });
-    await page.fill('#username', 'testuser');
-    await page.fill('#password', 'Test1234!');
-    await page.click('#kc-login');
-    // Keycloak may show "Update Profile" on first login (first/last name required)
-    const profileVisible = await page.locator('input[name="firstName"]').isVisible({ timeout: 3000 }).catch(() => false);
-    if (profileVisible) {
-      await page.fill('input[name="firstName"]', 'Test');
-      await page.fill('input[name="lastName"]', 'User');
-      await page.click('input[type="submit"]');
-    }
-    await page.waitForURL(/localhost:5173/, { timeout: 20000 });
-  }
-
-  // Get a reliable token via resource-owner password grant — bypasses request capture timing
-  return page.evaluate(async () => {
-    const resp = await fetch('http://localhost:8080/realms/japan-trip/protocol/openid-connect/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'password',
-        client_id: 'japan-trip-frontend',
-        username: 'testuser',
-        password: 'Test1234!',
-      }).toString(),
-    });
-    const data = await resp.json() as Record<string, unknown>;
-    if (!data['access_token']) throw new Error(`Token fetch failed: ${JSON.stringify(data)}`);
-    return data['access_token'] as string;
-  });
 }
 
 async function createTrip(page: Page, token: string): Promise<string> {
@@ -80,6 +49,17 @@ async function createTrip(page: Page, token: string): Promise<string> {
   return tripId;
 }
 
+// CRITICAL: addInitScript must run before any page.goto() (Playwright bug #31108)
+test.beforeEach(async ({ context }) => {
+  if (sessionEntries.length) {
+    await context.addInitScript((entries) => {
+      for (const [k, v] of entries) {
+        window.sessionStorage.setItem(k, v);
+      }
+    }, sessionEntries);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // P2-V1: trip-edit page loads and form pre-fills from API
 // ---------------------------------------------------------------------------
@@ -87,7 +67,14 @@ test('P2-V1: trip-edit page loads; metadata form pre-fills from API @integration
   const up = await isFrontendRunning();
   test.skip(!up, 'Frontend not running');
 
-  const token = await loginAndGetToken(page);
+  const [req] = await Promise.all([
+    page.waitForRequest(r =>
+      r.url().includes('/api/') &&
+      (r.headers()['authorization'] ?? '').startsWith('Bearer ')
+    ),
+    page.goto(`${FRONTEND_BASE}/dashboard.html`),
+  ]);
+  const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
   await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
@@ -113,7 +100,14 @@ test('P2-V2: is_public checkbox sends PATCH with is_public:true @integration', a
   const up = await isFrontendRunning();
   test.skip(!up, 'Frontend not running');
 
-  const token = await loginAndGetToken(page);
+  const [req] = await Promise.all([
+    page.waitForRequest(r =>
+      r.url().includes('/api/') &&
+      (r.headers()['authorization'] ?? '').startsWith('Bearer ')
+    ),
+    page.goto(`${FRONTEND_BASE}/dashboard.html`),
+  ]);
+  const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
   await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
@@ -144,7 +138,14 @@ test('P2-V3: add destination via modal; POST to /destinations succeeds @integrat
   const up = await isFrontendRunning();
   test.skip(!up, 'Frontend not running');
 
-  const token = await loginAndGetToken(page);
+  const [req] = await Promise.all([
+    page.waitForRequest(r =>
+      r.url().includes('/api/') &&
+      (r.headers()['authorization'] ?? '').startsWith('Bearer ')
+    ),
+    page.goto(`${FRONTEND_BASE}/dashboard.html`),
+  ]);
+  const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
   await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
@@ -180,7 +181,14 @@ test('P2-V4: hotel URL renders as plain text, not an <a> tag @integration', asyn
   const up = await isFrontendRunning();
   test.skip(!up, 'Frontend not running');
 
-  const token = await loginAndGetToken(page);
+  const [req] = await Promise.all([
+    page.waitForRequest(r =>
+      r.url().includes('/api/') &&
+      (r.headers()['authorization'] ?? '').startsWith('Bearer ')
+    ),
+    page.goto(`${FRONTEND_BASE}/dashboard.html`),
+  ]);
+  const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
   // Create destination via API
@@ -227,7 +235,14 @@ test('P2-V5: activity time input saved; reorder POST sends ordered_ids @integrat
   const up = await isFrontendRunning();
   test.skip(!up, 'Frontend not running');
 
-  const token = await loginAndGetToken(page);
+  const [req] = await Promise.all([
+    page.waitForRequest(r =>
+      r.url().includes('/api/') &&
+      (r.headers()['authorization'] ?? '').startsWith('Bearer ')
+    ),
+    page.goto(`${FRONTEND_BASE}/dashboard.html`),
+  ]);
+  const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
   // Create destination + day via API
