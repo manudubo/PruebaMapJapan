@@ -115,7 +115,7 @@ Plans:
 - [x] 14-01-PLAN.md — Empty-state CTA button in dashboard.ts renderGrid() (UX-03)
 - [x] 14-02-PLAN.md — ROPC removal from trip-edit-integration.spec.ts; storageState auth (UX-06)
 - [x] 14-03-PLAN.md — global-setup.ts new-user storageState + .env.test.example (UX-05 infra)
-- [ ] 14-04-PLAN.md — new-user-trip-creation.spec.ts full E2E flow (UX-01, UX-02, UX-04, UX-05)
+- [x] 14-04-PLAN.md — new-user-trip-creation.spec.ts full E2E flow (UX-01, UX-02, UX-04, UX-05)
 **UI hint**: yes
 
 ## Progress
@@ -137,6 +137,6 @@ Plans:
 | 11. Error Handling | v3.0 | 4/4 | Complete | 2026-06-01 |
 | 12. Terraform Expansion + Dev Script | v3.0 | 0/TBD | Not started | - |
 | 13. Security Audit + Documentation | v3.0 | 5/5 | Complete | 2026-06-07 |
-| 14. E2E Expansion + New User Parity | v3.0 | 3/4 | In progress | - |
+| 14. E2E Expansion + New User Parity | v3.0 | 4/4 | Verifying | - |
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*
