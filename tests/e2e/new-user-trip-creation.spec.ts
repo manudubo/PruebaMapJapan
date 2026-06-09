@@ -31,23 +31,6 @@ const API_BASE = process.env.BACKEND_URL
 // Shared state for the serial flow
 let capturedTripId: string | null = null;
 
-// ---------------------------------------------------------------------------
-// Helper: create trip via API (same pattern as trip-edit-integration.spec.ts)
-// ---------------------------------------------------------------------------
-async function createTrip(page: Page, token: string): Promise<string> {
-  const tripId: string = await page.evaluate(async (args) => {
-    const [apiBase, tok] = args as [string, string];
-    const resp = await fetch(`${apiBase}/trips`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-      body: JSON.stringify({ name: 'New User Test Trip', start_date: '2026-08-01', end_date: '2026-08-15' }),
-    });
-    const data = await resp.json();
-    if (!data.data?.id) throw new Error(`Trip create failed: ${JSON.stringify(data)}`);
-    return String(data.data.id);
-  }, [API_BASE, token]);
-  return tripId;
-}
 
 // ---------------------------------------------------------------------------
 // Helper: extract token from Authorization header of first authenticated request.
@@ -130,15 +113,7 @@ test.describe('New user trip creation flow', () => {
       })
     );
 
-    // --- Step 2: Empty dashboard — assert CTA visible ---
-    await page.goto(`${FRONTEND_BASE}/dashboard.html`);
-    await page.waitForLoadState('domcontentloaded');
-
-    const ctaBtn = page.locator('#empty-state-create-btn');
-    await expect(ctaBtn).toBeVisible();
-
-    // --- Step 3: Create trip via API (faster than UI form for known-good creation) ---
-    // Token re-captured for this test page context from Authorization header
+    // --- Step 2: Navigate to dashboard + capture token; assert empty-state CTA visible ---
     const [req] = await Promise.all([
       page.waitForRequest(r =>
         r.url().includes('/api/') &&
@@ -147,7 +122,26 @@ test.describe('New user trip creation flow', () => {
       page.goto(`${FRONTEND_BASE}/dashboard.html`),
     ]);
     const token = req.headers()['authorization'].slice('Bearer '.length);
-    const tripId = await createTrip(page, token);
+    await page.waitForLoadState('domcontentloaded');
+
+    const ctaBtn = page.locator('#empty-state-create-btn');
+    await expect(ctaBtn).toBeVisible();
+
+    // --- Step 3: Create trip via UI form (UX-01, UX-03) ---
+    await ctaBtn.click();
+    await page.waitForSelector('#create-trip-overlay:not([hidden])', { timeout: 5_000 });
+
+    await page.fill('#trip-name', 'New User Test Trip');
+    await page.fill('#trip-start', '2026-08-01');
+    await page.fill('#trip-end', '2026-08-15');
+
+    await Promise.all([
+      page.waitForURL(/trip\.html\?tripId=/, { timeout: 15_000 }),
+      page.getByRole('button', { name: 'Create trip' }).click(),
+    ]);
+    await page.waitForLoadState('domcontentloaded');
+
+    const tripId = new URL(page.url()).searchParams.get('tripId')!;
     capturedTripId = tripId;
 
     // --- Step 4: Navigate to trip-edit; add destination via geocoder ---
@@ -253,12 +247,17 @@ test.describe('New user trip creation flow', () => {
 
     // --- Step 9: Return to dashboard; verify global search finds the trip ---
     await page.goto(`${FRONTEND_BASE}/dashboard.html`);
-    await page.waitForLoadState('domcontentloaded');
     await page.waitForSelector('.trip-card', { timeout: 10_000 });
 
-    const searchInput = page.locator('search-bar input, #search-input');
+    const searchInput = page.locator('search-bar input, #search-input').first();
+
+    // Non-matching search must filter the card out — proves search is actually working
+    await searchInput.fill('zzz-no-match');
+    await expect(page.locator('.trip-card')).toHaveCount(0, { timeout: 3_000 });
+
+    // Correct name must bring it back
     await searchInput.fill('New User Test Trip');
-    await expect(page.locator(':text("New User Test Trip")')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.trip-card')).toBeVisible({ timeout: 3_000 });
 
     // --- Step 10: Edit trip metadata ---
     await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
