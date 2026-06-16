@@ -1,363 +1,251 @@
-# Feature Landscape — v3.0 Quality, Polish & DevX
+# E2E Failure-Pattern Research: Auth-Dependent Spec Categories
 
-**Domain:** Trip planning web app — quality, polish, and developer-experience milestone
-**Researched:** 2026-05-28
-**Overall confidence:** HIGH (stack is well-known; KC theme limits confirmed via official docs)
+**Domain:** Playwright E2E suite stabilization for a Keycloak-backed (OIDC PKCE) full-stack app
+**Researched:** 2026-06-15
+**Confidence:** MEDIUM overall (HIGH for spec-grounded findings verified directly against repo code; MEDIUM/LOW for general Playwright/Keycloak ecosystem claims — flagged inline)
+
+## Scope and Method
+
+This is not a product-feature research doc — v3.1 is pure E2E stabilization, no new features. Per
+the question and quality gate, this file inventories **common root causes of failure** for the 5
+spec categories named in the milestone, tags each cause **[APP BUG | TEST BUG | ENV/TIMING]**, and
+notes likelihood/complexity and infra dependencies. Findings are grounded by reading the actual spec
+files, `global-setup.ts`, `playwright.config.ts`, and the fixtures (`kc-admin.ts`, `mailpit-helpers.ts`)
+in this repo — not generic Playwright folklore. Spec-grounded findings are marked HIGH confidence;
+general ecosystem patterns (used to fill gaps / sanity-check) are marked MEDIUM or LOW.
+
+**Critical infra fact confirmed by reading `tests/playwright.config.ts`:** the `chromium`, `firefox`,
+and `webkit` projects have no `testMatch`/`testIgnore`. Only the `chromium-passkeys` project scopes
+explicitly to `passkeys.spec.ts` (via `testMatch: ['**/passkeys.spec.ts']`). This means
+`passkeys.spec.ts` also runs under **all four projects**, including firefox and webkit.
+`page.context().newCDPSession()` (used throughout `passkeys.spec.ts` for the WebAuthn Virtual
+Authenticator) is a Chrome DevTools Protocol API — **Chromium-only**. Firefox and WebKit do not
+implement CDP. Confidence: HIGH (read directly from config + spec file).
 
 ---
 
-## 1. New User Trip Creation — End-to-End Flow
+## Failure Landscape by Spec Category
 
-### What "feature parity with demo" means
+### 1. Keycloak IDP-themed login page assertions (`idp-theme.spec.ts`)
 
-The Japan demo trip already demonstrates: map rendered with day-colored markers, multiple destinations, hotel info per destination, days with labeled activities, geocoded coordinates per activity, and search across the itinerary. "Parity" means a newly registered user can build any trip that achieves all of this — for any city, any dates.
+**Expected behavior:** Custom FreeMarker KC theme hides the default KC header, renders a themed "exit"
+action linking back to the app (not to KC's logout endpoint), and matches the app's `--jp-*` design
+tokens (border-radius 0, Inter font).
 
-The critical gap is not backend API (all CRUD routes exist) but **UX flow**: the current UI likely has no guidance for a blank state, no coordinated success/error feedback, and no tested path from "first login" to "trip on a map."
+**Common root causes:**
 
-### End-to-end flow (required)
+| Cause | Tag | Likelihood | Notes |
+|---|---|---|---|
+| Theme assertions drifted after a design-system change (Phase 10 unified `--jp-*` tokens across app + KC themes; any FreeMarker/CSS tweak since could break exact `toBe('0px')` / `toContain('Inter')` checks) | **TEST BUG** (stale assertion) or **APP BUG** (regressed theme) — must diff against current FreeMarker template to tell apart | Medium-High | Single most fragile pattern in the file: pixel/string-exact CSS assertions against a theme that has been actively iterated on across two prior phases. |
+| KC not running / `beforeEach` skip silently masks failures | ENV | Low | Test already guards with `test.skip(!response?.ok())` — if this fires, the test reports as skipped, not failed, so it shouldn't appear in a "failing" list unless KC really is down during triage. |
+| `code_challenge` value is a fixed dummy string (`'aaaa...'`, 43 chars) — if KC enforces stricter PKCE validation (e.g. rejects malformed/low-entropy challenges before reaching the login page) the redirect could 400 before the themed page ever renders | **APP/ENV boundary** — could be a KC version/config behavior change | Low-Medium | Phase 13 added "PKCE S256 enforced server-side" — worth confirming this dummy challenge still passes KC 26.6.1's format check (43-128 char unreserved charset) after that hardening pass. |
+| Exit link href regex anchored to `/PruebaMapJapan/?$` — base path or routing changes silently break this | TEST BUG | Low | Static assertion, easy to verify directly against rendered HTML. |
+
+**How to triage:** Load the LOGIN_URL manually in a browser, inspect `#kc-header-wrapper` and
+`.jp-idp-exit`, diff actual computed styles against the assertions. This spec has no auth-state
+dependency, so failures are almost certainly either a real theme regression or a stale assertion —
+not flake.
+
+---
+
+### 2. Email OTP flows via Mailpit (`otp.spec.ts`)
+
+**Expected behavior:** POST `/api/auth/otp-request` sends a 6-digit code via Mailpit SMTP; POST
+`/api/auth/otp-verify` validates it; codes expire after 10 min; 5 failed attempts lock out; OTP-based
+login does not force `UPDATE_PASSWORD` on WebAuthn-capable devices.
+
+**Common root causes:**
+
+| Cause | Tag | Likelihood | Notes |
+|---|---|---|---|
+| `fetchLatestOtp()` calls Mailpit's REST API immediately after the `otp-request` POST resolves with **no poll/retry loop** — if SMTP delivery to Mailpit has any async lag, the inbox-list call races the message landing | **ENV/TIMING** | Medium | Confirmed in `mailpit-helpers.ts:19-29` — single GET, no retry/backoff. Classic flake pattern even against a fast local relay; widens under parallel/CI load. Fix pattern: poll with backoff until `messages.length > 0` or a timeout elapses, not a single fetch. |
+| `fetchLatestOtp()` always takes `data.messages[0]` (latest) — if `purgeInbox()` in `beforeEach` doesn't fully complete before a previous test's email is still arriving, a stale code could be picked up | **ENV/TIMING** | Low-Medium | Serial mode mitigates cross-test races but not the request→delivery lag within a single test. |
+| The `UPDATE_PASSWORD gate` test fills `getByLabel(/username\|email/i)` then **directly** `getByLabel(/password/i)` with no "Try Another Way → Password" navigation step that `global-setup.ts` and `session-management.spec.ts` both perform to reach the combined form | **TEST BUG** | High | Internal inconsistency: two other login flows in this same codebase explicitly handle a WebAuthn-first KC flow that hides the password field until "Try Another Way" is clicked. This OTP test assumes the password field is immediately visible. If the realm's browser flow is WebAuthn-first (consistent with Phase 8's "passkey campaign"), this test times out waiting on `getByLabel(/password/i)` — a real test bug, not flake. |
+| `clearOtpCodes()` / `expireOtpCodes()` query Postgres directly via `email_otp_codes` table — if a migration renamed columns/the table, or the `users.email` join changed, these silently affect 0 rows rather than erroring | **APP BUG (schema drift)** or **TEST BUG (stale query)** | Low | Worth a direct schema check during triage rather than trusting the helper. |
+| Lockout test sends 5 bad codes then expects `[400, 429]`; if the backend's actual lockout status code changed outside that set, the assertion fails for a reason unrelated to lockout logic itself | TEST BUG (if status changed) | Low | Confirm actual returned status during triage. |
+| Serial mode (`test.describe.configure({ mode: 'serial' })`) is documented as "mandatory" — if dropped, OTP tests interleave and race on the shared Mailpit inbox | ENV/TIMING (config regression) | Low (currently present) | Confirmed present in file — flag as a regression trip-wire, not a current failure. |
+
+**How to triage:** Run `otp.spec.ts` alone, serially, with a screenshot/DOM dump on the
+UPDATE_PASSWORD test to see whether the password field is hidden behind a "Try Another Way" link.
+That single check likely explains most of this category's failures.
+
+---
+
+### 3. WebAuthn/passkey flows via Playwright CDP (`passkeys.spec.ts`)
+
+**Expected behavior:** Register a passkey via CDP Virtual Authenticator on `profile.html`; log in via
+KC's passwordless/discoverable-credential flow using a transferred credential; last-credential
+deletion is blocked by a guard.
+
+**Common root causes:**
+
+| Cause | Tag | Likelihood | Notes |
+|---|---|---|---|
+| **Spec runs under `firefox` and `webkit` projects** (no `testIgnore` scoping them out) and calls `page.context().newCDPSession(page)`, a Chromium-only API | **TEST BUG (infra/config)** | **Very High** | Highest-value finding in this research. `chromium-passkeys` correctly scopes via `testMatch`, but the default `chromium`, `firefox`, `webkit` projects have no exclusion, so this file also runs there. CDP session creation throws on firefox/webkit, producing failures that look like "passkeys broken" but are actually a test-config gap. Fix: add `testIgnore: ['**/passkeys.spec.ts']` to `firefox`/`webkit` (and arguably plain `chromium`, since `chromium-passkeys` already covers Chromium). This alone likely explains a large share of the milestone's "passkeys ×3" failure count — 3 tests × 3 incompatible/duplicate projects = many failures from one root cause. |
+| `hasUserVerification`/`isUserVerified` flags on `WebAuthn.addVirtualAuthenticator` must match what KC's WebAuthn policy requires (e.g. `userVerification: required`) — a mismatch causes KC to reject the assertion/registration, often with a generic/silent error | **APP/ENV config coupling** | Medium | Inline comment already flags "CRITICAL: correct spelling," implying this broke once before from a typo. KC WebAuthn-policy ↔ CDP-flag mismatches are a known general source of cryptic failures (MEDIUM confidence, general pattern, not verified fresh this session). |
+| Locators use multiple fallback selectors (e.g. `[data-action="register-passkey"], #register-passkey-btn, button:has-text("Register passkey")`) — if current markup matches none of the three, the test times out with a vague "element not found" rather than a clear failure | TEST BUG (selector drift) or APP BUG (markup regression) — ambiguous without checking current `profile.html` | Medium | Multi-selector fallbacks suggest past breakage from markup churn; check current `profile.html`/`profile.ts` directly during triage. |
+| All passkey tests consume `.auth/user.json` + `.auth/session.json` produced by `global-setup.ts`'s `kcLogin()` (20-min freshness window) — if that login fails or goes stale, every passkey test starts unauthenticated and the registration flow never begins | **ENV/TIMING (shared fixture staleness)** | Medium | Direct dependency on `global-setup.ts` succeeding; a slow run or a KC flow change that breaks `kcLogin()`'s navigation cascades into every spec consuming `.auth/user.json`, not just passkeys. |
+| `login with passkey via KC login form` test transfers a CDP-captured credential to a new context/authenticator, then relies on KC auto-asserting via discoverable credential OR a fallback button click — if KC requires explicit UI interaction before invoking `navigator.credentials.get()` (conditional-UI behavior varies by KC version), auto-assertion may never fire, and the fallback locator may not match current theme markup | **APP/ENV (KC version behavior)** or **TEST BUG (selector drift)** | Medium | Most complex test in the suite — multi-context, multi-CDP-session, two fallback paths. High inherent fragility independent of any real passkey bug. |
+| `delete passkey is blocked when last credential` test's guard-message locator includes a broad `[role="alert"]` fallback — Phase 11 added a centralized `toast.ts`; any unrelated toast rendered with `role="alert"` during this flow could make the assertion pass even if the specific last-credential guard text never appeared | **TEST BUG (over-broad assertion masking real bugs)** | Low-Medium | This locator risks a false-green, not just a false-red — worth tightening during the fix, since it currently could hide a regressed guard. |
+
+**How to triage:** Fix the project-scoping issue first (cheap, mechanical, high-confidence win).
+Re-run only under `chromium-passkeys` to isolate genuine WebAuthn/KC-flow issues from
+browser-incompatibility noise. Only then debug remaining Chromium-specific failures.
+
+---
+
+### 4. Public link/sharing flows (`public-sharing.spec.ts`)
+
+**Expected behavior:** Public trips are readable without auth via `?slug=`; private trips 404 even
+with a known slug; invalid slugs 400; guest view hides owner-only controls (edit link, copy-link
+button); unauthenticated `?tripId=` access shows an access-denied message.
+
+**Common root causes:**
+
+| Cause | Tag | Likelihood | Notes |
+|---|---|---|---|
+| Hardcoded UUIDs (`PUBLIC_SLUG`, `PRIVATE_SLUG`) and `PUBLIC_TRIP_ID = '1'` with an exact-match assertion `body.data.name === 'Japan 2026'` — the spec has **no setup/seed step of its own**; it assumes specific rows already exist in whatever DB the run points at | **ENV (stale fixture/seed data)** | **High** | Strongest "stale data" candidate in the whole milestone. Any DB reseed, migration, or renamed trip between v3.0 and now breaks this deterministically, unrelated to actual app correctness. No `beforeAll` creates/restores this fixture — it's an implicit, undocumented dependency on dev-seed state. |
+| `isBackendRunning()` health check only verifies status `< 500` — a backend that's up but returns unexpected 4xx for `/api/health` (e.g. if it became auth-gated post security-hardening) could cause `test.skip()` to fire when the backend is actually fine, masking real failures as "skipped" | TEST BUG (weak health check) | Low | Confirm `/api/health` is still public/unauthenticated post Phase 13 audit. |
+| Guest-view test asserts `#trip-title` `!= 'Cargando viaje…'` (Spanish loading placeholder) — Phase 5 translated all UI strings to English, so this **negative** assertion can never meaningfully fail (it'll never equal a now-nonexistent Spanish string), masking a potential timing bug where the title never actually loads | **TEST BUG (weakened assertion post-i18n)** | Medium | Quietly dangerous: the assertion can't fail the way it was designed to. Should assert positively (title is non-empty and not the *current*-locale loading text) to actually catch a stuck-loading state. |
+| `?tripId=` access-denied test asserts `text.toContain('access')` against `#main-content` — broad substring match; if error UI (Phase 11's centralized `toast.ts`) moved this message to a toast outside `#main-content`, or reworded it without the substring "access," this fails for a UI-restructuring reason unrelated to whether access control itself is correct | **TEST BUG (selector/copy drift)** or **APP BUG (access-denied UI removed)** — ambiguous without checking current DOM | Medium | Check current rendered DOM for this state directly during triage. |
+
+**How to triage:** First confirm the seed data exists with those exact IDs/slugs/names in the current
+dev DB (e.g. `SELECT id, name, share_slug, is_public FROM trips WHERE id = 1`). If it doesn't, this
+entire category is a stale-fixture problem — fixable by reseeding deterministically (a `beforeAll` or
+global-setup step) or updating the hardcoded values to match current seed data, not an app bug.
+
+---
+
+### 5. Session / token-refresh management (`session-management.spec.ts`)
+
+**Expected behavior:** Login creates a KC server session; logout destroys it and clears app
+`sessionStorage`; closing a tab does not kill the server session; opening a new tab in the same
+browser context restores auth via silent check-sso; a new browser context (no KC cookie) requires
+re-login; logout in one tab propagates to other tabs on next navigation.
+
+**Common root causes:**
+
+| Cause | Tag | Likelihood | Notes |
+|---|---|---|---|
+| The file's own header comment states the browser-passkey flow schedules a `webauthn-register-passwordless` required action for users with no passkeys, and that `loginViaBrowser()` navigates via "Try Another Way" → Password to reach the combined form — explicitly flagged as needing restructuring "Phase 13" (not done per the comment) | **APP/KC-CONFIG (acknowledged, deferred)** | High | Clearest pre-existing, self-documented root cause in this entire research scope. If the realm's browser flow changed again since this comment was written (Phase 13's security audit, or any later passkey-flow tweak), `loginViaBrowser()`'s selector-chasing logic could silently stop matching — and **every test in this file** depends on `loginViaBrowser()` succeeding, so one KC flow change cascades into 6+ failures here alone. |
+| `loginViaBrowser()` uses soft `.isVisible({timeout}).catch(() => false)` checks at each branch point — avoids hard failures on the "wrong" branch, but a genuinely broken KC flow degrades into a confusing downstream timeout on `#new-trip-btn` rather than a clear "could not find login form" error | TEST BUG (poor failure diagnostics, not necessarily wrong logic) | Medium | Keep the resilience but add an explicit assertion/log at each branch to make triage faster. |
+| Every test calls `kcAdmin.logoutUser(TEST_USER)` (admin REST API) in `beforeEach`, then re-logs-in via the **browser** UI — two different code paths must both work and stay in sync; `logoutUser()` silently no-ops if the user isn't found (`kc-admin.ts:73-78`), so admin-client auth/permission drift (Terraform-managed worker client) could leave stale sessions without any error surfacing | **ENV (admin-client auth/permission drift)** or **APP BUG** | Low-Medium | Confirm `TEST_USER` resolves correctly given current Terraform-managed test users. |
+| `mode: 'serial'` is required (tests mutate shared KC session state) — same risk class as OTP: dropping serial mode makes every test order-dependent flake | ENV/TIMING (config regression risk) | Low (currently present) | Confirmed present at time of research. |
+| Repeated `page.waitForLoadState('networkidle')` calls to "settle" auth state — `networkidle` is a known-flaky wait condition when background polling exists; this app's weather/news widgets (`widgets.ts`) fetch external APIs on load and could keep the network "busy," delaying or destabilizing this wait | **ENV/TIMING** | Medium | General Playwright anti-pattern (MEDIUM confidence, well-documented community guidance against `networkidle` for SPA/iframe-heavy auth flows); this app's own background widgets make it a worse-than-average signal here. |
+| `keycloak-js getToken()` previously had a bug where `updateToken(30)` threw when KC issued a token with no refresh token (e.g. post silent-check-sso) — already fixed per PROJECT.md decision log via an `isTokenExpired(30)` guard. A regression reintroducing unconditional refresh would break "new tab restores auth" / "cross-tab logout" tests with a thrown exception during check-sso | **APP BUG (regression of known-fixed issue)** | Low (already fixed; worth a regression check) | `frontend/src/auth/keycloak.ts` shows as locally modified per git status at session start — worth re-verifying the `isTokenExpired(30)` guard is still intact before assuming this is fine. |
+| Cross-tab logout test depends on real propagation timing — KC server-side session destruction is immediate, but the app only updates on next navigation/check-sso in Tab B; caching (cache-control on the check-sso iframe, back/forward cache) could interfere intermittently | ENV/TIMING | Low-Medium | General SPA/BFCache caution (MEDIUM confidence, no direct repo evidence) — flagged as a known class of cross-tab E2E flake. |
+
+**How to triage:** This file is the highest-leverage one to fix first within its category — nearly
+every test funnels through the single `loginViaBrowser()` helper, so fixing that one helper to match
+the *current* KC realm browser-flow shape likely resolves most failures in this file at once. Manually
+walk the KC login flow in a real browser first to confirm what `loginViaBrowser()` should expect today.
+
+---
+
+## Cross-Cutting Patterns (apply to multiple categories)
+
+| Pattern | Affects | Tag | Notes |
+|---|---|---|---|
+| **Shared `globalSetup` storageState dependency** | passkeys directly; any other spec consuming `.auth/user.json` indirectly | ENV/TIMING + cascading | If `kcLogin()` in `global-setup.ts` fails or its 20-min freshness window lapses mid-run, downstream specs fail for a reason unrelated to their own logic. Triage order matters: confirm `global-setup.ts` succeeds cleanly before trusting any spec-level failure as "real." |
+| **Inconsistent KC-login-DOM handling across specs** | otp (UPDATE_PASSWORD test), session-management, global-setup | TEST BUG (inconsistency) | Two different "reach the password field" strategies coexist: the robust one (`global-setup.ts`, `session-management.spec.ts` — handles "Try Another Way" branching) and the naive one (`otp.spec.ts`'s UPDATE_PASSWORD test — assumes fields are immediately visible). This divergence means a single KC login-flow config change requires fixing logic in 3 separate places, and the naive one is a ticking time bomb. |
+| **CDP/browser-engine scoping gap** | passkeys (confirmed) | TEST BUG (config) | See Section 3 — single highest-confidence, highest-leverage fix in this entire research. |
+| **`SKIP_REAL_AUTH` guard coverage is inconsistent** | otp, passkeys, session-management explicitly `test.skip` on this env var; idp-theme and public-sharing instead self-skip via live health-check probes | Design choice, not inherently a bug, but a triage risk | Two different "is the environment ready" strategies coexist. During triage, a failing run should be checked against which strategy applies — a spec using the live-probe pattern that fails with connection errors (rather than skipping) suggests the probe itself may be misconfigured (wrong port/URL), not that the feature broke. |
+| **Hardcoded local URLs/ports throughout** (`localhost:8080`, `:5173`, `:8787`, `:8025`) | all 5 categories | ENV | Standard for local-first E2E; not a defect, but port drift (another service occupying one of these) breaks everything indiscriminately and could be mistaken for a wave of unrelated app bugs. Worth one pre-triage step: confirm all 4 services (KC, backend, frontend, Mailpit) are listening on expected ports before triaging individual spec failures. |
+
+---
+
+## How to Distinguish App Bug vs. Test Bug vs. Environment/Timing (Triage Heuristic)
+
+Use this decision sequence per failing spec, derived from the patterns above:
+
+1. **Is the failure a connection error / timeout before any meaningful assertion runs?**
+   Check ENV first: are KC, backend, frontend, Mailpit all up on expected ports? Is `global-setup.ts`'s
+   storageState fresh (under 20 min old) and did `kcLogin()` succeed? This explains a disproportionate
+   number of "failures" with one root cause.
+
+2. **Does the failing spec run under a browser project incompatible with an API it calls**
+   (CDP on firefox/webkit being the concrete case here)? TEST BUG (config) — fix project scoping,
+   not app code.
+
+3. **Is the assertion a hardcoded data value (UUID, name string, exact CSS value)?**
+   Check whether that data/theme still exists/matches in the current environment. If not, it's
+   ENV (stale fixture) or TEST BUG (stale assertion) depending on whether the underlying *intent*
+   still holds — not an app bug.
+
+4. **Does the spec's own helper function assume a KC login-flow shape that the codebase has already
+   documented as different/changing** (the session-management.spec.ts header comment is a direct
+   admission of this)? APP/KC-CONFIG, but already known — confirm whether it's gotten worse, not
+   whether it exists.
+
+5. **Only after 1–4 are ruled out**, treat the remaining failure as a candidate real app bug and debug
+   the actual feature behavior (does the last-credential guard actually block deletion; does logout
+   actually destroy the KC session server-side; etc).
+
+This ordering matters because a large fraction of the named failing specs in this milestone
+(idp-theme, otp, passkeys ×3, public-sharing, session-management) already have at least one
+identifiable non-app-bug explanation visible directly in the code. The fresh triage run should expect
+to close several of these as test/config/fixture fixes rather than product regressions, and should
+budget the deepest debugging time for `passkeys.spec.ts` (login-with-passkey test, most complex
+multi-context/multi-CDP flow) and `session-management.spec.ts` (`loginViaBrowser()`, most
+acknowledged complexity) specifically.
+
+## MVP Definition (Stabilization Framing)
+
+### Fix First (mechanical, high-confidence, low-risk)
+- [ ] `playwright.config.ts`: scope `passkeys.spec.ts` out of `chromium`/`firefox`/`webkit` projects (or into `chromium-passkeys` exclusively) — eliminates a CDP-incompatibility failure class entirely.
+- [ ] `public-sharing.spec.ts`: verify/reseed the hardcoded fixture trip (`PUBLIC_SLUG`, `PRIVATE_SLUG`, `PUBLIC_TRIP_ID`, `'Japan 2026'`) against current dev DB state.
+- [ ] `otp.spec.ts`: align the UPDATE_PASSWORD-gate test's login navigation with the "Try Another Way → Password" pattern already used by `global-setup.ts`/`session-management.spec.ts`.
+
+### Fix After Verifying Current KC Flow Shape (requires manual walkthrough)
+- [ ] `session-management.spec.ts`: re-validate `loginViaBrowser()` against the current realm browser-flow (acknowledged as pending restructuring in the file's own comment).
+- [ ] `passkeys.spec.ts`: re-validate the "login with passkey" multi-context CDP flow against current KC WebAuthn policy/UI once browser-scoping noise is removed.
+
+### Tighten After Green (correctness of the tests themselves, not blocking)
+- [ ] `otp.spec.ts`: add poll/retry to `fetchLatestOtp()` instead of single-shot fetch.
+- [ ] `public-sharing.spec.ts`: replace the stale Spanish-placeholder negative assertion with a positive, locale-correct one.
+- [ ] `passkeys.spec.ts`: narrow the `[role="alert"]` fallback in the last-credential-guard locator to avoid false-positive matches against unrelated toasts.
+
+## Feature/Failure Dependency Map
 
 ```
-Register / login
-  → Dashboard (empty state for new user)
-  → Create trip (name, cover image URL, dates)
-  → Add destination (city name, geocoded via Nominatim or manual lat/lng)
-  → Add hotel for that destination
-  → Add day(s) to the destination
-  → Add activities to each day (name, coordinates, notes)
-  → Navigate to trip detail → map renders with markers
-  → Search works across new trip data
+global-setup.ts (kcLogin / kcLoginNewUser)
+    └──produces──> .auth/user.json, .auth/session.json
+                       └──required by──> passkeys.spec.ts (test.use storageState)
+                       └──indirectly required by──> any spec relying on default `chromium` project storageState
+
+playwright.config.ts project scoping
+    └──currently missing testIgnore──> passkeys.spec.ts runs under firefox/webkit
+                                            └──fails──> page.context().newCDPSession() (Chromium-only API)
+
+loginViaBrowser() (session-management.spec.ts)
+    └──depends on──> current KC realm browser-flow shape (WebAuthn-first vs password-first)
+                       └──same dependency, divergent implementation──> otp.spec.ts UPDATE_PASSWORD test (TEST BUG: naive variant)
+                       └──same dependency, robust implementation──> global-setup.ts kcLogin()
+
+public-sharing.spec.ts assertions
+    └──depends on──> dev DB seed state (trip id=1 "Japan 2026", specific share slugs)
+                       └──no test-owned setup step──> ENV/stale-fixture risk is structural, not incidental
+
+otp.spec.ts Mailpit assertions
+    └──depends on──> Mailpit REST API + SMTP delivery timing
+                       └──no retry/poll──> ENV/TIMING race is structural, not incidental
 ```
-
-### Table Stakes
-
-| Feature | Why expected | Complexity | Depends on |
-|---------|-------------|------------|-----------|
-| Empty-state dashboard with CTA | New user sees blank grid with clear "Create your first trip" prompt; UX standard (Nielsen Norman, Carbon Design) | Low | `dashboard.html` / `dashboard.ts` — add branch when `trips.length === 0` |
-| Coordinated multi-step creation flow | Adding a trip → then destination → then hotel → then day → then activities is a multi-step journey; user needs to know where they are and what comes next | Medium | Existing trip-edit UI wired across multiple pages; UX needs sequencing |
-| Map renders on first save | After adding ≥1 activity with coordinates, the trip detail map must show markers immediately | Low | `tripAdapter.ts` + `tripDetail.ts` — already implemented; needs E2E verification |
-| Search indexes user trips | `SearchBar` must index the newly created trip (not just the demo Japan data) | Low | `search.ts` already extends index per trip on dashboard load — verify new trip appears |
-| Nominatim geocoding widget for destination/activity/hotel coordinates | User needs a way to get lat/lng for any place; `modules/geocoder.ts` (Nominatim) and `modules/geocoder.ts` (Google Maps URL extraction) already exist in the codebase; verify the forms in `trip-edit/` surface this widget consistently across destinations, hotels, and activities | Low | `frontend/src/modules/geocoder.ts` (already exists); `trip-edit/hotels.ts` already uses it — audit `destinations.ts` and `activities.ts` for parity |
-| Date range picker for trip and destination | Trips and destinations have date fields; native `<input type="date">` is acceptable | Low | Existing API schema has date fields; verify frontend form exposes them |
-| Playwright E2E covering full creation flow | Regression guard for the complete new-user path | Medium | Requires real-auth globalSetup already in place; new spec added to `tests/` |
-
-### Differentiators
-
-| Feature | Value | Complexity | Notes |
-|---------|-------|------------|-------|
-| Step indicator or breadcrumb during creation | Shows user progress through trip → destination → hotel → day → activity | Medium | Implement as a stateless UI component; no backend changes |
-| "Quick start" template trip | Pre-populated trip skeleton (empty days, placeholder destination) user can edit | Medium | API-level: POST a template trip after registration; requires backend endpoint or client-side seeding |
-| Inline map preview during destination creation | Miniature Leaflet map that previews the entered coordinates before saving | Medium | Reuse `map.ts`; render small map next to coordinate fields in the form |
-| Activity reorder via drag-and-drop | Matches demo's `order_index` field on activities | High | Defer; `order_index` exists in schema but no drag UI yet |
-
-### Anti-Features
-
-| Anti-feature | Why avoid | Instead |
-|--------------|-----------|---------|
-| Adding a paid geocoding API (Google Maps, Mapbox) | Nominatim (free, no key, OSM-backed) already exists in the codebase; paid alternatives add cost and key management with no benefit at this scale | Keep using `frontend/src/modules/geocoder.ts` with Nominatim |
-| Wizard modal (multi-step in a single modal) | Hides content; hard to navigate back | Separate pages per entity (trip → destination → day → activity) as already structured |
-| Blocking "go to map" until trip is "complete" | Arbitrary gate; map renders with whatever data exists | Allow map view at any point; it simply shows fewer markers |
-
-### Feature Dependencies
-
-```
-Empty-state dashboard
-  → depends on: dashboard.ts trip-load flow (existing)
-  → produces: CTA button linking to create-trip form
-
-Nominatim geocoding parity across forms
-  → depends on: modules/geocoder.ts (existing — searchNominatim + extractCoordsFromGoogleMapsUrl)
-  → audit: verify trip-edit/destinations.ts and trip-edit/activities.ts use geocoder-widget same as hotels.ts
-
-Map renders new trip
-  → depends on: tripAdapter.ts + tripDetail.ts (existing)
-  → E2E must verify: trip created via UI appears on map
-
-Search covers new trips
-  → depends on: search.ts index (existing, extends on dashboard load)
-  → verify: new trip name, activity names appear in search results
-```
-
----
-
-## 2. Error Handling UX Patterns
-
-### Current state
-
-`api/client.ts` throws on non-2xx; page modules catch with `try/catch` and render error UI. However, error UI is ad-hoc per page, and the CONCERNS.md notes that `VITE_API_URL` silently falls back to `localhost` in production — a silent error rather than a loud one. No toast/notification system exists. No offline detection. Native browser fetch errors (network errors) may surface uncaught.
-
-### Table Stakes
-
-| Feature | Why expected | Complexity | Depends on |
-|---------|-------------|------------|-----------|
-| No native browser error visible to users | Standard for any shipped web app; raw fetch stack traces or `Failed to fetch` visible in console only, not in DOM | Low-Medium | Audit all `try/catch` blocks in `dashboard.ts`, `tripDetail.ts`, `profile.ts`; ensure every catch renders friendly UI |
-| Inline form validation errors | Errors appear adjacent to the offending field, not as a toast (NNG, GOV.UK pattern) | Low | Add per-field `<span class="field-error">` elements driven by Zod validation messages from API 400 responses |
-| API error display (non-auth) | 404, 409, 500 errors from backend rendered as human-readable messages in context (e.g., within the form, below the submit button) | Low | `api/client.ts` already throws `Error` with message; catch sites need to render the message text, not log to console |
-| Auth error recovery | 401 responses trigger a re-login prompt, not a blank page | Low | `authMiddleware` already returns 401; frontend catch must call `keycloak.login()` on 401 |
-| Network/offline detection | Fetch failures due to no network shown as "you appear to be offline" rather than a cryptic error | Low | `navigator.onLine` check in `api/client.ts` before each request; window `offline` event listener |
-| `VITE_API_URL` build-time guard | Missing env var fails the build loudly (error), not silently falls back to localhost | Low | `vite.config.ts`: add check `if (!process.env.VITE_API_URL) throw new Error(...)` in production mode only |
-
-### Differentiators
-
-| Feature | Value | Complexity | Notes |
-|---------|-------|------------|-------|
-| Global toast/snackbar system | Transient success feedback (e.g., "Activity saved", "Trip created") via a non-blocking notification; errors that need user attention stay persistent | Medium | Implement as a Web Component `<toast-notification>` or a module-level queue; fits the existing Web Component pattern |
-| Retry on transient errors | Automatic retry (1-2x) for 503/network errors before showing user an error | Low | Wrap `fetch` in `api/client.ts` with a simple retry loop |
-| Loading states on all async actions | Submit buttons show a spinner / disabled state while the API call is in flight | Low | Add `loading` CSS class toggling around each API call in page modules |
-
-### Anti-Features
-
-| Anti-feature | Why avoid | Instead |
-|--------------|-----------|---------|
-| Toast-only for form validation errors | Users cannot see which field failed; error disappears before they can fix it | Inline field-level errors; reserve toast for transient success feedback |
-| `alert()` or `confirm()` native dialogs | Blocks the UI; cannot be styled; breaks test automation | Implement custom inline error or modal component |
-| Logging error detail in visible DOM | Security: exposes stack traces / internal error messages to users | Log to `console.error` (dev only); show generic message to user |
-| Global `window.onerror` as sole catch | Too broad; swallows context | Per-module try/catch is the existing pattern; unhandled rejection listener supplements it |
-
-### Patterns for Vanilla TS MPA (no React Error Boundary)
-
-In a Vanilla TS MPA, the equivalent of React Error Boundary is:
-
-1. Per-page `DOMContentLoaded` handlers wrapped in `try/catch` — already partially done
-2. `window.addEventListener('unhandledrejection', ...)` as a backstop — renders a generic "something went wrong" banner
-3. A shared `renderError(container: HTMLElement, message: string)` utility in `modules/utils.ts` that every page calls consistently
-
----
-
-## 3. Dev Environment Script
-
-### Current setup
-
-Three services: PostgreSQL (Docker), Keycloak (Docker), backend (tsx watch). Frontend (Vite dev server) is a fourth process. Docker Compose handles KC + Postgres. Mailpit is a fifth service for email testing. No single entry point coordinates all of them.
-
-### Table Stakes
-
-| Feature | Why expected | Complexity | Notes |
-|---------|-------------|------------|-------|
-| Single entry command (`npm run dev:all` or `./dev.sh` / `dev.ps1`) | Developers should not need to remember service startup order | Low-Medium | Cross-platform: `.ps1` for Windows, `.sh` for macOS/Linux |
-| Preflight checks before starting | Verify Docker Desktop is running; verify required ports (5432, 8080, 8787, 5173, 8025) are free; verify Node version ≥ 22; verify `.env` exists | Medium | Exit with clear message per failed check |
-| `.env` bootstrap from `.env.example` | If `.env` doesn't exist, copy `.env.example` with a prompt; never overwrite existing `.env` | Low | Simple file existence check |
-| Dependency install check | Run `npm install` only if `node_modules` is absent or `package-lock.json` is newer | Low | `node_modules/.package-lock.json` modification time check |
-| Health-check wait before proceeding | After `docker compose up -d`, poll KC health endpoint (`/health/ready`) before declaring success | Medium | KC takes 30-60s to start; use a polling loop with timeout |
-| Terraform init + apply for KC realm | After KC is healthy, apply Terraform to seed realm, clients, test users | Medium | Requires `terraform` CLI on PATH; `terraform -chdir=terraform/ apply -auto-approve` |
-| Start all four processes | Backend (`tsx watch`), Frontend (`vite`), and optionally Mailpit | Low | `npm-run-all --parallel` or `concurrently` for cross-platform process management |
-| Graceful teardown | `Ctrl+C` kills all child processes and optionally runs `docker compose stop` | Low | Process group signal propagation; PowerShell: `Stop-Job`; bash: trap SIGINT |
-| Colored output with service label prefix | `[KC]`, `[API]`, `[FRONTEND]` prefixes on log lines | Low | `concurrently` provides this natively |
-
-### Differentiators
-
-| Feature | Value | Complexity | Notes |
-|---------|-------|------------|-------|
-| Auto-open Docker Desktop if not running | Removes one manual step on Windows/macOS | Low | Windows: `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"`; macOS: `open -a Docker` |
-| Browser auto-open after all services healthy | Open `http://localhost:5173` once all services are confirmed up | Low | `start` (Windows) / `open` (macOS) / `xdg-open` (Linux) |
-| `--reset` flag to wipe DB and KC state | Useful for testing from-scratch flows | Medium | `docker compose down -v && docker compose up -d` then re-apply Terraform |
-| Windows PowerShell + POSIX bash parity | Single script with OS detection, or two scripts that share the same logic | Low | OS detection: `$IsWindows` in PowerShell, `uname -s` in bash |
-
-### Anti-Features
-
-| Anti-feature | Why avoid | Instead |
-|--------------|-----------|---------|
-| `sleep` timers for service readiness | Arbitrary; fails on slow machines | Health-check polling with timeout |
-| Hardcoding paths (e.g., Docker Desktop location) | Different per OS and installation | Check `docker info` to detect Docker availability; fall back to manual instruction if not found |
-| Requiring `terraform` in PATH for basic startup | Some developers may not have Terraform installed | Make Terraform step optional (`--with-terraform` flag); print instructions if not found |
-| Starting services in wrong order | KC depends on Postgres; Backend depends on KC being up for JWKS | Use `depends_on` with healthchecks in `docker-compose.yml`, and wait for KC health before starting backend |
-
----
-
-## 4. OAuth/OIDC Security Hardening Checklist
-
-### Current state (from INTEGRATIONS.md and CONCERNS.md)
-
-Already done (v2.0 Validated):
-- PKCE S256 enabled in `keycloak-js` and backend JWT verification
-- JWT audience tightened (VALID_AUDIENCES env var, `japan-trip-api`)
-- CORS corrected (was wildcard + credentials — now fixed)
-- RS256 JWT verification via JWKS (Web Crypto API, 1-hour cache)
-- XSS fixed (DOMPurify + `dom.ts` helper)
-- Tokens in `sessionStorage` (keycloak-js v21+ default)
-
-### Table Stakes for v3.0 Audit
-
-| Item | Why required | Current status | Action |
-|------|-------------|----------------|--------|
-| PKCE S256 enforced on KC client (server-side) | Client-side PKCE alone is insufficient; KC must require it | Verify in Terraform `keycloak_openid_client.pkce_code_challenge_method = "S256"` | Confirm in Terraform config; add if missing |
-| Redirect URI strict matching (no wildcards in production) | Wildcard redirect URIs allow open-redirect token theft | `redirectUris` in `japan-trip-frontend` must not use `*` in production | Separate local (`http://localhost:5173/*`) from production (`https://manud.github.io/PruebaMapJapan/*`) redirect URI lists via Terraform workspace |
-| RP-initiated logout with `id_token_hint` | Without `id_token_hint`, KC may not clear the session; user appears logged out from app but KC session persists | `keycloak.logout({ redirectUri })` — verify `id_token_hint` is passed (keycloak-js handles this automatically) | Verify via network trace in Playwright E2E |
-| Post-logout redirect URI registered | KC will reject unregistered `post_logout_redirect_uri` values | Register GitHub Pages URL as valid post-logout redirect in Terraform `keycloak_openid_client` | Add `post_logout_redirect_uris` to Terraform |
-| `state` parameter validated | CSRF protection for the auth code exchange | keycloak-js handles this automatically; verify no custom auth flow bypasses it | Code review only |
-| Token expiry handling (access token 5-min, refresh used) | Short-lived access tokens reduce blast radius | `keycloak.onTokenExpired` fires `refreshToken()` — already implemented in `keycloak.ts` | Verify E2E: let token expire, confirm seamless refresh |
-| JWKS cache invalidation on 401 | If KC rotates signing keys, cached JWKS becomes stale; should refetch on verification failure | `backend/src/auth/keycloak.ts` — check if 401 triggers JWKS refetch or just fails | Add: on JWT verify failure, clear cache and retry once |
-| `email` optional typing on JWT | Passkey users without email must not cause 500 errors | CONCERNS.md item — `email` is typed required but may be absent | Fix type: `email?: string`; guard all uses |
-| CSP headers | Restricts XSS impact even if sanitization fails | Not currently set | Add `Content-Security-Policy` header in Hono `app.use('*', ...)`: `default-src 'self'; script-src 'self'` etc. |
-| Keycloak brute-force protection enabled | Prevents credential stuffing | Verify `brute_force_protection = true` in Terraform `keycloak_realm` | Confirm in Terraform; set `failure_factor`, `max_failure_wait_seconds` |
-
-### Differentiators
-
-| Feature | Value | Complexity | Notes |
-|---------|-------|------------|-------|
-| Separate Terraform workspaces for local vs production | Production client has strict redirect URIs; local has wildcard | Medium | Terraform workspace or `tfvars` file per environment |
-| Token binding / DPoP | Binds access token to a specific TLS session; defeats token theft | HIGH complexity | RFC 9449; not supported by keycloak-js yet; defer |
-| Refresh token in HttpOnly cookie (BFF pattern) | Eliminates XSS-based refresh token theft | HIGH complexity | Requires a backend-for-frontend; no-op for this vanilla TS MPA + Workers stack |
-
-### Context: RFC 9700 (January 2025)
-
-RFC 9700 (IETF Best Current Practice for OAuth 2.0 Security) mandates:
-- PKCE for all client types (already done)
-- No implicit flow (already done — PKCE only)
-- Strict redirect URI matching
-- Short-lived access tokens with refresh rotation
-
-The current stack already satisfies most of RFC 9700. The primary gaps are: strict redirect URIs in production and JWKS cache invalidation on key rotation.
-
-### Token Storage Decision (keycloak-js)
-
-The 2025 best practice per OWASP and IETF: access token in JS memory (safest), refresh token in HttpOnly + Secure + SameSite cookie. The keycloak-js default stores both in `sessionStorage` (per-tab, cleared on tab close). This is an acceptable tradeoff for this app: `sessionStorage` is XSS-accessible but prevents the need for a BFF. **For v3.0: leave storage as-is; document the tradeoff.** DPoP/BFF is post-v3.0.
-
----
-
-## 5. Keycloak FreeMarker Theme Consistency
-
-### What is achievable
-
-**HIGH confidence** (official Keycloak docs + community research):
-
-Keycloak themes have four types. Each has different customization scope:
-
-| Theme type | Pages covered | FreeMarker control | Notes |
-|------------|--------------|-------------------|-------|
-| `login` | Login, register, password reset, OTP, email verify, passkey forms | Full — override any `.ftl` file + CSS | This is the "japan-trip" theme that already exists |
-| `email` | All transactional emails (verification, OTP, password reset) | Full — subject + plain text + HTML body via message bundles | Already has es/en messages |
-| `account` | Account console (profile, credentials, sessions) | Partial — KC 26 Account Console is React SPA; only CSS + `index.ftl` wrapper is FreeMarker | **Cannot meaningfully restyle the account console UI via FreeMarker alone** |
-| `admin` | Admin console | None practical — React SPA; FreeMarker is only the bootstrap wrapper | Out of scope for this project |
-
-### What "design consistency" means for v3.0
-
-The goal from PROJECT.md: **minimalist aesthetic, no rounded borders, Helvetica-style font, matching the demo app's look**. This means:
-
-For the `login` theme (achievable):
-- Full CSS override: font stack, colors, border-radius, button styles, form layout
-- Override `template.ftl` for layout structure if needed
-- CSS custom properties to match `main.css` variables from the frontend
-- All error messages in English (messages_en.properties already exists in v2.0)
-
-For the `email` theme (achievable):
-- HTML email templates can match brand fonts and colors (with inline styles — email client requirement)
-- Subject lines via message bundles
-
-For the `account` console (limited):
-- CSS injection via `index.ftl` + `<style>` tag can change colors and fonts
-- The React UI's component structure (button shapes, card layouts, spacing) cannot be restyled without rebuilding the SPA
-- **Realistic goal**: match typography and color palette; accept that component geometry (PatternFly-based) will differ from the minimalist app aesthetic
-- Keycloakify (React-based KC theme toolchain) is the path to full account console restyling but requires React — out of scope given the vanilla TS constraint (applies only to KC theme, not app stack)
-
-### Table Stakes
-
-| Feature | Why expected | Complexity | Notes |
-|---------|-------------|------------|-------|
-| Login page typography matches app | Font stack (Helvetica/system-sans) and base colors consistent | Low | CSS override in `login/resources/css/` — `font-family`, `background-color`, `color` |
-| No rounded corners on login forms/buttons | Matches "no rounded borders" design spec | Low | `border-radius: 0` in CSS overrides |
-| Login page color palette matches app | Dark/light backgrounds, accent colors align | Low | Map CSS custom properties from `main.css` to KC `variables.css` |
-| Error messages in English (not KC default) | English is the app language per v2.0 i18n work | Low | `messages_en.properties` already exists in theme; verify all error keys covered |
-| Email templates branded | Verification and OTP emails look intentional, not stock KC | Low | Override email FTL templates in `email/html/*.ftl`; use inline CSS |
-| No KC logo on login page | Stock KC logo breaks the minimalist aesthetic | Low | Override `template.ftl` or CSS: `#kc-logo { display: none }` |
-
-### Differentiators
-
-| Feature | Value | Complexity | Notes |
-|---------|-------|------------|-------|
-| Dark/light mode parity on login page | If app has theme toggle, login page matching dark/light is surprising and delightful | Medium | Use `prefers-color-scheme` media query in KC login CSS; no JS required |
-| Custom "Register" page that matches app's form style | Form fields, labels, buttons all match app aesthetic | Medium | Override `register.ftl`; restyle with app CSS variables |
-| Account console color/font alignment (partial) | Font and primary color match even if component geometry differs | Low | `account/resources/` CSS injection; scope: colors and typography only |
-
-### Anti-Features
-
-| Anti-feature | Why avoid | Instead |
-|--------------|-----------|---------|
-| Attempting pixel-perfect account console restyling via FreeMarker | KC 26 Account Console is a React/PatternFly SPA; FreeMarker only wraps it | Accept typography + color parity; note geometry limitation in planning |
-| Java SPIs for theme customization | Explicitly out of scope per PROJECT.md | FreeMarker + CSS only |
-| Maintaining a separate Keycloakify build | Adds React dependency to the KC theme pipeline; complexity not justified for this project | Stick to FreeMarker + CSS for login; accept account console limitations |
-| Hardcoding English strings in FTL templates | Bypasses KC i18n; breaks if locale changes | Always use `${msg("key")}` in FTL; define custom keys in `messages_en.properties` |
-
-### Practical Limit Assessment
-
-The project's design spec (minimalist, no rounded borders, Helvetica) is **fully achievable for the login/register/error/email flows** via FreeMarker + CSS. The account console will have partial parity (fonts and colors only). For a portfolio project, this is sufficient — users spend 99% of their time in the app, not the KC account console.
-
-### Gap: Light/Dark Theme Toggle in the App (out of scope for this section)
-
-PROJECT.md Active item "Light/dark theme consistency" refers to the **app's own theme toggle** working correctly across all flows and pages — not just the KC login page. This is a separate concern from KC theme parity. The app's `theme.ts` / `data-theme` attribute system is the mechanism; the audit should cover: does the theme toggle state persist across page navigations (MPA means each page reload), are there any pages or components (e.g., Leaflet map tiles, modals) that don't respond to the theme attribute, and does the KC login dark/light parity (differentiator above) match what `prefers-color-scheme` reports. This gap belongs in the error handling / design consistency phase, not in the KC theme phase.
-
----
-
-## Feature Dependency Map
-
-```
-New user trip creation parity
-  → depends on: trip-edit UI (existing, v2.0)
-  → depends on: tripAdapter.ts (existing)
-  → depends on: search.ts index (existing, extends per trip)
-  → depends on: modules/geocoder.ts (existing — Nominatim + Google Maps URL extraction)
-  → audit required: geocoder-widget parity across destinations.ts, hotels.ts, activities.ts
-  → produces: Playwright E2E spec (new)
-  → empty-state UX is a frontend-only change (dashboard.ts)
-
-Error handling
-  → depends on: api/client.ts error propagation (existing)
-  → VITE_API_URL build guard: vite.config.ts change (new)
-  → toast system: new Web Component or module
-  → all page modules updated to render errors consistently
-
-Dev setup script
-  → depends on: docker-compose.yml (existing)
-  → depends on: Terraform (existing, v2.0)
-  → produces: dev.ps1 + dev.sh (new)
-  → must run after KC health-check confirms ready
-
-OAuth/OIDC hardening
-  → depends on: keycloak.ts auth layer (existing)
-  → JWKS cache invalidation: backend/src/auth/keycloak.ts (change)
-  → email optional typing: backend/src/types/index.ts + middleware/user.ts (change)
-  → CSP headers: backend/src/index.ts middleware (new)
-  → redirect URI separation: Terraform keycloak_openid_client (change)
-
-KC theme consistency
-  → depends on: keycloak/themes/japan-trip/ (existing, v2.0)
-  → login CSS: extend existing theme CSS (change)
-  → email templates: keycloak/themes/japan-trip/email/ (new directory)
-  → account console: keycloak/themes/japan-trip/account/ (new directory, CSS only)
-  → no new dependencies on application code
-
-App light/dark theme parity (separate from KC theme)
-  → depends on: frontend/src/modules/theme.ts (existing)
-  → audit: theme persistence across MPA page navigations
-  → audit: Leaflet map / modal components responding to data-theme attribute
-```
-
----
-
-## Complexity Summary
-
-| Feature Area | Complexity | Primary risk |
-|-------------|------------|-------------|
-| New user trip creation parity | Medium | E2E path coverage; Nominatim geocoder widget parity audit; empty-state UX |
-| Error handling | Low-Medium | Consistent adoption across all page modules; toast component design |
-| Dev setup script | Medium | Cross-platform (Windows PowerShell + macOS bash); KC health-check timing |
-| OAuth/OIDC hardening | Low | Mostly audit + small fixes; JWKS cache invalidation is the one new logic |
-| KC theme (login + email) | Low | CSS overrides only; well-understood FreeMarker API |
-| KC theme (account console) | Low (limited scope) | Cannot achieve geometry parity; CSS-only is the limit |
-| App light/dark theme parity | Low | MPA page-reload state; Leaflet tile theming |
-
----
 
 ## Sources
 
-- [RFC 9700 — Best Current Practice for OAuth 2.0 Security (Jan 2025)](https://datatracker.ietf.org/doc/rfc9700/)
-- [Keycloak — Working with themes (official, KC 26)](https://www.keycloak.org/ui-customization/themes)
-- [Red Hat KC 26.0 Server Developer Guide — Themes chapter](https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak/26.0/html/server_developer_guide/themes)
-- [Keycloak JS adapter — official securing apps guide](https://www.keycloak.org/securing-apps/javascript-adapter)
-- [OWASP OAuth2 Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/OAuth2_Cheat_Sheet.html)
-- [Curity — SPA OAuth best practices](https://curity.io/resources/learn/spa-best-practices/)
-- [skycloak.io — JWT best practices: storage and rotation](https://skycloak.io/blog/jwt-best-practices-developers/)
-- [NNG — Empty states as teachable moments](https://www.useronboard.com/onboarding-ux-patterns/empty-states/)
-- [Smashing Magazine — Error messages UX design](https://www.smashingmagazine.com/2022/08/error-messages-ux-design/)
-- [Docker Compose multi-service one-command setup (2026)](https://eastondev.com/blog/en/posts/dev/20260409-docker-compose-multi-service/)
-- [keycloak/keycloak GitHub Discussion #25227 — minimalist theme](https://github.com/keycloak/keycloak/discussions/25227)
-- [keycloak/keycloak GitHub Discussion #19508 — account theme limitations](https://github.com/keycloak/keycloak/discussions/19508)
+- Direct repository inspection (HIGH confidence, primary source for all spec-grounded claims):
+  `tests/playwright.config.ts`, `tests/global-setup.ts`, `tests/e2e/idp-theme.spec.ts`,
+  `tests/e2e/otp.spec.ts`, `tests/e2e/passkeys.spec.ts`, `tests/e2e/public-sharing.spec.ts`,
+  `tests/e2e/session-management.spec.ts`, `tests/e2e/fixtures/kc-admin.ts`,
+  `tests/e2e/fixtures/mailpit-helpers.ts`, `.planning/PROJECT.md`
+- General Playwright/Keycloak ecosystem patterns (MEDIUM/LOW confidence, used only to corroborate or
+  fill gaps, not to override repo evidence): CDP browser-engine scoping (Chromium-only, well-known
+  Playwright/CDP architecture fact), `networkidle` flakiness in SPA/iframe-heavy auth flows (common
+  community guidance), Mailpit/SMTP delivery-race patterns in OTP E2E testing, KC WebAuthn policy
+  (`userVerification`) coupling to CDP virtual-authenticator flags. These are training-data-level
+  claims, not freshly re-verified against current Playwright/Keycloak docs in this session — spot
+  check if triage results don't match expectations.
+
+---
+*Failure-pattern research for: E2E Stabilization (v3.1 milestone)*
+*Researched: 2026-06-15*

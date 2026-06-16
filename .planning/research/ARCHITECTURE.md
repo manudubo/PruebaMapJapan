@@ -1,362 +1,171 @@
-# Architecture Patterns — v3.0 Integration Analysis
+# Architecture Patterns — E2E Test Suite Failure Analysis
 
-**Project:** TravelMap v3.0 Quality, Polish & DevX
-**Researched:** 2026-05-28
-**Scope:** How five v3.0 improvements integrate with the existing Hono + Vanilla TS MPA + Keycloak stack
+**Domain:** Playwright E2E test architecture for OIDC/Keycloak-authenticated MPA
+**Researched:** 2026-06-15
+**Scope:** Root-cause hypotheses for 5 specs (idp-theme, otp, passkeys, public-sharing, session-management) ahead of v3.1 fresh triage run
 
----
+## Summary verdict up front
 
-## Existing Architecture Reference Points
+Of the 5 specs, **2 have a confirmed, code-level root cause** (not infra flakiness), **1 has a confirmed data-fixture root cause**, and **2 are genuinely undetermined** pending the fresh triage run mandated by PROJECT.md. The suite is not five independent failures — there is one shared upstream chokepoint (`global-setup.ts`) and one shared fragile UI-navigation helper duplicated across three specs. Fix order should attack the chokepoint and the shared helper before touching individual specs.
 
-Key surfaces that v3.0 touches:
+## Recommended Architecture (as built)
 
-| Surface | File | What it does |
-|---------|------|--------------|
-| Frontend entry points | `frontend/src/main.ts`, `frontend/src/pages/dashboard.ts`, `frontend/src/pages/tripDetail.ts`, `frontend/src/pages/trip-edit.ts`, `frontend/src/pages/profile.ts` | Each HTML page has its own TS entry — not a single bootstrap. Error handling must be added to each individually. |
-| API client | `frontend/src/api/client.ts` — `request()` function | Throws raw `Error("API error 500: ...")` — no central UI handler exists |
-| Backend error handler | `backend/src/index.ts` — `app.onError()` | Exists but returns generic "Internal server error" with no error taxonomy |
-| Design tokens (frontend) | `frontend/src/styles/main.css` — `:root {}` and `[data-theme="dark"] {}` | JS writes `data-theme` attribute from `localStorage` via `theme.ts` line 32 |
-| Design tokens (IDP) | `keycloak/themes/japan-trip/login/resources/css/login.css` | Uses `@media (prefers-color-scheme: dark)` — separate variable namespace (`--jp-*`), different origin (`localhost:8080`) |
-| Docker Compose | `keycloak/docker-compose.yml` | postgres + keycloak + mailpit; healthchecks defined; no scripted startup sequence |
-| Terraform | `terraform/keycloak/main.tf`, `flows.tf`, `mappers.tf` | 16 resources managed; `testuser` used in integration tests is NOT in Terraform |
-| E2E global setup | `tests/global-setup.ts` | SKIP_REAL_AUTH guard; optional KC login; storageState + sessionStorage replay pattern |
-| Playwright config | `tests/playwright.config.ts` | `testDir: './e2e'`; 4 projects: chromium (storageState), firefox, webkit, chromium-passkeys |
+```
+playwright.config.ts
+  └─ globalSetup: tests/global-setup.ts
+       ├─ kcLogin()         → writes .auth/user.json + .auth/session.json       (testuser: e2e-test@local)
+       └─ kcLoginNewUser()  → writes .auth/new-user.json + .auth/new-user-session.json (new_user_test)
+       (freshness-gated: MAX_AGE_MS = 20 min; skipped entirely if SKIP_REAL_AUTH set)
 
----
+  projects:
+    chromium            → storageState: .auth/user.json (project-level, ALL specs in this project inherit it
+                           unless they override with test.use())
+    firefox / webkit     → no storageState (anonymous)
+    chromium-passkeys    → testMatch: passkeys.spec.ts only, no project-level storageState
+                           (passkeys.spec.ts sets its own test.use({storageState: '.auth/user.json'}))
+```
 
-## Component Analysis by v3.0 Feature
+### Component Boundaries
 
-### 1. Dev Environment Script
+| Component | Responsibility | Communicates With |
+|-----------|---------------|-------------------|
+| `tests/global-setup.ts` | Headless OIDC PKCE login for 2 personas (`testuser`, `new_user_test`); persists storageState + sessionStorage to `.auth/*.json` | Frontend (5173), Keycloak (8080) |
+| `tests/e2e/fixtures/kc-admin.ts` | Keycloak Admin REST client (service account `japan-trip-worker`) + direct Postgres access for OTP table mutation | Keycloak Admin API, Postgres directly |
+| `tests/e2e/fixtures/mailpit-helpers.ts` | Reads/purges the Mailpit SMTP test inbox for OTP codes | Mailpit REST API (8025) |
+| `idp-theme.spec.ts` | Asserts on Keycloak FreeMarker theme + CSS output, no auth needed | Keycloak only (raw HTTP `request`, self-skips if KC unreachable) |
+| `otp.spec.ts` | Drives backend `/api/auth/otp-request` + `/api/auth/otp-verify` directly via `request` fixture | Backend (8787), Postgres (via kcAdmin), Mailpit |
+| `passkeys.spec.ts` | CDP WebAuthn Virtual Authenticator registration/login/delete-guard flows | Frontend, Keycloak, kcAdmin (credential reset) |
+| `public-sharing.spec.ts` | Backend `/api/public/trips/:slug` contract tests + guest-view frontend tests | Backend only — no auth, no KC |
+| `session-management.spec.ts` | Full KC session lifecycle (login/logout/multi-tab/multi-context) via real browser login | Frontend, Keycloak, kcAdmin (session introspection) |
 
-**Goal:** Single command to detect and start Docker Desktop, sequence postgres → keycloak → mailpit → wrangler dev → vite dev.
+### Data Flow — storageState lifecycle
 
-**What exists:**
-- `keycloak/docker-compose.yml` has healthchecks on postgres (`pg_isready`) and keycloak (curl realm endpoint) and `depends_on: condition: service_healthy`
-- `tests/global-setup.ts` already has a `waitForServer()` polling loop (fetch with retry) that knows the health endpoints
+1. `global-setup.ts` runs once per `npx playwright test` invocation (not per-spec, not per-worker).
+2. It checks file mtime (`isStorageStateFresh()` / `isNewUserStorageStateFresh()`) against a 20-minute window — chosen to stay under KC's 30-minute idle timeout (`tests/global-setup.ts:16`).
+3. If stale, `kcLogin()` drives a real headless Chromium browser through the actual KC login UI (including the "Try Another Way → Password" detour) and writes `.auth/user.json` (cookies + localStorage) and `.auth/session.json` (sessionStorage dump, since `keycloak-js` stores tokens in sessionStorage which Playwright's native `storageState()` cannot capture — Playwright bug #31108, documented in `tests/global-setup.ts:100-102`).
+4. `playwright.config.ts:25` binds `.auth/user.json` at the **project level** for `chromium` — every spec running under that project inherits it unless it calls `test.use({ storageState: ... })` to override (otp.spec.ts does this deliberately at `otp.spec.ts:13` to run unauthenticated).
+5. Specs that need the sessionStorage tokens replay them manually via `context.addInitScript()` in a `beforeEach` (passkeys.spec.ts:31-38, session-management does NOT need this because it logs in fresh via the browser each test).
 
-**What does NOT exist:**
-- No startup script of any kind — each service is started manually in separate terminals
-- No Docker Desktop detection logic
-- No cross-platform script entry point
+## Per-spec dependency map and failure hypotheses
 
-**Integration points:**
+### idp-theme.spec.ts — confirmed-consistent with current code; likely environment/timing if failing
 
-New components needed:
-- `scripts/dev.mjs` — Node ESM script, cross-platform. Docker Desktop detection: run `docker info`; if daemon not running, open Docker Desktop app (OS-specific path via `process.platform`) and poll until `docker info` succeeds. Service startup sequence: `docker compose up -d` → poll postgres health → poll keycloak realm endpoint → spawn `wrangler dev` → spawn `vite dev`. The `waitForServer()` logic from `tests/global-setup.ts` can be extracted into `scripts/lib/wait-for-server.mjs` and shared.
+**Depends on:** Live Keycloak only (raw `request.get`), no app, no DB, no fixtures.
 
-Existing components modified:
-- Root `package.json` — add `"dev": "node scripts/dev.mjs"` script
-- `keycloak/docker-compose.yml` — no changes needed; healthcheck config is already correct
+**Verification performed:** Checked all three hard assertions against current theme source, not just element existence:
+- `#kc-header-wrapper` hidden — confirmed in `keycloak/themes/japan-trip/login/resources/css/login.css:281` (`display: none !important` on `#kc-header-wrapper`).
+- `.jp-idp-exit` text "Return", `href` matching `/PruebaMapJapan/?$`, not pointing at the logout endpoint — confirmed in `keycloak/themes/japan-trip/login/footer.ftl:4`, driven by `theme.properties` `appUrl=http://localhost:5173/PruebaMapJapan/`.
+- `border-radius: 0px` and `font-family` containing `Inter` — confirmed: `--jp-font` resolves to `'Inter', ...` (`login.css:23`), and `border-radius` defaults to the browser-initial `0px` for an anchor element (no override needed, no conflicting rule found).
 
-**Dependency:** Independent of all other v3.0 features. Can run in any phase.
+**Verdict:** The spec's assertions are not stale relative to current theme code. If this spec fails in the fresh triage run, the cause is environmental — most likely KC not running/reachable on `localhost:8080` (the spec has a `beforeEach` skip guard for that), a PKCE `code_challenge` format the KC server rejects at the `/auth` endpoint before rendering the form, or `networkidle` timing flakiness on the WebAuthn conditional-UI script (the same class of timing issue `global-setup.ts:63` documents and works around elsewhere in the suite). **Confidence: MEDIUM** — code-level check is clean (HIGH), but no live run was performed, so an environment-specific cause is a hypothesis, not a confirmed finding.
 
----
+### otp.spec.ts — CONFIRMED contract mismatch (tests 1–3); separate hypothesis for test 4
 
-### 2. Error Boundary Architecture
+**Depends on:** `fixtures/kc-admin.ts` (`clearOtpCodes`, `expireOtpCodes` — direct Postgres `DELETE`/`UPDATE` against `email_otp_codes`), `fixtures/mailpit-helpers.ts` (`purgeInbox`, `fetchLatestOtp`), backend `/api/auth/otp-request` + `/api/auth/otp-verify`, `otp-test@local` KC user (Terraform-provisioned, `terraform/keycloak/main.tf:171-184`). Explicitly overrides storageState to empty (`otp.spec.ts:13`) and forces serial mode for Mailpit inbox isolation (`otp.spec.ts:5`).
 
-**Goal:** No native browser errors or unhandled rejections visible to users; centralized toast/banner presentation.
+**CONFIRMED root cause (tests 1, 2, 3 — request/verify/lockout):**
+The backend route contract has drifted from what the spec assumes.
+- `backend/src/routes/auth.ts:92`: `authRoute.use('*', authMiddleware, ensureUserProvisioned)` — both `/otp-request` and `/otp-verify` require a valid `Authorization: Bearer <JWT>` header.
+- `backend/src/middleware/auth.ts:23-25`: with no/invalid Bearer header, the middleware short-circuits with `401 { success: false, error: 'Missing or invalid Authorization header' }` before any OTP logic runs.
+- `backend/src/routes/auth.ts:96,140`: handlers derive the email from `c.get('user').email` (the verified JWT claim) — there is **no `email` field in the request body contract at all**.
+- `backend/src/validation/schemas.ts:100-102`: `OtpVerifySchema = z.object({ code: ... })` — confirms `email` is not part of the verify payload.
+- `otp.spec.ts:24,32,39,50,60,65,73` calls `request.post(...)` (Playwright's bare API-request fixture, not a browser `page`) with `{ email: OTP_USERNAME, ... }` bodies and **no Authorization header at all** — and structurally cannot supply one, since the OIDC tokens live in `sessionStorage` inside a browser context (per the documented Playwright bug #31108 workaround used everywhere else in this suite), which the `request` fixture has no access to.
 
-**What exists:**
-- Backend `app.onError()` in `backend/src/index.ts` catches unhandled throws and returns `{ success: false, error: "Internal server error" }` — no error codes
-- Frontend `request()` in `api/client.ts` throws `Error("API error ${status}: ${text}")` — raw string, no structured type
-- `AuthGuard.ts` has a bespoke `_showError()` method with inline shadow DOM HTML — the only component with any error UI
-- No toast/notification system exists anywhere in the frontend
+Every one of tests 1–3 will hit the `authMiddleware` 401 short-circuit before reaching the assertions the spec expects (200, then 400/401 with "expir" in the body, then 429 lockout codes). This is structurally guaranteed to fail, not flaky — confirmed independently by `backend/src/routes/auth.test.ts`'s "auth gate" describe block, which exists specifically to assert these routes require auth.
 
-**What does NOT exist:**
-- Error code taxonomy on the backend
-- Central error UI component on the frontend
-- `window.addEventListener('unhandledrejection')` global handler
-- Per-page `try/catch` wrapping async init functions
+**This is a genuine app-vs-test contract question, not a pre-judged "test is wrong":** an OTP *fallback* login mechanism that requires the caller to already hold a valid JWT is conceptually unusual (OTP is normally used precisely when the user is *not* yet authenticated, e.g., to satisfy a step-up/MFA requirement or post-primary-auth check). Two equally valid resolutions exist and the roadmap should decide which: (a) the route was intentionally redesigned for a step-up-auth use case and `otp.spec.ts` needs a full rewrite to drive a real browser through primary login first, then call the OTP endpoints with a token; or (b) the route's auth-gating is itself the bug/regression and OTP should work pre-authentication as the spec assumes. Check `auth.test.ts`'s test names/comments and any phase-8/9 plan docs for which behavior was intended before deciding.
 
-**Integration points:**
+**Test 4 ("UPDATE_PASSWORD gate") — separate failure mode, not yet confirmed:**
+This test drives a real browser login via the KC form (`otp.spec.ts:82-91`) — same UI path family as `session-management.spec.ts`'s `loginViaBrowser()` and `global-setup.ts`'s `kcLogin()`. It depends on the KC "Try Another Way" / two-step username-password navigation resolving correctly and on the `UPDATE_PASSWORD` required-action *not* firing for WebAuthn-capable headless Chrome. **Confidence: LOW/hypothesis** — no code-level contradiction found, but it shares the fragile login-navigation pattern flagged below, so a failure here may cascade from the same root cause as session-management rather than being OTP-specific.
 
-New components needed:
-- `frontend/src/modules/toast.ts` — exports `showToast(message: string, type: 'error' | 'warning' | 'info')`. Injects a `<div class="toast-container">` into document body on first call. Consumes `--danger`, `--success`, `--bg-secondary`, `--text-primary`, `--border-color` tokens from Phase 1.
-- `frontend/src/modules/errorHandler.ts` — exports `initGlobalErrorHandler()`. Registers `window.onerror` and `window.onunhandledrejection`; calls `showToast()`. Must be called from each page entry point.
+### passkeys.spec.ts — dependency map clear; failure mode is a hypothesis pending live run
 
-Existing components modified:
-- `frontend/src/api/client.ts` — `request()` throws a typed `ApiError` object (with `status: number` and `code?: string`) instead of a plain `Error`. Downstream call sites updated to call `showToast(e.message, 'error')` in catch blocks.
-- `frontend/src/pages/dashboard.ts`, `tripDetail.ts`, `trip-edit.ts`, `profile.ts` — each has an async init function; wrap with `try/catch` that calls `showToast`. These are the four pages with real authenticated data fetching.
-- `frontend/src/auth/AuthGuard.ts` — `_showError()` can call `showToast()` for toasts in addition to its inline shadow DOM error card.
-- `backend/src/index.ts` — `app.onError()` updated with error code taxonomy (e.g., `"code": "INTERNAL_ERROR"`).
-- `backend/src/middleware/auth.ts` — returns structured error codes on 401 (e.g., `"code": "UNAUTHORIZED"`, `"code": "TOKEN_EXPIRED"`).
+**Depends on:** `fixtures/kc-admin.ts` (`resetCredentials` — deletes any `webauthn`/`webauthn-passwordless` credentials before each test, `kc-admin.ts:40-51`), `.auth/user.json` + `.auth/session.json` from global-setup (replayed via `context.addInitScript`, `passkeys.spec.ts:31-38`), CDP `WebAuthn.*` domain (Virtual Authenticator), `e2e-test@local` KC user, `terraform/keycloak/flows.tf`'s `webauthn_passwordless` REQUIRED execution.
 
-**Dependency:** Requires design tokens from Phase 1 (`--danger`, `--bg-secondary`, etc.) so the toast renders with correct colors. Design tokens land first; error handling is Phase 2.
+Three tests share one fragile precondition: a valid, fresh `.auth/user.json`/`.auth/session.json` pair from `global-setup.kcLogin()`, **plus** a successful `resetCredentials()` call against the KC Admin API (which itself depends on the `japan-trip-worker` service-account client secret matching what's in `.env.test`/Terraform output). If either the storageState is stale/invalid (e.g., KC issued no refresh token post-silent-check-sso, a bug already found and fixed once per PROJECT.md's Key Decisions table) or the service-account auth fails, all three tests fail together with unrelated-looking symptoms (timeout waiting for `#register-passkey-btn`, or KC redirecting to its own login instead of accepting the replayed session). **No code-level contract drift found** — this is a hypothesis, not a confirmed root cause. **Confidence: LOW** pending live run.
 
----
+The `chromium-passkeys` project (`playwright.config.ts:36-40`) does **not** inherit the project-level `storageState: '.auth/user.json'` that the `chromium` project has — `passkeys.spec.ts` re-declares it explicitly at the test level (`passkeys.spec.ts:16-18`), so this is intentional and consistent, not a bug.
 
-### 3. Design Token / CSS Variable Architecture
+### public-sharing.spec.ts — CONFIRMED data-fixture problem, route contract is fine
 
-**Goal:** Unified token set applied consistently across frontend pages AND Keycloak FreeMarker theme; light/dark consistent across all flows.
+**Depends on:** Backend only — no KC, no global-setup storageState, no kcAdmin. Two hardcoded UUIDs: `PUBLIC_SLUG = '4dd5492e-2111-4b38-bc45-47848d27af42'` and `PRIVATE_SLUG = 'e3214d9f-e5a3-47b6-8441-fb167041b4fa'` (`public-sharing.spec.ts:4-5`), plus `PUBLIC_TRIP_ID = '1'`.
 
-**What exists:**
+**CONFIRMED root cause:** these UUIDs are not produced by anything in the repo.
+- `backend/src/db/schema.ts:57`: `public_slug: uuid('public_slug').$defaultFn(() => crypto.randomUUID())` — every trip gets a **randomly generated** slug on insert; there is no mechanism to pin it to a specific value.
+- `backend/src/db/seed.ts:590`: the only seed script creates the "Japan 2026" demo trip with `is_public: false` — the opposite of what `PUBLIC_SLUG` requires, and its slug is whatever `crypto.randomUUID()` produced at seed time, not the hardcoded value.
+- No migration, fixture, or `kcAdmin`-equivalent helper creates trips with these specific slugs anywhere in the codebase (`grep` for both UUIDs across all `.ts` files returns only `public-sharing.spec.ts` itself).
 
-Frontend tokens (`frontend/src/styles/main.css`):
-- Full set in `:root {}`: `--bg-primary`, `--bg-secondary`, `--accent`, `--danger`, `--text-primary`, `--border-color`, `--radius: 0`, etc.
-- Dark overrides in `[data-theme="dark"] {}` — applied by `theme.ts` writing `document.documentElement.setAttribute('data-theme', theme)` from `localStorage`.
+The route contract (`backend/src/routes/public.ts`) is correct and matches the spec's expectations exactly: 400 for invalid slug format, 404 for a private/nonexistent trip, 200 + `{success, data}` for a public trip. **This is purely a missing-fixture problem**, not an app bug and not a flaky-infra problem. It will fail deterministically in any environment unless a developer manually inserted matching rows into a local Postgres instance at some point (which is the most likely explanation for why it ever passed before — environment-specific manual DB state, exactly the kind of failure PROJECT.md asks to flag as "genuinely environment-specific"). **Confidence: HIGH.**
 
-Keycloak IDP theme (`keycloak/themes/japan-trip/login/resources/css/login.css`):
-- Separate variable namespace: `--jp-bg`, `--jp-surface`, `--jp-accent`, `--jp-danger`, etc. — same semantic intent, different names.
-- Dark mode via `@media (prefers-color-scheme: dark)` only — not linked to the app's `localStorage` preference.
-- Hardcoded hex values appear inside `@media` blocks (e.g., `background: #000000`, `background: var(--jp-surface-dark)`) despite the variable declarations.
+### session-management.spec.ts — shared fragile pattern; failure mode is a hypothesis
 
-**The cross-origin theme constraint (critical architectural decision required):**
+**Depends on:** `fixtures/kc-admin.ts` (`logoutUser`, `getUserSessions`), real browser login via its own `loginViaBrowser()` helper (does **not** use global-setup's storageState — logs in fresh every test), `e2e-test@local`, serial mode (`session-management.spec.ts:95`) because tests mutate shared KC session state for the same user.
 
-The frontend lives on `localhost:5173`; the KC login page on `localhost:8080`. The app's `data-theme` attribute (set from `localStorage`) cannot be pushed to the KC page — different origin. Four options:
+`loginViaBrowser()` (`session-management.spec.ts:44-83`) duplicates the exact same "Try Another Way → Password" / two-step-vs-combined-form detection logic that `global-setup.ts`'s `kcLogin()`/`kcLoginNewUser()` and `otp.spec.ts` test 4 also implement independently, three times, with slightly different selectors (`getByRole('link', ...)` vs `page.locator('a, button').filter(...)`). This is the single most fragile shared surface in the suite: if KC's authentication flow or theme changes how the WebAuthn-first subflow is presented (e.g., a Terraform `flows.tf` change to the `webauthn_passwordless` execution requirement, or a KC version bump altering "Try Another Way" markup), **all three implementations break simultaneously** but would show up as three "unrelated" spec failures in a triage run. **No code-level contract drift found against current `flows.tf`** — this is a hypothesis about a shared brittle pattern, not a confirmed bug. **Confidence: LOW** on root cause, **MEDIUM-HIGH** on "this pattern is a structural risk regardless of current pass/fail state."
 
-| Option | Mechanism | Tradeoff |
-|--------|-----------|----------|
-| A — Both honor `prefers-color-scheme` | Frontend drops `localStorage` toggle | Users lose explicit theme override |
-| B — Cookie signal | App writes cookie on KC domain | Not possible — frontend cannot write cookies for a different origin |
-| C — URL param | App appends `&kc_theme=dark` to KC redirect URI; FreeMarker reads it and adds a body class | Works for that login session; requires FreeMarker template change |
-| D — Accept divergence | Frontend stays JS/localStorage; KC stays media-query | Cleanest implementation; partial inconsistency documented |
+## Patterns to Follow
 
-**Recommendation for v3.0:** Option D — accept divergence and document it. Token name unification (`--jp-*` aligned to match semantic intent of `--*` frontend tokens) is still valuable for maintainability. The behavioral divergence on theme-toggle is a known limitation. Option C is a candidate for a future phase once the IDP FreeMarker templates are fully stable.
+### Pattern 1: Project-level storageState with per-spec override
+**What:** Bind a default authenticated storageState at the Playwright `project` level; specs needing a different identity or anonymous state call `test.use({ storageState: ... })` to override.
+**When:** Default to authenticated, override for the minority of anonymous/different-persona specs.
+**Example:** `playwright.config.ts:25` (project default) vs `otp.spec.ts:13` (override to empty) vs `passkeys.spec.ts:16-18` / `new-user-trip-creation.spec.ts:8` (override to a specific persona file).
 
-**What needs to change regardless of the theme decision:**
+### Pattern 2: sessionStorage replay via addInitScript
+**What:** Because `keycloak-js` v26 stores tokens in `sessionStorage` (not captured by Playwright's native `storageState()`), dump it manually post-login and replay it pre-navigation with `context.addInitScript()`.
+**When:** Any spec that needs an authenticated `keycloak-js` token without re-driving the KC login UI.
+**Why it must run before `page.goto()`:** `addInitScript` only affects scripts that run on subsequent navigations; calling it after `goto()` is a no-op for the already-loaded page.
 
-The KC `login.css` uses hardcoded hex inside `@media` blocks rather than referencing its own `--jp-*` variables. This must be fixed regardless of the theme strategy — it is a maintainability defect.
-
-FreeMarker templates not yet overridden by the japan-trip theme (they fall back to Keycloak default Patternfly CSS, which is visually inconsistent): the registration form, update-profile page, and passkey-campaign AIA pages. These need FreeMarker overrides or explicit confirmation that they inherit the login theme correctly.
+## Anti-Patterns Present in the Suite
 
-New components needed:
-- Potentially new `.ftl` files for registration and update-profile if KC's built-in templates do not inherit the `japan-trip` login theme automatically.
+### Anti-Pattern 1: Hardcoded environment-specific data IDs in spec files
+**What:** `public-sharing.spec.ts` hardcodes two UUIDs that must exist in a specific local Postgres state with specific `is_public` values.
+**Why bad:** No CI or fresh-clone environment can ever satisfy this without out-of-band manual DB work; the test is non-portable and silently depends on developer-machine history.
+**Instead:** Either (a) extend `seed.ts` to deterministically create a public + a private trip and export their generated slugs for the spec to read, or (b) have the spec create its own fixture trip via the authenticated API in a `beforeAll`/`beforeEach` and capture the real generated slug, cleaning up after itself.
 
-Existing components modified:
-- `keycloak/themes/japan-trip/login/resources/css/login.css` — consolidate: eliminate hardcoded hex inside `@media` blocks; all values route through `--jp-*` variables; align variable names semantically to frontend counterparts.
-- `keycloak/themes/japan-trip/account/resources/css/account.css` — audit and align on same basis.
-- All five existing `.ftl` files (`login.ftl`, `error.ftl`, `login-otp.ftl`, `verify-email.ftl`, `footer.ftl`) — remove any inline styles; confirm all styling routes through `login.css`.
-- `frontend/src/styles/main.css` — audit for any remaining hardcoded hex values that should reference tokens.
-
-**Dependency:** Phase 1. Error handling (Phase 2) and E2E visual assertions (Phase 4) both depend on stable tokens.
+### Anti-Pattern 2: Triplicated fragile UI-navigation logic
+**What:** The "Try Another Way → Password" / two-step-form detection logic is implemented independently in `global-setup.ts` (×2), `session-management.spec.ts`, and `otp.spec.ts` test 4 — four near-identical but not-quite-identical copies.
+**Why bad:** A single KC theme/flow change requires four coordinated fixes; divergent selector strategies (`getByRole` vs `locator(...).filter(...)`) mean some copies may break while others don't, producing confusing partial-failure patterns that look like unrelated bugs.
+**Instead:** Extract a single shared `loginViaKcForm(page, username, password)` helper into `tests/e2e/fixtures/` and have all four call sites use it. This turns "fix N specs" into "fix one fixture" for any future KC flow/theme change.
 
----
-
-### 4. Playwright E2E Test Architecture
+### Anti-Pattern 3: API-level test using a fixture that cannot carry the auth mechanism it needs
+**What:** `otp.spec.ts` uses Playwright's bare `request` fixture (no browser, no cookies/sessionStorage) to call routes that the backend now gates behind a Bearer JWT sourced from `sessionStorage`.
+**Why bad:** Structurally impossible to fix by changing only the test's request payload — the JWT simply isn't reachable from that fixture type.
+**Instead:** Either switch to a `page`-based flow that logs in for real and extracts the token before making the `request` calls (mirroring `session-management`'s approach), or — if the route is meant to be pre-auth — remove the `authMiddleware` gate from `/otp-request`/`/otp-verify` and restore an `email`-in-body contract.
 
-**Goal:** New-user trip creation flow (auth → create trip → add destinations/days/activities → verify map markers); cover untested scenarios; fix ROPC in existing tests.
+## Scalability Considerations
 
-**What exists:**
+| Concern | Current (single dev machine) | If KC moves to CI (deferred per PROJECT.md) |
+|---------|------------------------------|----------------------------------------------|
+| storageState freshness window | 20 min, regenerated per `npx playwright test` invocation | Must regenerate every CI run; no persistence across runs — `MAX_AGE_MS` check becomes moot, `kcLogin()` always executes |
+| Mailpit inbox isolation | Serial mode + manual purge in `beforeEach` | Same approach scales fine; inbox is ephemeral per CI run |
+| KC realm state (credentials, OTP codes, sessions) | Reset via `kcAdmin` fixture before each test | Same fixtures work — but `terraform apply` must run before tests in CI, adding pipeline time |
+| Hardcoded data IDs (public-sharing) | Breaks unless manually seeded | Will deterministically fail in CI from day one unless fixed first — this should be fixed regardless of CI timeline |
 
-Established patterns (from v2.0):
-- `tests/global-setup.ts` — OIDC PKCE headless login; storageState + sessionStorage file save
-- `tests/e2e/fixtures/kc-admin.ts` — KC admin API fixture (credential reset, user management)
-- `tests/e2e/fixtures/mailpit-helpers.ts` — Mailpit REST API helpers for OTP
-- All specs use `test.use({ storageState: '.auth/user.json' })` + `addInitScript` sessionStorage replay
-- `SKIP_REAL_AUTH` env var gates all real-auth tests
-- `tests/e2e/passkeys.spec.ts` — CDP Virtual Authenticator pattern (Chromium only via `chromium-passkeys` project)
+## Suggested Triage / Fix Order
 
-Existing specs in `tests/e2e/`:
-- `auth.spec.ts`, `passkeys.spec.ts`, `otp.spec.ts` — auth flows
-- `trip-edit-integration.spec.ts` — USES ROPC password grant (lines 51-65); violates project constraint "PKCE only"
-- `trip-edit.spec.ts`, `trips.spec.ts` — mocked, no real auth
-- `city-pages.spec.ts`, `landing.spec.ts`, `search.spec.ts`, `pwa.spec.ts`, `accessibility.spec.ts`, `api.spec.ts`, `geocoder.spec.ts` — frontend/static behavior
-- `public-sharing.spec.ts`, `ui-consistency.spec.ts`, `idp-theme.spec.ts` — visual/sharing tests
+The specs are not five independent problems. Ordering below accounts for shared dependencies so a single fix can resolve or de-risk multiple specs at once.
 
-**What does NOT exist:**
-- New-user registration E2E (no `register.spec.ts`)
-- Full CRUD flow from authenticated user: create trip → add destination → add day → add activity → view on map
-- `testuser` (hard-coded in `trip-edit-integration.spec.ts` as `Test1234!`) is not in Terraform — not reproducible on a fresh install
-- No test for error UI (what happens when API returns 500 — does toast appear or browser alert?)
-- No test for the passkey campaign post-login AIA trigger
+1. **Run the fresh full-suite triage first** (already mandated by PROJECT.md) — confirms which of the 2 "undetermined" hypotheses (idp-theme, passkeys) and the 1 partial hypothesis (session-management, otp test 4) actually fail, and with what error, before spending fix effort on hypotheses.
 
-**Integration points for new E2E tests:**
+2. **Verify `global-setup.ts` produces valid storageState in the current environment, in isolation, before triaging anything downstream of it.** It is the upstream chokepoint: `passkeys.spec.ts` and the real-auth half of `auth.spec.ts` and `new-user-trip-creation.spec.ts` all consume its output directly. If `kcLogin()`/`kcLoginNewUser()` itself is silently producing a stale/invalid `.auth/*.json` (e.g., due to KC flow changes affecting the "Try Another Way" detour), every spec that reads those files will show failures that look spec-specific but aren't. Cheapest check: run `global-setup.ts` alone and inspect `.auth/user.json`/`.auth/session.json` timestamps and content, then run one passkeys test against it.
 
-New files needed:
-- `tests/e2e/new-user-trip-creation.spec.ts` — The critical CRUD + map flow. Uses PKCE storageState from global-setup, NOT ROPC. Structure:
-  1. Restore storageState + addInitScript sessionStorage replay (established pattern)
-  2. Navigate to dashboard — assert no login prompt
-  3. Create trip via UI form
-  4. Add destination via UI
-  5. Add day and activity via UI
-  6. Navigate to `trip.html?tripId=...`
-  7. Assert map container is visible and has at least one marker element
-  8. Teardown: delete the created trip via API (token from `getToken()` pattern)
-  9. Guard: `test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available')`
-- `tests/e2e/fixtures/trip-helpers.ts` — helper functions `createTestTrip(token)` and `deleteTestTrip(tripId, token)` via direct API calls, so tests start from a clean state
+3. **Decide the OTP route contract question** (app bug vs. intentional step-up-auth redesign vs. test needs full rewrite) — this is a product decision, not a test-fix, and blocks any code change to `otp.spec.ts` tests 1–3. This is independent of the global-setup chokepoint and can be triaged in parallel with step 2.
 
-Existing components modified:
-- `tests/e2e/trip-edit-integration.spec.ts` — remove the `loginAndGetToken()` function that uses ROPC. Replace with storageState replay (same pattern as `auth.spec.ts` real-session tests). This is a mandatory fix — PROJECT.md prohibits ROPC.
-- `tests/global-setup.ts` — no structural changes needed; existing PKCE pattern supports new specs.
-- `tests/playwright.config.ts` — no changes needed unless a new project is required for new-user tests (it is not; `chromium` project with storageState covers them).
+4. **Fix `public-sharing.spec.ts`'s data dependency** — independent of every other spec (no KC, no storageState dependency). Lowest-risk, highest-certainty fix in the batch: extend `seed.ts` or add a `beforeAll` fixture-trip creation step, then read the real generated slug instead of hardcoding it. Can be done in parallel with steps 2–3.
 
-**Terraform dependency:** A Terraform-managed user is needed for new-user E2E — currently `testuser` is unmanaged. This user must exist in Terraform before the new spec is reliable.
+5. **Extract the shared `loginViaKcForm()` helper** (Anti-Pattern 2) once `global-setup.ts` is confirmed healthy — this de-risks `session-management.spec.ts` and `otp.spec.ts` test 4 together, and reduces future-maintenance surface for any KC flow/theme change. Doing this *before* triaging session-management individually avoids fixing the same navigation bug three separate times if it turns out to be the shared root cause.
 
-**Dependency:** Requires error handling (Phase 2) to exist so tests can assert "toast appears on API error, not native browser alert." Requires Terraform expansion (Phase 3) for reproducible test user seeding. E2E expansion is Phase 4 (last).
+6. **idp-theme.spec.ts** — lowest priority to actively "fix" since code-level verification found no contract drift; if the triage run shows it failing, the fix is almost certainly environmental (KC reachability, timing) rather than a code change. If it passes in the fresh run, no action needed.
 
----
+## Sources
 
-### 5. Terraform Expansion
-
-**Goal:** All KC test users, clients, and remaining resources managed as IaC; nothing requires manual KC console work.
-
-**What is currently managed by Terraform (16 resources):**
-
-| Resource | File |
-|----------|------|
-| `keycloak_realm.japan_trip` | main.tf |
-| `keycloak_openid_client.japan_trip_frontend` | main.tf |
-| `keycloak_openid_client.japan_trip_api` | main.tf |
-| `keycloak_openid_client.japan_trip_worker` | main.tf |
-| `keycloak_openid_client_service_account_role.worker_manage_users` | main.tf |
-| `keycloak_required_action.verify_email` | main.tf |
-| `keycloak_user.e2e_test_user` (`e2e-test@local`) | main.tf |
-| `keycloak_user.otp_test_user` (`otp-test@local`) | main.tf |
-| `keycloak_authentication_flow.browser_passkey` | flows.tf |
-| `keycloak_authentication_execution` (cookie, username, webauthn) | flows.tf |
-| `keycloak_authentication_subflow` (passkey-forms, password-forms) | flows.tf |
-| `keycloak_required_action.webauthn_register_passwordless` | flows.tf |
-| 6x protocol mappers (username, full name, avatar_url, preferences, email, email_verified) | mappers.tf |
-
-**What is NOT in Terraform but should be:**
-
-| Gap | Current state | Risk |
-|-----|--------------|-------|
-| `testuser` / `Test1234!` | Created manually; hard-coded in `trip-edit-integration.spec.ts` | Not reproducible on fresh install; violates IaC goal |
-| `new-user-test@local` | Does not exist | Needed for v3.0 new-user E2E flow; must be seeded |
-| Required action: `UPDATE_PASSWORD` | Not managed | If KC enables as default in a future version, existing users get unexpected flows |
-| Required action: `CONFIGURE_TOTP` | Not managed | Same drift risk |
-
-**CRITICAL constraint — do NOT touch:**
-`web_authn_passwordless_policy.relying_party_id = "localhost"` in `terraform/keycloak/main.tf` — changing this value invalidates all existing passkey registrations. No migration path exists. This is explicitly flagged in PROJECT.md. Terraform expansion is strictly additive.
-
-**Integration points:**
-
-New Terraform resources needed:
-- `keycloak_user.trip_edit_test_user` in `main.tf` — replaces hard-coded `testuser`. Credentials via variable (`var.trip_edit_test_password`). `email_verified = true`.
-- `keycloak_user.new_user_test` in `main.tf` — for new-user E2E. `email_verified = true` (simplest; email verification flow can be tested separately if needed).
-- `keycloak_required_action.update_password` in `flows.tf` — `default_action = false`; prevents drift.
-- `keycloak_required_action.configure_totp` in `flows.tf` — same pattern.
-
-Existing components modified:
-- `terraform/keycloak/variables.tf` — add `trip_edit_test_password` and `new_user_test_password` variables.
-- `tests/e2e/trip-edit-integration.spec.ts` — update credentials to read from env vars pointing at the Terraform-managed user (after ROPC removal).
-- `tests/.env.test.example` — add new user credential env var examples.
-
-**Dependency:** Terraform expansion is independent of design tokens and error handling. It can run in parallel with Phase 1. It must complete before Phase 4 (E2E) to provide reproducible test users.
-
----
-
-## Suggested Build Order
-
-### Phase 1: Design Tokens + IDP Theme Alignment
-
-**Rationale:** Tokens are consumed by the error toast UI (Phase 2). Stable IDP CSS is required before E2E visual assertions (Phase 4). Landing first minimizes rework.
-
-**Artifacts consumed by later phases:**
-- `--danger`, `--success`, `--bg-secondary`, `--text-primary`, `--border-color` — consumed by `toast.ts` in Phase 2
-- Stable `login.css` — consumed by `idp-theme.spec.ts` and new visual assertions in Phase 4
-
-**What lands:**
-- `keycloak/themes/japan-trip/login/resources/css/login.css` refactored: no hardcoded hex inside `@media` blocks; all dark values route through `--jp-*` variables
-- `keycloak/themes/japan-trip/account/resources/css/account.css` aligned on the same basis
-- All 5 `.ftl` templates audited; inline styles removed
-- `frontend/src/styles/main.css` audited for hardcoded hex
-- Decision documented: theme-toggle divergence across KC origin accepted as known limitation
-
-**No new files. Modifications only.**
-
----
-
-### Phase 2: Error Handling (depends on Phase 1 tokens)
-
-**Rationale:** All page entry points need error handling before new-user E2E tests can assert "no native browser errors." Must come before Phase 4.
-
-**Artifacts consumed by later phases:**
-- `toast.ts` — Phase 4 E2E tests assert toast appears on error conditions (not native browser alert or unhandled rejection)
-
-**What lands:**
-- `frontend/src/modules/toast.ts` (NEW) — central toast notification component
-- `frontend/src/modules/errorHandler.ts` (NEW) — global `unhandledrejection` handler
-- `frontend/src/pages/dashboard.ts`, `tripDetail.ts`, `trip-edit.ts`, `profile.ts` — each wraps async init in try/catch calling `showToast`
-- `frontend/src/api/client.ts` — typed `ApiError` instead of plain `Error`
-- `backend/src/index.ts` — error code taxonomy in `onError`
-- `backend/src/middleware/auth.ts` — structured error codes on 401
-
----
-
-### Phase 3: Terraform Expansion + Dev Script (parallel tracks; independent of Phases 1 and 2)
-
-**Rationale:** These two tracks share no dependencies with each other or with the token/error work. Running them in parallel with Phase 1 or as a dedicated phase both work. They must complete before Phase 4.
-
-**Terraform track — artifacts consumed by Phase 4:**
-- `keycloak_user.trip_edit_test_user` — used by the updated `trip-edit-integration.spec.ts` after ROPC removal
-- `keycloak_user.new_user_test` — used by `new-user-trip-creation.spec.ts`
-
-**Dev script track — artifacts consumed by Phase 4:**
-- Scripted single-command startup is a prerequisite for reliably running E2E tests locally in one step
-
-**What lands:**
-- `scripts/dev.mjs` (NEW) — Docker Desktop detection, sequenced service startup, health polling
-- `scripts/lib/wait-for-server.mjs` (NEW) — extracted from `global-setup.ts`, shared
-- `terraform/keycloak/main.tf` — new test user resources
-- `terraform/keycloak/variables.tf` — new password variables
-- `tests/.env.test.example` — updated with new credential vars
-
----
-
-### Phase 4: E2E Expansion + New-User Trip Creation (depends on Phases 2 and 3)
-
-**Consumes from Phase 1:** stable IDP CSS for visual assertions
-**Consumes from Phase 2:** `toast.ts` exists so tests can assert toast appears on error (not native alert)
-**Consumes from Phase 3:** Terraform-managed test users exist; dev script makes setup reproducible
-
-**What lands:**
-- `tests/e2e/new-user-trip-creation.spec.ts` (NEW) — full CRUD + map flow
-- `tests/e2e/fixtures/trip-helpers.ts` (NEW) — `createTestTrip` / `deleteTestTrip` helpers
-- `tests/e2e/trip-edit-integration.spec.ts` — ROPC removed; storageState pattern used instead
-- `tests/global-setup.ts` — no structural changes; may need new user credentials wired
-
----
-
-## Component Inventory: New vs Modified
-
-### New Components
-
-| Component | File | Phase |
-|-----------|------|-------|
-| Toast notification module | `frontend/src/modules/toast.ts` | 2 |
-| Global error handler | `frontend/src/modules/errorHandler.ts` | 2 |
-| Dev startup script | `scripts/dev.mjs` | 3 |
-| Wait-for-server helper | `scripts/lib/wait-for-server.mjs` | 3 |
-| Trip-creation E2E spec | `tests/e2e/new-user-trip-creation.spec.ts` | 4 |
-| Trip API helpers fixture | `tests/e2e/fixtures/trip-helpers.ts` | 4 |
-
-### Modified Components
-
-| Component | File | Change | Phase |
-|-----------|------|--------|-------|
-| KC login CSS | `keycloak/themes/japan-trip/login/resources/css/login.css` | Token consolidation; no hardcoded hex | 1 |
-| KC account CSS | `keycloak/themes/japan-trip/account/resources/css/account.css` | Token alignment | 1 |
-| KC FreeMarker templates (5) | `keycloak/themes/japan-trip/login/*.ftl` | Remove inline styles | 1 |
-| Frontend main CSS | `frontend/src/styles/main.css` | Hardcoded hex audit | 1 |
-| API client | `frontend/src/api/client.ts` | Typed ApiError, structured throws | 2 |
-| Backend error handler | `backend/src/index.ts` | Error code taxonomy in onError | 2 |
-| Auth middleware | `backend/src/middleware/auth.ts` | Structured error codes on 401 | 2 |
-| Dashboard page | `frontend/src/pages/dashboard.ts` | Wrap async init in try/catch + toast | 2 |
-| Trip detail page | `frontend/src/pages/tripDetail.ts` | Wrap async init in try/catch + toast | 2 |
-| Trip edit page | `frontend/src/pages/trip-edit.ts` | Wrap async init in try/catch + toast | 2 |
-| Profile page | `frontend/src/pages/profile.ts` | Wrap async init in try/catch + toast | 2 |
-| Terraform main.tf | `terraform/keycloak/main.tf` | New test user resources | 3 |
-| Terraform variables.tf | `terraform/keycloak/variables.tf` | New password variables | 3 |
-| E2E env example | `tests/.env.test.example` | New user credential vars | 3 |
-| Trip edit integration spec | `tests/e2e/trip-edit-integration.spec.ts` | Remove ROPC; use storageState | 4 |
-
----
-
-## Critical Constraints the Roadmap Must Honor
-
-**1. Multiple frontend entry points — no single bootstrap.**
-`main.ts` is the legacy city-page entry. `dashboard.ts`, `tripDetail.ts`, `trip-edit.ts`, and `profile.ts` are separate Vite entry points. Error handling (`initGlobalErrorHandler()` call and per-page try/catch) must be applied individually to all four authenticated page entries. A single `main.ts` change is insufficient.
-
-**2. `webAuthnPolicyPasswordlessRpId = "localhost"` must not be touched.**
-The Terraform expansion in Phase 3 is strictly additive: new users and required actions only. The realm's `web_authn_passwordless_policy` block must not be modified. Changing `relying_party_id` invalidates all existing passkey registrations with no migration path (PROJECT.md explicit constraint).
-
-**3. ROPC in `trip-edit-integration.spec.ts` is a mandatory fix, not a suggestion.**
-The `loginAndGetToken()` function (lines 51-65) uses resource owner password grant. PROJECT.md prohibits ROPC. This must be removed in Phase 4 before the spec is used as a model for new tests or left in the codebase.
-
-**4. Theme-toggle divergence across KC origin is architectural, not a bug.**
-The frontend uses `localStorage` + `data-theme` attribute. KC login uses `@media (prefers-color-scheme: dark)`. These cannot be unified without cross-origin constraints or behavioral tradeoffs. v3.0 documents the divergence. Option C (URL param) is a future-phase candidate.
-
-**5. SKIP_REAL_AUTH stays in CI for all new real-auth tests.**
-Every new spec that requires live Keycloak must include `test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment')`. CI E2E coverage without KC is a post-v3.0 concern.
+- `tests/global-setup.ts` (full read) — HIGH confidence, primary source
+- `tests/playwright.config.ts` (full read) — HIGH confidence, primary source
+- `tests/e2e/idp-theme.spec.ts`, `otp.spec.ts`, `passkeys.spec.ts`, `public-sharing.spec.ts`, `session-management.spec.ts`, `auth.spec.ts`, `trips.spec.ts` (full reads) — HIGH confidence, primary source
+- `tests/e2e/fixtures/kc-admin.ts`, `mailpit-helpers.ts` (full reads) — HIGH confidence, primary source
+- `backend/src/routes/auth.ts`, `public.ts`, `middleware/auth.ts`, `validation/schemas.ts`, `db/schema.ts`, `db/seed.ts` (relevant sections read) — HIGH confidence, primary source
+- `terraform/keycloak/main.tf`, `flows.tf` (relevant sections read) — HIGH confidence, primary source
+- `keycloak/themes/japan-trip/login/footer.ftl`, `resources/css/login.css` (relevant sections read) — HIGH confidence, primary source
+- `git log` on the 5 spec files — confirms none touched since phase 03/09 commits (pre-v3.0), corroborating PROJECT.md's "stale failure list" note — HIGH confidence
+- `.planning/PROJECT.md` — HIGH confidence, primary source for milestone scope and prior known-failure list
+- No live test run was performed in this research session (no servers/KC instance started) — all failure hypotheses for idp-theme, passkeys, and session-management/otp-test-4 are pending the mandated fresh triage run, not independently verified by execution.
