@@ -13,7 +13,7 @@ const RETRY_INTERVAL_MS = 1000;
 const AUTH_DIR = path.join(__dirname, '.auth');
 const STORAGE_STATE_PATH = path.join(AUTH_DIR, 'user.json');
 const SESSION_STORAGE_PATH = path.join(AUTH_DIR, 'session.json');
-const MAX_AGE_MS = 50 * 60 * 1000; // 50 min — KC session lifetime default
+const MAX_AGE_MS = 20 * 60 * 1000; // 20 min — KC idle timeout is 30 min; stay well under it
 const NEW_USER_STORAGE_STATE_PATH = path.join(AUTH_DIR, 'new-user.json');
 const NEW_USER_SESSION_STORAGE_PATH = path.join(AUTH_DIR, 'new-user-session.json');
 
@@ -60,19 +60,24 @@ async function kcLogin(): Promise<void> {
   }
 
   await page.waitForURL(/localhost:8080/, { timeout: 15_000 });
+  // networkidle ensures KC's WebAuthn conditional UI JavaScript has settled before we check DOM
+  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
 
-  const tryAnotherWay = page.getByRole('link', { name: /try another way/i });
-  if (await tryAnotherWay.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await tryAnotherWay.click();
-    const passwordOpt = page.getByRole('link', { name: /^password$/i });
-    if (await passwordOpt.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await passwordOpt.click();
+  // Use text-based filter — getByRole can miss aria-hidden links in KC theme
+  const tryAnotherWay = page.locator('a, button').filter({ hasText: /try another way/i });
+  if (await tryAnotherWay.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await tryAnotherWay.first().click();
+    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
+    const passwordOpt = page.locator('a, button').filter({ hasText: /username and password|^password$/i });
+    if (await passwordOpt.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await passwordOpt.first().click();
+      await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
     }
   }
 
-  const usernameField = page.locator('input[name="username"], #username');
-  await usernameField.waitFor({ state: 'visible', timeout: 10_000 });
-  await usernameField.fill(process.env.E2E_TEST_USERNAME!);
+  const usernameField = page.locator('#username, input[name="username"], input[autocomplete="username"]');
+  await usernameField.first().waitFor({ state: 'visible', timeout: 10_000 });
+  await usernameField.first().fill(process.env.E2E_TEST_USERNAME!);
 
   const passwordField = page.locator('input[name="password"], #password');
   if (!(await passwordField.isVisible({ timeout: 1_500 }).catch(() => false))) {
@@ -83,6 +88,11 @@ async function kcLogin(): Promise<void> {
   await page.getByRole('button', { name: /sign in/i }).click();
 
   await page.waitForURL(/dashboard\.html/, { timeout: 20_000 });
+
+  // Reload once to flush KC auth-flow cookies (AUTH_SESSION_ID, KC_AUTH_SESSION_HASH)
+  // before saving state — replaying those cookies causes KC to resume the old flow.
+  await page.reload();
+  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
 
   // Capture cookies + localStorage (storageState)
   await context.storageState({ path: STORAGE_STATE_PATH });
@@ -108,19 +118,22 @@ async function kcLoginNewUser(): Promise<void> {
   }
 
   await page.waitForURL(/localhost:8080/, { timeout: 15_000 });
+  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
 
-  const tryAnotherWay = page.getByRole('link', { name: /try another way/i });
-  if (await tryAnotherWay.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await tryAnotherWay.click();
-    const passwordOpt = page.getByRole('link', { name: /^password$/i });
-    if (await passwordOpt.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await passwordOpt.click();
+  const tryAnotherWay = page.locator('a, button').filter({ hasText: /try another way/i });
+  if (await tryAnotherWay.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await tryAnotherWay.first().click();
+    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
+    const passwordOpt = page.locator('a, button').filter({ hasText: /username and password|^password$/i });
+    if (await passwordOpt.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await passwordOpt.first().click();
+      await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
     }
   }
 
-  const usernameField = page.locator('input[name="username"], #username');
-  await usernameField.waitFor({ state: 'visible', timeout: 10_000 });
-  await usernameField.fill(process.env.E2E_NEW_USER_USERNAME!);
+  const usernameField = page.locator('#username, input[name="username"], input[autocomplete="username"]');
+  await usernameField.first().waitFor({ state: 'visible', timeout: 10_000 });
+  await usernameField.first().fill(process.env.E2E_NEW_USER_USERNAME!);
 
   const passwordField = page.locator('input[name="password"], #password');
   if (!(await passwordField.isVisible({ timeout: 1_500 }).catch(() => false))) {
@@ -131,6 +144,10 @@ async function kcLoginNewUser(): Promise<void> {
   await page.getByRole('button', { name: /sign in/i }).click();
 
   await page.waitForURL(/dashboard\.html/, { timeout: 20_000 });
+
+  // Reload once to flush KC auth-flow cookies before saving state
+  await page.reload();
+  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
 
   await context.storageState({ path: NEW_USER_STORAGE_STATE_PATH });
 
