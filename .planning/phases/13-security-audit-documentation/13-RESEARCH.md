@@ -595,7 +595,7 @@ The following test additions are needed before or alongside implementation:
 
 **If this table is empty:** All claims in this research were verified or cited. (Table is not empty — A1-A4 require runtime confirmation.)
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **SEC-05 literal `aud: account` requirement**
    - What we know: REQUIREMENTS.md says "a token with `aud: account` only returns 401" — but japan-trip-worker tokens likely have `aud: realm-management`

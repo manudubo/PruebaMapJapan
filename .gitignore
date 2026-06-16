@@ -49,3 +49,9 @@ terraform/cloudflare/.terraform/
 
 # Wrangler local dev vars
 backend/.dev.vars
+
+# Playwright MCP tool artifacts
+.playwright-mcp/
+
+# Terraform lock info (transient, not the state lock itself)
+*.tfstate.lock.info

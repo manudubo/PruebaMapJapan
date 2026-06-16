@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Quality, Polish & DevX
-status: executing
-stopped_at: Phase 14 all plans complete — verifying
+status: shipped
+stopped_at: Phase 14 complete — v3.0 shipped
 last_updated: "2026-06-09T00:00:00.000Z"
-last_activity: 2026-06-09 -- Phase 14 all 4 plans complete — running verification
+last_activity: 2026-06-09 -- Phase 14 verified complete (NU-01 + trip-edit-integration pass); v3.0 shipped
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 19
-  percent: 95
+  completed_plans: 20
+  percent: 100
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-28 — v3.0 started)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** Phase 14 — E2E Expansion + New User Parity (Wave 2: plan 04)
+**Current focus:** v3.0 shipped — awaiting next milestone
 
 ## Current Position
 
-Phase: 14 — VERIFYING
-Next: Code review + phase verification
-Status: All 4 plans complete. Running verification.
+Phase: 14 — COMPLETE
+Next: Start next milestone (or v3.0 retrospective)
+Status: All 4 plans complete. Verification passed (NU-01 + trip-edit-integration, 0 issues).
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -51,6 +51,8 @@ Recent decisions affecting current work:
 - v2.0 CDP passkeys: `hasUserVerification` (not `haUserVerification`) — critical spelling; two-context login flow
 - v3.0 Phase 10: COLOR_MAP keys must match --jp-marker-N (not --marker-N); CR-01 fix in dc4d440
 - v3.0 Phase 13: Wave 1 worktree merges produced no commits — plans 01/02/05 re-executed directly in main context on 2026-06-07
+- v3.0 Phase 14: Fixed genuine backend bug found via E2E — `lat`/`lng` Zod schemas required `z.string()` but frontend sends `parseFloat()`'d numbers; changed to `z.coerce.string()` in `CreateDestinationSchema`, `CreateActivitySchema`, `UpsertHotelSchema`
+- v3.0 Phase 14: Geocoder widgets require explicit search-button click (not just input fill) to commit lat/lng hidden fields — this is the documented interaction pattern, not a bug
 
 ### Pending Todos
 
@@ -74,6 +76,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-08
-Stopped at: Phase 14 planned (4 plans verified)
-Resume: /gsd-execute-phase 14
+Last session: 2026-06-09
+Stopped at: Phase 14 verified complete — v3.0 milestone shipped
+Resume: /gsd-new-milestone (or /gsd-complete-milestone to archive v3.0)
