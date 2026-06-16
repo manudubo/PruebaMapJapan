@@ -24,8 +24,8 @@ export const CreateDestinationSchema = z.object({
   country: z.string().min(1).max(100),
   start_date: z.string().date().nullable().optional(),
   end_date: z.string().date().nullable().optional(),
-  lat: z.string().nullable().optional(),
-  lng: z.string().nullable().optional(),
+  lat: z.coerce.string().nullable().optional(),
+  lng: z.coerce.string().nullable().optional(),
   zoom_level: z.number().int().min(1).max(20).nullable().optional(),
   order_index: z.number().int().min(0).optional(),
 });
@@ -55,8 +55,8 @@ export const UpdateDaySchema = CreateDaySchema.partial();
 
 export const CreateActivitySchema = z.object({
   name: z.string().min(1).max(255),
-  lat: z.string().nullable().optional(),
-  lng: z.string().nullable().optional(),
+  lat: z.coerce.string().nullable().optional(),
+  lng: z.coerce.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   is_optional: z.boolean().optional(),
   maps_url: z.string().url().nullable().optional(),
@@ -76,8 +76,8 @@ export const ReorderActivitiesSchema = z.object({
 
 export const UpsertHotelSchema = z.object({
   name: z.string().min(1).max(255),
-  lat: z.string().nullable().optional(),
-  lng: z.string().nullable().optional(),
+  lat: z.coerce.string().nullable().optional(),
+  lng: z.coerce.string().nullable().optional(),
   check_in_date: z.string().date().nullable().optional(),
   check_out_date: z.string().date().nullable().optional(),
   url: z.string().url().nullable().optional(),
