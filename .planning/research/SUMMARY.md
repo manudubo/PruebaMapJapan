@@ -1,7 +1,7 @@
 # Research Summary — v3.1 E2E Stabilization
 
-**Researched:** 2026-06-15
-**Scope:** 2 of 4 planned dimensions completed (Features/failure-patterns, Architecture). Stack and Pitfalls researchers hit a session limit before writing output — their generic-ecosystem framing was the lowest-value dimension for a code-specific triage milestone anyway, so this was not re-run. Findings below are code-grounded (file:line cited), not generic Playwright/Keycloak advice.
+**Researched:** 2026-06-16
+**Scope:** All 4 dimensions completed (Stack, Features, Architecture, Pitfalls). Findings are code-grounded (file:line cited) against actual spec files, routes, and config.
 
 ## Confirmed Root Causes (HIGH confidence — verified against current code)
 
@@ -31,6 +31,37 @@
 5. Extract shared `loginViaKcForm()` helper — de-risks session-management + otp test 4 together
 6. idp-theme — likely needs no code fix; confirm via live run only
 
+## Additional Stack Findings (from Stack + Pitfalls research)
+
+**`idp-theme.spec.ts` — four candidates, none confirmed:**
+- SSO session inherited from chromium project `storageState: '.auth/user.json'` — KC skips the login page (STACK: MEDIUM confidence)
+- `code_challenge=aaa...` in `LOGIN_URL` is not a real S256 hash; KC 26 may reject at `/auth` endpoint before login page renders (PITFALLS: CRITICAL — TH-02)
+- `#kc-header-wrapper` may not exist in KC 26's login template; `toBeHidden()` fails on absent element (PITFALLS: TH-04)
+- `fontFamily` / `borderRadius` assertion fragility (PITFALLS: TH-03)
+
+Pre-emptive fixes (low-risk, apply before triage): add `test.use({ storageState: { cookies: [], origins: [] } })` and generate a real PKCE S256 challenge pair for `LOGIN_URL`.
+
+**Playwright config / pattern fixes:**
+- `trace: 'retain-on-failure'` + `retries: 1` for triage phase (revert when suite is green)
+- Replace `waitForTimeout(n)` in `passkeys.spec.ts:44,79,156` with `expect(locator).toBeEnabled({ timeout: 15_000 })` or `waitForResponse`
+- Replace `waitForLoadState('networkidle')` + catch-fallback in `global-setup.ts` / `session-management.spec.ts` with `waitForURL(/pattern/)` or DOM signal assertions
+- Add 500ms polling loop to `fetchLatestOtp()` — single-shot GET on Mailpit is racy by design
+- Move `WebAuthn.removeVirtualAuthenticator` to `test.afterEach` (PITFALLS: WA-01 — test body failure leaves stale authenticator)
+
+**Critical pitfalls for passkey fixes:**
+- `kcAdmin.resetCredentials` deletes WebAuthn credentials but does NOT clear `webauthn-register-passwordless` required actions (WA-05) — passkey campaign flow hijacks the next test
+- OTP brute-force lockout state survives `clearOtpCodes` — add `client.attackDetection.del({ id: user.id })` to `beforeEach` (OTP-03)
+- KC theme cache: start KC with `KC_CACHE_THEMES=false` when diagnosing idp-theme (TH-01)
+
 ## Cross-Cutting Pattern
 
 None of the 3 confirmed root causes are "flaky tests" in the retry-and-pray sense — they're a test-config bug, a contract mismatch, and a missing fixture. This matters for v3.1 scope: the milestone goal ("root-cause and fix each spec for real, document genuine environment-specific skips rather than force-fixing") is achievable here without inventing fake skips. Likely candidate for a genuine "accepted skip" only if the live triage surfaces a real CDP/WebAuthn environment limitation in `passkeys.spec.ts` beyond the config-scoping fix.
+
+## Watch Out For
+
+- Do not mock real-auth specs — passkeys, otp, session-management exist to catch real KC-flow regressions
+- Do not use `test.skip` for locally-failing specs — use `test.fixme(condition, reason)` with documented context
+- Do not silence flakiness with runner retries — `retries: 1` is diagnostic only; fix the root cause
+- Do not rewrite passing specs — v3.1 is stabilization; changes to green specs introduce new risk
+- No Playwright version upgrade — stay on `^1.60.0`
+- `addInitScript` must always precede the first `page.goto()` — sessionStorage replay fails silently otherwise (Playwright bug #31108)

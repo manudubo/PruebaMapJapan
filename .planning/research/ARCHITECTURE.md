@@ -1,171 +1,289 @@
-# Architecture Patterns — E2E Test Suite Failure Analysis
+# Architecture Patterns — E2E Test Suite (v3.1 Stabilization)
 
 **Domain:** Playwright E2E test architecture for OIDC/Keycloak-authenticated MPA
-**Researched:** 2026-06-15
-**Scope:** Root-cause hypotheses for 5 specs (idp-theme, otp, passkeys, public-sharing, session-management) ahead of v3.1 fresh triage run
+**Researched:** 2026-06-16
+**Scope:** Structural analysis of test isolation, auth state management, WebAuthn CDP patterns, OTP serial mode, and triage taxonomy for the 7 known-failing specs
 
-## Summary verdict up front
+---
 
-Of the 5 specs, **2 have a confirmed, code-level root cause** (not infra flakiness), **1 has a confirmed data-fixture root cause**, and **2 are genuinely undetermined** pending the fresh triage run mandated by PROJECT.md. The suite is not five independent failures — there is one shared upstream chokepoint (`global-setup.ts`) and one shared fragile UI-navigation helper duplicated across three specs. Fix order should attack the chokepoint and the shared helper before touching individual specs.
+## Overview
 
-## Recommended Architecture (as built)
+The suite is a real-auth Playwright setup targeting a full stack: Hono backend (8787), Keycloak 26.6.1 (8080), Vite frontend (5173), Postgres, and Mailpit SMTP (8025). No mocking of auth or KC — every authenticated test drives the real OIDC PKCE flow.
 
 ```
 playwright.config.ts
   └─ globalSetup: tests/global-setup.ts
-       ├─ kcLogin()         → writes .auth/user.json + .auth/session.json       (testuser: e2e-test@local)
-       └─ kcLoginNewUser()  → writes .auth/new-user.json + .auth/new-user-session.json (new_user_test)
-       (freshness-gated: MAX_AGE_MS = 20 min; skipped entirely if SKIP_REAL_AUTH set)
+       ├─ kcLogin()         → .auth/user.json + .auth/session.json       (e2e-test@local)
+       └─ kcLoginNewUser()  → .auth/new-user.json + .auth/new-user-session.json (new_user_test)
+            Freshness gate: MAX_AGE_MS = 20 min (stays under KC 30-min idle timeout)
+            Skipped entirely when SKIP_REAL_AUTH is set
 
   projects:
-    chromium            → storageState: .auth/user.json (project-level, ALL specs in this project inherit it
-                           unless they override with test.use())
-    firefox / webkit     → no storageState (anonymous)
-    chromium-passkeys    → testMatch: passkeys.spec.ts only, no project-level storageState
-                           (passkeys.spec.ts sets its own test.use({storageState: '.auth/user.json'}))
+    chromium            → storageState: .auth/user.json  (ALL specs inherit unless overridden)
+    firefox / webkit    → no storageState (anonymous)
+    chromium-passkeys   → testMatch: passkeys.spec.ts only; no project storageState
+                          (passkeys.spec.ts re-declares .auth/user.json at test level)
 ```
 
 ### Component Boundaries
 
 | Component | Responsibility | Communicates With |
 |-----------|---------------|-------------------|
-| `tests/global-setup.ts` | Headless OIDC PKCE login for 2 personas (`testuser`, `new_user_test`); persists storageState + sessionStorage to `.auth/*.json` | Frontend (5173), Keycloak (8080) |
-| `tests/e2e/fixtures/kc-admin.ts` | Keycloak Admin REST client (service account `japan-trip-worker`) + direct Postgres access for OTP table mutation | Keycloak Admin API, Postgres directly |
-| `tests/e2e/fixtures/mailpit-helpers.ts` | Reads/purges the Mailpit SMTP test inbox for OTP codes | Mailpit REST API (8025) |
-| `idp-theme.spec.ts` | Asserts on Keycloak FreeMarker theme + CSS output, no auth needed | Keycloak only (raw HTTP `request`, self-skips if KC unreachable) |
-| `otp.spec.ts` | Drives backend `/api/auth/otp-request` + `/api/auth/otp-verify` directly via `request` fixture | Backend (8787), Postgres (via kcAdmin), Mailpit |
-| `passkeys.spec.ts` | CDP WebAuthn Virtual Authenticator registration/login/delete-guard flows | Frontend, Keycloak, kcAdmin (credential reset) |
-| `public-sharing.spec.ts` | Backend `/api/public/trips/:slug` contract tests + guest-view frontend tests | Backend only — no auth, no KC |
-| `session-management.spec.ts` | Full KC session lifecycle (login/logout/multi-tab/multi-context) via real browser login | Frontend, Keycloak, kcAdmin (session introspection) |
+| `tests/global-setup.ts` | Headless OIDC PKCE login for 2 personas; writes `.auth/*.json` | Frontend (5173), Keycloak (8080) |
+| `tests/e2e/fixtures/kc-admin.ts` | Keycloak Admin REST + direct Postgres for OTP table | KC Admin API, Postgres (direct) |
+| `tests/e2e/fixtures/mailpit-helpers.ts` | Mailpit inbox read/purge for OTP extraction | Mailpit REST API (8025) |
+| `idp-theme.spec.ts` | KC FreeMarker theme / CSS assertions; no auth, no app | Keycloak only (raw HTTP) |
+| `otp.spec.ts` | Backend `/api/auth/otp-request` + `/api/auth/otp-verify` contract | Backend (8787), Postgres (via kcAdmin), Mailpit |
+| `passkeys.spec.ts` | CDP WebAuthn Virtual Authenticator: register / login / last-cred guard | Frontend, Keycloak, kcAdmin |
+| `public-sharing.spec.ts` | Backend public-route contract + guest-view frontend | Backend only — no KC, no auth |
+| `session-management.spec.ts` | Full KC session lifecycle (login/logout/tabs/cross-ctx) | Frontend, Keycloak, kcAdmin |
 
-### Data Flow — storageState lifecycle
+### Key Architectural Constraints
 
-1. `global-setup.ts` runs once per `npx playwright test` invocation (not per-spec, not per-worker).
-2. It checks file mtime (`isStorageStateFresh()` / `isNewUserStorageStateFresh()`) against a 20-minute window — chosen to stay under KC's 30-minute idle timeout (`tests/global-setup.ts:16`).
-3. If stale, `kcLogin()` drives a real headless Chromium browser through the actual KC login UI (including the "Try Another Way → Password" detour) and writes `.auth/user.json` (cookies + localStorage) and `.auth/session.json` (sessionStorage dump, since `keycloak-js` stores tokens in sessionStorage which Playwright's native `storageState()` cannot capture — Playwright bug #31108, documented in `tests/global-setup.ts:100-102`).
-4. `playwright.config.ts:25` binds `.auth/user.json` at the **project level** for `chromium` — every spec running under that project inherits it unless it calls `test.use({ storageState: ... })` to override (otp.spec.ts does this deliberately at `otp.spec.ts:13` to run unauthenticated).
-5. Specs that need the sessionStorage tokens replay them manually via `context.addInitScript()` in a `beforeEach` (passkeys.spec.ts:31-38, session-management does NOT need this because it logs in fresh via the browser each test).
+- **`SKIP_REAL_AUTH`** guards every real-auth test. KC is not in CI; this flag prevents the suite from blocking the pipeline when KC is absent.
+- **Playwright bug #31108**: `keycloak-js` stores tokens in `sessionStorage`, which `context.storageState()` does not capture. Workaround: dump sessionStorage after login in `global-setup.ts`, replay it via `context.addInitScript()` in `beforeEach` for any spec that needs KC tokens without re-driving the login UI.
+- **KC flow complexity**: the `webauthn_passwordless` required execution is configured as a REQUIRED subflow, which causes KC to present "Try Another Way → Password" before the combined username/password form. Global setup and 3 specs each implement this navigation independently — a critical fragility source.
 
-## Per-spec dependency map and failure hypotheses
+---
 
-### idp-theme.spec.ts — confirmed-consistent with current code; likely environment/timing if failing
+## Auth State Isolation
 
-**Depends on:** Live Keycloak only (raw `request.get`), no app, no DB, no fixtures.
+### storageState lifecycle
 
-**Verification performed:** Checked all three hard assertions against current theme source, not just element existence:
-- `#kc-header-wrapper` hidden — confirmed in `keycloak/themes/japan-trip/login/resources/css/login.css:281` (`display: none !important` on `#kc-header-wrapper`).
-- `.jp-idp-exit` text "Return", `href` matching `/PruebaMapJapan/?$`, not pointing at the logout endpoint — confirmed in `keycloak/themes/japan-trip/login/footer.ftl:4`, driven by `theme.properties` `appUrl=http://localhost:5173/PruebaMapJapan/`.
-- `border-radius: 0px` and `font-family` containing `Inter` — confirmed: `--jp-font` resolves to `'Inter', ...` (`login.css:23`), and `border-radius` defaults to the browser-initial `0px` for an anchor element (no override needed, no conflicting rule found).
+1. `global-setup.ts` runs **once per `npx playwright test` invocation** — not per-spec, not per-worker.
+2. It freshness-gates on the `.auth/user.json` file mtime (20-minute window). If stale, `kcLogin()` drives headless Chromium through the real KC login UI and writes:
+   - `.auth/user.json` — cookies + localStorage (KC SSO session cookie, KC state cookies)
+   - `.auth/session.json` — sessionStorage dump (`keycloak-js` tokens, per Playwright bug #31108 workaround)
+3. `playwright.config.ts` binds `.auth/user.json` at the **project level** for `chromium`. Every spec in that project inherits it unless it overrides with `test.use({ storageState: ... })`.
 
-**Verdict:** The spec's assertions are not stale relative to current theme code. If this spec fails in the fresh triage run, the cause is environmental — most likely KC not running/reachable on `localhost:8080` (the spec has a `beforeEach` skip guard for that), a PKCE `code_challenge` format the KC server rejects at the `/auth` endpoint before rendering the form, or `networkidle` timing flakiness on the WebAuthn conditional-UI script (the same class of timing issue `global-setup.ts:63` documents and works around elsewhere in the suite). **Confidence: MEDIUM** — code-level check is clean (HIGH), but no live run was performed, so an environment-specific cause is a hypothesis, not a confirmed finding.
+### Per-spec auth identity map
 
-### otp.spec.ts — CONFIRMED contract mismatch (tests 1–3); separate hypothesis for test 4
+| Spec | Identity | How Set | Reason for Override |
+|------|----------|---------|---------------------|
+| `auth.spec.ts` (describe 1) | Anonymous | `page.route()` mocks KC | Unit-style tests; no real KC needed |
+| `auth.spec.ts` (describe 2) | `e2e-test@local` | `.auth/user.json` (inherited) + `addInitScript` for sessionStorage | Tests real authenticated state |
+| `trips.spec.ts`, `trip-edit.spec.ts`, etc. | `e2e-test@local` | `.auth/user.json` (inherited) | Standard authenticated CRUD |
+| `new-user-trip-creation.spec.ts` | `new_user_test` | `test.use({ storageState: '.auth/new-user.json' })` | Dedicated new-user persona |
+| `otp.spec.ts` | Anonymous | `test.use({ storageState: { cookies: [], origins: [] } })` | OTP flow starts unauthenticated |
+| `passkeys.spec.ts` | `e2e-test@local` | `test.use({ storageState: '.auth/user.json' })` (explicit re-declaration) | `chromium-passkeys` project has no project-level storageState |
+| `session-management.spec.ts` | `e2e-test@local` | Logs in fresh per-test via `loginViaBrowser()` | Tests session creation itself; storageState replay would defeat the test |
+| `idp-theme.spec.ts` | None | No storageState (raw `request` fixture) | Theme assertions only; no app session |
+| `public-sharing.spec.ts` | None | No storageState (raw `request` + `page`) | Public routes; no auth |
 
-**Depends on:** `fixtures/kc-admin.ts` (`clearOtpCodes`, `expireOtpCodes` — direct Postgres `DELETE`/`UPDATE` against `email_otp_codes`), `fixtures/mailpit-helpers.ts` (`purgeInbox`, `fetchLatestOtp`), backend `/api/auth/otp-request` + `/api/auth/otp-verify`, `otp-test@local` KC user (Terraform-provisioned, `terraform/keycloak/main.tf:171-184`). Explicitly overrides storageState to empty (`otp.spec.ts:13`) and forces serial mode for Mailpit inbox isolation (`otp.spec.ts:5`).
+### kc-admin fixture: what it isolates and when
 
-**CONFIRMED root cause (tests 1, 2, 3 — request/verify/lockout):**
-The backend route contract has drifted from what the spec assumes.
-- `backend/src/routes/auth.ts:92`: `authRoute.use('*', authMiddleware, ensureUserProvisioned)` — both `/otp-request` and `/otp-verify` require a valid `Authorization: Bearer <JWT>` header.
-- `backend/src/middleware/auth.ts:23-25`: with no/invalid Bearer header, the middleware short-circuits with `401 { success: false, error: 'Missing or invalid Authorization header' }` before any OTP logic runs.
-- `backend/src/routes/auth.ts:96,140`: handlers derive the email from `c.get('user').email` (the verified JWT claim) — there is **no `email` field in the request body contract at all**.
-- `backend/src/validation/schemas.ts:100-102`: `OtpVerifySchema = z.object({ code: ... })` — confirms `email` is not part of the verify payload.
-- `otp.spec.ts:24,32,39,50,60,65,73` calls `request.post(...)` (Playwright's bare API-request fixture, not a browser `page`) with `{ email: OTP_USERNAME, ... }` bodies and **no Authorization header at all** — and structurally cannot supply one, since the OIDC tokens live in `sessionStorage` inside a browser context (per the documented Playwright bug #31108 workaround used everywhere else in this suite), which the `request` fixture has no access to.
+`kc-admin.ts` exposes a Playwright fixture (`kcAdmin`) that wraps Keycloak Admin REST calls and direct Postgres access. These reset operations are the primary mechanism for keeping KC server-side state clean across tests.
 
-Every one of tests 1–3 will hit the `authMiddleware` 401 short-circuit before reaching the assertions the spec expects (200, then 400/401 with "expir" in the body, then 429 lockout codes). This is structurally guaranteed to fail, not flaky — confirmed independently by `backend/src/routes/auth.test.ts`'s "auth gate" describe block, which exists specifically to assert these routes require auth.
+| Operation | What it isolates | Called in | Notes |
+|-----------|-----------------|-----------|-------|
+| `resetCredentials(username)` | Deletes all `webauthn` / `webauthn-passwordless` credentials; leaves password intact | `passkeys.spec.ts` `beforeEach` | Must run before CDP authenticator is created — ensures KC has no prior passkey to confuse assertion |
+| `logoutUser(username)` | Kills all active KC server-side sessions for the user | `session-management.spec.ts` `beforeEach` | Guarantees a clean login-session baseline for each session-lifecycle test |
+| `clearOtpCodes(username)` | `DELETE FROM email_otp_codes WHERE user_id = ...` | `otp.spec.ts` `beforeEach` | Prevents leftover codes from prior runs satisfying or poisoning the lockout counter |
+| `expireOtpCodes(username)` | Back-dates `expires_at` for unused OTP codes | `otp.spec.ts` "expired OTP" test | Avoids requiring real time to pass; only way to test expiry without a test-only API |
+| `createUser` / `deleteUser` | Creates/removes a full KC user | Not used in `beforeEach`/`afterEach` currently | Suitable for `beforeAll`/`afterAll` if fixture-user isolation is needed for new specs |
 
-**This is a genuine app-vs-test contract question, not a pre-judged "test is wrong":** an OTP *fallback* login mechanism that requires the caller to already hold a valid JWT is conceptually unusual (OTP is normally used precisely when the user is *not* yet authenticated, e.g., to satisfy a step-up/MFA requirement or post-primary-auth check). Two equally valid resolutions exist and the roadmap should decide which: (a) the route was intentionally redesigned for a step-up-auth use case and `otp.spec.ts` needs a full rewrite to drive a real browser through primary login first, then call the OTP endpoints with a token; or (b) the route's auth-gating is itself the bug/regression and OTP should work pre-authentication as the spec assumes. Check `auth.test.ts`'s test names/comments and any phase-8/9 plan docs for which behavior was intended before deciding.
+### Fixture teardown gap
 
-**Test 4 ("UPDATE_PASSWORD gate") — separate failure mode, not yet confirmed:**
-This test drives a real browser login via the KC form (`otp.spec.ts:82-91`) — same UI path family as `session-management.spec.ts`'s `loginViaBrowser()` and `global-setup.ts`'s `kcLogin()`. It depends on the KC "Try Another Way" / two-step username-password navigation resolving correctly and on the `UPDATE_PASSWORD` required-action *not* firing for WebAuthn-capable headless Chrome. **Confidence: LOW/hypothesis** — no code-level contradiction found, but it shares the fragile login-navigation pattern flagged below, so a failure here may cascade from the same root cause as session-management rather than being OTP-specific.
+The `kcAdmin` fixture has **no automatic teardown**: there is no `afterEach` / `afterAll` in the fixture definition (`kc-admin.ts:107-110` only calls `use(...)` with no teardown hook). This is acceptable for the current specs because each `beforeEach` resets to a known clean state regardless of what the prior test left. Adding teardown is only necessary if a new spec creates a resource that must be destroyed rather than overwritten (e.g., `createUser` in a `beforeAll` requires a matching `deleteUser` in `afterAll`).
 
-### passkeys.spec.ts — dependency map clear; failure mode is a hypothesis pending live run
+### storageState reset: the 20-minute expiry risk
 
-**Depends on:** `fixtures/kc-admin.ts` (`resetCredentials` — deletes any `webauthn`/`webauthn-passwordless` credentials before each test, `kc-admin.ts:40-51`), `.auth/user.json` + `.auth/session.json` from global-setup (replayed via `context.addInitScript`, `passkeys.spec.ts:31-38`), CDP `WebAuthn.*` domain (Virtual Authenticator), `e2e-test@local` KC user, `terraform/keycloak/flows.tf`'s `webauthn_passwordless` REQUIRED execution.
+The most common silent failure mode for specs consuming `.auth/*.json` is a stale file:
+- KC tokens inside `session.json` expire; the 30-second `isTokenExpired(30)` refresh guard in `keycloak-js` will try to refresh, but if there is no refresh token (post-silent-check-sso case, per PROJECT.md Key Decisions), `updateToken` throws.
+- `global-setup.ts` uses a 20-minute freshness window as a conservative buffer, but this does not protect against a run that starts fresh and then stalls for >30 minutes before the specs that consume `.auth/*.json` execute.
+- **Rule**: if passkeys or auth.spec.ts real-auth describe block fails with a timeout waiting for authenticated content, verify `.auth/user.json` mtime and inspect `.auth/session.json` for a valid `access_token` before diagnosing the spec.
 
-Three tests share one fragile precondition: a valid, fresh `.auth/user.json`/`.auth/session.json` pair from `global-setup.kcLogin()`, **plus** a successful `resetCredentials()` call against the KC Admin API (which itself depends on the `japan-trip-worker` service-account client secret matching what's in `.env.test`/Terraform output). If either the storageState is stale/invalid (e.g., KC issued no refresh token post-silent-check-sso, a bug already found and fixed once per PROJECT.md's Key Decisions table) or the service-account auth fails, all three tests fail together with unrelated-looking symptoms (timeout waiting for `#register-passkey-btn`, or KC redirecting to its own login instead of accepting the replayed session). **No code-level contract drift found** — this is a hypothesis, not a confirmed root cause. **Confidence: LOW** pending live run.
+---
 
-The `chromium-passkeys` project (`playwright.config.ts:36-40`) does **not** inherit the project-level `storageState: '.auth/user.json'` that the `chromium` project has — `passkeys.spec.ts` re-declares it explicitly at the test level (`passkeys.spec.ts:16-18`), so this is intentional and consistent, not a bug.
+## CDP WebAuthn Patterns
 
-### public-sharing.spec.ts — CONFIRMED data-fixture problem, route contract is fine
+### Lifecycle: per-test, not per-suite
 
-**Depends on:** Backend only — no KC, no global-setup storageState, no kcAdmin. Two hardcoded UUIDs: `PUBLIC_SLUG = '4dd5492e-2111-4b38-bc45-47848d27af42'` and `PRIVATE_SLUG = 'e3214d9f-e5a3-47b6-8441-fb167041b4fa'` (`public-sharing.spec.ts:4-5`), plus `PUBLIC_TRIP_ID = '1'`.
+Every passkey test creates its own virtual authenticator in the test body and removes it at the end of the same test. This is the correct lifecycle.
 
-**CONFIRMED root cause:** these UUIDs are not produced by anything in the repo.
-- `backend/src/db/schema.ts:57`: `public_slug: uuid('public_slug').$defaultFn(() => crypto.randomUUID())` — every trip gets a **randomly generated** slug on insert; there is no mechanism to pin it to a specific value.
-- `backend/src/db/seed.ts:590`: the only seed script creates the "Japan 2026" demo trip with `is_public: false` — the opposite of what `PUBLIC_SLUG` requires, and its slug is whatever `crypto.randomUUID()` produced at seed time, not the hardcoded value.
-- No migration, fixture, or `kcAdmin`-equivalent helper creates trips with these specific slugs anywhere in the codebase (`grep` for both UUIDs across all `.ts` files returns only `public-sharing.spec.ts` itself).
+**Why per-test is mandatory:** `kcAdmin.resetCredentials()` deletes WebAuthn credentials from the KC server before each test. If a per-suite authenticator were created in `beforeAll` and shared across tests, its client-side credential store would contain credentials registered in test 1 while KC's server-side store has been reset to empty — the CTAP2 assertion would succeed on the client but KC would reject it because the `credentialId` is no longer registered. Client/server credential stores must be reset in lockstep.
 
-The route contract (`backend/src/routes/public.ts`) is correct and matches the spec's expectations exactly: 400 for invalid slug format, 404 for a private/nonexistent trip, 200 + `{success, data}` for a public trip. **This is purely a missing-fixture problem**, not an app bug and not a flaky-infra problem. It will fail deterministically in any environment unless a developer manually inserted matching rows into a local Postgres instance at some point (which is the most likely explanation for why it ever passed before — environment-specific manual DB state, exactly the kind of failure PROJECT.md asks to flag as "genuinely environment-specific"). **Confidence: HIGH.**
+### Authenticator configuration
 
-### session-management.spec.ts — shared fragile pattern; failure mode is a hypothesis
+All three tests use identical options:
+```
+protocol: 'ctap2'
+transport: 'internal'
+hasResidentKey: true
+hasUserVerification: true    // NOTE: correct spelling — not haUserVerification
+isUserVerified: true
+automaticPresenceSimulation: false
+```
 
-**Depends on:** `fixtures/kc-admin.ts` (`logoutUser`, `getUserSessions`), real browser login via its own `loginViaBrowser()` helper (does **not** use global-setup's storageState — logs in fresh every test), `e2e-test@local`, serial mode (`session-management.spec.ts:95`) because tests mutate shared KC session state for the same user.
+`automaticPresenceSimulation: false` is correct for flows where KC drives the assertion (registration button click → KC form → CDP responds); `true` would auto-assert on every CTAP request, which would interfere with flows where you want to control when assertion happens (e.g., to verify that KC correctly prompts before asserting).
 
-`loginViaBrowser()` (`session-management.spec.ts:44-83`) duplicates the exact same "Try Another Way → Password" / two-step-vs-combined-form detection logic that `global-setup.ts`'s `kcLogin()`/`kcLoginNewUser()` and `otp.spec.ts` test 4 also implement independently, three times, with slightly different selectors (`getByRole('link', ...)` vs `page.locator('a, button').filter(...)`). This is the single most fragile shared surface in the suite: if KC's authentication flow or theme changes how the WebAuthn-first subflow is presented (e.g., a Terraform `flows.tf` change to the `webauthn_passwordless` execution requirement, or a KC version bump altering "Try Another Way" markup), **all three implementations break simultaneously** but would show up as three "unrelated" spec failures in a triage run. **No code-level contract drift found against current `flows.tf`** — this is a hypothesis about a shared brittle pattern, not a confirmed bug. **Confidence: LOW** on root cause, **MEDIUM-HIGH** on "this pattern is a structural risk regardless of current pass/fail state."
+### The login-with-passkey credential transfer pattern
 
-## Patterns to Follow
+`passkeys.spec.ts`'s "login with passkey" test demonstrates the only safe way to test cross-context passkey authentication:
 
-### Pattern 1: Project-level storageState with per-spec override
-**What:** Bind a default authenticated storageState at the Playwright `project` level; specs needing a different identity or anonymous state call `test.use({ storageState: ... })` to override.
-**When:** Default to authenticated, override for the minority of anonymous/different-persona specs.
-**Example:** `playwright.config.ts:25` (project default) vs `otp.spec.ts:13` (override to empty) vs `passkeys.spec.ts:16-18` / `new-user-trip-creation.spec.ts:8` (override to a specific persona file).
+1. Register in authenticated context (existing session, registered authenticator A).
+2. Extract credential bytes from authenticator A via `WebAuthn.getCredentials`.
+3. Create a **new clean browser context** (no cookies, no sessionStorage — forces KC redirect).
+4. Create authenticator B in the new context.
+5. Transfer credential bytes to B via `WebAuthn.addCredential`.
+6. Navigate; KC challenges; authenticator B auto-asserts using the transferred bytes.
 
-### Pattern 2: sessionStorage replay via addInitScript
-**What:** Because `keycloak-js` v26 stores tokens in `sessionStorage` (not captured by Playwright's native `storageState()`), dump it manually post-login and replay it pre-navigation with `context.addInitScript()`.
-**When:** Any spec that needs an authenticated `keycloak-js` token without re-driving the KC login UI.
-**Why it must run before `page.goto()`:** `addInitScript` only affects scripts that run on subsequent navigations; calling it after `goto()` is a no-op for the already-loaded page.
+The clean context must have `WebAuthn.enable` called **before** navigation to the app page — the CDP domain must be enabled before the page loads for the authenticator to intercept the WebAuthn API calls.
 
-## Anti-Patterns Present in the Suite
+### Context-scoped vs page-scoped CDP sessions
 
-### Anti-Pattern 1: Hardcoded environment-specific data IDs in spec files
-**What:** `public-sharing.spec.ts` hardcodes two UUIDs that must exist in a specific local Postgres state with specific `is_public` values.
-**Why bad:** No CI or fresh-clone environment can ever satisfy this without out-of-band manual DB work; the test is non-portable and silently depends on developer-machine history.
-**Instead:** Either (a) extend `seed.ts` to deterministically create a public + a private trip and export their generated slugs for the spec to read, or (b) have the spec create its own fixture trip via the authenticated API in a `beforeAll`/`beforeEach` and capture the real generated slug, cleaning up after itself.
+`page.context().newCDPSession(page)` is page-scoped. For the login test that opens a new context (`browser.newContext()`), a new CDP session against the new context's page (`cleanContext.newCDPSession(cleanPage)`) is required. A CDP session from context A cannot control WebAuthn in context B.
 
-### Anti-Pattern 2: Triplicated fragile UI-navigation logic
-**What:** The "Try Another Way → Password" / two-step-form detection logic is implemented independently in `global-setup.ts` (×2), `session-management.spec.ts`, and `otp.spec.ts` test 4 — four near-identical but not-quite-identical copies.
-**Why bad:** A single KC theme/flow change requires four coordinated fixes; divergent selector strategies (`getByRole` vs `locator(...).filter(...)`) mean some copies may break while others don't, producing confusing partial-failure patterns that look like unrelated bugs.
-**Instead:** Extract a single shared `loginViaKcForm(page, username, password)` helper into `tests/e2e/fixtures/` and have all four call sites use it. This turns "fix N specs" into "fix one fixture" for any future KC flow/theme change.
+---
 
-### Anti-Pattern 3: API-level test using a fixture that cannot carry the auth mechanism it needs
-**What:** `otp.spec.ts` uses Playwright's bare `request` fixture (no browser, no cookies/sessionStorage) to call routes that the backend now gates behind a Bearer JWT sourced from `sessionStorage`.
-**Why bad:** Structurally impossible to fix by changing only the test's request payload — the JWT simply isn't reachable from that fixture type.
-**Instead:** Either switch to a `page`-based flow that logs in for real and extracts the token before making the `request` calls (mirroring `session-management`'s approach), or — if the route is meant to be pre-auth — remove the `authMiddleware` gate from `/otp-request`/`/otp-verify` and restore an `email`-in-body contract.
+## OTP Serial Mode
 
-## Scalability Considerations
+### Why serial mode is mandatory
 
-| Concern | Current (single dev machine) | If KC moves to CI (deferred per PROJECT.md) |
-|---------|------------------------------|----------------------------------------------|
-| storageState freshness window | 20 min, regenerated per `npx playwright test` invocation | Must regenerate every CI run; no persistence across runs — `MAX_AGE_MS` check becomes moot, `kcLogin()` always executes |
-| Mailpit inbox isolation | Serial mode + manual purge in `beforeEach` | Same approach scales fine; inbox is ephemeral per CI run |
-| KC realm state (credentials, OTP codes, sessions) | Reset via `kcAdmin` fixture before each test | Same fixtures work — but `terraform apply` must run before tests in CI, adding pipeline time |
-| Hardcoded data IDs (public-sharing) | Breaks unless manually seeded | Will deterministically fail in CI from day one unless fixed first — this should be fixed regardless of CI timeline |
+`otp.spec.ts` uses `test.describe.configure({ mode: 'serial' })`. This is not a performance choice — it is a correctness constraint.
 
-## Suggested Triage / Fix Order
+The Mailpit inbox (`MAILPIT_URL/api/v1/messages`) is a **shared, ordered message queue** across all tests. `fetchLatestOtp()` reads `messages[0]` (the most recent message). If two OTP tests run in parallel:
+- Test A sends an `otp-request` (Mailpit receives email A)
+- Test B sends an `otp-request` (Mailpit receives email B)
+- Test A calls `fetchLatestOtp()` and gets B's OTP
+- Both tests fail with invalid OTP
 
-The specs are not five independent problems. Ordering below accounts for shared dependencies so a single fix can resolve or de-risk multiple specs at once.
+Serial mode plus `purgeInbox()` in `beforeEach` creates a one-message inbox for every test: purge → send request → inbox has exactly one message → `fetchLatestOtp()` is deterministic.
 
-1. **Run the fresh full-suite triage first** (already mandated by PROJECT.md) — confirms which of the 2 "undetermined" hypotheses (idp-theme, passkeys) and the 1 partial hypothesis (session-management, otp test 4) actually fail, and with what error, before spending fix effort on hypotheses.
+### Why otp.spec.ts is the only Mailpit consumer (and why that must stay true)
 
-2. **Verify `global-setup.ts` produces valid storageState in the current environment, in isolation, before triaging anything downstream of it.** It is the upstream chokepoint: `passkeys.spec.ts` and the real-auth half of `auth.spec.ts` and `new-user-trip-creation.spec.ts` all consume its output directly. If `kcLogin()`/`kcLoginNewUser()` itself is silently producing a stale/invalid `.auth/*.json` (e.g., due to KC flow changes affecting the "Try Another Way" detour), every spec that reads those files will show failures that look spec-specific but aren't. Cheapest check: run `global-setup.ts` alone and inspect `.auth/user.json`/`.auth/session.json` timestamps and content, then run one passkeys test against it.
+Serial mode within a single `describe` block only serializes tests inside that block. If another spec file also sends OTP requests and reads Mailpit, the serial constraint breaks down entirely — `purgeInbox()` in spec B would delete the email spec A is waiting for.
 
-3. **Decide the OTP route contract question** (app bug vs. intentional step-up-auth redesign vs. test needs full rewrite) — this is a product decision, not a test-fix, and blocks any code change to `otp.spec.ts` tests 1–3. This is independent of the global-setup chokepoint and can be triaged in parallel with step 2.
+**Extension rule**: any future test that touches the Mailpit inbox must either (a) be added to the existing serial `describe` block in `otp.spec.ts`, or (b) switch to a per-recipient isolation strategy: send OTP for a unique test-user, then query Mailpit's search-by-recipient API (`GET /api/v1/search?query=to:unique-user@local`) instead of reading `messages[0]`. Option (b) drops the serial constraint entirely and is the correct approach if OTP coverage expands to multiple test personas.
 
-4. **Fix `public-sharing.spec.ts`'s data dependency** — independent of every other spec (no KC, no storageState dependency). Lowest-risk, highest-certainty fix in the batch: extend `seed.ts` or add a `beforeAll` fixture-trip creation step, then read the real generated slug instead of hardcoding it. Can be done in parallel with steps 2–3.
+### Current OTP contract question (confirmed, unresolved)
 
-5. **Extract the shared `loginViaKcForm()` helper** (Anti-Pattern 2) once `global-setup.ts` is confirmed healthy — this de-risks `session-management.spec.ts` and `otp.spec.ts` test 4 together, and reduces future-maintenance surface for any KC flow/theme change. Doing this *before* triaging session-management individually avoids fixing the same navigation bug three separate times if it turns out to be the shared root cause.
+Tests 1–3 in `otp.spec.ts` are **structurally guaranteed to fail** regardless of environment:
+- `backend/src/routes/auth.ts` gates `/otp-request` and `/otp-verify` behind `authMiddleware` — requires a valid `Authorization: Bearer <JWT>`.
+- The backend derives the target email from `c.get('user').email` (the JWT claim), not from a request body `email` field.
+- `otp.spec.ts` uses Playwright's bare `request` fixture (no browser, no sessionStorage), sends `{ email: OTP_USERNAME, ... }` with no `Authorization` header, and expects 200 responses.
+- The middleware short-circuits with 401 before any OTP logic runs.
 
-6. **idp-theme.spec.ts** — lowest priority to actively "fix" since code-level verification found no contract drift; if the triage run shows it failing, the fix is almost certainly environmental (KC reachability, timing) rather than a code change. If it passes in the fresh run, no action needed.
+This is a product/design question, not a test-configuration question. Two resolutions:
+- **Resolution A (route is intentional step-up-auth)**: rewrite tests 1–3 to drive a real browser login first, extract the Bearer token, and supply it to the `request` calls. The `email` field in the request body becomes irrelevant (server reads from JWT).
+- **Resolution B (route should be pre-auth)**: remove `authMiddleware` / `ensureUserProvisioned` from `/otp-request` and `/otp-verify`, restore `email` in the request body contract. Tests 1–3 work as written.
 
-## Sources
+The triage phase must read `auth.test.ts` and any Phase 8/9 plan docs to determine which behavior was designed — do not assume either resolution without evidence.
 
-- `tests/global-setup.ts` (full read) — HIGH confidence, primary source
-- `tests/playwright.config.ts` (full read) — HIGH confidence, primary source
-- `tests/e2e/idp-theme.spec.ts`, `otp.spec.ts`, `passkeys.spec.ts`, `public-sharing.spec.ts`, `session-management.spec.ts`, `auth.spec.ts`, `trips.spec.ts` (full reads) — HIGH confidence, primary source
-- `tests/e2e/fixtures/kc-admin.ts`, `mailpit-helpers.ts` (full reads) — HIGH confidence, primary source
-- `backend/src/routes/auth.ts`, `public.ts`, `middleware/auth.ts`, `validation/schemas.ts`, `db/schema.ts`, `db/seed.ts` (relevant sections read) — HIGH confidence, primary source
-- `terraform/keycloak/main.tf`, `flows.tf` (relevant sections read) — HIGH confidence, primary source
-- `keycloak/themes/japan-trip/login/footer.ftl`, `resources/css/login.css` (relevant sections read) — HIGH confidence, primary source
-- `git log` on the 5 spec files — confirms none touched since phase 03/09 commits (pre-v3.0), corroborating PROJECT.md's "stale failure list" note — HIGH confidence
-- `.planning/PROJECT.md` — HIGH confidence, primary source for milestone scope and prior known-failure list
-- No live test run was performed in this research session (no servers/KC instance started) — all failure hypotheses for idp-theme, passkeys, and session-management/otp-test-4 are pending the mandated fresh triage run, not independently verified by execution.
+Test 4 ("UPDATE_PASSWORD gate") is a separate failure class: it uses a real browser login via KC form, with the same "Try Another Way → Password" navigation fragility documented in the session-management section. It is not affected by the Bearer/email contract question.
+
+---
+
+## Triage Architecture
+
+### Error taxonomy
+
+| Category | Symptom Signature | How to Confirm | Owning Layer |
+|----------|-------------------|---------------|--------------|
+| **App bug** | Test assertion fails on a definite behavior (wrong HTTP status, wrong UI text), not timing; failure is deterministic | Check the backend route / frontend module against the spec assertion; confirm on multiple runs | Application code (`backend/`, `frontend/`) |
+| **Test contract drift** | Test sends payload/headers the app now rejects before reaching the asserted logic | Trace the request through the backend middleware chain; compare spec inputs vs route contract | Test file itself; may require app change if contract intent is disputed |
+| **Test timing / flakiness** | Failure non-deterministic; `waitForTimeout` substituted for real conditions; `toBeVisible` races | Re-run test 3×; check for hardcoded `waitForTimeout` calls; confirm with Playwright trace | Test file — replace with event-based waits (`waitForURL`, `waitForSelector`, `waitForLoadState`) |
+| **KC state pollution** | Unexpected KC session active, unexpected credential present, OTP codes from prior run interfere | Check `beforeEach` reset coverage; verify `kcAdmin` operations complete before the test body | Fixture setup / `beforeEach` ordering |
+| **Auth session expiry** | Timeout waiting for authenticated content; KC redirects to login unexpectedly | Inspect `.auth/user.json` mtime; check `.auth/session.json` for valid access_token; verify no refresh token present | `global-setup.ts` storageState freshness |
+| **Environment / infrastructure** | Spec skips or throws on network connection to KC/backend; consistent across all runs in the same environment | Try `request.get(KEYCLOAK_URL/realms/...)` in isolation; check Docker Desktop / container health | Environment setup — not a code fix |
+
+### Per-spec confirmed vs hypothetical status
+
+| Spec | Status | Confirmed Root Cause |
+|------|--------|---------------------|
+| `idp-theme.spec.ts` | HYPOTHESIS (env/timing) | Code-level verification clean; no contract drift found. Fails only if KC unreachable or networkidle timing races. Confidence: MEDIUM |
+| `otp.spec.ts` tests 1–3 | CONFIRMED (contract mismatch) | Bearer-JWT gate + email-from-JWT-claim vs spec's unauthenticated email-in-body. Confidence: HIGH |
+| `otp.spec.ts` test 4 | HYPOTHESIS (shared nav fragility) | No code-level contradiction; shares "Try Another Way" navigation pattern fragility. Confidence: LOW |
+| `passkeys.spec.ts` | HYPOTHESIS (storageState/kcAdmin auth) | No CDP or app contract drift found; failure would cascade from stale `.auth/*.json` or service-account secret mismatch. Confidence: LOW |
+| `public-sharing.spec.ts` | CONFIRMED (missing data fixture) | Hardcoded UUIDs not produced by any seed/migration. Route contract is correct. Confidence: HIGH |
+| `session-management.spec.ts` | HYPOTHESIS (shared nav fragility) | No code-level contract drift; `loginViaBrowser()` uses same fragile selector pattern as `global-setup.ts`. Confidence: LOW/MEDIUM |
+
+### New vs modified artifacts required
+
+| Artifact | Action | Why |
+|----------|--------|-----|
+| `tests/e2e/fixtures/login-helper.ts` | **CREATE NEW** | Extract shared `loginViaKcForm(page, username, password)` helper from 4 independent copies (global-setup ×2, session-management, otp test 4). One fix per KC flow/theme change instead of four. |
+| `backend/src/db/seed.ts` (or new `tests/e2e/fixtures/trip-fixture.ts`) | **CREATE NEW or MODIFY** | `public-sharing.spec.ts` needs a deterministic public trip slug. Either seed creates a pinned public trip and exports its slug, or a `beforeAll` fixture creates a trip via API and captures the real generated slug. |
+| `otp.spec.ts` tests 1–3 | **MODIFY** (after contract decision) | Either add Bearer token injection (Resolution A) or await backend contract change (Resolution B). |
+| `backend/src/routes/auth.ts` | **MODIFY** (if Resolution B) | Remove `authMiddleware` / `ensureUserProvisioned` from OTP routes; add `email` field back to `OtpRequestSchema` / `OtpVerifySchema`. |
+| `global-setup.ts` | **MODIFY** (if "Try Another Way" is the root cause) | Replace ad-hoc selectors with the shared `loginViaKcForm()` helper once it exists. |
+| `session-management.spec.ts` | **MODIFY** (after helper is created) | Replace `loginViaBrowser()` with the shared helper. |
+
+---
+
+## Build Order
+
+The specs are not five independent problems. Fixing in dependency order prevents diagnosing the same root cause multiple times under different spec names.
+
+### Step 1: Verify the upstream chokepoint in isolation (blocks 3 specs)
+
+Before triaging any spec that consumes `.auth/*.json`, verify `global-setup.ts` produces valid state in the current environment:
+- Run `global-setup.ts` alone (or `npx playwright test --global-setup-only` if supported, otherwise run one passkeys test and inspect `.auth/user.json` + `.auth/session.json` after).
+- Confirm `.auth/session.json` contains `access_token` and `refresh_token` (both present = valid KC session with offline access; `access_token` only = post-silent-check-sso case where refresh will fail).
+- Confirm the "Try Another Way → Password" navigation completed successfully (check the mtime of the file vs when you ran the command — if it's old and was not regenerated, the freshness gate reused a stale file).
+
+Depends on: running Docker environment. Blocks: `passkeys.spec.ts`, `auth.spec.ts` (real-auth describe), `new-user-trip-creation.spec.ts`.
+
+### Step 2: Run the full fresh triage (all specs in parallel)
+
+Mandated by PROJECT.md. Confirms which hypothesis specs actually fail and with what error message / trace. The fresh run also confirms whether the two CONFIRMED failures are the only deterministic issues or if hypotheses have also materialized.
+
+Do not attempt individual fixes before this run — the stale failure list may not reflect current state.
+
+### Step 3: Fix `public-sharing.spec.ts` (independent, highest-certainty)
+
+No KC, no storageState, no kcAdmin dependency. Lowest risk, deterministic fix:
+- **Option A (preferred)**: extend `backend/src/db/seed.ts` to insert a trip with a known slug (set `public_slug` explicitly in the insert, bypassing the random `defaultFn`), set `is_public: true`, and also insert a private trip with a known slug. Export both values as constants importable by the spec.
+- **Option B**: add a `beforeAll` in `public-sharing.spec.ts` that calls the authenticated API to create a trip, captures the generated slug from the response, sets `is_public: true` via an update call, and stores it in a test-scoped variable. `afterAll` deletes the trip. This makes the spec fully self-contained without seeding.
+
+Option A is simpler and eliminates the authenticated-API dependency in a spec that currently has none. Option B is more portable across DB states.
+
+Artifact: **MODIFY** `seed.ts` (Option A) or **CREATE** trip fixture helper (Option B).
+
+### Step 4: Resolve the OTP contract question (product decision, unblocks otp tests 1–3)
+
+This is not a test fix — it is a design decision about whether `/otp-request`/`/otp-verify` are pre-auth or step-up-auth routes. Requires reading `auth.test.ts` and Phase 8/9 plan docs to determine original intent. Once decided:
+- **Resolution A**: modify `otp.spec.ts` tests 1–3 to drive browser login and extract token.
+- **Resolution B**: modify `backend/src/routes/auth.ts` to remove auth middleware from OTP routes.
+
+This is independent of steps 1–3 and can be worked in parallel with step 3.
+
+### Step 5: Extract `loginViaKcForm()` shared helper (unblocks session-management and otp test 4)
+
+Once `global-setup.ts` is confirmed healthy (step 1) and the full triage run is complete (step 2), extract the shared login navigation into `tests/e2e/fixtures/login-helper.ts`. Update all four call sites:
+- `global-setup.ts:kcLogin()` body
+- `global-setup.ts:kcLoginNewUser()` body
+- `session-management.spec.ts:loginViaBrowser()`
+- `otp.spec.ts` test 4 inline login
+
+This fix is multiplicative: if the "Try Another Way" selector is the root cause for session-management or otp test 4, this one extraction fixes both. It also protects all four against any future KC flow/theme change.
+
+Artifact: **CREATE** `tests/e2e/fixtures/login-helper.ts`.
+
+### Step 6: Individual spec fixes for remaining failures
+
+After steps 1–5, any remaining failures are either:
+- App bugs (discovered in fresh triage; fix in application code, add/update spec assertions)
+- Genuine environment-specific issues to formally document as accepted skips
+
+Tackle in order of certainty: confirmed bugs first, then investigate hypotheses with traces from step 2. `idp-theme.spec.ts` is the last to touch — if it passes in step 2, it needs no action; if it fails, the diagnosis is almost certainly environmental, not a code fix.
+
+### Dependency graph summary
+
+```
+Step 1 (global-setup verification)
+  └─ unblocks: passkeys.spec.ts diagnosis, auth.spec.ts real-auth diagnosis
+
+Step 2 (fresh triage run)
+  └─ confirms/refutes: idp-theme, passkeys, session-management, otp test 4 hypotheses
+
+Step 3 (public-sharing data fixture) ← independent; run in parallel with steps 1-2
+Step 4 (OTP contract decision)       ← independent; run in parallel with steps 1-2
+
+Step 5 (loginViaKcForm helper)
+  └─ requires: Step 2 complete (need triage output to know which selectors fail)
+  └─ unblocks: session-management fix, otp test 4 fix
+
+Step 6 (remaining individual fixes)
+  └─ requires: all prior steps complete
+```
