@@ -4,9 +4,14 @@
 
 A full-stack web app for planning, visualizing, and sharing trip itineraries. Users build trips with destinations, hotels, day-by-day chronograms, and activities — all rendered on an interactive Leaflet map. Keycloak OIDC auth with passkeys and OTP fallback. Built as both a portfolio piece and a personally useful tool. v2.0 shipped a hardened auth infrastructure with Terraform IaC, email OTP fallback, passkey campaign, and Playwright real-auth E2E coverage. v3.0 shipped quality, polish, and developer experience: a unified design language between the app and Keycloak, centralized error handling, a single-command dev environment with all KC test users as IaC, an OAuth/OIDC security audit, and full new-user trip-creation E2E parity.
 
-## Current Milestone: Planning next (post-v3.0)
+## Current Milestone: v3.1 E2E Stabilization
 
-v3.0 shipped 2026-06-15. No active milestone — awaiting `/gsd-new-milestone`.
+**Goal:** Get the full Playwright E2E suite green. Pure stabilization — no new product features.
+
+**Target features:**
+- Fresh full-suite triage run against current `main` to get an accurate failure list (prior known failures — idp-theme, otp, passkeys ×3, public-sharing, session-management — are stale, several commits old)
+- Root-cause and fix each failing spec for real (app bug or test bug, whichever it is)
+- Formally document any spec that's genuinely environment-specific and can't reasonably be fixed as an accepted skip/deferral, not silently ignored
 
 ## Core Value
 
@@ -38,9 +43,9 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - ✓ Design consistency: `--jp-*` tokens throughout app + Keycloak IDP (login, account, email templates) — v3.0 (Phase 10)
 - ✓ Theme consistency: light/dark toggle persists across all MPA flows including Leaflet tile switching — v3.0 (Phase 10)
 
-### Active (next milestone — TBD)
+### Active (v3.1)
 
-(None yet — run `/gsd-new-milestone` to scope the next milestone)
+(Defined in next step — see `.planning/REQUIREMENTS.md`)
 
 ### Future (deferred, unscoped)
 
@@ -50,7 +55,6 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - [ ] **Real-auth E2E in CI**: Keycloak in CI environment; SKIP_REAL_AUTH removed from pipeline
 - [ ] **Passkey rename**: PUT credentials/{id}/label
 - [ ] **Prod rpId for passkeys**: Set to Railway hostname in Terraform before any prod passkey registration
-- [ ] **Investigate 7 unrelated failing E2E specs**: idp-theme, otp, passkeys ×3, public-sharing, session-management — flagged during v3.0 Phase 14 work, not yet triaged
 
 ### Out of Scope
 
@@ -73,7 +77,7 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - Security: RFC 9700 checklist on file, JWKS retry-on-failure, CSP/HSTS/X-Frame-Options headers, E2E audience-rejection coverage
 - New-user flow: full UI-driven trip creation (destination/hotel/day/activity/geocoder/map/search) covered by Playwright E2E with no ROPC anywhere in the suite
 - Production deployment still not configured (Cloudflare + Neon + Railway) — deferred, unscoped
-- Known open item: 7 pre-existing E2E specs (idp-theme, otp, passkeys ×3, public-sharing, session-management) failing, not yet triaged
+- In scope for v3.1: 7 pre-existing E2E specs (idp-theme, otp, passkeys ×3, public-sharing, session-management) were failing as of v3.0 close — fresh triage run needed since this list is stale
 
 **Known critical constraint (carried forward):**
 - `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before any prod passkey registration — no migration path exists
@@ -124,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-15 — v3.0 milestone shipped*
+*Last updated: 2026-06-15 — v3.1 milestone started*

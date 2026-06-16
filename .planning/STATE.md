@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: null
-status: milestone_complete
-stopped_at: v3.0 archived — awaiting next milestone
+milestone: v3.1
+milestone_name: E2E Stabilization
+status: defining_requirements
+stopped_at: v3.1 milestone started — defining requirements
 last_updated: "2026-06-15T00:00:00.000Z"
-last_activity: 2026-06-15 -- v3.0 milestone archived (ROADMAP/REQUIREMENTS archived, PROJECT.md evolved, phases 10-14 moved to milestones/v3.0-phases/, tagged)
+last_activity: 2026-06-15 -- v3.1 milestone started (PROJECT.md updated with goal/features)
 progress:
   total_phases: 0
   completed_phases: 0
@@ -18,18 +18,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-15 — v3.0 shipped)
+See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** Planning next milestone
+**Current focus:** v3.1 E2E Stabilization — get the full Playwright E2E suite green
 
 ## Current Position
 
-Phase: none — `.planning/phases/` is empty, ready for next milestone
-Next: `/gsd-new-milestone`
-Status: v3.0 archived (5 phases, 19 plans, 30/30 requirements complete, 1 accepted deviation)
+Phase: Not started (defining requirements)
+Next: Define REQUIREMENTS.md, then `/gsd-plan-phase 15`
+Status: Defining requirements for v3.1
 
-Progress: [          ] 0% (next milestone not yet scoped)
+Progress: [          ] 0% (requirements not yet defined)
 
 ## Performance Metrics
 
@@ -68,5 +68,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-15
-Stopped at: v3.0 milestone archived and tagged
-Resume: /gsd-new-milestone
+Stopped at: v3.1 milestone started, PROJECT.md updated
+Resume: continue `/gsd-new-milestone` — define requirements, then create roadmap
