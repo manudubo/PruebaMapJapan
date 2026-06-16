@@ -4,6 +4,7 @@
 
 - ✅ **v2.0 Auth Infrastructure & Hardening** — Phases 1–9 (shipped 2026-05-28)
 - ✅ **v3.0 Quality, Polish & DevX** — Phases 10–14 (shipped 2026-06-15)
+- 🔄 **v3.1 E2E Stabilization** — Phases 15–19 (in progress)
 
 ## Phases
 
@@ -33,6 +34,69 @@
 
 </details>
 
+### v3.1 E2E Stabilization (Phases 15–19)
+
+- [ ] **Phase 15: Triage + Config** - Run fresh full-suite triage and fix passkeys Chromium scoping
+- [ ] **Phase 16: Independent Spec Fixes** - Fix public-sharing fixture and IDP theme assertions
+- [ ] **Phase 17: OTP + Login Helper** - Fix OTP contract and extract shared KC form helper
+- [ ] **Phase 18: Passkeys Fixes** - Fix authenticator lifecycle and credential reset
+- [ ] **Phase 19: Session + Closure** - Fix session-management selectors and document all outcomes
+
+## Phase Details
+
+### Phase 15: Triage + Config
+**Goal**: The team has an authoritative, current failure list and passkeys Chromium-scoping is corrected so signal from subsequent fixes is not polluted by cross-browser config bugs
+**Depends on**: Nothing (first phase of v3.1)
+**Requirements**: SETUP-01, SETUP-02
+**Success Criteria** (what must be TRUE):
+  1. A full suite run with `trace: 'retain-on-failure'` and `retries: 1` completes and produces a written failure list that supersedes the stale v3.0 list
+  2. `passkeys.spec.ts` no longer appears as a failure under `firefox` or `webkit` projects — the spec only runs under a Chromium-scoped project
+  3. The triage output cleanly distinguishes which failures are pre-existing versus newly introduced by recent commits
+**Plans**: TBD
+
+### Phase 16: Independent Spec Fixes
+**Goal**: The two specs that have no auth dependency and no coupling to the shared login helper — `public-sharing.spec.ts` and `idp-theme.spec.ts` — are green and can run independently
+**Depends on**: Phase 15
+**Requirements**: SHARE-01, SHARE-02, THEME-01, THEME-02, THEME-03
+**Success Criteria** (what must be TRUE):
+  1. `public-sharing.spec.ts` creates its own fixture data (public and private trips) in `beforeAll` — no hardcoded UUIDs, no dependency on pre-existing seed state
+  2. `public-sharing.spec.ts` assertions reference current English loading/error copy, not the removed Spanish placeholder
+  3. `idp-theme.spec.ts` runs with an empty `storageState` so an inherited KC SSO session cannot prevent the login page from rendering
+  4. `idp-theme.spec.ts` uses a valid PKCE S256 `code_challenge` in `LOGIN_URL` so KC 26 does not reject the auth request before the login page renders
+  5. All DOM and CSS assertions in `idp-theme.spec.ts` match the current KC 26 template structure and pass reliably
+**Plans**: TBD
+
+### Phase 17: OTP + Login Helper
+**Goal**: OTP specs pass against the actual route contract, and a single shared KC form-navigation helper replaces the four independent implementations so a KC flow change requires one fix
+**Depends on**: Phase 15
+**Requirements**: OTP-01, OTP-02, OTP-03, SESSION-02
+**Success Criteria** (what must be TRUE):
+  1. `fetchLatestOtp()` uses a polling loop so SMTP delivery lag does not produce false failures
+  2. `otp.spec.ts` tests 1–3 satisfy the auth-gated route contract for `/api/auth/otp-request` and `/otp-verify` — no structural mismatch between spec and backend
+  3. `otp.spec.ts` test 4 drives the KC browser flow using the shared helper and passes reliably
+  4. A single `loginViaKcForm(page, username, password)` fixture exists and is used in all four former call sites (`global-setup.ts` ×2, `session-management.spec.ts`, `otp.spec.ts`)
+**Plans**: TBD
+
+### Phase 18: Passkeys Fixes
+**Goal**: `passkeys.spec.ts` passes reliably under the `chromium-passkeys` project with no unexplained residual failures
+**Depends on**: Phase 15
+**Requirements**: PASS-01, PASS-02, PASS-03
+**Success Criteria** (what must be TRUE):
+  1. A mid-test failure in `passkeys.spec.ts` does not leave a stale virtual authenticator — cleanup runs in `afterEach` unconditionally
+  2. `kcAdmin.resetCredentials` leaves the test user's required actions clean — the passkey campaign flow cannot hijack the next test after a reset
+  3. `passkeys.spec.ts` passes green under the `chromium-passkeys` project with no unexplained failures
+**Plans**: TBD
+
+### Phase 19: Session + Closure
+**Goal**: `session-management.spec.ts` passes, and every test outcome in the suite is accounted for — green, root-caused and fixed, or explicitly documented as an accepted deferral
+**Depends on**: Phase 17, Phase 18
+**Requirements**: SESSION-01, DOC-01, DOC-02
+**Success Criteria** (what must be TRUE):
+  1. `session-management.spec.ts` `loginViaBrowser()` uses the shared `loginViaKcForm` helper and passes reliably against the current KC browser-flow shape
+  2. Any spec that cannot be fixed due to genuine environment constraints is marked `test.fixme(condition, reason)` with an explicit rationale — no silently skipped or unexplained failures remain
+  3. The full E2E suite run produces zero unexplained failures — every outcome is green, has a merged fix, or has a documented and accepted deferral on record
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -51,6 +115,11 @@
 | 12. Terraform Expansion + Dev Script | v3.0 | 2/2 | Complete | 2026-06-02 |
 | 13. Security Audit + Documentation | v3.0 | 5/5 | Complete | 2026-06-07 |
 | 14. E2E Expansion + New User Parity | v3.0 | 4/4 | Complete | 2026-06-09 |
+| 15. Triage + Config | v3.1 | 0/? | Not started | - |
+| 16. Independent Spec Fixes | v3.1 | 0/? | Not started | - |
+| 17. OTP + Login Helper | v3.1 | 0/? | Not started | - |
+| 18. Passkeys Fixes | v3.1 | 0/? | Not started | - |
+| 19. Session + Closure | v3.1 | 0/? | Not started | - |
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*
 *Full v3.0 phase details in `.planning/milestones/v3.0-ROADMAP.md`*

@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
-status: defining_requirements
-stopped_at: v3.1 milestone started — defining requirements
-last_updated: "2026-06-15T00:00:00.000Z"
-last_activity: 2026-06-15 -- v3.1 milestone started (PROJECT.md updated with goal/features)
+status: ready_to_plan
+stopped_at: Roadmap created — ready to plan Phase 15
+last_updated: "2026-06-16T00:00:00.000Z"
+last_activity: 2026-06-16 -- v3.1 roadmap created (Phases 15–19, 17 requirements mapped)
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Next: Define REQUIREMENTS.md, then `/gsd-plan-phase 15`
-Status: Defining requirements for v3.1
+Phase: 15 (Triage + Config) — not yet started
+Next: `/gsd-plan-phase 15`
+Status: Ready to plan
 
-Progress: [          ] 0% (requirements not yet defined)
+Progress: [          ] 0% (0/5 phases complete)
 
 ## Performance Metrics
 
@@ -50,9 +50,9 @@ None.
 
 ### Blockers/Concerns
 
-- Passkey AIA templates are frozen — run `passkeys.spec.ts` after any future theme change
-- Pre-existing Terraform drift (protocol mapper replacements, email_theme) remains open from v2.0/v3.0 — not yet anyone's explicit scope
-- 7 pre-existing failing E2E specs (idp-theme, otp, passkeys ×3, public-sharing, session-management) — flagged during v3.0 Phase 14, not triaged
+- OTP route auth-gating: `backend/src/routes/auth.ts:92` gates `/api/auth/otp-request` and `/otp-verify` behind `authMiddleware`. Whether this is intentional step-up auth or a regression needs a product decision before Phase 17 planning — whichever direction, the spec must match the real contract.
+- KC browser-flow shape (WebAuthn-first vs password-first) needs a live walkthrough before implementing `loginViaKcForm()` in Phase 17.
+- Fresh triage run (Phase 15) may surface failures not in the stale v3.0 list — Phase 16/17/18 scopes may need adjustment after triage.
 
 ## Deferred Items
 
@@ -63,10 +63,11 @@ None.
 | PASS | Rename passkey (PUT credentials/{id}/label) | Deferred, unscoped | v1.0 planning |
 | PROD | prod rpId for passkeys (Railway hostname in Terraform) | Deferred, unscoped | Phase 09 |
 | PROD | Real-auth E2E in CI (requires KC in CI environment) | Deferred, unscoped | Phase 09 |
-| E2E | 7 unrelated failing specs (idp-theme, otp, passkeys ×3, public-sharing, session-management) | Deferred, unscoped | v3.0 Phase 14 |
+| E2E | OTP brute-force lockout: add `attackDetection.del` to `beforeEach` | Deferred to future | v3.1 planning |
+| E2E | Per-recipient Mailpit isolation (`search?query=to:...`) | Deferred to future | v3.1 planning |
 
 ## Session Continuity
 
-Last session: 2026-06-15
-Stopped at: v3.1 milestone started, PROJECT.md updated
-Resume: continue `/gsd-new-milestone` — define requirements, then create roadmap
+Last session: 2026-06-16
+Stopped at: v3.1 roadmap created, all 17 requirements mapped to Phases 15–19
+Resume: `/gsd-plan-phase 15`

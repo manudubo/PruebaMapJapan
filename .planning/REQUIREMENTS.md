@@ -61,24 +61,22 @@
 
 ## Traceability
 
-_(Filled by roadmapper)_
-
 | REQ-ID | Phase |
 |--------|-------|
-| SETUP-01 | — |
-| SETUP-02 | — |
-| PASS-01 | — |
-| PASS-02 | — |
-| PASS-03 | — |
-| OTP-01 | — |
-| OTP-02 | — |
-| OTP-03 | — |
-| SHARE-01 | — |
-| SHARE-02 | — |
-| THEME-01 | — |
-| THEME-02 | — |
-| THEME-03 | — |
-| SESSION-01 | — |
-| SESSION-02 | — |
-| DOC-01 | — |
-| DOC-02 | — |
+| SETUP-01 | Phase 15 |
+| SETUP-02 | Phase 15 |
+| PASS-01 | Phase 18 |
+| PASS-02 | Phase 18 |
+| PASS-03 | Phase 18 |
+| OTP-01 | Phase 17 |
+| OTP-02 | Phase 17 |
+| OTP-03 | Phase 17 |
+| SHARE-01 | Phase 16 |
+| SHARE-02 | Phase 16 |
+| THEME-01 | Phase 16 |
+| THEME-02 | Phase 16 |
+| THEME-03 | Phase 16 |
+| SESSION-01 | Phase 19 |
+| SESSION-02 | Phase 17 |
+| DOC-01 | Phase 19 |
+| DOC-02 | Phase 19 |
