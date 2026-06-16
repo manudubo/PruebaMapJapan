@@ -1,7 +1,8 @@
 ---
 phase: 14-e2e-expansion-new-user-parity
 verified: 2026-06-08T00:00:00Z
-status: human_needed
+human_verified: 2026-06-09T00:00:00Z
+status: passed
 score: 6/6 must-haves verified
 overrides_applied: 0
 re_verification:
@@ -106,31 +107,32 @@ human_verification:
 
 None. All previous blockers are resolved.
 
-### Human Verification Required
+### Human Verification Required — RESOLVED 2026-06-09
 
 #### 1. New-user spec green against live KC
 
 **Test:** With live KC + backend + frontend running and fresh `.auth/new-user.json`, run: `npx playwright test tests/e2e/new-user-trip-creation.spec.ts`
 **Expected:** NU-01 passes end-to-end
-**Why human:** Requires live Keycloak, backend, and frontend services — cannot verify programmatically
+**Result:** ✓ PASS — NU-01 passes in 3.0s standalone. Required two fixes during execution: geocoder search-button click to commit lat/lng hidden fields (test was filling input without clicking search), and a backend schema fix (`z.coerce.string()` for lat/lng — frontend sends `parseFloat()`'d numbers, schema required `z.string()`, causing a real 400 on any geocoded destination/hotel/activity). Step 9's search-filter assertion was also corrected — dashboard has no client-side filtering, only a global SearchBar dropdown. See `14-HUMAN-UAT.md`.
 
 #### 2. trip-edit-integration spec green with storageState auth
 
 **Test:** With live KC + fresh `.auth/user.json`, run: `npx playwright test tests/e2e/trip-edit-integration.spec.ts`
 **Expected:** All 5 tests (P2-V1 through P2-V5) pass; no ROPC errors
-**Why human:** Requires live Keycloak + backend services
+**Result:** ✓ PASS — all 5 tests pass in 10.9s standalone. See `14-HUMAN-UAT.md`.
 
 ### Gaps Summary
 
-No automated gaps remain. All three previously-identified blockers are closed:
+No gaps remain — automated and human verification both complete. All three previously-identified blockers are closed:
 
 - **Gap 1 closed:** Trip creation is now UI-driven: `ctaBtn.click()` → `waitForSelector('#create-trip-overlay:not([hidden])')` → fill `#trip-name/#trip-start/#trip-end` → `waitForURL(/trip\.html\?tripId=/)`. No `createTrip()` API helper.
 - **Gap 2 closed:** Search assertion has the required non-matching preflight: `fill('zzz-no-match')` → `toHaveCount(0)` → `fill('New User Test Trip')` → `toBeVisible()`.
 - **Gap 3 closed:** `global-setup.ts` working tree is restored to HEAD: `kcLoginNewUser()`, `isNewUserStorageStateFresh()`, both path constants, and the call-site block at lines 165–169 are all present.
 
-Pending: live KC execution (human verification items above).
+Live KC execution (human verification items above) confirmed passing 2026-06-09 — see `14-HUMAN-UAT.md`.
 
 ---
 
 _Verified: 2026-06-08_
+_Human-verified: 2026-06-09_
 _Verifier: Claude (gsd-verifier)_

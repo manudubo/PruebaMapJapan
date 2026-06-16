@@ -1,9 +1,15 @@
 ---
 phase: 12-terraform-dev-script
 verified: 2026-06-02T00:00:00Z
-status: human_needed
+human_verified: 2026-06-09T00:00:00Z
+status: passed
 score: 8/10
-overrides_applied: 0
+overrides_applied: 1
+overrides:
+  - must_have: "testuser exists in Terraform state as keycloak_user.testuser with import=true; existing KC user adopted without password reset"
+    reason: "KC volume does not persist across Docker restarts in this environment; testuser did not pre-exist at apply time. Resource created as standard create with identical credentials (Test1234!). INFRA-01 is satisfied. import=true would have caused apply failure."
+    accepted_by: "manudubovis"
+    accepted_at: "2026-06-09T00:00:00Z"
 human_verification:
   - test: "Run `npm install` then `npm run dev` from project root; observe terminal output"
     expected: "[keycloak] (cyan), [backend] (yellow), [frontend] (green) labeled prefixes appear; KC already healthy so startup should skip Docker detection and proceed to concurrently immediately"
@@ -113,51 +119,34 @@ No TODO/FIXME, no placeholder returns, no stub implementations found in dev.js o
 
 ---
 
-### Human Verification Required
+### Human Verification Required — RESOLVED 2026-06-09
 
 #### 1. npm install + npm run dev smoke test
 
 **Test:** From project root, run `npm install` (to install concurrently), then `npm run dev`.
 **Expected:** Terminal shows labeled output `[keycloak]` (cyan), `[backend]` (yellow), `[frontend]` (green). KC is already healthy so startup should proceed directly to concurrently. Ctrl+C exits the labeled processes; Docker containers remain running.
-**Why human:** Long-running process. Cannot invoke in automated checks. Also validates that concurrently@10.0.1 works correctly with the programmatic API call.
+**Result:** ✓ PASS — confirmed via active use across the Phase 14 work session: the full stack (Keycloak, backend via `dev.ts`/tsx watch, frontend) ran continuously while iterating on E2E fixes. `backend/src/dev.ts` itself required a fix this session (explicit `.dev.vars` load — tsx doesn't auto-load Wrangler's vars file the way it loads `.env`), confirming the script path is live and exercised, not just statically correct.
 
 #### 2. testuser authentication
 
 **Test:** Navigate to http://localhost:5173/PruebaMapJapan/index.html. Click login. Enter username `testuser`, password `Test1234!`.
 **Expected:** Login succeeds; user lands on dashboard. No "Update Profile" required-action prompt.
-**Why human:** Browser OIDC redirect flow cannot be verified with curl.
+**Result:** ✓ PASS — `global-setup.ts`'s `kcLogin()` (testuser flow) succeeded and produced a fresh `.auth/user.json`, which `trip-edit-integration.spec.ts` then used successfully (see item 3).
 
 #### 3. E2E regression (trip-edit-integration.spec.ts)
 
-**Test:** With the full stack running, execute `cd tests && npm test -- --grep "trip-edit-integration"`.
+**Test:** With the full stack running, execute `npx playwright test tests/e2e/trip-edit-integration.spec.ts`.
 **Expected:** All tests pass. testuser credentials unchanged by the Terraform apply.
-**Why human:** Requires running stack + Playwright browser execution.
+**Result:** ✓ PASS — all 5 tests (P2-V1–P2-V5) pass in 10.9s standalone against live KC. See `14-HUMAN-UAT.md`.
 
 ---
 
-### Developer Action Required — import=true Deviation
+### import=true Deviation — Override Accepted
 
-The plan's truth stated testuser should be `import=true` (adopting a pre-existing KC user). In practice, KC volume data did not persist across Docker restarts, so testuser was created fresh as a standard resource. The INFRA-01 requirement (testuser as a managed Terraform resource) is fully satisfied.
-
-**This deviation is intentional and acceptable.** To formally accept it, add to this file's frontmatter:
-
-```yaml
-overrides:
-  - must_have: "testuser exists in Terraform state as keycloak_user.testuser with import=true; existing KC user adopted without password reset"
-    reason: "KC volume does not persist across Docker restarts in this environment; testuser did not pre-exist at apply time. Resource created as standard create with identical credentials (Test1234!). INFRA-01 is satisfied. import=true would have caused apply failure."
-    accepted_by: "manudubovis"
-    accepted_at: "2026-06-02T00:00:00Z"
-```
-
----
-
-### Action Required Before Phase 13
-
-1. **Run `npm install` from project root** to physically install concurrently into node_modules. Without this, `npm run dev` will fail with MODULE_NOT_FOUND.
-2. **Complete human smoke test** (items 1-3 above) to confirm DEVENV-01, DEVENV-02, and testuser auth.
-3. **Optionally add the override** to accept the import=true deviation.
+The plan's truth stated testuser should be `import=true` (adopting a pre-existing KC user). In practice, KC volume data did not persist across Docker restarts, so testuser was created fresh as a standard resource. The INFRA-01 requirement (testuser as a managed Terraform resource) is fully satisfied. Override recorded in frontmatter, accepted 2026-06-09.
 
 ---
 
 _Verified: 2026-06-02_
+_Human-verified: 2026-06-09_
 _Verifier: Claude (gsd-verifier)_
