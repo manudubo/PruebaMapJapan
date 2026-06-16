@@ -5,7 +5,9 @@
  * Usage: npm run dev   (runs: tsx watch src/dev.ts)
  */
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+// tsx does not load Wrangler's .dev.vars automatically — load it explicitly.
+dotenv.config({ path: '.dev.vars' });
 import { serve } from '@hono/node-server';
 import app from './index';
 

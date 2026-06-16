@@ -100,11 +100,20 @@ export async function getToken(): Promise<string> {
     throw new Error('User is not authenticated');
   }
 
-  // Refresh the token if it expires within 30 seconds
-  try {
-    await keycloak.updateToken(30);
-  } catch {
-    throw new Error('Failed to refresh access token — please log in again');
+  if (import.meta.env.DEV) {
+    console.debug(`[auth] getToken: hasToken=${!!keycloak.token}, hasRefresh=${!!keycloak.refreshToken}, expiredIn30s=${keycloak.isTokenExpired(30)}`);
+  }
+
+  // Only attempt a refresh when the token is actually near expiry.
+  // updateToken(30) throws "Not authenticated" if there is no refresh token
+  // (e.g. after a silent-check-sso exchange that KC issues without one).
+  // Skipping it when the access token is still valid avoids that throw.
+  if (keycloak.isTokenExpired(30)) {
+    try {
+      await keycloak.updateToken(30);
+    } catch {
+      throw new Error('Failed to refresh access token — please log in again');
+    }
   }
 
   if (!keycloak.token) {

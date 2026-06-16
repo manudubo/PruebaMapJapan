@@ -38,12 +38,16 @@ async function buildHeaders(auth: boolean): Promise<HeadersInit> {
     'Content-Type': 'application/json',
   };
 
+  if (import.meta.env.DEV && auth) {
+    console.debug(`[auth] buildHeaders: isAuthenticated=${isAuthenticated()}`);
+  }
+
   if (auth && isAuthenticated()) {
     try {
       const token = await getToken();
       headers['Authorization'] = `Bearer ${token}`;
-    } catch {
-      // Token unavailable — proceed without auth header
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[auth] getToken threw:', err);
     }
   }
 
