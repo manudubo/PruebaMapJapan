@@ -36,7 +36,7 @@
 
 ### v3.1 E2E Stabilization (Phases 15–19)
 
-- [ ] **Phase 15: Triage + Config** - Run fresh full-suite triage and fix passkeys Chromium scoping
+- [x] **Phase 15: Triage + Config** - Run fresh full-suite triage and fix passkeys Chromium scoping
 - [ ] **Phase 16: Independent Spec Fixes** - Fix public-sharing fixture and IDP theme assertions
 - [ ] **Phase 17: OTP + Login Helper** - Fix OTP contract and extract shared KC form helper
 - [ ] **Phase 18: Passkeys Fixes** - Fix authenticator lifecycle and credential reset
@@ -55,8 +55,8 @@
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Add testIgnore to chromium/firefox/webkit project entries (SETUP-02)
-- [ ] 15-02-PLAN.md — Run full-suite triage and write 15-TRIAGE.md (SETUP-01)
+- [x] 15-01-PLAN.md — Add testIgnore to chromium/firefox/webkit project entries (SETUP-02) — commit 68cd447
+- [x] 15-02-PLAN.md — Run full-suite triage and write 15-TRIAGE.md (SETUP-01) — commit f4680c3
 
 ### Phase 16: Independent Spec Fixes
 **Goal**: The two specs that have no auth dependency and no coupling to the shared login helper — `public-sharing.spec.ts` and `idp-theme.spec.ts` — are green and can run independently
@@ -71,8 +71,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Add testIgnore to chromium/firefox/webkit project entries (SETUP-02)
-- [ ] 15-02-PLAN.md — Run full-suite triage and write 15-TRIAGE.md (SETUP-01)
+- [ ] 16-01-PLAN.md — (planned at phase start)
+- [ ] 16-02-PLAN.md — (planned at phase start)
 
 ### Phase 17: OTP + Login Helper
 **Goal**: OTP specs pass against the actual route contract, and a single shared KC form-navigation helper replaces the four independent implementations so a KC flow change requires one fix
@@ -86,8 +86,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Add testIgnore to chromium/firefox/webkit project entries (SETUP-02)
-- [ ] 15-02-PLAN.md — Run full-suite triage and write 15-TRIAGE.md (SETUP-01)
+- [ ] 17-01-PLAN.md — (planned at phase start)
+- [ ] 17-02-PLAN.md — (planned at phase start)
 
 ### Phase 18: Passkeys Fixes
 **Goal**: `passkeys.spec.ts` passes reliably under the `chromium-passkeys` project with no unexplained residual failures
@@ -100,8 +100,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Add testIgnore to chromium/firefox/webkit project entries (SETUP-02)
-- [ ] 15-02-PLAN.md — Run full-suite triage and write 15-TRIAGE.md (SETUP-01)
+- [ ] 18-01-PLAN.md — (planned at phase start)
+- [ ] 18-02-PLAN.md — (planned at phase start)
 
 ### Phase 19: Session + Closure
 **Goal**: `session-management.spec.ts` passes, and every test outcome in the suite is accounted for — green, root-caused and fixed, or explicitly documented as an accepted deferral
@@ -114,8 +114,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Add testIgnore to chromium/firefox/webkit project entries (SETUP-02)
-- [ ] 15-02-PLAN.md — Run full-suite triage and write 15-TRIAGE.md (SETUP-01)
+- [ ] 19-01-PLAN.md — (planned at phase start)
+- [ ] 19-02-PLAN.md — (planned at phase start)
 
 ## Progress
 
@@ -135,7 +135,7 @@ Plans:
 | 12. Terraform Expansion + Dev Script | v3.0 | 2/2 | Complete | 2026-06-02 |
 | 13. Security Audit + Documentation | v3.0 | 5/5 | Complete | 2026-06-07 |
 | 14. E2E Expansion + New User Parity | v3.0 | 4/4 | Complete | 2026-06-09 |
-| 15. Triage + Config | v3.1 | 0/? | Not started | - |
+| 15. Triage + Config | v3.1 | 2/2 | Complete | 2026-06-21 |
 | 16. Independent Spec Fixes | v3.1 | 0/? | Not started | - |
 | 17. OTP + Login Helper | v3.1 | 0/? | Not started | - |
 | 18. Passkeys Fixes | v3.1 | 0/? | Not started | - |
