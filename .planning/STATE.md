@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
-status: ready_to_plan
-stopped_at: Phase 15 complete — triage written, SETUP-02 deployed
+status: ready_to_execute
+stopped_at: Phase 16 planned — 2 plans ready (16-01, 16-02)
 last_updated: "2026-06-21T00:00:00.000Z"
-last_activity: 2026-06-21 -- Phase 15 executed; 2/2 plans complete (68cd447, f4680c3)
+last_activity: 2026-06-21 -- Phase 16 planned; 2/2 plans written, checker passed
 progress:
   total_phases: 5
   completed_phases: 1
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 ## Current Position
 
-Phase: 15 (Triage + Config) — COMPLETE
-Next: `/gsd-plan-phase 16`
-Status: Phase 15 done — ready to plan Phase 16
+Phase: 16 (Independent Spec Fixes) — PLANNED, ready to execute
+Next: `/gsd-execute-phase 16`
+Status: Phase 16 planned — 2 plans in wave 1 (public-sharing + idp-theme fixes)
 
 Progress: [==        ] 20% (1/5 phases complete)
 
@@ -69,5 +69,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-21
-Stopped at: Phase 15 complete — triage run (210 passed/18 failed), TRIAGE.md written, SETUP-02 deployed
-Resume: `/gsd-plan-phase 16`
+Stopped at: Phase 16 planned — 2 plans written and checker-verified
+Resume: `/gsd-execute-phase 16`
