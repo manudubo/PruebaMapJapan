@@ -71,8 +71,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 16-01-PLAN.md — (planned at phase start)
-- [ ] 16-02-PLAN.md — (planned at phase start)
+- [ ] 16-01-PLAN.md — Rewrite public-sharing.spec.ts with beforeAll fixture (SHARE-01, SHARE-02)
+- [ ] 16-02-PLAN.md — Fix idp-theme.spec.ts storageState override and PKCE challenge (THEME-01, THEME-02, THEME-03)
 
 ### Phase 17: OTP + Login Helper
 **Goal**: OTP specs pass against the actual route contract, and a single shared KC form-navigation helper replaces the four independent implementations so a KC flow change requires one fix
@@ -136,7 +136,7 @@ Plans:
 | 13. Security Audit + Documentation | v3.0 | 5/5 | Complete | 2026-06-07 |
 | 14. E2E Expansion + New User Parity | v3.0 | 4/4 | Complete | 2026-06-09 |
 | 15. Triage + Config | v3.1 | 2/2 | Complete | 2026-06-21 |
-| 16. Independent Spec Fixes | v3.1 | 0/? | Not started | - |
+| 16. Independent Spec Fixes | v3.1 | 0/2 | Not started | - |
 | 17. OTP + Login Helper | v3.1 | 0/? | Not started | - |
 | 18. Passkeys Fixes | v3.1 | 0/? | Not started | - |
 | 19. Session + Closure | v3.1 | 0/? | Not started | - |
