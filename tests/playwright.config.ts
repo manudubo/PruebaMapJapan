@@ -24,14 +24,17 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
       },
+      testIgnore: ['**/passkeys.spec.ts'],
     },
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
+      testIgnore: ['**/passkeys.spec.ts'],
     },
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
+      testIgnore: ['**/passkeys.spec.ts'],
     },
     {
       name: 'chromium-passkeys',
