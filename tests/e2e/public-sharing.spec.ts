@@ -56,6 +56,9 @@ test.describe('Public sharing', () => {
       headers: { Authorization: `Bearer ${token}` },
       data: { name: TEST_PUBLIC_TRIP_NAME, is_public: true },
     });
+    if (!pubResp.ok()) {
+      throw new Error(`Public trip creation failed: ${pubResp.status()} ${await pubResp.text()}`);
+    }
     const pubData = await pubResp.json();
     publicTripId = String(pubData.data.id);
     publicSlug = pubData.data.public_slug;
@@ -65,6 +68,9 @@ test.describe('Public sharing', () => {
       headers: { Authorization: `Bearer ${token}` },
       data: { name: 'Phase16 Private Fixture Trip', is_public: false },
     });
+    if (!privResp.ok()) {
+      throw new Error(`Private trip creation failed: ${privResp.status()} ${await privResp.text()}`);
+    }
     const privData = await privResp.json();
     privateTripId = String(privData.data.id);
     privateSlug = privData.data.public_slug;
@@ -162,6 +168,12 @@ test.describe('Public sharing', () => {
   });
 
   test.describe('Public sharing — non-owner ?tripId= access (WR-01)', () => {
+    // Chromium project inherits .auth/user.json (KC SSO session). The fixture
+    // trip is owned by that same user, so tripDetail.ts would load it successfully
+    // and never show the access-denied message. Empty storageState forces an
+    // unauthenticated context on all browsers so the access-denied path is exercised.
+    test.use({ storageState: { cookies: [], origins: [] } });
+
     test('unauthenticated ?tripId= shows access-denied message', async ({ page }) => {
       const backendUp = await isBackendRunning();
       test.skip(!backendUp, 'Backend not running');
