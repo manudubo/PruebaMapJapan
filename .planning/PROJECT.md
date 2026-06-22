@@ -1,4 +1,4 @@
-# TravelMap — Trip Planning & Visualization Web App
+﻿# TravelMap — Trip Planning & Visualization Web App
 
 ## What This Is
 
@@ -68,16 +68,16 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 
 ## Context
 
-**Codebase state (as of 2026-06-15, v3.0 shipped):**
+**Codebase state (as of 2026-06-22, v3.1 Phase 16 complete):**
 - Full-stack brownfield: Hono + Cloudflare Workers backend, Vanilla TypeScript frontend (MPA), Keycloak 26.6.1 OIDC auth
-- 14 phases complete; 81 plans shipped (62 v2.0 + 19 v3.0)
+- 16 phases complete; 83 plans shipped (62 v2.0 + 19 v3.0 + 2 v3.1)
 - Design: unified `--jp-*` token system across app + KC login/account/email themes; light/dark toggle persists across MPA navigations
 - Error handling: centralized `toast.ts`, global `unhandledrejection` handlers, typed `ApiError`, 401 auto-redirect to KC login
 - Dev environment: `npm run dev` (Docker detection → KC health wait → backend → frontend); all KC test users + strict redirect URIs as Terraform IaC
 - Security: RFC 9700 checklist on file, JWKS retry-on-failure, CSP/HSTS/X-Frame-Options headers, E2E audience-rejection coverage
 - New-user flow: full UI-driven trip creation (destination/hotel/day/activity/geocoder/map/search) covered by Playwright E2E with no ROPC anywhere in the suite
 - Production deployment still not configured (Cloudflare + Neon + Railway) — deferred, unscoped
-- In scope for v3.1: 7 pre-existing E2E specs (idp-theme, otp, passkeys ×3, public-sharing, session-management) were failing as of v3.0 close — fresh triage run needed since this list is stale
+- Phase 16 complete: public-sharing.spec.ts rewritten with self-contained beforeAll/afterAll fixtures; idp-theme.spec.ts fixed with empty storageState override and valid PKCE S256 challenge
 
 **Known critical constraint (carried forward):**
 - `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before any prod passkey registration — no migration path exists
@@ -128,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-15 — v3.1 milestone started*
+Last updated: 2026-06-22
