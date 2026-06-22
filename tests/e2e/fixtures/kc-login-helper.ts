@@ -1,0 +1,41 @@
+import { Page } from '@playwright/test';
+
+const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+
+/** Drive the KC browser login form. Ends when the app URL is restored. Callers own post-login state. */
+export async function loginViaKcForm(page: Page, username: string, password: string): Promise<void> {
+  await page.goto(`${FRONTEND_URL}/PruebaMapJapan/dashboard.html`);
+
+  const loginPromptBtn = page.locator('#auth-login-prompt-btn');
+  if (await loginPromptBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
+    await loginPromptBtn.click();
+  }
+
+  await page.waitForURL(/localhost:8080/, { timeout: 15_000 });
+  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
+
+  const tryAnotherWay = page.locator('a, button').filter({ hasText: /try another way/i });
+  if (await tryAnotherWay.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await tryAnotherWay.first().click();
+    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
+    const passwordOpt = page.locator('a, button').filter({ hasText: /username and password|^password$/i });
+    if (await passwordOpt.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await passwordOpt.first().click();
+      await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
+    }
+  }
+
+  const usernameField = page.locator('#username, input[name="username"], input[autocomplete="username"]');
+  await usernameField.first().waitFor({ state: 'visible', timeout: 10_000 });
+  await usernameField.first().fill(username);
+
+  const passwordField = page.locator('input[name="password"], #password');
+  if (!(await passwordField.isVisible({ timeout: 1_500 }).catch(() => false))) {
+    await page.getByRole('button', { name: /sign in/i }).click();
+    await passwordField.waitFor({ state: 'visible', timeout: 10_000 });
+  }
+  await passwordField.fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+
+  await page.waitForURL(/localhost:5173/, { timeout: 20_000 });
+}
