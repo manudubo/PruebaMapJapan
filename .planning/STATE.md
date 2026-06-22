@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
-status: ready_to_plan
-stopped_at: Phase 16 complete — 2/2 plans done, verification passed (structural), E2E runtime confirmation pending
+status: context_captured
+stopped_at: Phase 17 context captured — OTP step-up auth decision + loginViaKcForm helper decisions locked
 last_updated: "2026-06-22T00:00:00.000Z"
-last_activity: 2026-06-22 -- Phase 16 executed; public-sharing and idp-theme specs fixed; code review findings applied
+last_activity: 2026-06-22 -- Phase 17 discuss-phase complete; CONTEXT.md written
 progress:
   total_phases: 5
   completed_phases: 2
