@@ -17,13 +17,19 @@ export async function purgeInbox(): Promise<void> {
 }
 
 export async function fetchLatestOtp(): Promise<string> {
-  const res = await fetch(`${MAILPIT_URL}/api/v1/messages`);
-  const data = await res.json() as MailpitListResponse;
-  if (!data.messages?.length) throw new Error('No messages in Mailpit inbox');
-  const msgId = data.messages[0].ID;
-  const msgRes = await fetch(`${MAILPIT_URL}/api/v1/message/${msgId}`);
-  const msg = await msgRes.json() as MailpitMessageBody;
-  const match = msg.Text.match(/(\d{6})/);
-  if (!match) throw new Error('No 6-digit OTP found in message body');
-  return match[1];
+  const MAX_ATTEMPTS = 20;
+  const DELAY_MS = 500;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(`${MAILPIT_URL}/api/v1/messages`);
+    const data = await res.json() as MailpitListResponse;
+    if (data.messages?.length) {
+      const msgId = data.messages[0].ID;
+      const msgRes = await fetch(`${MAILPIT_URL}/api/v1/message/${msgId}`);
+      const msg = await msgRes.json() as MailpitMessageBody;
+      const match = msg.Text.match(/(\d{6})/);
+      if (match) return match[1];
+    }
+    await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+  }
+  throw new Error(`fetchLatestOtp: no OTP found after ${MAX_ATTEMPTS} attempts (${MAX_ATTEMPTS * DELAY_MS}ms)`);
 }
