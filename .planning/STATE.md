@@ -1,17 +1,17 @@
----
+﻿---
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
-status: ready_to_execute
-stopped_at: Phase 16 planned — 2 plans ready (16-01, 16-02)
-last_updated: "2026-06-21T00:00:00.000Z"
-last_activity: 2026-06-21 -- Phase 16 planned; 2/2 plans written, checker passed
+status: ready_to_plan
+stopped_at: Phase 16 complete — 2/2 plans done, verification passed (structural), E2E runtime confirmation pending
+last_updated: "2026-06-22T00:00:00.000Z"
+last_activity: 2026-06-22 -- Phase 16 executed; public-sharing and idp-theme specs fixed; code review findings applied
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 2
   completed_plans: 2
-  percent: 20
+  percent: 40
 ---
 
 # Project State
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 ## Current Position
 
-Phase: 16 (Independent Spec Fixes) — PLANNED, ready to execute
-Next: `/gsd-execute-phase 16`
-Status: Phase 16 planned — 2 plans in wave 1 (public-sharing + idp-theme fixes)
+Phase: 17 (OTP + Login Helper) — NOT STARTED, ready to discuss/plan
+Next: `/gsd-discuss-phase 17` (recommended) or `/gsd-plan-phase 17`
+Status: Phase 16 complete — 2/2 plans done; public-sharing and idp-theme specs structurally fixed
 
-Progress: [==        ] 20% (1/5 phases complete)
+Progress: [====      ] 40% (2/5 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 81 (v2.0: 62, v3.0: 19)
+- Total plans completed: 83 (v2.0: 62, v3.0: 19, v3.1: 2)
 - Average duration: ~15 min/plan (v2.0 baseline)
 
 ## Accumulated Context
@@ -52,7 +52,7 @@ None.
 
 - OTP route auth-gating: `backend/src/routes/auth.ts:92` gates `/api/auth/otp-request` and `/otp-verify` behind `authMiddleware`. Whether this is intentional step-up auth or a regression needs a product decision before Phase 17 planning — whichever direction, the spec must match the real contract.
 - KC browser-flow shape (WebAuthn-first vs password-first) needs a live walkthrough before implementing `loginViaKcForm()` in Phase 17.
-- Fresh triage run (Phase 15) may surface failures not in the stale v3.0 list — Phase 16/17/18 scopes may need adjustment after triage.
+- Phase 16 E2E runtime confirmation pending: `public-sharing` and `idp-theme` specs need a live stack run (backend + KC) to confirm no regressions.
 
 ## Deferred Items
 
@@ -68,6 +68,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-21
-Stopped at: Phase 16 planned — 2 plans written and checker-verified
-Resume: `/gsd-execute-phase 16`
+Last session: 2026-06-22
+Stopped at: Phase 16 complete — both spec files fixed and committed
+Resume: `/gsd-discuss-phase 17` (recommended) or `/gsd-plan-phase 17`
