@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
-status: context_captured
-stopped_at: Phase 17 context captured — OTP step-up auth decision + loginViaKcForm helper decisions locked
+status: ready_to_execute
+stopped_at: Phase 17 planned — 2 plans ready (kc-login-helper extraction + OTP fixes)
 last_updated: "2026-06-22T00:00:00.000Z"
-last_activity: 2026-06-22 -- Phase 17 discuss-phase complete; CONTEXT.md written
+last_activity: 2026-06-22 -- Phase 17 plan-phase complete; 17-01 and 17-02 PLAN.md written
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 2
+  total_plans: 4
   completed_plans: 2
   percent: 40
 ---
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 ## Current Position
 
-Phase: 17 (OTP + Login Helper) — NOT STARTED, ready to discuss/plan
-Next: `/gsd-discuss-phase 17` (recommended) or `/gsd-plan-phase 17`
-Status: Phase 16 complete — 2/2 plans done; public-sharing and idp-theme specs structurally fixed
+Phase: 17 (OTP + Login Helper) — PLANNED, ready to execute
+Next: `/gsd-execute-phase 17`
+Status: Phase 16 complete — 2/2 plans done; Phase 17 planned — 2/2 plans ready
 
 Progress: [====      ] 40% (2/5 phases complete)
 
@@ -44,15 +44,19 @@ Progress: [====      ] 40% (2/5 phases complete)
 
 Full log in PROJECT.md Key Decisions table. v3.0 closed with no open decision threads.
 
+**Phase 17 key decisions locked:**
+- OTP routes are auth-gated (step-up auth, not passwordless) — specs must send Bearer JWT
+- otp-request returns 201 (verified auth.ts:131); tests 1-2 must assert 201 not 200
+- otp-test@local is separate from e2e-test@local; beforeAll must log in as otp-test@local
+- loginViaKcForm helper: new file tests/e2e/fixtures/kc-login-helper.ts, 4 call sites wired
+
 ### Pending Todos
 
 None.
 
 ### Blockers/Concerns
 
-- OTP route auth-gating: `backend/src/routes/auth.ts:92` gates `/api/auth/otp-request` and `/otp-verify` behind `authMiddleware`. Whether this is intentional step-up auth or a regression needs a product decision before Phase 17 planning — whichever direction, the spec must match the real contract.
-- KC browser-flow shape (WebAuthn-first vs password-first) needs a live walkthrough before implementing `loginViaKcForm()` in Phase 17.
-- Phase 16 E2E runtime confirmation pending: `public-sharing` and `idp-theme` specs need a live stack run (backend + KC) to confirm no regressions.
+- Phase 16 E2E runtime confirmation pending: public-sharing and idp-theme specs need a live stack run (backend + KC) to confirm no regressions.
 
 ## Deferred Items
 
@@ -69,5 +73,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-22
-Stopped at: Phase 16 complete — both spec files fixed and committed
-Resume: `/gsd-discuss-phase 17` (recommended) or `/gsd-plan-phase 17`
+Stopped at: Phase 17 planned — 2 plans ready; checker passed (0 blockers)
+Resume: `/gsd-execute-phase 17`
