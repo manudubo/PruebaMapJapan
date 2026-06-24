@@ -78,7 +78,7 @@ test.describe('OTP fallback flow', () => {
     expect([400, 401]).toContain(verifyRes.status());
     const body = await verifyRes.json() as { error?: string; message?: string };
     const errText = JSON.stringify(body).toLowerCase();
-    expect(errText).toMatch(/expir/);
+    expect(errText).toMatch(/otp_not_found/);
   });
 
   test('max-attempts lockout after 5 failed verifications', async ({ request }) => {
