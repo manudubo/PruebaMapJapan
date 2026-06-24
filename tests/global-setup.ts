@@ -2,6 +2,7 @@ import { chromium, FullConfig } from '@playwright/test';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
+import { loginViaKcForm } from './e2e/fixtures/kc-login-helper';
 
 dotenv.config({ path: path.join(__dirname, '.env.test') });
 
@@ -52,42 +53,7 @@ async function kcLogin(): Promise<void> {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  await page.goto(`${FRONTEND_URL}/PruebaMapJapan/dashboard.html`);
-
-  const loginPromptBtn = page.locator('#auth-login-prompt-btn');
-  if (await loginPromptBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await loginPromptBtn.click();
-  }
-
-  await page.waitForURL(/localhost:8080/, { timeout: 15_000 });
-  // networkidle ensures KC's WebAuthn conditional UI JavaScript has settled before we check DOM
-  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-
-  // Use text-based filter — getByRole can miss aria-hidden links in KC theme
-  const tryAnotherWay = page.locator('a, button').filter({ hasText: /try another way/i });
-  if (await tryAnotherWay.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await tryAnotherWay.first().click();
-    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-    const passwordOpt = page.locator('a, button').filter({ hasText: /username and password|^password$/i });
-    if (await passwordOpt.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await passwordOpt.first().click();
-      await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-    }
-  }
-
-  const usernameField = page.locator('#username, input[name="username"], input[autocomplete="username"]');
-  await usernameField.first().waitFor({ state: 'visible', timeout: 10_000 });
-  await usernameField.first().fill(process.env.E2E_TEST_USERNAME!);
-
-  const passwordField = page.locator('input[name="password"], #password');
-  if (!(await passwordField.isVisible({ timeout: 1_500 }).catch(() => false))) {
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await passwordField.waitFor({ state: 'visible', timeout: 10_000 });
-  }
-  await passwordField.fill(process.env.E2E_TEST_PASSWORD!);
-  await page.getByRole('button', { name: /sign in/i }).click();
-
-  await page.waitForURL(/dashboard\.html/, { timeout: 20_000 });
+  await loginViaKcForm(page, process.env.E2E_TEST_USERNAME!, process.env.E2E_TEST_PASSWORD!);
 
   // Reload once to flush KC auth-flow cookies (AUTH_SESSION_ID, KC_AUTH_SESSION_HASH)
   // before saving state — replaying those cookies causes KC to resume the old flow.
@@ -110,40 +76,7 @@ async function kcLoginNewUser(): Promise<void> {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  await page.goto(`${FRONTEND_URL}/PruebaMapJapan/dashboard.html`);
-
-  const loginPromptBtn = page.locator('#auth-login-prompt-btn');
-  if (await loginPromptBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await loginPromptBtn.click();
-  }
-
-  await page.waitForURL(/localhost:8080/, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-
-  const tryAnotherWay = page.locator('a, button').filter({ hasText: /try another way/i });
-  if (await tryAnotherWay.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await tryAnotherWay.first().click();
-    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-    const passwordOpt = page.locator('a, button').filter({ hasText: /username and password|^password$/i });
-    if (await passwordOpt.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await passwordOpt.first().click();
-      await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-    }
-  }
-
-  const usernameField = page.locator('#username, input[name="username"], input[autocomplete="username"]');
-  await usernameField.first().waitFor({ state: 'visible', timeout: 10_000 });
-  await usernameField.first().fill(process.env.E2E_NEW_USER_USERNAME!);
-
-  const passwordField = page.locator('input[name="password"], #password');
-  if (!(await passwordField.isVisible({ timeout: 1_500 }).catch(() => false))) {
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await passwordField.waitFor({ state: 'visible', timeout: 10_000 });
-  }
-  await passwordField.fill(process.env.E2E_NEW_USER_PASSWORD!);
-  await page.getByRole('button', { name: /sign in/i }).click();
-
-  await page.waitForURL(/dashboard\.html/, { timeout: 20_000 });
+  await loginViaKcForm(page, process.env.E2E_NEW_USER_USERNAME!, process.env.E2E_NEW_USER_PASSWORD!);
 
   // Reload once to flush KC auth-flow cookies before saving state
   await page.reload();
