@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
 status: ready_to_execute
-stopped_at: Phase 17 planned — 2 plans ready (kc-login-helper extraction + OTP fixes)
-last_updated: "2026-06-22T00:00:00.000Z"
-last_activity: 2026-06-22 -- Phase 17 plan-phase complete; 17-01 and 17-02 PLAN.md written
+stopped_at: Phase 17 complete — ready for Phase 18 (Passkeys Fixes)
+last_updated: "2026-06-23T00:00:00.000Z"
+last_activity: 2026-06-23 -- Phase 17 complete; 2/2 plans done; loginViaKcForm extracted, OTP spec fixed
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 2
-  percent: 40
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
+  percent: 60
 ---
 
 # Project State
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 ## Current Position
 
-Phase: 17 (OTP + Login Helper) — PLANNED, ready to execute
-Next: `/gsd-execute-phase 17`
-Status: Phase 16 complete — 2/2 plans done; Phase 17 planned — 2/2 plans ready
+Phase: 18 (Passkeys Fixes) — not yet planned
+Next: `/gsd-discuss-phase 18` or `/gsd-plan-phase 18`
+Status: Phase 17 complete — 2/2 plans done; Phase 18 not yet started
 
-Progress: [====      ] 40% (2/5 phases complete)
+Progress: [======    ] 60% (3/5 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 83 (v2.0: 62, v3.0: 19, v3.1: 2)
+- Total plans completed: 85 (v2.0: 62, v3.0: 19, v3.1: 4)
 - Average duration: ~15 min/plan (v2.0 baseline)
 
 ## Accumulated Context
@@ -57,6 +57,7 @@ None.
 ### Blockers/Concerns
 
 - Phase 16 E2E runtime confirmation pending: public-sharing and idp-theme specs need a live stack run (backend + KC) to confirm no regressions.
+- Phase 17 known risk: test 2 asserts `/expir/` on errText but backend returns `otp_not_found` for expired OTPs — may need adjustment after a live stack run.
 
 ## Deferred Items
 
@@ -72,6 +73,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-22
-Stopped at: Phase 17 planned — 2 plans ready; checker passed (0 blockers)
-Resume: `/gsd-execute-phase 17`
+Last session: 2026-06-23
+Stopped at: Phase 17 complete — loginViaKcForm extracted, OTP spec fixed, all 4 call sites wired
+Resume: `/gsd-discuss-phase 18` or `/gsd-plan-phase 18`

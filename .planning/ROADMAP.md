@@ -38,7 +38,7 @@
 
 - [x] **Phase 15: Triage + Config** - Run fresh full-suite triage and fix passkeys Chromium scoping
 - [x] **Phase 16: Independent Spec Fixes** - Fix public-sharing fixture and IDP theme assertions
-- [ ] **Phase 17: OTP + Login Helper** - Fix OTP contract and extract shared KC form helper
+- [x] **Phase 17: OTP + Login Helper** - Fix OTP contract and extract shared KC form helper
 - [ ] **Phase 18: Passkeys Fixes** - Fix authenticator lifecycle and credential reset
 - [ ] **Phase 19: Session + Closure** - Fix session-management selectors and document all outcomes
 
@@ -86,8 +86,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 17-01-PLAN.md â€” (planned at phase start)
-- [ ] 17-02-PLAN.md â€” (planned at phase start)
+- [x] 17-01-PLAN.md — Create loginViaKcForm helper + fix otp.spec.ts (OTP-01, OTP-02, OTP-03, SESSION-02) — commit 75b873f
+- [x] 17-02-PLAN.md — Wire loginViaKcForm into global-setup.ts + session-management.spec.ts (SESSION-02) — commit d042197
 
 ### Phase 18: Passkeys Fixes
 **Goal**: `passkeys.spec.ts` passes reliably under the `chromium-passkeys` project with no unexplained residual failures
@@ -137,7 +137,7 @@ Plans:
 | 14. E2E Expansion + New User Parity | v3.0 | 4/4 | Complete | 2026-06-09 |
 | 15. Triage + Config | v3.1 | 2/2 | Complete | 2026-06-21 |
 | 16. Independent Spec Fixes | v3.1 | 2/2 | Complete | 2026-06-22 |
-| 17. OTP + Login Helper | v3.1 | 0/? | Not started | - |
+| 17. OTP + Login Helper | v3.1 | 2/2 | Complete | 2026-06-23 |
 | 18. Passkeys Fixes | v3.1 | 0/? | Not started | - |
 | 19. Session + Closure | v3.1 | 0/? | Not started | - |
 
