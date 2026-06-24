@@ -50,6 +50,13 @@ export async function resetCredentials(username: string): Promise<void> {
   }
 }
 
+export async function clearRequiredActions(username: string): Promise<void> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) return;
+  await client.users.update({ id: user.id }, { requiredActions: [] });
+}
+
 export async function clearOtpCodes(username: string): Promise<void> {
   // email_otp_codes lives in Postgres (BACK-03); KC Admin has no such endpoint
   const sql = postgres(process.env.POSTGRES_URL!);
@@ -99,6 +106,7 @@ export const test = base.extend<{
     resetCredentials: typeof resetCredentials;
     clearOtpCodes: typeof clearOtpCodes;
     expireOtpCodes: typeof expireOtpCodes;
+    clearRequiredActions: typeof clearRequiredActions;
     createUser: typeof createUser;
     deleteUser: typeof deleteUser;
     getUserSessions: typeof getUserSessions;
@@ -106,7 +114,7 @@ export const test = base.extend<{
   };
 }>({
   kcAdmin: async ({}, use) => {
-    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, createUser, deleteUser, getUserSessions, logoutUser });
+    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, clearRequiredActions, createUser, deleteUser, getUserSessions, logoutUser });
   },
 });
 

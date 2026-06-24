@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/kc-admin';
+import { test, expect, clearRequiredActions } from './fixtures/kc-admin';
 import { purgeInbox, fetchLatestOtp } from './fixtures/mailpit-helpers';
 import { loginViaKcForm } from './fixtures/kc-login-helper';
 import type { Page } from '@playwright/test';
@@ -31,6 +31,7 @@ test.describe('OTP fallback flow', () => {
   let otpToken: string;
 
   test.beforeAll(async ({ browser }) => {
+    await clearRequiredActions(OTP_USERNAME);
     const context = await browser.newContext();
     const page = await context.newPage();
     await loginViaKcForm(page, OTP_USERNAME, process.env.E2E_OTP_PASSWORD ?? '');
@@ -39,6 +40,7 @@ test.describe('OTP fallback flow', () => {
   });
 
   test.beforeEach(async ({ kcAdmin }) => {
+    await kcAdmin.clearRequiredActions(OTP_USERNAME);
     await kcAdmin.clearOtpCodes(OTP_USERNAME);
     await purgeInbox();
   });

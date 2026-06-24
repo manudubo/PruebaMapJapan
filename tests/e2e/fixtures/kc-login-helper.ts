@@ -37,16 +37,19 @@ export async function loginViaKcForm(page: Page, username: string, password: str
   await passwordField.fill(password);
   await page.getByRole('button', { name: /sign in/i }).click();
 
-  // KC may insert required-action pages (e.g. webauthn-register-passwordless) before redirecting.
-  // Only look for a skip link while still on localhost:8080 (KC domain, not the app).
-  await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-  if (page.url().includes('localhost:8080')) {
-    const skipBtn = page.locator('a, button').filter({ hasText: /maybe later|skip|not now/i });
+  // KC may insert a required-action page (e.g. webauthn-register-passwordless) between
+  // credential submission and the final app redirect. Race the two possible outcomes so
+  // neither side blocks if the other fires first.
+  const hitRequiredAction = await Promise.race([
+    page.waitForURL(/localhost:5173/, { timeout: 20_000 }).then(() => false),
+    page.waitForURL(/required-action/, { timeout: 20_000 }).then(() => true),
+  ]);
+
+  if (hitRequiredAction) {
+    const skipBtn = page.locator('a, button').filter({ hasText: /maybe later|skip|not now|later/i });
     if (await skipBtn.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
       await skipBtn.first().click();
-      await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
     }
+    await page.waitForURL(/localhost:5173/, { timeout: 20_000 });
   }
-
-  await page.waitForURL(/localhost:5173/, { timeout: 20_000 });
 }
