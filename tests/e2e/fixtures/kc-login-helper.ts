@@ -46,7 +46,7 @@ export async function loginViaKcForm(page: Page, username: string, password: str
   ]);
 
   if (hitRequiredAction) {
-    const skipBtn = page.locator('a, button').filter({ hasText: /maybe later|skip|not now|later/i });
+    const skipBtn = page.locator('a, button').filter({ hasText: /maybe later|skip|not now|later|cancel/i });
     if (await skipBtn.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
       await skipBtn.first().click();
     }

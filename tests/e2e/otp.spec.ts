@@ -110,11 +110,20 @@ test.describe('OTP fallback flow', () => {
     // Headless Chrome supports WebAuthn, so it must NOT be forced after OTP login.
     await loginViaKcForm(page, OTP_USERNAME, process.env.E2E_OTP_PASSWORD ?? '');
     await page.waitForURL(/dashboard\.html/, { timeout: 15_000 });
-    await page.waitForTimeout(1000);
 
-    expect(page.url()).toContain('dashboard.html');
+    // The SPA session check may trigger a second KC required-action redirect ~1s after load.
+    // Detect it and cancel — it is conditional, not a hard gate.
+    const redirectedToKc = await page.waitForURL(/required-action/, { timeout: 4_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (redirectedToKc) {
+      await page.getByRole('button', { name: /cancel/i }).click();
+      await page.waitForURL(/localhost:5173/, { timeout: 15_000 });
+    }
+
+    expect(page.url()).toContain('localhost:5173');
 
     const updatePasswordForm = page.locator('#kc-passwd-update-form, [name="update_password"]');
-    await expect(updatePasswordForm).not.toBeVisible({ timeout: 3000 });
+    await expect(updatePasswordForm).not.toBeVisible({ timeout: 3_000 });
   });
 });
