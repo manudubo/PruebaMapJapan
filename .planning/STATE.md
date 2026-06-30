@@ -4,8 +4,8 @@ milestone: v3.1
 milestone_name: E2E Stabilization
 status: ready_to_execute
 stopped_at: Phase 17 complete — ready for Phase 18 (Passkeys Fixes)
-last_updated: "2026-06-23T00:00:00.000Z"
-last_activity: 2026-06-23 -- Phase 17 complete; 2/2 plans done; loginViaKcForm extracted, OTP spec fixed
+last_updated: "2026-06-30T00:00:00.000Z"
+last_activity: 2026-06-30 -- Phase 17 fully closed; 3/3 plans done; all 4 OTP E2E tests green on live stack
 progress:
   total_phases: 5
   completed_phases: 3
@@ -57,7 +57,6 @@ None.
 ### Blockers/Concerns
 
 - Phase 16 E2E runtime confirmation pending: public-sharing and idp-theme specs need a live stack run (backend + KC) to confirm no regressions.
-- Phase 17 known risk: test 2 asserts `/expir/` on errText but backend returns `otp_not_found` for expired OTPs — may need adjustment after a live stack run.
 
 ## Deferred Items
 
@@ -74,5 +73,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-06-23
-Stopped at: Phase 17 complete — loginViaKcForm extracted, OTP spec fixed, all 4 call sites wired
+Stopped at: Phase 17 fully closed — all 4 OTP E2E tests pass on live stack (4 passed, 16.2s)
 Resume: `/gsd-discuss-phase 18` or `/gsd-plan-phase 18`
