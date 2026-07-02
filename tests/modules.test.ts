@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { getTheme, getThemeConfig, THEME_CONFIG } from '@/modules/theme';
-import { getDaysRemaining, hasTripStarted } from '@/modules/countdown';
+import { calculateCountdown, validateTargetDate } from '@/modules/countdown';
 import { ITINERARY } from '@/data/itinerary';
 import { getMapsUrl, hasMapsUrl } from '@/data/maps';
 
@@ -44,28 +44,46 @@ describe('Theme Module', () => {
 // ============================================
 
 describe('Countdown Module', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
+  const now = new Date(2026, 5, 1); // 2026-06-01, local time
+
+  describe('calculateCountdown', () => {
+    it('should compute days/hours/minutes/seconds remaining for a future date', () => {
+      const target = new Date(2026, 5, 11); // 10 days ahead
+      const result = calculateCountdown(target, now);
+      expect(result.days).toBe(10);
+      expect(result.total).toBeGreaterThan(0);
+    });
+
+    it('should return all zeros once the target is reached', () => {
+      const target = new Date(2026, 4, 1); // in the past relative to `now`
+      expect(calculateCountdown(target, now)).toEqual({ days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 });
+    });
   });
 
-  it('should return positive days before trip', () => {
-    vi.setSystemTime(new Date('2026-01-01T00:00:00+09:00'));
-    expect(getDaysRemaining()).toBeGreaterThan(50);
-  });
+  describe('validateTargetDate', () => {
+    it('should accept today', () => {
+      expect(validateTargetDate(new Date(2026, 5, 1), now).valid).toBe(true);
+    });
 
-  it('should return 0 after trip starts', () => {
-    vi.setSystemTime(new Date('2026-03-01T00:00:00+09:00'));
-    expect(getDaysRemaining()).toBe(0);
-  });
+    it('should accept a date within the next 3 years', () => {
+      expect(validateTargetDate(new Date(2027, 0, 1), now).valid).toBe(true);
+    });
 
-  it('should return false before trip date', () => {
-    vi.setSystemTime(new Date('2026-01-01T00:00:00+09:00'));
-    expect(hasTripStarted()).toBe(false);
-  });
+    it('should reject a date before today', () => {
+      const result = validateTargetDate(new Date(2026, 4, 30), now);
+      expect(result.valid).toBe(false);
+      expect(result.message).toMatch(/ya pasó/);
+    });
 
-  it('should return true after trip date', () => {
-    vi.setSystemTime(new Date('2026-02-23T00:00:00+09:00'));
-    expect(hasTripStarted()).toBe(true);
+    it('should reject a date more than 3 years in the future', () => {
+      const result = validateTargetDate(new Date(2029, 6, 2), now);
+      expect(result.valid).toBe(false);
+      expect(result.message).toMatch(/Falta demasiado/);
+    });
+
+    it('should accept exactly 3 years ahead as the boundary', () => {
+      expect(validateTargetDate(new Date(2029, 5, 1), now).valid).toBe(true);
+    });
   });
 });
 

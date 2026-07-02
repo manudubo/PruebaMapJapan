@@ -51,7 +51,12 @@
         </header>
         
         <section class="countdown-section" id="countdown" aria-label="Cuenta regresiva">
-          <h2 class="sr-only">Tiempo restante para el viaje</h2>
+          <h2 class="sr-only">Calculadora de cuenta regresiva</h2>
+          <div class="countdown-form">
+            <label for="countdown-date-input" class="countdown-input-label">¿Cuántos días faltan hasta...?</label>
+            <input type="date" id="countdown-date-input" class="countdown-date-input">
+          </div>
+          <p class="countdown-error widget-error" id="countdown-error" role="alert" hidden></p>
           <div class="countdown-grid">
             <div class="countdown-item">
               <span class="countdown-value" id="countdown-days">--</span>

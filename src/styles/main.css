@@ -171,6 +171,50 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+.countdown-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.countdown-input-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.countdown-date-input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  color-scheme: light;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+[data-theme="dark"] .countdown-date-input {
+  color-scheme: dark;
+}
+
+.countdown-date-input:focus-visible {
+  border-color: var(--accent);
+}
+
+.countdown-error {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
 .countdown-grid {
   display: flex;
   gap: 24px;
