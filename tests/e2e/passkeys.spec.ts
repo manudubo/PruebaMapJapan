@@ -57,7 +57,7 @@ test.describe('Passkey flows', () => {
     });
 
     const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, button:has-text("Register passkey")'
+      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
 
@@ -92,7 +92,7 @@ test.describe('Passkey flows', () => {
     });
 
     const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, button:has-text("Register passkey")'
+      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
@@ -169,7 +169,7 @@ test.describe('Passkey flows', () => {
     });
 
     const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, button:has-text("Register passkey")'
+      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
@@ -182,7 +182,7 @@ test.describe('Passkey flows', () => {
     await deleteBtn.first().click();
 
     const guardMsg = page.locator(
-      '[data-testid="last-credential-error"], .last-credential-warning, .error-message, [role="alert"]'
+      '[data-testid="last-credential-error"], .last-credential-warning, .error-message, [role="alert"], [data-passkey-guard]'
     );
     await expect(guardMsg.first()).toBeVisible({ timeout: 5000 });
 
