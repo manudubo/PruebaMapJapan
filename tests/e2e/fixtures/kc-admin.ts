@@ -48,6 +48,13 @@ export async function resetCredentials(username: string): Promise<void> {
       await client.users.deleteCredential({ id: user.id, credentialId: cred.id! });
     }
   }
+  // Clear webauthn-register-passwordless required action so the passkey campaign flow
+  // cannot hijack the next test after a credential reset (PASS-02)
+  const fresh = await client.users.findOne({ id: user.id });
+  const filteredActions = (fresh?.requiredActions ?? []).filter(
+    (a) => a !== 'webauthn-register-passwordless'
+  );
+  await client.users.update({ id: user.id }, { requiredActions: filteredActions });
 }
 
 export async function clearRequiredActions(username: string): Promise<void> {
