@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
 status: ready_to_execute
-stopped_at: Phase 17 complete — ready for Phase 18 (Passkeys Fixes)
-last_updated: "2026-06-30T00:00:00.000Z"
-last_activity: 2026-06-30 -- Phase 17 fully closed; 3/3 plans done; all 4 OTP E2E tests green on live stack
+stopped_at: Phase 18 planned — 2 plans ready to execute
+last_updated: "2026-07-06T00:00:00.000Z"
+last_activity: 2026-07-06 -- Phase 18 planned; 2/2 plans written (wave 1 parallel)
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 6
+  total_plans: 8
   completed_plans: 6
   percent: 60
 ---
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 ## Current Position
 
-Phase: 18 (Passkeys Fixes) — not yet planned
-Next: `/gsd-discuss-phase 18` or `/gsd-plan-phase 18`
-Status: Phase 17 complete — 2/2 plans done; Phase 18 not yet started
+Phase: 18 (Passkeys Fixes) — planned, ready to execute
+Next: `/gsd-execute-phase 18`
+Status: Phase 18 planned — 2/2 plans written; wave 1 (parallel)
 
 Progress: [======    ] 60% (3/5 phases complete)
 
