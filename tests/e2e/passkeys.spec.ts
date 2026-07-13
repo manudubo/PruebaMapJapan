@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/kc-admin';
+import type { BrowserContext } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -23,6 +24,23 @@ const E2E_USERNAME = process.env.E2E_TEST_USERNAME ?? 'e2e-test@local';
 test.describe('Passkey flows', () => {
   // Guard — skip all tests in this describe when KC is not available (D-03)
   test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
+
+  // Cleanup registry — afterEach drains unconditionally so a mid-test failure cannot leave
+  // a stale virtual authenticator for subsequent tests (PASS-01)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cdpCleanups: Array<{ cdp: any; authenticatorId: string; context?: BrowserContext }> = [];
+
+  test.afterEach(async () => {
+    for (const { cdp, authenticatorId, context } of cdpCleanups) {
+      try {
+        await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+      } catch { /* already removed or session closed */ }
+      if (context) {
+        try { await context.close(); } catch { /* already closed */ }
+      }
+    }
+    cdpCleanups.length = 0;
+  });
 
   test.beforeEach(async ({ context, kcAdmin }) => {
     // Reset credentials before each test — ensures clean state (D-11)
@@ -55,9 +73,10 @@ test.describe('Passkey flows', () => {
         automaticPresenceSimulation: false,
       },
     });
+    cdpCleanups.push({ cdp, authenticatorId });
 
     const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, button:has-text("Register passkey")'
+      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
 
@@ -68,8 +87,6 @@ test.describe('Passkey flows', () => {
       '[data-credential-type="webauthn"], .passkey-item, [data-testid="passkey-credential"]'
     );
     await expect(credentialsList.first()).toBeVisible({ timeout: 10000 });
-
-    await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
   });
 
   test('login with passkey via KC login form', async ({ page, browser }) => {
@@ -90,9 +107,10 @@ test.describe('Passkey flows', () => {
         automaticPresenceSimulation: false,
       },
     });
+    cdpCleanups.push({ cdp: cdpAuth, authenticatorId: authId });
 
     const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, button:has-text("Register passkey")'
+      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
@@ -117,6 +135,7 @@ test.describe('Passkey flows', () => {
         automaticPresenceSimulation: false,
       },
     });
+    cdpCleanups.push({ cdp: cdpClean, authenticatorId: cleanAuthId, context: cleanContext });
 
     // Transfer the registered credential so the clean authenticator can respond to KC's assertion
     for (const cred of credentials) {
@@ -147,7 +166,6 @@ test.describe('Passkey flows', () => {
     expect(cleanPage.url()).toContain('dashboard.html');
 
     await cleanContext.close();
-    await cdpAuth.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId: authId });
   });
 
   test('delete passkey is blocked when it is the last credential', async ({ page }) => {
@@ -167,9 +185,10 @@ test.describe('Passkey flows', () => {
         automaticPresenceSimulation: false,
       },
     });
+    cdpCleanups.push({ cdp, authenticatorId });
 
     const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, button:has-text("Register passkey")'
+      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
@@ -182,14 +201,12 @@ test.describe('Passkey flows', () => {
     await deleteBtn.first().click();
 
     const guardMsg = page.locator(
-      '[data-testid="last-credential-error"], .last-credential-warning, .error-message, [role="alert"]'
+      '[data-testid="last-credential-error"], .last-credential-warning, .error-message, [role="alert"], [data-passkey-guard]'
     );
     await expect(guardMsg.first()).toBeVisible({ timeout: 5000 });
 
     // Passkey must still be listed (not deleted)
     const credentialsList = page.locator('[data-credential-type="webauthn"], .passkey-item');
     await expect(credentialsList.first()).toBeVisible({ timeout: 5000 });
-
-    await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
   });
 });
