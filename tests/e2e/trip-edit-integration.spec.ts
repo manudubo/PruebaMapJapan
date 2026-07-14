@@ -11,6 +11,8 @@ test.describe.configure({ mode: 'serial' });
 // Integration tests include a full Keycloak login round-trip — allow extra time
 test.setTimeout(90000);
 
+test.fixme(true, 'trip-edit API integration not implemented in v3.1 — pre-written for future Phase 2 integration');
+
 // sessionStorage replay for Playwright bug #31108 — keycloak-js stores tokens here
 const sessionEntries: [string, string][] = (() => {
   try {

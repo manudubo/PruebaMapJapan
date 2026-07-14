@@ -28,12 +28,18 @@ export default defineConfig({
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: {
+        ...devices['Desktop Firefox'],
+        ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
+      },
       testIgnore: ['**/passkeys.spec.ts'],
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: {
+        ...devices['Desktop Safari'],
+        ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
+      },
       testIgnore: ['**/passkeys.spec.ts'],
     },
     {

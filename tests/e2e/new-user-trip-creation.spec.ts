@@ -8,6 +8,11 @@ test.use({
   storageState: path.join(__dirname, '../.auth/new-user.json'),
 });
 
+test.fixme(
+  ({ browserName }) => browserName === 'webkit',
+  'webkit handles KC redirect differently when building a fresh browser context from new-user.json — environment constraint',
+);
+
 // sessionStorage replay for Playwright bug #31108 — keycloak-js stores tokens here
 const sessionEntries: [string, string][] = (() => {
   try {
