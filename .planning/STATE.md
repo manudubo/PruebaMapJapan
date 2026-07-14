@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
-status: ready_to_execute
-stopped_at: Phase 18 planned — 2 plans ready to execute
-last_updated: "2026-07-06T00:00:00.000Z"
-last_activity: 2026-07-06 -- Phase 18 planned; 2/2 plans written (wave 1 parallel)
+status: phase_complete
+stopped_at: Phase 18 complete — all 3 passkeys E2E tests pass
+last_updated: "2026-07-13T00:00:00.000Z"
+last_activity: 2026-07-13 -- Phase 18 complete; 3/3 passkeys tests pass in 9.9s
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 6
-  percent: 60
+  completed_plans: 8
+  percent: 80
 ---
 
 # Project State
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-15 — v3.1 started)
 
 ## Current Position
 
-Phase: 18 (Passkeys Fixes) — planned, ready to execute
-Next: `/gsd-execute-phase 18`
-Status: Phase 18 planned — 2/2 plans written; wave 1 (parallel)
+Phase: 18 (Passkeys Fixes) — COMPLETE
+Next: Phase 19 (final E2E stabilization pass, if any) or milestone close
+Status: All 3 passkeys tests pass; commit 86281e9
 
-Progress: [======    ] 60% (3/5 phases complete)
+Progress: [========  ] 80% (4/5 phases complete)
 
 ## Performance Metrics
 
@@ -72,6 +72,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-23
-Stopped at: Phase 17 fully closed — all 4 OTP E2E tests pass on live stack (4 passed, 16.2s)
-Resume: `/gsd-discuss-phase 18` or `/gsd-plan-phase 18`
+Last session: 2026-07-13
+Stopped at: Phase 18 fully closed — all 3 passkeys E2E tests pass (3 passed, 9.9s)
+Resume: `/gsd-discuss-phase 19` or check if v3.1 milestone is complete
