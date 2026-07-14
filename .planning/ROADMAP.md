@@ -114,8 +114,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 19-01-PLAN.md â€” (planned at phase start)
-- [ ] 19-02-PLAN.md â€” (planned at phase start)
+- [ ] 19-01-PLAN.md — Add storageState to firefox/webkit projects; mark trip-edit-integration and new-user webkit as test.fixme (DOC-01, DOC-02)
+- [ ] 19-02-PLAN.md — Run full E2E suite, verify session-management live, write 19-CLOSURE.md (SESSION-01, DOC-02)
 
 ## Progress
 
