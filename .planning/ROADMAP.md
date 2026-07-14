@@ -114,7 +114,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 19-01-PLAN.md — Add storageState to firefox/webkit projects; mark trip-edit-integration and new-user webkit as test.fixme (DOC-01, DOC-02)
+- [x] 19-01-PLAN.md — Add storageState to firefox/webkit projects; mark trip-edit-integration and new-user webkit as test.fixme (DOC-01, DOC-02) — commit dff16ca,836fc25
 - [ ] 19-02-PLAN.md — Run full E2E suite, verify session-management live, write 19-CLOSURE.md (SESSION-01, DOC-02)
 
 ## Progress
@@ -139,7 +139,7 @@ Plans:
 | 16. Independent Spec Fixes | v3.1 | 2/2 | Complete | 2026-06-22 |
 | 17. OTP + Login Helper | v3.1 | 2/2 | Complete | 2026-06-23 |
 | 18. Passkeys Fixes | v3.1 | 0/? | Not started | - |
-| 19. Session + Closure | v3.1 | 0/? | Not started | - |
+| 19. Session + Closure | v3.1 | 1/2 | In progress | - |
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*
 *Full v3.0 phase details in `.planning/milestones/v3.0-ROADMAP.md`*
