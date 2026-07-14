@@ -40,6 +40,7 @@ export default defineConfig({
       name: 'chromium-passkeys',
       use: { ...devices['Desktop Chrome'] },
       testMatch: ['**/passkeys.spec.ts'],
+      fullyParallel: false,
     },
   ],
   globalSetup: './global-setup.ts',

@@ -70,7 +70,7 @@ test.describe('Passkey flows', () => {
         hasResidentKey: true,
         hasUserVerification: true, // CRITICAL: correct spelling (not haUserVerification)
         isUserVerified: true,
-        automaticPresenceSimulation: false,
+        automaticPresenceSimulation: true,
       },
     });
     cdpCleanups.push({ cdp, authenticatorId });
@@ -79,6 +79,11 @@ test.describe('Passkey flows', () => {
       '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
+
+    // KC redirects to passkey registration confirmation page before the WebAuthn ceremony
+    const kcRegisterBtn = page.getByRole('button', { name: 'Register' });
+    await kcRegisterBtn.waitFor({ state: 'visible', timeout: 15000 });
+    await kcRegisterBtn.click();
 
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
     await page.waitForLoadState('domcontentloaded');
@@ -104,7 +109,7 @@ test.describe('Passkey flows', () => {
         hasResidentKey: true,
         hasUserVerification: true,
         isUserVerified: true,
-        automaticPresenceSimulation: false,
+        automaticPresenceSimulation: true,
       },
     });
     cdpCleanups.push({ cdp: cdpAuth, authenticatorId: authId });
@@ -113,6 +118,12 @@ test.describe('Passkey flows', () => {
       '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
+
+    // KC redirects to passkey registration confirmation page before the WebAuthn ceremony
+    const kcRegisterBtnAuth = page.getByRole('button', { name: 'Register' });
+    await kcRegisterBtnAuth.waitFor({ state: 'visible', timeout: 15000 });
+    await kcRegisterBtnAuth.click();
+
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
 
     // Step 2: Capture the registered credential from the authenticated authenticator
@@ -132,7 +143,7 @@ test.describe('Passkey flows', () => {
         hasResidentKey: true,
         hasUserVerification: true,
         isUserVerified: true,
-        automaticPresenceSimulation: false,
+        automaticPresenceSimulation: true,
       },
     });
     cdpCleanups.push({ cdp: cdpClean, authenticatorId: cleanAuthId, context: cleanContext });
@@ -145,11 +156,25 @@ test.describe('Passkey flows', () => {
       });
     }
 
-    // Step 4: Navigate to dashboard — no tokens, KC redirects to login
+    // Step 4: Clear leaked KC session cookies from the clean context.
+    // browser.newContext() doesn't isolate localhost cookies in Chromium, so
+    // the clean context inherits the main context's KEYCLOAK_SESSION — clearing
+    // it here forces check-sso to return login_required (guest mode).
+    await cleanContext.clearCookies();
+
+    // Step 5: Navigate to dashboard — check-sso now fails → guest mode
     await cleanPage.goto(`${FRONTEND_URL}/PruebaMapJapan/dashboard.html`);
+    await cleanPage.waitForLoadState('networkidle');
+
+    // Step 6: Guest-mode login prompt
+    const loginPromptBtn = cleanPage.locator('#auth-login-prompt-btn');
+    await loginPromptBtn.waitFor({ state: 'visible', timeout: 15000 });
+    await loginPromptBtn.click();
+
+    // Step 7: KC login form — session cleared, so KC shows it
     await cleanPage.waitForURL(/realms\/japan-trip/, { timeout: 15000 });
 
-    // Step 5: Trigger passkey/passwordless option if present; CDP auto-asserts otherwise
+    // Step 8: Trigger passkey/passwordless option if present; CDP auto-asserts otherwise
     const passkeyBtn = cleanPage.locator(
       '[id*="passkey"], button:has-text("passkey"), button:has-text("Passkey"), a:has-text("Sign in without password")'
     );
@@ -159,7 +184,7 @@ test.describe('Passkey flows', () => {
       // KC initiated WebAuthn assertion automatically via discoverable credential
     }
 
-    // Step 6: After CDP auto-assertion, KC redirects back to app
+    // Step 9: After CDP auto-assertion, KC redirects back to app
     await cleanPage.waitForURL(/dashboard\.html/, { timeout: 30000 });
     await cleanPage.waitForLoadState('domcontentloaded');
 
@@ -182,7 +207,7 @@ test.describe('Passkey flows', () => {
         hasResidentKey: true,
         hasUserVerification: true,
         isUserVerified: true,
-        automaticPresenceSimulation: false,
+        automaticPresenceSimulation: true,
       },
     });
     cdpCleanups.push({ cdp, authenticatorId });
@@ -191,6 +216,12 @@ test.describe('Passkey flows', () => {
       '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
     );
     await registerBtn.first().click();
+
+    // KC redirects to passkey registration confirmation page before the WebAuthn ceremony
+    const kcRegisterBtnDel = page.getByRole('button', { name: 'Register' });
+    await kcRegisterBtnDel.waitFor({ state: 'visible', timeout: 15000 });
+    await kcRegisterBtnDel.click();
+
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
     await page.waitForLoadState('domcontentloaded');
 
