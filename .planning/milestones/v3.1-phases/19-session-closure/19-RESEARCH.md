@@ -159,6 +159,10 @@ tests/
 ```
 [VERIFIED: chromium pattern read from `tests/playwright.config.ts` line 25]
 
+**D-03 safety check — idp-theme.spec.ts:** Adding storageState to firefox/webkit projects makes them match chromium's starting state. `idp-theme.spec.ts` passes on firefox/webkit specifically because they currently lack storageState (KC does not skip the login page). D-03 would regress idp-theme on firefox/webkit IF that spec did not carry its own empty-storageState override.
+
+Verified: `tests/e2e/idp-theme.spec.ts` line 25 contains `test.use({ storageState: { cookies: [], origins: [] } })` unconditionally inside its describe block. The comment even says 'This is a no-op on firefox and webkit (they have no project storageState).' After D-03, it becomes an active override on firefox/webkit — correct behavior, no regression. [VERIFIED: file read]
+
 ### Pattern 2: D-02 — Unconditional test.fixme at file scope
 
 `trip-edit-integration.spec.ts` has 5 tests at file root with no wrapping `test.describe`. File-scope `test.fixme(condition, description)` marks ALL tests in the file.
@@ -253,6 +257,14 @@ This is the authoritative list of every failure from 15-TRIAGE.md with its resol
 **What goes wrong:** `user.json` with expired KC tokens causes session tests to fail with silent auth redirects.
 
 **How to avoid:** The Phase 15 triage note is authoritative: delete `.auth/user.json` before the D-05 run so global-setup creates fresh KC auth. Include this as a pre-run step in 19-02-PLAN.md.
+
+### Pitfall 5: D-03 regresses idp-theme on firefox/webkit
+
+**What goes wrong:** D-03 adds storageState to firefox and webkit projects. Any spec that relies on the absence of project storageState to see the KC login page would regress. `idp-theme.spec.ts` is the only such spec in the suite.
+
+**Why it doesn't happen:** `idp-theme.spec.ts` already has `test.use({ storageState: { cookies: [], origins: [] } })` at describe scope — unconditionally. This override was added in Phase 16 (THEME-01) to fix the chromium failure. It protects firefox/webkit after D-03 by overriding the newly-added project storageState with an empty one. [VERIFIED: file read]
+
+**Warning signs:** If idp-theme.spec.ts fails on firefox/webkit after D-03, the empty-storageState override is either missing or misplaced.
 
 ## Code Examples
 
