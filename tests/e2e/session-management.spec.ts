@@ -32,8 +32,8 @@ const BASE = `${FRONTEND}/PruebaMapJapan`;
 // Suite setup
 // ---------------------------------------------------------------------------
 
-const TEST_USER = process.env.E2E_TEST_USERNAME ?? 'e2e-test@local';
-const TEST_PASS  = process.env.E2E_TEST_PASSWORD ?? '';
+const TEST_USER = process.env.E2E_SESSION_USERNAME ?? 'session-test@local';
+const TEST_PASS  = process.env.E2E_SESSION_PASSWORD ?? '';
 
 // All tests require a live KC + backend.
 base.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
@@ -44,6 +44,11 @@ kcTest.describe('Session lifecycle', () => {
   // webkit JS init is slower; login prompt button can take >20s to appear after auth check.
   // Allow 90s per test so webkit has headroom for button wait + KC form + redirect.
   kcTest.setTimeout(90_000);
+  // Override the project-level storageState (user.json for e2e-test@local) so that
+  // session-management tests always start with a clean browser context.
+  // session-test@local is the dedicated user for this spec; its sessions must be
+  // established and destroyed within each test — never inherited from global-setup.
+  kcTest.use({ storageState: { cookies: [], origins: [] } });
 
   // Clear KC sessions before each test for a clean slate.
   kcTest.beforeEach(async () => {
