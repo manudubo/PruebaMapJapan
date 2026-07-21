@@ -152,10 +152,11 @@ test.describe('Public sharing', () => {
       // Wait for the page to reach ready state
       await page.waitForSelector('body.ready', { timeout: 15000 });
 
-      // Trip title should be populated (not the loading placeholder)
-      const title = await page.locator('#trip-title').textContent();
-      expect(title).toBeTruthy();
-      expect(title).toBe(TEST_PUBLIC_TRIP_NAME);
+      // Trip title should be populated (not the loading placeholder).
+      // body.ready fires before the API response populates #trip-title; use
+      // toHaveText which auto-retries until the API data lands (up to 15s).
+      const titleEl = page.locator('#trip-title');
+      await expect(titleEl).toHaveText(TEST_PUBLIC_TRIP_NAME, { timeout: 15000 });
 
       // edit link must be hidden (data-owner-only hidden in slug mode)
       const editLink = page.locator('#trip-edit-link');
