@@ -41,11 +41,9 @@ base.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
 base.describe.configure({ mode: 'serial' });
 
 kcTest.describe('Session lifecycle', () => {
-  // Each test drives its own KC login via loginViaKcForm — project-level storageState
-  // (added in D-03 for auth.spec.ts real-session tests) would cause webkit to skip the
-  // KC redirect when the server session has been destroyed by logoutUser. Clear it here,
-  // mirroring the idp-theme.spec.ts pattern.
-  kcTest.use({ storageState: { cookies: [], origins: [] } });
+  // webkit JS init is slower; login prompt button can take >20s to appear after auth check.
+  // Allow 90s per test so webkit has headroom for button wait + KC form + redirect.
+  kcTest.setTimeout(90_000);
 
   // Clear KC sessions before each test for a clean slate.
   kcTest.beforeEach(async () => {
