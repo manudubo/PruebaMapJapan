@@ -233,3 +233,21 @@ resource "keycloak_user" "trip_edit_test_user" {
     temporary = false
   }
 }
+
+# INFRA-04: session-test@local — dedicated user for session-management.spec.ts (Phase 19)
+# Uses required_actions = [] so loginViaKcForm sees password form directly (no webauthn prompt).
+resource "keycloak_user" "session_test_user" {
+  realm_id         = keycloak_realm.japan_trip.id
+  username         = "session-test@local"
+  enabled          = true
+  email            = "session-test@local"
+  email_verified   = true
+  first_name       = "Session"
+  last_name        = "Test"
+  required_actions = []
+
+  initial_password {
+    value     = var.e2e_session_password
+    temporary = false
+  }
+}
