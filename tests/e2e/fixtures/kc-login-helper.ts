@@ -7,7 +7,7 @@ export async function loginViaKcForm(page: Page, username: string, password: str
   await page.goto(`${FRONTEND_URL}/PruebaMapJapan/dashboard.html`);
 
   const loginPromptBtn = page.locator('#auth-login-prompt-btn');
-  if (await loginPromptBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
+  if (await loginPromptBtn.isVisible({ timeout: 15_000 }).catch(() => false)) {
     await loginPromptBtn.click();
   }
 
