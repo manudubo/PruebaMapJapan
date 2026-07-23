@@ -17,7 +17,7 @@
  * Requires: full stack running (KC + backend + frontend).
  * Skipped when SKIP_REAL_AUTH is set.
  */
-import { test as base, expect, Browser, BrowserContext } from '@playwright/test';
+import { test as base, expect, Browser, BrowserContext, Page } from '@playwright/test';
 import { test as kcTest, getUserSessions, logoutUser } from './fixtures/kc-admin';
 import { loginViaKcForm } from './fixtures/kc-login-helper';
 import * as dotenv from 'dotenv';
@@ -34,6 +34,28 @@ const BASE = `${FRONTEND}/PruebaMapJapan`;
 
 const TEST_USER = process.env.E2E_SESSION_USERNAME ?? 'session-test@local';
 const TEST_PASS  = process.env.E2E_SESSION_PASSWORD ?? '';
+
+// Wraps loginViaKcForm with a guard for Case B: the webauthn-register-passwordless
+// required-action can fire via Keycloak.js AFTER the initial redirect to the app,
+// bypassing loginViaKcForm's in-flow hitRequiredAction race. Race #new-trip-btn visible
+// (success path) against the required-action URL (Case B) so the timeout is event-driven
+// rather than a fixed delay. global-setup pre-handles the first-ever occurrence so this
+// path is hit rarely, but subsequent test-run cycles can also trigger it.
+async function login(page: Page): Promise<void> {
+  await loginViaKcForm(page, TEST_USER, TEST_PASS);
+  const caseB = await Promise.race([
+    page.locator('#new-trip-btn').waitFor({ state: 'visible', timeout: 25_000 }).then(() => false),
+    page.waitForURL(/required-action/, { timeout: 25_000 }).then(() => true),
+  ]).catch(() => false);
+  if (caseB) {
+    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
+    const skipBtn = page.locator('a, button').filter({ hasText: /maybe later|skip|not now|later|cancel/i });
+    if (await skipBtn.first().waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)) {
+      await skipBtn.first().click();
+    }
+    await page.waitForURL(/localhost:5173/, { timeout: 20_000 });
+  }
+}
 
 // All tests require a live KC + backend.
 base.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
@@ -60,7 +82,7 @@ kcTest.describe('Session lifecycle', () => {
   // -------------------------------------------------------------------------
 
   kcTest('login creates a KC server-side session', async ({ page, kcAdmin }) => {
-    await loginViaKcForm(page, TEST_USER, TEST_PASS);
+    await login(page);
     await expect(page.locator('#new-trip-btn')).toBeVisible({ timeout: 20_000 });
 
     const sessions = await kcAdmin.getUserSessions(TEST_USER);
@@ -72,7 +94,7 @@ kcTest.describe('Session lifecycle', () => {
   // -------------------------------------------------------------------------
 
   kcTest('logout destroys KC session and returns to login prompt', async ({ page, kcAdmin }) => {
-    await loginViaKcForm(page, TEST_USER, TEST_PASS);
+    await login(page);
     await expect(page.locator('#new-trip-btn')).toBeVisible({ timeout: 20_000 });
 
     // Confirm session exists before logout
@@ -99,7 +121,7 @@ kcTest.describe('Session lifecycle', () => {
   });
 
   kcTest('logout clears app sessionStorage tokens', async ({ page }) => {
-    await loginViaKcForm(page, TEST_USER, TEST_PASS);
+    await login(page);
     await expect(page.locator('#new-trip-btn')).toBeVisible({ timeout: 20_000 });
 
     // Verify tokens are stored before logout
@@ -129,7 +151,7 @@ kcTest.describe('Session lifecycle', () => {
   // -------------------------------------------------------------------------
 
   kcTest('closing a tab does not destroy the KC server session', async ({ page, kcAdmin }) => {
-    await loginViaKcForm(page, TEST_USER, TEST_PASS);
+    await login(page);
     await expect(page.locator('#new-trip-btn')).toBeVisible({ timeout: 20_000 });
 
     const sessionsBefore = await kcAdmin.getUserSessions(TEST_USER);
@@ -149,7 +171,7 @@ kcTest.describe('Session lifecycle', () => {
 
   kcTest('new tab in same browser restores auth without re-login', async ({ context }) => {
     const tab1 = await context.newPage();
-    await loginViaKcForm(tab1, TEST_USER, TEST_PASS);
+    await login(tab1);
     await expect(tab1.locator('#new-trip-btn')).toBeVisible({ timeout: 20_000 });
 
     // Open a second tab in the same browser context (same KC cookie jar)
@@ -171,7 +193,7 @@ kcTest.describe('Session lifecycle', () => {
     // Login in context A
     const ctxA = await browser.newContext();
     const pageA = await ctxA.newPage();
-    await loginViaKcForm(pageA, TEST_USER, TEST_PASS);
+    await login(pageA);
     await expect(pageA.locator('#new-trip-btn')).toBeVisible({ timeout: 20_000 });
 
     // Context B has no cookies — cannot restore KC session
@@ -193,7 +215,7 @@ kcTest.describe('Session lifecycle', () => {
   kcTest('logout in one tab makes other tabs unauthenticated on next navigation', async ({ context, kcAdmin }) => {
     // Tab A: login
     const tabA = await context.newPage();
-    await loginViaKcForm(tabA, TEST_USER, TEST_PASS);
+    await login(tabA);
     await expect(tabA.locator('#new-trip-btn')).toBeVisible({ timeout: 20_000 });
 
     // Tab B: opens in same context, check-sso restores session

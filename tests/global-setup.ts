@@ -2,6 +2,7 @@ import { chromium, FullConfig } from '@playwright/test';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
+import { clearRequiredActions } from './e2e/fixtures/kc-admin';
 import { loginViaKcForm } from './e2e/fixtures/kc-login-helper';
 
 dotenv.config({ path: path.join(__dirname, '.env.test') });
@@ -90,6 +91,46 @@ async function kcLoginNewUser(): Promise<void> {
   await browser.close();
 }
 
+async function kcLoginSessionUser(): Promise<void> {
+  const username = process.env.E2E_SESSION_USERNAME ?? 'session-test@local';
+  const password = process.env.E2E_SESSION_PASSWORD ?? '';
+
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  // The webauthn-authenticator-passwordless KC execution adds the
+  // webauthn-register-passwordless required action for users with no passkeys.
+  // On the very first login for this user, Keycloak.js triggers the required-action
+  // AFTER the initial redirect to the app (Case B) instead of during the KC auth flow
+  // (Case A). loginViaKcForm handles Case A but not Case B. Pre-handle Case B here
+  // so all 21 session-management tests see only Case A, which loginViaKcForm already
+  // covers with its hitRequiredAction race.
+  await loginViaKcForm(page, username, password);
+
+  // loginViaKcForm returns once the page reaches localhost:5173. Check whether
+  // Keycloak.js is about to redirect back to the required-action page (Case B).
+  const caseB = await page
+    .waitForURL(/required-action/, { timeout: 8_000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (caseB) {
+    console.log('session-test@local: handling Case B webauthn-register-passwordless redirect');
+    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
+    const skipBtn = page.locator('a, button').filter({ hasText: /maybe later|skip|not now|later|cancel/i });
+    if (await skipBtn.first().waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)) {
+      await skipBtn.first().click();
+    }
+    await page.waitForURL(/localhost:5173/, { timeout: 20_000 });
+  }
+
+  await browser.close();
+
+  // Remove any remaining required actions so the user enters each test run clean.
+  await clearRequiredActions(username);
+}
+
 async function globalSetup(_config: FullConfig): Promise<() => Promise<void>> {
   // Only wait for servers when they are actually being started by the test runner.
   // In CI the servers are started before npx playwright test runs.
@@ -117,6 +158,10 @@ async function globalSetup(_config: FullConfig): Promise<() => Promise<void>> {
     } else {
       console.log('Reusing fresh storageState from .auth/new-user.json');
     }
+    // Pre-handle the first-ever login for session-test@local (Case B required-action).
+    // This ensures session-management.spec.ts tests see only Case A behaviour, which
+    // loginViaKcForm already handles via its hitRequiredAction race.
+    await kcLoginSessionUser();
   }
 
   // Return teardown function
