@@ -64,6 +64,13 @@ export async function clearRequiredActions(username: string): Promise<void> {
   await client.users.update({ id: user.id }, { requiredActions: [] });
 }
 
+export async function getUserId(username: string): Promise<string> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) throw new Error(`User not found: ${username}`);
+  return user.id;
+}
+
 export async function clearOtpCodes(username: string): Promise<void> {
   // email_otp_codes lives in Postgres (BACK-03); KC Admin has no such endpoint
   const sql = postgres(process.env.POSTGRES_URL!);
