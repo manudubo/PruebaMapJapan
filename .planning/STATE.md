@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: Security & Code Health Hardening
-status: ready_to_execute
-stopped_at: Phase 20 planned — 4 plans in 3 waves ready to execute
-last_updated: "2026-07-24T22:30:00.000Z"
-last_activity: 2026-07-24 — Phase 20 planned (4 plans: Wave 0 test infra, Wave 1 OTP+XSS fixes, Wave 2 CSP+Terraform)
+status: executing
+stopped_at: Phase 20 context gathered
+last_updated: "2026-07-24T23:46:33.004Z"
+last_activity: "2026-07-24 — Phase 20 planned (Wave 0: test infra; Wave 1: OTP CSPRNG fix + XSS DOM rewrite; Wave 2: CSP Vite plugin + Terraform cleanup)"
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 25
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-07-24 — v3.2 milestone started)
 
 ## Current Position
 
-Phase: 20 — Critical Security (planned, 4/4 plans ready)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-07-24 — Phase 20 planned (Wave 0: test infra; Wave 1: OTP CSPRNG fix + XSS DOM rewrite; Wave 2: CSP Vite plugin + Terraform cleanup)
+Phase: 20 — Critical Security (executing, 1/4 plans complete)
+Plan: 01 (next)
+Status: Executing — Wave 0 complete, Wave 1 next (OTP fix + XSS DOM rewrite)
+Last activity: 2026-07-24 — Plan 20-00 executed: RED test files for SEC-01 (OTP CSPRNG) and SEC-02 (widget XSS) created. Backend suite exits non-zero (Math.random audit fails). Frontend suite exits non-zero (renderList not exported).
 
-Progress: [          ] 0% (0/7 phases complete)
+Progress: [##        ] 25% (1/4 plans complete)
 
 ## Performance Metrics
 
@@ -44,6 +44,10 @@ Progress: [          ] 0% (0/7 phases complete)
 ### Decisions
 
 Full log in PROJECT.md Key Decisions table. v3.1 closed with no open decision threads — all decisions logged there.
+
+**Plan 20-00 decisions:**
+- Source-audit test pattern chosen for backend RED: reads auth.ts source, asserts Math.random absent
+- Frontend RED achieved via missing export: renderList not exported → TypeError on all 4 XSS tests
 
 ### Pending Todos
 
@@ -71,6 +75,6 @@ Full log in PROJECT.md Key Decisions table. v3.1 closed with no open decision th
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 20 context gathered
-Resume: run `/gsd-discuss-phase 20` to start planning Phase 20 (Critical Security: SEC-01/02/03/04/14)
+Last session: 2026-07-24T23:46:00Z
+Stopped at: Completed 20-00-PLAN.md (RED test infrastructure)
+Resume: Execute Plan 20-01 (OTP CSPRNG fix: replace Math.random with crypto.getRandomValues in auth.ts)

@@ -73,7 +73,7 @@ Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `cod
   4. `terraform/cloudflare/main.tf` no longer defines `cloudflare_worker_secret.kc_admin_client_secret`; `wrangler tail` on a deployed Worker shows no `KC_ADMIN_CLIENT_SECRET` env binding; the `japan-trip-worker` Keycloak client is retained for local/test use; full E2E admin fixture (`resetCredentials`, `createUser`, `deleteUser`) still passes after the Terraform change
 **Plans**: 4 plans
 Plans:
-- [ ] 20-00-PLAN.md — Wave 0: RED test infrastructure (OTP source-audit test + widget XSS tests)
+- [x] 20-00-PLAN.md — Wave 0: RED test infrastructure (OTP source-audit test + widget XSS tests)
 - [ ] 20-01-PLAN.md — Wave 1: SEC-01 OTP CSPRNG fix + SEC-14 Terraform cleanup
 - [ ] 20-02-PLAN.md — Wave 1: SEC-02/03 renderList DOM API rewrite + export
 - [ ] 20-03-PLAN.md — Wave 2: SEC-04 CSP Vite plugin + human-verify 0-violations
