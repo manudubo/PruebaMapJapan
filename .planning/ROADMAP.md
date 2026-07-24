@@ -50,7 +50,7 @@ Full outcome: 242 passed, 25 skipped (documented deferrals), 0 failed. See `.pla
 
 ### v3.2 Security & Code Health Hardening (candidate — not started)
 
-Synthesized from `ANALISIS-REPO.md` (7 passes, ~84 actionable findings) and `codex-review.md` (both in repo root). Full findings, per-item verification status, and rationale in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. To formalize: run `/gsd-new-milestone` when ready to start v3.2, which turns this draft into real phases via `/gsd-plan-phase`.
+Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md` (both in repo root). Full findings, per-item verification status, and rationale in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. To formalize: run `/gsd-new-milestone` when ready to start v3.2, which turns this draft into real phases via `/gsd-plan-phase`.
 
 - [ ] **Phase 20: Critical Security Fixes** — OTP CSPRNG (SEC-01), widget XSS + CSP package (SEC-02/03/04), remove or scope the unused Keycloak `manage-users` admin role/secret (SEC-14)
 - [ ] **Phase 21: Deploy & Build Safety** — backend build is currently broken (`wrangler deploy --dry-run` fails on `string_decoder`, INFRA-03); gate `deploy-*.yml` on CI success (INFRA-01/02), pin wrangler (INFRA-04), fix KC Docker healthcheck (INFRA-05), upgrade `drizzle-orm`/`dompurify` (DEP-01)
