@@ -5,6 +5,7 @@
 - âœ… **v2.0 Auth Infrastructure & Hardening** â€” Phases 1â€“9 (shipped 2026-05-28)
 - âœ… **v3.0 Quality, Polish & DevX** â€” Phases 10â€“14 (shipped 2026-06-15)
 - ðŸ”„ **v3.1 E2E Stabilization** â€” Phases 15â€“19 (in progress)
+- ðŸ”œ **v3.2 Security & Code Health Hardening** â€” Phases 20â€“24 (candidate, not started â€” see `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`)
 
 ## Phases
 
@@ -39,7 +40,7 @@
 - [x] **Phase 15: Triage + Config** - Run fresh full-suite triage and fix passkeys Chromium scoping
 - [x] **Phase 16: Independent Spec Fixes** - Fix public-sharing fixture and IDP theme assertions
 - [x] **Phase 17: OTP + Login Helper** - Fix OTP contract and extract shared KC form helper
-- [ ] **Phase 18: Passkeys Fixes** - Fix authenticator lifecycle and credential reset
+- [x] **Phase 18: Passkeys Fixes** - Fix authenticator lifecycle and credential reset
 - [ ] **Phase 19: Session + Closure** - Fix session-management selectors and document all outcomes
 
 ## Phase Details
@@ -100,8 +101,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 18-01-PLAN.md â€” (planned at phase start)
-- [ ] 18-02-PLAN.md â€” (planned at phase start)
+- [x] 18-01-PLAN.md â€” Passkeys spec selector fixes and afterEach cleanup (PASS-01) â€” commit a0872b7,a189ff2
+- [x] 18-02-PLAN.md â€” Clear webauthn-register-passwordless in resetCredentials (PASS-02) â€” commit 08a48e3
 
 ### Phase 19: Session + Closure
 **Goal**: `session-management.spec.ts` passes, and every test outcome in the suite is accounted for â€” green, root-caused and fixed, or explicitly documented as an accepted deferral
@@ -116,6 +117,16 @@ Plans:
 Plans:
 - [x] 19-01-PLAN.md — Add storageState to firefox/webkit projects; mark trip-edit-integration and new-user webkit as test.fixme (DOC-01, DOC-02) — commit dff16ca,836fc25
 - [ ] 19-02-PLAN.md — Run full E2E suite, verify session-management live, write 19-CLOSURE.md (SESSION-01, DOC-02)
+
+### v3.2 Security & Code Health Hardening (candidate — not started)
+
+Synthesized from `ANALISIS-REPO.md` and `codex-review.md` (both in repo root). Full findings, per-item verification status, and rationale in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. To formalize: run `/gsd-new-milestone` once v3.1 ships, which turns this draft into real phases via `/gsd-plan-phase`.
+
+- [ ] **Phase 20: Critical Security Fixes** — OTP CSPRNG, XSS widget hardening (unescaped RSS/passkey-label/search-highlight `innerHTML`), frontend CSP
+- [ ] **Phase 21: Deploy & Build Safety** — gate `deploy-*.yml` on CI success, fix backend `wrangler deploy --dry-run` (Node builtins bundled via `pg`), upgrade high/critical-severity runtime deps
+- [ ] **Phase 22: Reliability Bugs** — activity-reorder UI bug (order_index not applied to optimistic update), hung promise on 401, first-login auto-provision race, stale sessionStorage doc comment
+- [ ] **Phase 23: Secrets & Accessibility** — triage/rotate the 14 Gitleaks findings, add secret/a11y scanning to CI, fix `aria-expanded` misuse + contrast + heading-order violations
+- [ ] **Phase 24: Architecture Debt & Test Coverage** (stretch) — unit tests for `trips.ts` authorization cascade (currently zero), `DATABASE_URL`/`getDb` middleware dedup, dual-DB-driver env-var instead of substring match
 
 ## Progress
 
@@ -138,7 +149,7 @@ Plans:
 | 15. Triage + Config | v3.1 | 2/2 | Complete | 2026-06-21 |
 | 16. Independent Spec Fixes | v3.1 | 2/2 | Complete | 2026-06-22 |
 | 17. OTP + Login Helper | v3.1 | 2/2 | Complete | 2026-06-23 |
-| 18. Passkeys Fixes | v3.1 | 0/? | Not started | - |
+| 18. Passkeys Fixes | v3.1 | 2/2 | Complete | 2026-07-13 |
 | 19. Session + Closure | v3.1 | 1/2 | In progress | - |
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*

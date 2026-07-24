@@ -318,12 +318,12 @@ test.fixme(({ browserName }) => browserName === 'webkit',
 | A1 | D-03 project-level storageState fix causes auth.spec.ts real-session tests to pass on firefox/webkit | Common Pitfalls, Closure Map | auth.spec.ts describe already has test.use override — D-03 may be a consistency fix rather than a functional fix; D-05 run determines actual state |
 | A2 | session-management.spec.ts passes on a live stack with loginViaKcForm | Phase Requirements (SESSION-01) | Code is correct; runtime pass requires live KC+backend+frontend — confirmed only by D-05 run |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does D-03 actually change auth.spec.ts real-session behavior on firefox/webkit?**
    - What we know: `auth.spec.ts` real-session describe has `test.use({ storageState: path.join(__dirname, '../.auth/user.json') })` at describe scope (commit b259d7e, 2026-05-28, predates Phase 15 triage). In Playwright, describe-level `test.use` overrides project-level config. If this was active at triage time, the project-level config gap may not have been the real cause.
    - What's unclear: Whether describe-level `test.use` in Playwright 1.60 fully overrides missing project storageState, or whether there's a subtle interaction.
-   - Recommendation: Apply D-03 as decided (it makes configs consistent regardless). After D-05, record whether auth.spec.ts real-session actually changed behavior. If it was already passing before D-03, note it in 19-CLOSURE.md as "config-bug resolved; tests were already passing due to describe-level override."
+   - RESOLVED: Apply D-03 as a consistency fix regardless of auth.spec.ts describe-level override — it makes all three non-passkeys projects consistent with chromium. D-05 run is authoritative for actual behavior change. If auth.spec.ts real-session was already passing before D-03, note in 19-CLOSURE.md as "config-bug resolved; tests were already passing due to describe-level override."
 
 ## Environment Availability
 

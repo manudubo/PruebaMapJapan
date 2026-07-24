@@ -56,6 +56,10 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - [ ] **Passkey rename**: PUT credentials/{id}/label
 - [ ] **Prod rpId for passkeys**: Set to Railway hostname in Terraform before any prod passkey registration
 
+## Candidate Milestone: v3.2 Security & Code Health Hardening
+
+Not started — draft requirements at `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`, phase skeleton in ROADMAP.md. Synthesizes `ANALISIS-REPO.md` (2026-07-22 static audit) and `codex-review.md` (2026-06-23 live-environment audit, largely superseded by v3.1's login-harness rewrite but still valid on security/deploy/dependency findings). Headline items: OTP uses `Math.random()` instead of a CSPRNG, unescaped RSS/passkey-label HTML in `innerHTML` sinks, prod deploys aren't gated on CI passing, the backend Worker fails `wrangler deploy --dry-run`, 21 known dependency vulnerabilities (2 critical), and a UI bug where activity drag-reorder doesn't persist visually until page reload.
+
 ### Out of Scope
 
 - Mobile native app — web-only by design
