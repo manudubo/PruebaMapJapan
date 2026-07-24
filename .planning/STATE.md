@@ -17,7 +17,7 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-22 — v3.2 candidate added)
+See: .planning/PROJECT.md (updated 2026-07-23 — v3.1 milestone evolution review complete)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
 **Current focus:** v3.1 shipped. Next: formalize v3.2 candidate via `/gsd-new-milestone` (not started)
@@ -42,19 +42,7 @@ Progress: [==========] 100% (5/5 phases complete)
 
 ### Decisions
 
-Full log in PROJECT.md Key Decisions table. v3.0 closed with no open decision threads.
-
-**Phase 17 key decisions locked:**
-
-- OTP routes are auth-gated (step-up auth, not passwordless) — specs must send Bearer JWT
-- otp-request returns 201 (verified auth.ts:131); tests 1-2 must assert 201 not 200
-- otp-test@local is separate from e2e-test@local; beforeAll must log in as otp-test@local
-- loginViaKcForm helper: new file tests/e2e/fixtures/kc-login-helper.ts, 4 call sites wired
-
-**Phase 19 key decisions locked:**
-
-- session-management.spec.ts gets its own dedicated Terraform-provisioned KC user (`session-test@local`) instead of sharing `TEST_USER`/`e2e-test@local` with auth.spec.ts/public-sharing.spec.ts — its `logoutUser()` calls were destroying sessions globally for whichever user it used, cross-contaminating any other spec sharing that user on firefox/webkit. User's stated broader preference: every E2E spec should ideally have its own dedicated user (not retroactively applied to other specs without explicit direction — noted for future E2E work).
-- 69 local commits on `main` were unpushed for an extended period; backed up to `origin/backup/2026-07-22` rather than pushed to `main` directly, because `deploy-frontend.yml`/`deploy-backend.yml` trigger on push-to-main with no CI gate, and the backend currently fails `wrangler deploy --dry-run` (tracked as v3.2 candidate INFRA-01/INFRA-02).
+Full log in PROJECT.md Key Decisions table. v3.1 closed with no open decision threads — all decisions logged there.
 
 ### Pending Todos
 
