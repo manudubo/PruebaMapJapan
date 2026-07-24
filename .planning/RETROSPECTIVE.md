@@ -104,13 +104,64 @@ Living retrospective — one section per milestone, cross-milestone trends at th
 
 ---
 
+## Milestone: v3.1 — E2E Stabilization
+
+**Shipped:** 2026-07-23
+**Phases:** 5 | **Plans:** 11
+
+### What Was Built
+
+- Fresh, authoritative full-suite E2E triage replacing a stale several-commits-old failure list; `passkeys.spec.ts` correctly scoped to `chromium-passkeys` only
+- `public-sharing.spec.ts` and `idp-theme.spec.ts` fixed independently — self-contained `beforeAll` fixtures, valid PKCE S256 challenge, current KC 26 template assertions
+- Single shared `loginViaKcForm` helper replacing four independent, fragile KC-navigation implementations; OTP route-contract and SMTP-lag fixes
+- `passkeys.spec.ts` reliability fixes: `afterEach` authenticator cleanup, `resetCredentials` clearing stale `webauthn-register-passwordless` required actions
+- Root-caused and fixed the passkeyCampaign-driven session flakiness (per-device cookie pre-seed), a dedicated `session-test@local` KC user, and a real production bug (`tripDetail.ts` trip title never set for zero-destination trips)
+- Milestone closed at 242 passed / 25 skipped (all documented `test.fixme` deferrals) / 0 failed
+
+### What Worked
+
+- **Root-causing "flaky" failures instead of retrying them away** — the session-management webkit failures and the tripDetail.ts bug both initially looked like test flakes; isolating and repeating them (4/6 and 4/4 reruns) distinguished a genuine environment constraint (webkit + passkeyCampaign) from a real, deterministic app bug, and each got the right kind of fix
+- **Requiring reproduction before accepting `test.fixme`** — every webkit deferral in this milestone has a documented rationale backed by repeated isolated runs and Keycloak log evidence, not a one-off flake accepted on faith
+- **Container-log correlation** — cross-referencing Keycloak logs (`CUSTOM_REQUIRED_ACTION_ERROR`) against Playwright failures turned "test sometimes hangs" into a precise, provable root cause (Case B / passkeyCampaign redirect)
+- **Advisor catch before merging** — before merging the phase-19 worktree into `main`, the advisor caught that `main`'s own working tree had uncommitted changes (some stale, some legitimate v3.2 planning work) that a naive merge/checkout would have silently destroyed. Checking `main`'s status before any worktree merge is now a hard rule going forward, not just for `git merge --no-ff` conflicts but for uncommitted state on the target branch itself
+
+### What Was Inefficient
+
+- **Requirements tracking at close, a third time** — v2.0 and v3.0's retrospectives both flagged that `REQUIREMENTS.md` checkboxes go stale during execution and only get fixed at milestone close. It happened again: all 17 v3.1 requirements were unchecked until this close step. The "automated checkpoint" fix proposed in both prior retrospectives still hasn't been built.
+- **`gsd-sdk query milestone.complete` is still broken** — same bug documented in the v3.0 retrospective (`phasesArchive` called with empty args, dropping `version`) is present in the CLI version installed for this milestone too. Archival was done by hand again, reading the template and replicating the v2.0/v3.0 format.
+- **Local dev stack instability across sessions** — Docker Keycloak/Postgres containers exited silently between sessions more than once, and a git worktree's `backend/.dev.vars` (gitignored, not copied on worktree creation) caused a *silent* per-request DB failure after one such restart — which looked exactly like a hung 25-minute test suite rather than a clear startup error. Cost significant investigation time before the root cause (missing env file, not a real hang) was found.
+- **First full-suite background run used a detached subshell instead of the harness's native background-task tracking**, so the harness reported the trivial launcher script as "completed" while the real `npx playwright test` process kept running invisibly. Caught and corrected on the second attempt.
+
+### Patterns Established
+
+- Dedicate one KC test user per E2E spec file rather than sharing a user across specs — `logoutUser()` calls in one spec were destroying sessions another spec relied on. Standing preference now, not yet retroactively applied to older specs.
+- Pre-seed the passkeyCampaign's per-device cookie (`pnk_<userId>`) via `context.addCookies()` before login in any spec that intentionally clears storageState per test — otherwise every fresh context re-triggers the full webauthn-register-passwordless redirect
+- Never use `waitForLoadState('networkidle')` against a Vite dev server — the HMR WebSocket keeps the connection open indefinitely, so "idle" may never fire. Use locator-based waits instead.
+- Before any worktree→main merge: check `main`'s own `git status` first, not just the merge's conflict outcome — uncommitted state on the target branch is a silent-data-loss risk a clean `git merge --no-ff` won't warn about
+- When a Docker/dev-server restart is needed mid-session, verify gitignored env files (`.dev.vars`, etc.) exist in whatever directory (main repo vs. worktree) the server is being started from — don't assume "backend responds 200" means it's actually configured correctly
+
+### Key Lessons
+
+1. **The requirements-checkbox lesson needs to stop being a retrospective note and become an actual checkpoint.** Three milestones in a row have hit this. If it isn't automated (e.g., a hook that runs after each phase's SUMMARY.md lands), it will keep recurring — write it once, not the fourth time.
+2. **A "hung" process should be diagnosed as "hung" only after ruling out silent misconfiguration.** The `.dev.vars`-missing incident cost real time because a slow/absent test run was assumed to be a flake or a timeout, when it was actually every request failing fast and retrying. Check container/service logs for hard errors before assuming a timing problem.
+3. **`gsd-sdk query milestone.complete` should not be trusted without a smoke test — this is the second milestone in a row where it silently failed.** Worth filing upstream or patching locally rather than re-discovering this every close.
+4. **Reproduction rigor for `test.fixme` pays off** — the extra 10-15 minutes spent running a suspected flake 4-6 times in isolation before accepting a deferral is what makes the milestone's "25 skipped, 0 failed" claim actually trustworthy rather than a rubber stamp.
+
+### Cost Observations
+
+- Model mix: Sonnet-only this session
+- Sessions: 2 (one hit a context-compaction boundary mid-Phase-19)
+- Notable: a comprehensive 7-pass repo security/code-health audit (`ANALISIS-REPO.md`, ~84 findings) was produced and synthesized into `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` alongside the milestone close — not part of v3.1 scope, but front-loads the next milestone's requirements-gathering step
+
+---
+
 ## Cross-Milestone Trends
 
-| Trend | v2.0 | v3.0 |
-|-------|------|------|
-| Requirements tracking at close | Stale (19/19 unchecked) | Stale again (30/30 unchecked until close) |
-| ROADMAP progress table accuracy | Stale at close | Stale (Phase 10/12 plan counts wrong until close) |
-| Wave-based parallelism effectiveness | High | Mixed — Phase 13 Wave 1 worktree merges produced no commits, re-executed directly |
-| Session limit hits | 1 (Phase 9 Plan 07) | 0 |
-| External binary compatibility issues | 1 (CF Terraform on Windows) | 0 |
-| GSD tooling gaps found | 0 | 2 (`milestone.complete` drops version arg; no missing-VERIFICATION.md detection) |
+| Trend | v2.0 | v3.0 | v3.1 |
+|-------|------|------|------|
+| Requirements tracking at close | Stale (19/19 unchecked) | Stale again (30/30 unchecked until close) | Stale a third time (17/17 unchecked until close) |
+| ROADMAP progress table accuracy | Stale at close | Stale (Phase 10/12 plan counts wrong until close) | Stale (Phase 18/19 status wrong until fixed mid-session) |
+| Wave-based parallelism effectiveness | High | Mixed — Phase 13 Wave 1 worktree merges produced no commits, re-executed directly | N/A — single worktree used for phase 19 wave 2 work, merged cleanly |
+| Session limit hits | 1 (Phase 9 Plan 07) | 0 | 1 (context compaction mid-Phase-19) |
+| External binary/environment compatibility issues | 1 (CF Terraform on Windows) | 0 | 1 (worktree-local `.dev.vars` gitignored, not copied — silent DB failure after a Docker restart) |
+| GSD tooling gaps found | 0 | 2 (`milestone.complete` drops version arg; no missing-VERIFICATION.md detection) | 1 confirmed recurring (`milestone.complete` still broken, same root cause as v3.0) |
