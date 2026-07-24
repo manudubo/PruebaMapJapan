@@ -1,289 +1,271 @@
-# Architecture Patterns — E2E Test Suite (v3.1 Stabilization)
+# Architecture Research — v3.2 Integration
 
-**Domain:** Playwright E2E test architecture for OIDC/Keycloak-authenticated MPA
-**Researched:** 2026-06-16
-**Scope:** Structural analysis of test isolation, auth state management, WebAuthn CDP patterns, OTP serial mode, and triage taxonomy for the 7 known-failing specs
+**Domain:** Brownfield integration (Hono/Cloudflare Workers backend, Drizzle dual-driver, Terraform-managed Keycloak, vanilla-TS MPA frontend)
+**Researched:** 2026-07-24
+**Confidence:** HIGH — every finding below is read directly from the current repo (file + line), not inferred from training data. The one place confidence drops to MEDIUM is flagged explicitly (Q1 union-type typecheck).
 
----
-
-## Overview
-
-The suite is a real-auth Playwright setup targeting a full stack: Hono backend (8787), Keycloak 26.6.1 (8080), Vite frontend (5173), Postgres, and Mailpit SMTP (8025). No mocking of auth or KC — every authenticated test drives the real OIDC PKCE flow.
-
-```
-playwright.config.ts
-  └─ globalSetup: tests/global-setup.ts
-       ├─ kcLogin()         → .auth/user.json + .auth/session.json       (e2e-test@local)
-       └─ kcLoginNewUser()  → .auth/new-user.json + .auth/new-user-session.json (new_user_test)
-            Freshness gate: MAX_AGE_MS = 20 min (stays under KC 30-min idle timeout)
-            Skipped entirely when SKIP_REAL_AUTH is set
-
-  projects:
-    chromium            → storageState: .auth/user.json  (ALL specs inherit unless overridden)
-    firefox / webkit    → no storageState (anonymous)
-    chromium-passkeys   → testMatch: passkeys.spec.ts only; no project storageState
-                          (passkeys.spec.ts re-declares .auth/user.json at test level)
-```
-
-### Component Boundaries
-
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `tests/global-setup.ts` | Headless OIDC PKCE login for 2 personas; writes `.auth/*.json` | Frontend (5173), Keycloak (8080) |
-| `tests/e2e/fixtures/kc-admin.ts` | Keycloak Admin REST + direct Postgres for OTP table | KC Admin API, Postgres (direct) |
-| `tests/e2e/fixtures/mailpit-helpers.ts` | Mailpit inbox read/purge for OTP extraction | Mailpit REST API (8025) |
-| `idp-theme.spec.ts` | KC FreeMarker theme / CSS assertions; no auth, no app | Keycloak only (raw HTTP) |
-| `otp.spec.ts` | Backend `/api/auth/otp-request` + `/api/auth/otp-verify` contract | Backend (8787), Postgres (via kcAdmin), Mailpit |
-| `passkeys.spec.ts` | CDP WebAuthn Virtual Authenticator: register / login / last-cred guard | Frontend, Keycloak, kcAdmin |
-| `public-sharing.spec.ts` | Backend public-route contract + guest-view frontend | Backend only — no KC, no auth |
-| `session-management.spec.ts` | Full KC session lifecycle (login/logout/tabs/cross-ctx) | Frontend, Keycloak, kcAdmin |
-
-### Key Architectural Constraints
-
-- **`SKIP_REAL_AUTH`** guards every real-auth test. KC is not in CI; this flag prevents the suite from blocking the pipeline when KC is absent.
-- **Playwright bug #31108**: `keycloak-js` stores tokens in `sessionStorage`, which `context.storageState()` does not capture. Workaround: dump sessionStorage after login in `global-setup.ts`, replay it via `context.addInitScript()` in `beforeEach` for any spec that needs KC tokens without re-driving the login UI.
-- **KC flow complexity**: the `webauthn_passwordless` required execution is configured as a REQUIRED subflow, which causes KC to present "Try Another Way → Password" before the combined username/password form. Global setup and 3 specs each implement this navigation independently — a critical fragility source.
+**Note:** this file previously held v3.1 E2E-test-architecture research (Playwright/Keycloak triage). That milestone is complete and its findings are superseded/closed (see `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` Cluster 0). This revision replaces it with v3.2 integration research — not ecosystem research, since v3.2 is a hardening milestone against an existing, audited architecture. This document answers the 5 integration questions the orchestrator posed, then derives a build order from real code dependencies for Phases 21/24/25/26.
 
 ---
 
-## Auth State Isolation
+## Q1 — `DATABASE_URL`/`getDb` middleware placement (M-01) and typing `c.get('db')` (ARCH-01)
 
-### storageState lifecycle
+### Current state (read directly)
 
-1. `global-setup.ts` runs **once per `npx playwright test` invocation** — not per-spec, not per-worker.
-2. It freshness-gates on the `.auth/user.json` file mtime (20-minute window). If stale, `kcLogin()` drives headless Chromium through the real KC login UI and writes:
-   - `.auth/user.json` — cookies + localStorage (KC SSO session cookie, KC state cookies)
-   - `.auth/session.json` — sessionStorage dump (`keycloak-js` tokens, per Playwright bug #31108 workaround)
-3. `playwright.config.ts` binds `.auth/user.json` at the **project level** for `chromium`. Every spec in that project inherits it unless it overrides with `test.use({ storageState: ... })`.
+- `backend/src/db/index.ts:16` — `export function createDb(databaseUrl: string): any` (eslint-disabled). `export const getDb = createDb` and `export type Db = ReturnType<typeof createDb>` (line 31) — `Db` is therefore also `any` today.
+- The `if (!c.env.DATABASE_URL) { ... 500 ... } const db = getDb(c.env.DATABASE_URL)` guard is duplicated **19 times in `trips.ts`**, **2 times in `auth.ts`** (`auth.ts:97`, `auth.ts:141`), and **once more in `middleware/user.ts:16-21`** (`ensureUserProvisioned`).
+- `users.ts` has **3 `getDb()` calls with no guard at all** (`users.ts:43,67,89`) — an absent `DATABASE_URL` there throws inside `createDb`/`Pool`/`neon()` construction and falls through to the global `app.onError` handler in `index.ts:42`, producing a *different* error shape (`{success:false, error:'Internal server error', code:'internal_error'}`) than the guarded routes' `{success:false, error:'Server configuration error'}`. This is the inconsistency M-01 describes, confirmed live.
+- `public.ts:18` has **no guard, no try/catch at all** — same fallthrough-to-`onError` behavior.
+- `health.ts` needs no DB at all and is mounted at `/api/health` with no auth.
+- Root `index.ts:18` (`/`) also needs no DB and has no auth.
 
-### Per-spec auth identity map
+### Fix — two coupled changes, ARCH-01 first
 
-| Spec | Identity | How Set | Reason for Override |
-|------|----------|---------|---------------------|
-| `auth.spec.ts` (describe 1) | Anonymous | `page.route()` mocks KC | Unit-style tests; no real KC needed |
-| `auth.spec.ts` (describe 2) | `e2e-test@local` | `.auth/user.json` (inherited) + `addInitScript` for sessionStorage | Tests real authenticated state |
-| `trips.spec.ts`, `trip-edit.spec.ts`, etc. | `e2e-test@local` | `.auth/user.json` (inherited) | Standard authenticated CRUD |
-| `new-user-trip-creation.spec.ts` | `new_user_test` | `test.use({ storageState: '.auth/new-user.json' })` | Dedicated new-user persona |
-| `otp.spec.ts` | Anonymous | `test.use({ storageState: { cookies: [], origins: [] } })` | OTP flow starts unauthenticated |
-| `passkeys.spec.ts` | `e2e-test@local` | `test.use({ storageState: '.auth/user.json' })` (explicit re-declaration) | `chromium-passkeys` project has no project-level storageState |
-| `session-management.spec.ts` | `e2e-test@local` | Logs in fresh per-test via `loginViaBrowser()` | Tests session creation itself; storageState replay would defeat the test |
-| `idp-theme.spec.ts` | None | No storageState (raw `request` fixture) | Theme assertions only; no app session |
-| `public-sharing.spec.ts` | None | No storageState (raw `request` + `page`) | Public routes; no auth |
+**1. ARCH-01 fix (`backend/src/db/index.ts`), new/modified: MODIFIED**
 
-### kc-admin fixture: what it isolates and when
+Type `createDb`'s return properly. The two drivers share `PgDatabase<TQueryResult, TFullSchema>` as their common base (`node_modules/drizzle-orm/pg-core/db.d.ts:20`), and the concrete classes are `NeonHttpDatabase<TSchema>` (`drizzle-orm/neon-http/driver.d.ts:22`) and `NodePgDatabase<TSchema>` (`drizzle-orm/node-postgres/driver.d.ts:21`).
 
-`kc-admin.ts` exposes a Playwright fixture (`kcAdmin`) that wraps Keycloak Admin REST calls and direct Postgres access. These reset operations are the primary mechanism for keeping KC server-side state clean across tests.
+Preferred:
+```typescript
+import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-| Operation | What it isolates | Called in | Notes |
-|-----------|-----------------|-----------|-------|
-| `resetCredentials(username)` | Deletes all `webauthn` / `webauthn-passwordless` credentials; leaves password intact | `passkeys.spec.ts` `beforeEach` | Must run before CDP authenticator is created — ensures KC has no prior passkey to confuse assertion |
-| `logoutUser(username)` | Kills all active KC server-side sessions for the user | `session-management.spec.ts` `beforeEach` | Guarantees a clean login-session baseline for each session-lifecycle test |
-| `clearOtpCodes(username)` | `DELETE FROM email_otp_codes WHERE user_id = ...` | `otp.spec.ts` `beforeEach` | Prevents leftover codes from prior runs satisfying or poisoning the lockout counter |
-| `expireOtpCodes(username)` | Back-dates `expires_at` for unused OTP codes | `otp.spec.ts` "expired OTP" test | Avoids requiring real time to pass; only way to test expiry without a test-only API |
-| `createUser` / `deleteUser` | Creates/removes a full KC user | Not used in `beforeEach`/`afterEach` currently | Suitable for `beforeAll`/`afterAll` if fixture-user isolation is needed for new specs |
+export function createDb(
+  databaseUrl: string,
+): NeonHttpDatabase<typeof schema> | NodePgDatabase<typeof schema> {
+  ...
+}
+```
+**Verify, don't assume:** run `tsc --noEmit` after this change against the query chains actually used in `trips.ts` (`.select({...}).from(trips).where(eq(...)).limit(1)`, etc). Both classes extend the same `PgDatabase` base so simple select/insert/update chains should unify, but if the union produces "not assignable" errors on any call site, **fall back to the shared base type** instead of the union:
+```typescript
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+export function createDb(databaseUrl: string): PgDatabase<PgQueryResultHKT, typeof schema> { ... }
+```
+Either way, `export type Db = ReturnType<typeof createDb>` (line 31, unchanged) automatically propagates the new type everywhere `Db` or `ReturnType<typeof getDb>` is used — including the untouched helper signatures in `trips.ts` (`resolveDestination(db: ReturnType<typeof getDb>, ...)` etc. at lines 53-134) and the `dest: any`/`day: any` cast at `trips.ts:132` (BUG-13), which becomes narrowable once this lands. This is the main reason to land ARCH-01 first: one file change, blast radius handled by type inference, not by touching every call site.
 
-### Fixture teardown gap
+**2. M-01 fix — new file `backend/src/middleware/db.ts` (NEW component)**
 
-The `kcAdmin` fixture has **no automatic teardown**: there is no `afterEach` / `afterAll` in the fixture definition (`kc-admin.ts:107-110` only calls `use(...)` with no teardown hook). This is acceptable for the current specs because each `beforeEach` resets to a known clean state regardless of what the prior test left. Adding teardown is only necessary if a new spec creates a resource that must be destroyed rather than overwritten (e.g., `createUser` in a `beforeAll` requires a matching `deleteUser` in `afterAll`).
+```typescript
+import type { Context, Next } from 'hono';
+import type { Env, ContextVariables } from '../types';
+import { getDb } from '../db';
 
-### storageState reset: the 20-minute expiry risk
+export async function dbMiddleware(
+  c: Context<{ Bindings: Env; Variables: ContextVariables }>,
+  next: Next,
+) {
+  if (!c.env.DATABASE_URL) {
+    return c.json({ success: false, error: 'Server configuration error' }, 500);
+  }
+  c.set('db', getDb(c.env.DATABASE_URL));
+  await next();
+}
+```
+Add `db: Db` to `ContextVariables` in `backend/src/types/index.ts:61-65` (MODIFIED — import `Db` from `../db`).
 
-The most common silent failure mode for specs consuming `.auth/*.json` is a stale file:
-- KC tokens inside `session.json` expire; the 30-second `isTokenExpired(30)` refresh guard in `keycloak-js` will try to refresh, but if there is no refresh token (post-silent-check-sso case, per PROJECT.md Key Decisions), `updateToken` throws.
-- `global-setup.ts` uses a 20-minute freshness window as a conservative buffer, but this does not protect against a run that starts fresh and then stalls for >30 minutes before the specs that consume `.auth/*.json` execute.
-- **Rule**: if passkeys or auth.spec.ts real-auth describe block fails with a timeout waiting for authenticated content, verify `.auth/user.json` mtime and inspect `.auth/session.json` for a valid `access_token` before diagnosing the spec.
+**Mounting — do not mount globally in `index.ts`.** `app.use('*', dbMiddleware)` in `index.ts` would run on `/` and `/api/health`, which have no `DATABASE_URL` need and would needlessly 500 if it's ever unset for a liveness-only deploy. Mount per-router instead, in the same place `authMiddleware`/`ensureUserProvisioned` are already mounted:
+- `trips.ts:47` — currently `tripsRoute.use('*', authMiddleware, ensureUserProvisioned)`. Change to `tripsRoute.use('*', dbMiddleware, authMiddleware, ensureUserProvisioned)` (db first, since `ensureUserProvisioned` needs it — see below).
+- `auth.ts:92` — currently `authRoute.use('*', authMiddleware, ensureUserProvisioned)`. Same change.
+- `users.ts` — has **no router-level `.use('*', ...)`**; each route applies `authMiddleware` individually (`users.ts:42,64,88`). Add `usersRoute.use('*', dbMiddleware)` once, ahead of the individual `authMiddleware` calls, OR add `dbMiddleware` per-route alongside `authMiddleware` for consistency with the existing per-route style. Prefer the router-level `.use('*', dbMiddleware)` — it's the one router where per-route duplication is the actual smell to remove.
+- `public.ts` — no auth at all today. Add `publicRoute.use('*', dbMiddleware)` as the router's first middleware.
+- `health.ts` and the root `/` handler in `index.ts` — **do not** mount `dbMiddleware`; they don't touch the DB.
+
+**Refactor `ensureUserProvisioned` (`middleware/user.ts`) to consume, not fetch — MODIFIED.** It currently re-implements the same guard+`getDb()` at lines 16-21. Once `dbMiddleware` runs first in the chain, change it to `const db = c.get('db')` and delete its own guard block. This also fixes the case where `ensureUserProvisioned` was previously the *only* thing standing between a missing `DATABASE_URL` and an unguarded `getDb()` call for any route composed with it.
+
+**Route bodies — MODIFIED, one-line change per route.** Replace `const db = getDb(c.env.DATABASE_URL)` (+ its guard block) with `const db = c.get('db')` in all 19 `trips.ts` call sites, both `auth.ts` call sites, all 3 `users.ts` call sites, and the 1 `public.ts` call site. This is the ~20-blob mechanical part of M-01; ARCH-01 and the middleware itself are the actual design work.
+
+**Test fixture impact:** `mockEnv` in `public.test.ts`, `auth.test.ts`, `index.test.ts`, `keycloak.test.ts` already sets `DATABASE_URL` to a (currently fake) value — no fixture change needed for M-01 itself, since `dbMiddleware` just calls the same `getDb()` those tests already exercise indirectly. ARCH-06 (Q5) is the piece that makes that URL point at something real.
 
 ---
 
-## CDP WebAuthn Patterns
+## Q2 — Removing the `japan-trip-worker` service account (SEC-14) — two Terraform roots, manual secret bridge
 
-### Lifecycle: per-test, not per-suite
+### Current state (read directly)
 
-Every passkey test creates its own virtual authenticator in the test body and removes it at the end of the same test. This is the correct lifecycle.
+- `terraform/keycloak/main.tf:109-119` defines `keycloak_openid_client.japan_trip_worker` (CONFIDENTIAL, `service_accounts_enabled = true`).
+- `terraform/keycloak/main.tf:131-136` defines `keycloak_openid_client_service_account_role.worker_manage_users`, binding the service account to the **client role** `manage-users` on the built-in `realm-management` client (looked up via `data.keycloak_openid_client.realm_management`, `main.tf:122-125`).
+- `terraform/keycloak/main.tf:149-152` outputs the secret: `output "worker_client_secret" { value = keycloak_openid_client.japan_trip_worker.client_secret; sensitive = true }`.
+- **`terraform/cloudflare/` is a wholly separate Terraform root** (own `main.tf`, `variables.tf`, `versions.tf` — own state file). There is **no `terraform_remote_state` data source** linking it to `terraform/keycloak/`. `terraform/cloudflare/main.tf:8-13` defines `resource "cloudflare_worker_secret" "kc_admin_client_secret"` sourced from `var.kc_admin_client_secret` (`terraform/cloudflare/variables.tf:17-20`), which is a plain sensitive string variable — populated manually (tfvars/CI secret), not by cross-root reference.
+- **The bridge is human, not Terraform.** `SETUP.md:71-76` instructs: run `terraform output -raw japan_trip_worker_secret` (already wrong — BUG-10, the real output name is `worker_client_secret`) and paste the value into `backend/.dev.vars` as `KC_ADMIN_CLIENT_SECRET`. There is no equivalent documented step wiring it into `terraform/cloudflare`'s `kc_admin_client_secret` var, meaning in practice this secret is manually propagated to up to 3 places: local `.dev.vars`, the Cloudflare Terraform var (prod), and CI if present.
+- **Zero code consumers, confirmed by exhaustive grep** of `backend/src` for `KC_ADMIN`: every hit is in `types/index.ts:33-34` (the `Env` interface declaration), `dev.ts:22-23` (passthrough from `process.env`), and mock fixtures in `index.test.ts`, `auth.test.ts`, `public.test.ts`, `keycloak.test.ts`. No route, middleware, or query file reads `env.KC_ADMIN_CLIENT_ID`/`KC_ADMIN_CLIENT_SECRET`. No admin-API client code exists anywhere in `backend/src`.
+- `deploy-backend.yml` does **not** set `KC_ADMIN_CLIENT_SECRET` via `wrangler secret put` — the only deployment path for that secret into the live Worker is the `cloudflare_worker_secret` Terraform resource, meaning `terraform/cloudflare` apply is the actual delivery mechanism to prod.
 
-**Why per-test is mandatory:** `kcAdmin.resetCredentials()` deletes WebAuthn credentials from the KC server before each test. If a per-suite authenticator were created in `beforeAll` and shared across tests, its client-side credential store would contain credentials registered in test 1 while KC's server-side store has been reset to empty — the CTAP2 assertion would succeed on the client but KC would reject it because the `credentialId` is no longer registered. Client/server credential stores must be reset in lockstep.
+### Is it safe to remove? Yes — but it's a 2-root + app-code coordinated change, not a single `terraform destroy`
 
-### Authenticator configuration
+Removing `keycloak_openid_client_service_account_role.worker_manage_users` and `keycloak_openid_client.japan_trip_worker` from `terraform/keycloak/main.tf` alone leaves:
+1. A dangling `output "worker_client_secret"` referencing a deleted resource (Terraform plan/apply will itself error — must delete the output too).
+2. `terraform/cloudflare`'s `cloudflare_worker_secret.kc_admin_client_secret` still deploying an orphaned secret to the live Worker for a client that no longer exists in Keycloak — harmless functionally (nothing reads it) but leaves a stale/meaningless secret in Cloudflare and its `var.kc_admin_client_secret` declaration in the deploy tfvars/CI secrets store.
+3. `backend/src/types/index.ts:33-34`'s `Env.KC_ADMIN_CLIENT_ID`/`KC_ADMIN_CLIENT_SECRET` fields, `dev.ts:22-23`, and 4 test-fixture files still referencing fields that no longer correspond to anything real.
 
-All three tests use identical options:
-```
-protocol: 'ctap2'
-transport: 'internal'
-hasResidentKey: true
-hasUserVerification: true    // NOTE: correct spelling — not haUserVerification
-isUserVerified: true
-automaticPresenceSimulation: false
-```
+**Full removal checklist (all MODIFIED, none NEW):**
+- `terraform/keycloak/main.tf` — delete lines 108-119 (`japan_trip_worker` client), 121-136 (`realm_management` data source + `worker_manage_users` role, unless `realm_management` data source is reused elsewhere — grep confirms it's only referenced by this one role resource), 147-152 (`worker_client_secret` output).
+- `terraform/cloudflare/main.tf` — delete the `cloudflare_worker_secret.kc_admin_client_secret` resource (lines 8-13).
+- `terraform/cloudflare/variables.tf` — delete `kc_admin_client_secret` variable (lines 17-20).
+- `terraform/cloudflare/local.tfvars.example` and any CI secret entry referencing `kc_admin_client_secret` — remove.
+- `backend/src/types/index.ts:33-34` — delete `KC_ADMIN_CLIENT_ID`/`KC_ADMIN_CLIENT_SECRET` from `Env`.
+- `backend/src/dev.ts:22-23,36` — delete passthrough + log line.
+- `backend/.dev.vars.example:3-4` and any local `.dev.vars` — delete.
+- `backend/src/routes/auth.test.ts`, `public.test.ts`, `index.test.ts`, `auth/keycloak.test.ts` — delete `KC_ADMIN_CLIENT_ID`/`KC_ADMIN_CLIENT_SECRET` from each `mockEnv` (they typecheck against `Env`, so this is a forced, not optional, cleanup once `Env` changes).
+- `SETUP.md:42-43,71-76` — delete the setup step (also incidentally closes BUG-10, same document, no extra work).
 
-`automaticPresenceSimulation: false` is correct for flows where KC drives the assertion (registration button click → KC form → CDP responds); `true` would auto-assert on every CTAP request, which would interfere with flows where you want to control when assertion happens (e.g., to verify that KC correctly prompts before asserting).
-
-### The login-with-passkey credential transfer pattern
-
-`passkeys.spec.ts`'s "login with passkey" test demonstrates the only safe way to test cross-context passkey authentication:
-
-1. Register in authenticated context (existing session, registered authenticator A).
-2. Extract credential bytes from authenticator A via `WebAuthn.getCredentials`.
-3. Create a **new clean browser context** (no cookies, no sessionStorage — forces KC redirect).
-4. Create authenticator B in the new context.
-5. Transfer credential bytes to B via `WebAuthn.addCredential`.
-6. Navigate; KC challenges; authenticator B auto-asserts using the transferred bytes.
-
-The clean context must have `WebAuthn.enable` called **before** navigation to the app page — the CDP domain must be enabled before the page loads for the authenticator to intercept the WebAuthn API calls.
-
-### Context-scoped vs page-scoped CDP sessions
-
-`page.context().newCDPSession(page)` is page-scoped. For the login test that opens a new context (`browser.newContext()`), a new CDP session against the new context's page (`cleanContext.newCDPSession(cleanPage)`) is required. A CDP session from context A cannot control WebAuthn in context B.
+**Apply order:** `terraform/keycloak` apply first (removes the KC client + role), **then** `terraform/cloudflare` apply (removes the now-pointless secret) — order doesn't matter for correctness (no live dependency between them once code no longer reads the env var), but doing `keycloak` first means if anything *did* unexpectedly depend on the worker client, it fails loud in the smaller, easier-to-diagnose root before touching prod Cloudflare state.
 
 ---
 
-## OTP Serial Mode
+## Q3 — Phase 13 passkey-flow restructure (KC-01) integrating with `browser-passkey` (SEC-12)
 
-### Why serial mode is mandatory
+### Current state (read directly, `terraform/keycloak/flows.tf`)
 
-`otp.spec.ts` uses `test.describe.configure({ mode: 'serial' })`. This is not a performance choice — it is a correctness constraint.
+- `browser_passkey` (top-level flow, `flows.tf:1-6`) has three ALTERNATIVE-priority branches: `auth-cookie` (priority 10), `passkey-forms` subflow (priority 20), `password-forms` subflow (priority 30).
+- `passkey-forms` (`flows.tf:16-45`) currently has `auth-username-form` as **REQUIRED** (priority 10) and `webauthn-authenticator-passwordless` as **ALTERNATIVE** (priority 20) — the flagged smell (SEC-12/KC-01): mixing REQUIRED and ALTERNATIVE at the same subflow level means Keycloak's own engine effectively ignores the ALTERNATIVE executor's alternation semantics (logged 819 times/2h per the audit), though empirically the fallthrough to `password-forms` still enforces a real credential today.
+- `webAuthnPolicyPasswordlessRpId` (`localhost`) lives in `main.tf:37-44`, in the **realm resource**, not in `flows.tf`. It is a comment-flagged constraint ("MUST be preserved; changing to prod hostname requires full passkey re-registration by all users") — unrelated to which flow/subflow structure references the `webauthn-authenticator-passwordless` authenticator.
 
-The Mailpit inbox (`MAILPIT_URL/api/v1/messages`) is a **shared, ordered message queue** across all tests. `fetchLatestOtp()` reads `messages[0]` (the most recent message). If two OTP tests run in parallel:
-- Test A sends an `otp-request` (Mailpit receives email A)
-- Test B sends an `otp-request` (Mailpit receives email B)
-- Test A calls `fetchLatestOtp()` and gets B's OTP
-- Both tests fail with invalid OTP
+### Why the restructure is safe for existing sessions and doesn't require re-registration
 
-Serial mode plus `purgeInbox()` in `beforeEach` creates a one-message inbox for every test: purge → send request → inbox has exactly one message → `fetchLatestOtp()` is deterministic.
+1. **Credentials are user-scoped, not flow-scoped.** WebAuthn public-key credentials are stored against the Keycloak user record (`credential` table), keyed by the RP ID/policy, not by which authentication flow/subflow references the `webauthn-authenticator-passwordless` authenticator. Restructuring `passkey-forms` into a single REQUIRED credential-subflow with webauthn/password as internal ALTERNATIVEs still points at the *same* `webauthn-authenticator-passwordless` authenticator and the *same* `web_authn_passwordless_policy` block in `main.tf` (rpId=`localhost`, unchanged) — so a credential registered under the old subflow structure validates identically under the new one. The flow tree only decides *when/how* the authenticator is invoked during login, not what credential material it accepts.
+2. **Active sessions don't re-run the browser flow.** `sso_session_idle_timeout = "30m"` / `sso_session_max_lifespan = "10h"` (`main.tf:16-17`) sessions are validated by the existing SSO cookie/session, not by re-executing `browser-passkey` on every request — a logged-in user is unaffected until their next fresh login (post-logout or session-expiry), at which point they simply see the restructured (but behaviorally equivalent for a passkey-holder) flow.
+3. **Terraform mechanics:** the `keycloak` provider's `keycloak_authentication_execution`/`keycloak_authentication_subflow` resources are typically destroy-and-recreate on structural changes (changing `parent_flow_alias`/nesting isn't an in-place update for most fields) — plan the change, confirm via `terraform plan` that it doesn't touch `keycloak_realm.japan_trip.browser_flow` (`main.tf:26`, still `"browser-passkey"` — the top-level flow alias is unaffected) or the `web_authn_passwordless_policy` block.
 
-### Why otp.spec.ts is the only Mailpit consumer (and why that must stay true)
+### Concrete restructure (MODIFIED: `terraform/keycloak/flows.tf`)
 
-Serial mode within a single `describe` block only serializes tests inside that block. If another spec file also sends OTP requests and reads Mailpit, the serial constraint breaks down entirely — `purgeInbox()` in spec B would delete the email spec A is waiting for.
+Target shape (per KC-01/Phase 13 backlog): replace `passkey-forms`'s current REQUIRED-username + ALTERNATIVE-webauthn pair with a single REQUIRED credential-subflow whose *children* are the alternatives:
+```hcl
+resource "keycloak_authentication_subflow" "passkey_forms" {
+  # unchanged: alias, parent_flow_alias, requirement = "ALTERNATIVE", priority = 20
+}
 
-**Extension rule**: any future test that touches the Mailpit inbox must either (a) be added to the existing serial `describe` block in `otp.spec.ts`, or (b) switch to a per-recipient isolation strategy: send OTP for a unique test-user, then query Mailpit's search-by-recipient API (`GET /api/v1/search?query=to:unique-user@local`) instead of reading `messages[0]`. Option (b) drops the serial constraint entirely and is the correct approach if OTP coverage expands to multiple test personas.
+resource "keycloak_authentication_execution" "username_form" {
+  parent_flow_alias = keycloak_authentication_subflow.passkey_forms.alias
+  authenticator      = "auth-username-form"
+  requirement        = "REQUIRED"   # unchanged — still the entry step
+  priority           = 10
+}
 
-### Current OTP contract question (confirmed, unresolved)
+# NEW: nested REQUIRED credential-subflow replacing the bare ALTERNATIVE executor
+resource "keycloak_authentication_subflow" "passkey_credential" {
+  realm_id          = keycloak_realm.japan_trip.id
+  alias             = "passkey-credential"
+  parent_flow_alias = keycloak_authentication_subflow.passkey_forms.alias
+  provider_id       = "basic-flow"
+  requirement        = "REQUIRED"
+  priority           = 20
+}
 
-Tests 1–3 in `otp.spec.ts` are **structurally guaranteed to fail** regardless of environment:
-- `backend/src/routes/auth.ts` gates `/otp-request` and `/otp-verify` behind `authMiddleware` — requires a valid `Authorization: Bearer <JWT>`.
-- The backend derives the target email from `c.get('user').email` (the JWT claim), not from a request body `email` field.
-- `otp.spec.ts` uses Playwright's bare `request` fixture (no browser, no sessionStorage), sends `{ email: OTP_USERNAME, ... }` with no `Authorization` header, and expects 200 responses.
-- The middleware short-circuits with 401 before any OTP logic runs.
-
-This is a product/design question, not a test-configuration question. Two resolutions:
-- **Resolution A (route is intentional step-up-auth)**: rewrite tests 1–3 to drive a real browser login first, extract the Bearer token, and supply it to the `request` calls. The `email` field in the request body becomes irrelevant (server reads from JWT).
-- **Resolution B (route should be pre-auth)**: remove `authMiddleware` / `ensureUserProvisioned` from `/otp-request` and `/otp-verify`, restore `email` in the request body contract. Tests 1–3 work as written.
-
-The triage phase must read `auth.test.ts` and any Phase 8/9 plan docs to determine which behavior was designed — do not assume either resolution without evidence.
-
-Test 4 ("UPDATE_PASSWORD gate") is a separate failure class: it uses a real browser login via KC form, with the same "Try Another Way → Password" navigation fragility documented in the session-management section. It is not affected by the Bearer/email contract question.
+resource "keycloak_authentication_execution" "webauthn_passwordless" {
+  parent_flow_alias = keycloak_authentication_subflow.passkey_credential.alias  # re-parented
+  authenticator      = "webauthn-authenticator-passwordless"
+  requirement        = "ALTERNATIVE"   # now correctly nested under a REQUIRED parent
+  priority           = 10
+}
+```
+This is a NEW subflow resource (`passkey_credential`) plus a re-parent of the existing `webauthn_passwordless` execution resource (MODIFIED). Recommend pairing with the audit's suggested negative E2E test asserting username-only auth (no credential) is impossible, since today's safety relies on Keycloak's implicit same-level evaluation, not explicit structure.
 
 ---
 
-## Triage Architecture
+## Q4 — Cross-level date coherence (BIZ-07): schema layer vs. route handler
 
-### Error taxonomy
+### Answer: both, at different levels — and the cross-level part reuses existing authz queries almost for free
 
-| Category | Symptom Signature | How to Confirm | Owning Layer |
-|----------|-------------------|---------------|--------------|
-| **App bug** | Test assertion fails on a definite behavior (wrong HTTP status, wrong UI text), not timing; failure is deterministic | Check the backend route / frontend module against the spec assertion; confirm on multiple runs | Application code (`backend/`, `frontend/`) |
-| **Test contract drift** | Test sends payload/headers the app now rejects before reaching the asserted logic | Trace the request through the backend middleware chain; compare spec inputs vs route contract | Test file itself; may require app change if contract intent is disputed |
-| **Test timing / flakiness** | Failure non-deterministic; `waitForTimeout` substituted for real conditions; `toBeVisible` races | Re-run test 3×; check for hardcoded `waitForTimeout` calls; confirm with Playwright trace | Test file — replace with event-based waits (`waitForURL`, `waitForSelector`, `waitForLoadState`) |
-| **KC state pollution** | Unexpected KC session active, unexpected credential present, OTP codes from prior run interfere | Check `beforeEach` reset coverage; verify `kcAdmin` operations complete before the test body | Fixture setup / `beforeEach` ordering |
-| **Auth session expiry** | Timeout waiting for authenticated content; KC redirects to login unexpectedly | Inspect `.auth/user.json` mtime; check `.auth/session.json` for valid access_token; verify no refresh token present | `global-setup.ts` storageState freshness |
-| **Environment / infrastructure** | Spec skips or throws on network connection to KC/backend; consistent across all runs in the same environment | Try `request.get(KEYCLOAK_URL/realms/...)` in isolation; check Docker Desktop / container health | Environment setup — not a code fix |
+**Own-record coherence (BIZ-06 — `start_date ≤ end_date` on trip/destination/hotel) belongs in `backend/src/validation/schemas.ts`**, via Zod `.refine()`. This only needs the request body itself — no DB read:
+```typescript
+export const CreateTripSchema = z.object({ ... }).refine(
+  (data) => !data.start_date || !data.end_date || data.start_date <= data.end_date,
+  { message: 'start_date must be before end_date', path: ['end_date'] },
+);
+```
+Same pattern for `CreateDestinationSchema` and `UpsertHotelSchema` (both already have `start_date`/`end_date` or `check_in_date`/`check_out_date` fields). Note: `.refine()` on a base schema breaks `.partial()` chaining (`UpdateTripSchema = CreateTripSchema.partial()`, `schemas.ts:16`) — `.partial()` must be called on the object schema *before* `.refine()`, or the refine re-applied separately to the partial schema. Plan accordingly; this is a real Zod mechanics constraint, not a design choice.
 
-### Per-spec confirmed vs hypothetical status
+**Cross-level coherence (day-within-destination, destination-within-trip, destination-overlap) must live in the route handler**, because it requires reading persisted parent/sibling rows that don't exist in the request body. This is the case the question anticipated correctly — **the authz-ownership queries already fetch exactly the rows needed**:
 
-| Spec | Status | Confirmed Root Cause |
-|------|--------|---------------------|
-| `idp-theme.spec.ts` | HYPOTHESIS (env/timing) | Code-level verification clean; no contract drift found. Fails only if KC unreachable or networkidle timing races. Confidence: MEDIUM |
-| `otp.spec.ts` tests 1–3 | CONFIRMED (contract mismatch) | Bearer-JWT gate + email-from-JWT-claim vs spec's unauthenticated email-in-body. Confidence: HIGH |
-| `otp.spec.ts` test 4 | HYPOTHESIS (shared nav fragility) | No code-level contradiction; shares "Try Another Way" navigation pattern fragility. Confidence: LOW |
-| `passkeys.spec.ts` | HYPOTHESIS (storageState/kcAdmin auth) | No CDP or app contract drift found; failure would cascade from stale `.auth/*.json` or service-account secret mismatch. Confidence: LOW |
-| `public-sharing.spec.ts` | CONFIRMED (missing data fixture) | Hardcoded UUIDs not produced by any seed/migration. Route contract is correct. Confidence: HIGH |
-| `session-management.spec.ts` | HYPOTHESIS (shared nav fragility) | No code-level contract drift; `loginViaBrowser()` uses same fragile selector pattern as `global-setup.ts`. Confidence: LOW/MEDIUM |
+- `resolveDestination(db, tripId, destId, userId)` (`trips.ts:53-80`) already does `.select().from(destinations).where(eq(destinations.id, destId))` and returns the **full destination row** (`dest`), including `start_date`/`end_date`. Any handler that calls `resolveDay` (which calls `resolveDestination` internally, `trips.ts:93`) to create/update a `day` **already has `dest.start_date`/`dest.end_date` in scope** — checking "day date within destination range" is a 2-line addition at the call site, not a new query.
+- The trip-ownership check inside `POST /:tripId/destinations` (`trips.ts:356-360`) currently only selects `{id: trips.id, user_id: trips.user_id}` — **narrower than what BIZ-07 needs**. Widen the `select({...})` to also include `trips.start_date, trips.end_date` (same query, one extra column, no new round-trip) to check "destination range within trip range" at `trips.ts:341-382` (POST) and the equivalent PATCH handler (`trips.ts:388-426`, via `resolveDestination`, which would need the same column-widening in its own trip-ownership `.select()` at `trips.ts:60-64`).
+- "No destination-date-overlap within a trip" needs one additional query per create/update: `getDestinationsByTrip(db, tripId)` **already exists** (imported in `trips.ts:11`, used elsewhere e.g. line 324) — call it before insert/update and check the incoming range against the returned rows' ranges (excluding the row being updated, by id).
 
-### New vs modified artifacts required
-
-| Artifact | Action | Why |
-|----------|--------|-----|
-| `tests/e2e/fixtures/login-helper.ts` | **CREATE NEW** | Extract shared `loginViaKcForm(page, username, password)` helper from 4 independent copies (global-setup ×2, session-management, otp test 4). One fix per KC flow/theme change instead of four. |
-| `backend/src/db/seed.ts` (or new `tests/e2e/fixtures/trip-fixture.ts`) | **CREATE NEW or MODIFY** | `public-sharing.spec.ts` needs a deterministic public trip slug. Either seed creates a pinned public trip and exports its slug, or a `beforeAll` fixture creates a trip via API and captures the real generated slug. |
-| `otp.spec.ts` tests 1–3 | **MODIFY** (after contract decision) | Either add Bearer token injection (Resolution A) or await backend contract change (Resolution B). |
-| `backend/src/routes/auth.ts` | **MODIFY** (if Resolution B) | Remove `authMiddleware` / `ensureUserProvisioned` from OTP routes; add `email` field back to `OtpRequestSchema` / `OtpVerifySchema`. |
-| `global-setup.ts` | **MODIFY** (if "Try Another Way" is the root cause) | Replace ad-hoc selectors with the shared `loginViaKcForm()` helper once it exists. |
-| `session-management.spec.ts` | **MODIFY** (after helper is created) | Replace `loginViaBrowser()` with the shared helper. |
+**No new schema-layer machinery needed** — this is entirely "widen 2 existing `.select()` column lists + call 1 existing query function + add a validation branch in the handler," landing in the same helper functions (`resolveDestination`/`resolveDay`) and route bodies (`trips.ts` POST/PATCH for destinations and days) that already do ownership resolution. MODIFIED: `trips.ts` (helper functions + ~6 route handlers), `validation/schemas.ts` (own-record `.refine()`s).
 
 ---
 
-## Build Order
+## Q5 — Minimal path to a real ephemeral test DB (ARCH-06)
 
-The specs are not five independent problems. Fixing in dependency order prevents diagnosing the same root cause multiple times under different spec names.
+### Current state (read directly)
 
-### Step 1: Verify the upstream chokepoint in isolation (blocks 3 specs)
+- `backend/package.json` scripts: `"test": "vitest run"` — **no `vitest.config.ts` exists in `backend/`**, so there's no `globalSetup`/`setupFiles` hook today.
+- `backend/src/routes/public.test.ts:5-13` (`mockEnv`) sets `DATABASE_URL: 'postgresql://mock:mock@localhost/mockdb'` — a connection string that resolves to `localhost`, so `createDb`'s `isLocal` branch (`db/index.ts:17-18`) picks `node-postgres`/`Pool`, which then fails to connect (no such DB/host reachable) → every DB-touching call throws → caught nowhere in `public.ts` (no try/catch) → falls through to `app.onError` → 500. That 500 is why `expect([200, 500]).toContain(res.status)` (`public.test.ts:20,31,46`) "passes" vacuously — confirmed exactly as ARCH-06/TQ-01/TQ-02 describe.
+- **A real Postgres is already running locally**: `keycloak/docker-compose.yml:4-18` — `postgres:16-alpine`, port 5432, `POSTGRES_DB: japan_trip`, user/pass `postgres`/`postgres`, with a `pg_isready` healthcheck. **This same instance/database is also used as Keycloak's own storage** (`KC_DB_URL: jdbc:postgresql://postgres:5432/japan_trip`, same DB name) — meaning app tables and Keycloak's internal tables coexist in one logical database today. Migrations live in `backend/src/db/migrations/*.sql` (4 files, `0000` through `0003`), driven by `drizzle-kit` (`backend/drizzle.config.ts`, `dialect: 'postgresql'`, `out: './src/db/migrations'`).
+- `ci.yml` has **no backend test job at all** — only `typecheck-backend` (`tsc --noEmit`) and `test-frontend`. `npm run test:run --workspace=backend`/`npm test` for the backend is not invoked anywhere in CI today. This means ARCH-06's payoff (real assertions, and DEP-01's premise that a `drizzle-orm` upgrade regression would be "catchable") is currently **local-only** — the audit doc's framing ("blocked in practice... fixing that first turns this from 'write new tests' into 'point existing infra at real data'") is accurate for local dev but doesn't extend to CI without a second change.
 
-Before triaging any spec that consumes `.auth/*.json`, verify `global-setup.ts` produces valid state in the current environment:
-- Run `global-setup.ts` alone (or `npx playwright test --global-setup-only` if supported, otherwise run one passkeys test and inspect `.auth/user.json` + `.auth/session.json` after).
-- Confirm `.auth/session.json` contains `access_token` and `refresh_token` (both present = valid KC session with offline access; `access_token` only = post-silent-check-sso case where refresh will fail).
-- Confirm the "Try Another Way → Password" navigation completed successfully (check the mtime of the file vs when you ran the command — if it's old and was not regenerated, the freshness gate reused a stale file).
+### Recommended integration — reuse the container, isolate via a separate database, wire migrations in `globalSetup`
 
-Depends on: running Docker environment. Blocks: `passkeys.spec.ts`, `auth.spec.ts` (real-auth describe), `new-user-trip-creation.spec.ts`.
+**Don't point tests at the `japan_trip` dev/KC-shared database directly** — that risks tests writing/deleting rows a developer is actively using locally, and risks collision with Keycloak's own tables if migrations or `drizzle-kit push` ever ran against the wrong target. Instead:
 
-### Step 2: Run the full fresh triage (all specs in parallel)
+1. **NEW: `backend/vitest.config.ts`** — add `test.globalSetup` pointing at a new setup script.
+2. **NEW: `backend/tests/global-setup.ts`** (or `src/db/test-setup.ts`) — in `setup()`:
+   - Connect to the existing container's default `postgres` admin DB (`postgresql://postgres:postgres@localhost:5432/postgres`) and run `CREATE DATABASE japan_trip_test` (idempotent: `DROP DATABASE IF EXISTS ... ; CREATE DATABASE ...`, or catch the "already exists" error).
+   - Run Drizzle's programmatic migrator (`drizzle-orm/node-postgres/migrator`'s `migrate(db, { migrationsFolder: './src/db/migrations' })`) against `japan_trip_test` to apply all 4 existing SQL migrations.
+   - Export/set `process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/japan_trip_test'` (or write to a fixture file `vitest` test files import) so `mockEnv` in each `*.test.ts` can reference it instead of the fake `mockdb` string.
+   - In `teardown()`, either drop the test DB or leave it (idempotent recreate next run) — but **must call `pool.end()`/close any `node-postgres` `Pool` opened during setup**, or vitest hangs on an open TCP handle after the run completes (vitest does not exit cleanly with a live `pg.Pool` connection).
+3. **MODIFIED: `public.test.ts`, `auth.test.ts`, `index.test.ts`, `auth/keycloak.test.ts`** — replace the hardcoded fake `DATABASE_URL: 'postgresql://mock:mock@localhost/mockdb'` with the real test-DB URL (from an env var or shared test-fixture constant), and **replace the `toContain([200, 500])` / `toContain([404, 500])` assertions with exact status codes** now that a real DB backs the call — this is the actual "vacuous → real" fix TQ-01/TQ-02 describe, and it's a no-op without step 1-2 landing first.
+4. **Seed data, minimal:** tests need at least one `is_public = true` trip with a known slug to exercise `public.test.ts`'s "valid slug + public trip → 200" case meaningfully. Either seed it in `globalSetup` (simplest, matches "ephemeral" framing) or have `public.test.ts` create its own fixture row in a `beforeAll` and clean it up in `afterAll` — prefer per-file `beforeAll`/`afterAll` fixtures over a shared global seed once `ARCH-03` (trips.ts unit tests) also lands, so tests stay independent and parallel-safe.
+5. **CI gap — add a `test-backend` job to `ci.yml` (MODIFIED), not optional.** Use GitHub Actions' native `services: postgres: image: postgres:16-alpine` with a healthcheck, run migrations, then `npm run test --workspace=backend`. Without this, ARCH-06's local fix doesn't change what CI actually verifies, and the audit's assumption that the `drizzle-orm@0.45.2` bump (DEP-01) is "regression-catchable" only holds for whoever remembers to run backend tests locally before merging.
 
-Mandated by PROJECT.md. Confirms which hypothesis specs actually fail and with what error message / trace. The fresh run also confirms whether the two CONFIRMED failures are the only deterministic issues or if hypotheses have also materialized.
+This is the correct build-order anchor for Phase 24: **ARCH-06 (real test DB + CI job) must land before ARCH-03 (trips.ts unit tests)** — writing `trips.ts` coverage against the current vacuous-mock setup would just add more `toContain([2xx, 500])` tests. It should also land before attempting the `drizzle-orm` bump in DEP-01, for the same reason.
 
-Do not attempt individual fixes before this run — the stale failure list may not reflect current state.
+---
 
-### Step 3: Fix `public-sharing.spec.ts` (independent, highest-certainty)
-
-No KC, no storageState, no kcAdmin dependency. Lowest risk, deterministic fix:
-- **Option A (preferred)**: extend `backend/src/db/seed.ts` to insert a trip with a known slug (set `public_slug` explicitly in the insert, bypassing the random `defaultFn`), set `is_public: true`, and also insert a private trip with a known slug. Export both values as constants importable by the spec.
-- **Option B**: add a `beforeAll` in `public-sharing.spec.ts` that calls the authenticated API to create a trip, captures the generated slug from the response, sets `is_public: true` via an update call, and stores it in a test-scoped variable. `afterAll` deletes the trip. This makes the spec fully self-contained without seeding.
-
-Option A is simpler and eliminates the authenticated-API dependency in a spec that currently has none. Option B is more portable across DB states.
-
-Artifact: **MODIFY** `seed.ts` (Option A) or **CREATE** trip fixture helper (Option B).
-
-### Step 4: Resolve the OTP contract question (product decision, unblocks otp tests 1–3)
-
-This is not a test fix — it is a design decision about whether `/otp-request`/`/otp-verify` are pre-auth or step-up-auth routes. Requires reading `auth.test.ts` and Phase 8/9 plan docs to determine original intent. Once decided:
-- **Resolution A**: modify `otp.spec.ts` tests 1–3 to drive browser login and extract token.
-- **Resolution B**: modify `backend/src/routes/auth.ts` to remove auth middleware from OTP routes.
-
-This is independent of steps 1–3 and can be worked in parallel with step 3.
-
-### Step 5: Extract `loginViaKcForm()` shared helper (unblocks session-management and otp test 4)
-
-Once `global-setup.ts` is confirmed healthy (step 1) and the full triage run is complete (step 2), extract the shared login navigation into `tests/e2e/fixtures/login-helper.ts`. Update all four call sites:
-- `global-setup.ts:kcLogin()` body
-- `global-setup.ts:kcLoginNewUser()` body
-- `session-management.spec.ts:loginViaBrowser()`
-- `otp.spec.ts` test 4 inline login
-
-This fix is multiplicative: if the "Try Another Way" selector is the root cause for session-management or otp test 4, this one extraction fixes both. It also protects all four against any future KC flow/theme change.
-
-Artifact: **CREATE** `tests/e2e/fixtures/login-helper.ts`.
-
-### Step 6: Individual spec fixes for remaining failures
-
-After steps 1–5, any remaining failures are either:
-- App bugs (discovered in fresh triage; fix in application code, add/update spec assertions)
-- Genuine environment-specific issues to formally document as accepted skips
-
-Tackle in order of certainty: confirmed bugs first, then investigate hypotheses with traces from step 2. `idp-theme.spec.ts` is the last to touch — if it passes in step 2, it needs no action; if it fails, the diagnosis is almost certainly environmental, not a code fix.
-
-### Dependency graph summary
+## Build order (derived from real code/config dependencies, not phase-number order)
 
 ```
-Step 1 (global-setup verification)
-  └─ unblocks: passkeys.spec.ts diagnosis, auth.spec.ts real-auth diagnosis
+INFRA-03 (compatibility_date fix, unblocks any build)
+     │
+     ├──► ARCH-09 (CI e2e job — separately debug why it's never passed;
+     │        must be green BEFORE INFRA-01/02 can safely gate deploys on CI)
+     │
+     └──► INFRA-01 / INFRA-02 (gate deploy workflows on ci.yml passing)
 
-Step 2 (fresh triage run)
-  └─ confirms/refutes: idp-theme, passkeys, session-management, otp test 4 hypotheses
+ARCH-01 (createDb return type: union or PgDatabase base fallback — VERIFY typecheck)
+     │
+     └──► M-01 (db middleware; c.get('db') needs ARCH-01's real type first)
+              │
+              └──► BUG-13 (dest:any/day:any cast in trips.ts:132 — becomes narrowable for free)
 
-Step 3 (public-sharing data fixture) ← independent; run in parallel with steps 1-2
-Step 4 (OTP contract decision)       ← independent; run in parallel with steps 1-2
+ARCH-06 (real ephemeral test DB: globalSetup + migrations + CI test-backend job)
+     │
+     ├──► ARCH-03 (trips.ts unit tests — meaningless without ARCH-06)
+     ├──► DEP-01 (drizzle-orm 0.38→0.45 bump — needs ARCH-03/real tests to catch regressions)
+     └──► TQ-01/TQ-02 (public.test.ts exact-status assertions replace toContain([2xx,500]))
 
-Step 5 (loginViaKcForm helper)
-  └─ requires: Step 2 complete (need triage output to know which selectors fail)
-  └─ unblocks: session-management fix, otp test 4 fix
+BIZ-06 (own-record Zod .refine(), schemas.ts)
+     │
+     └──► BIZ-07 (cross-level coherence in trips.ts handlers — reuses resolveDestination/
+              resolveDay's already-fetched parent rows; needs BIZ-06's .refine()-on-partial
+              mechanics sorted first since both touch the same schemas)
 
-Step 6 (remaining individual fixes)
-  └─ requires: all prior steps complete
+SEC-14 (remove japan-trip-worker) — independent, but touches 2 Terraform roots + 7 app files;
+     sequence keycloak-root apply before cloudflare-root apply (fails loud/small first)
+
+KC-01 (passkey flow restructure) — independent of the above; safe re: sessions/re-registration
+     per Q3's mechanism (credentials + rpId policy are orthogonal to flow structure)
 ```
+
+**Practical grouping for phase planning:**
+- Phase 21 (deploy/build safety): INFRA-03 first, then ARCH-09 as its own debugging session, then INFRA-01/02 last (gate only once ARCH-09 is green).
+- Phase 24 (architecture/test debt): ARCH-01 → M-01 → ARCH-06 → ARCH-03/DEP-01, in that literal order — this phase has the longest internal dependency chain of the whole milestone.
+- Phase 25 (business logic): BIZ-06 before BIZ-07, same file (`schemas.ts`) touched by both, avoids rework.
+- Phase 26 (remaining security/IdP): SEC-14 and KC-01 have no dependency on each other or on Phases 21/24/25 — schedulable independently, but SEC-14 is the more mechanically involved of the two (2 Terraform roots + app code) so budget accordingly.
+
+---
+
+## Sources
+
+All findings above are drawn directly from repo inspection (HIGH confidence, no external doc lookup needed for a brownfield-integration research pass):
+- `backend/src/db/index.ts`, `backend/src/index.ts`, `backend/src/middleware/{auth,user}.ts`, `backend/src/types/index.ts`
+- `backend/src/routes/{trips,users,auth,public,health,index}.ts`, `backend/src/routes/public.test.ts`
+- `backend/src/validation/schemas.ts`, `backend/drizzle.config.ts`, `backend/package.json`, `backend/.dev.vars.example`
+- `terraform/keycloak/main.tf`, `terraform/keycloak/flows.tf`, `terraform/cloudflare/main.tf`, `terraform/cloudflare/variables.tf`
+- `keycloak/docker-compose.yml`, `SETUP.md`, `.github/workflows/{ci,deploy-backend,deploy-frontend}.yml`
+- `node_modules/drizzle-orm/{neon-http,node-postgres,pg-core}/*.d.ts` (verified exact exported type names for the ARCH-01 fix)
+- `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (finding IDs/severities), `.planning/PROJECT.md` (constraints, current state)
+
+---
+*Architecture integration research for: TravelMap v3.2 Security & Code Health Hardening*
+*Researched: 2026-07-24*

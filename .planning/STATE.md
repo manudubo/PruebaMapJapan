@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: Security & Code Health Hardening
-status: defining_requirements
-stopped_at: v3.2 milestone started — PROJECT.md updated, defining REQUIREMENTS.md next
+status: ready_to_plan
+stopped_at: v3.2 roadmap created — Phases 20–26 formalized with success criteria; ready for /gsd-discuss-phase 20
 last_updated: "2026-07-24T00:00:00.000Z"
 progress:
   total_phases: 7
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24 — v3.2 milestone started)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** v3.2 Security & Code Health Hardening — defining requirements
+**Current focus:** v3.2 Security & Code Health Hardening — roadmap ready, Phase 20 next
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap defined, ready to plan Phase 20)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-24 — Milestone v3.2 started
+Status: Ready to plan
+Last activity: 2026-07-24 — Roadmap created; Phases 20–26 formalized with success criteria
 
 Progress: [          ] 0% (0/7 phases complete)
 
@@ -46,7 +46,11 @@ Full log in PROJECT.md Key Decisions table. v3.1 closed with no open decision th
 
 ### Pending Todos
 
-- Define formal REQUIREMENTS.md (REQ-IDs) for v3.2 from `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`'s 9 clusters, then spawn the roadmapper for Phases 20-26.
+- Run `/gsd-discuss-phase 20` to plan Phase 20 (Critical Security)
+- Note cross-phase ordering tensions (from Pitfalls research):
+  - Phase 20's SEC-14 fix (scoped to removing the prod Cloudflare secret only, not the KC client) must confirm E2E admin fixture still passes — see PITFALLS.md Pitfall 7
+  - Phase 21's INFRA-01/02 deploy gate must exclude the `e2e` CI job until ARCH-09 (Phase 24) is fixed first — gating on a chronically-failing job would permanently block deploys
+  - Phase 21's DEP-01 (drizzle-orm bump) should wait until Phase 24's ARCH-06 (real test DB) so regressions are catchable — flag this when planning Phase 21
 
 ### Blockers/Concerns
 
@@ -67,5 +71,5 @@ Full log in PROJECT.md Key Decisions table. v3.1 closed with no open decision th
 ## Session Continuity
 
 Last session: 2026-07-24
-Stopped at: v3.2 milestone started — PROJECT.md's Current Milestone section written, requirements definition in progress
-Resume: continue `/gsd-new-milestone` at the requirements-definition step, or re-run it fresh — MILESTONE-CONTEXT.md already carries the full scope
+Stopped at: v3.2 roadmap created — ROADMAP.md (Phases 20–26 with success criteria), STATE.md, and REQUIREMENTS.md finalized; all 82 requirements mapped 100%
+Resume: run `/gsd-discuss-phase 20` to start planning Phase 20 (Critical Security: SEC-01/02/03/04/14)
