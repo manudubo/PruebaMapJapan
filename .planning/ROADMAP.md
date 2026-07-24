@@ -71,7 +71,12 @@ Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `cod
   2. News/events widget inserts RSS data via safe DOM methods only — zero raw `innerHTML` sinks on untrusted RSS content in `widgets.ts`; manual devtools check shows no XSS-injectable path from RSS title/description fields
   3. All 9 city HTML pages and `trip.html` include a `<meta http-equiv="Content-Security-Policy">` tag; devtools console shows 0 CSP violations on page load including map tiles loading, news widget rendering items, and weather widget fetching
   4. `terraform/cloudflare/main.tf` no longer defines `cloudflare_worker_secret.kc_admin_client_secret`; `wrangler tail` on a deployed Worker shows no `KC_ADMIN_CLIENT_SECRET` env binding; the `japan-trip-worker` Keycloak client is retained for local/test use; full E2E admin fixture (`resetCredentials`, `createUser`, `deleteUser`) still passes after the Terraform change
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 20-00-PLAN.md — Wave 0: RED test infrastructure (OTP source-audit test + widget XSS tests)
+- [ ] 20-01-PLAN.md — Wave 1: SEC-01 OTP CSPRNG fix + SEC-14 Terraform cleanup
+- [ ] 20-02-PLAN.md — Wave 1: SEC-02/03 renderList DOM API rewrite + export
+- [ ] 20-03-PLAN.md — Wave 2: SEC-04 CSP Vite plugin + human-verify 0-violations
 **UI hint**: yes
 
 ### Phase 21: Deploy & Build Safety
@@ -172,7 +177,7 @@ Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `cod
 | 17. OTP + Login Helper | v3.1 | 2/2 | Complete | 2026-06-23 |
 | 18. Passkeys Fixes | v3.1 | 2/2 | Complete | 2026-07-13 |
 | 19. Session + Closure | v3.1 | 2/2 | Complete | 2026-07-23 |
-| 20. Critical Security | v3.2 | 0/0 | Not started | — |
+| 20. Critical Security | v3.2 | 0/4 | Not started | — |
 | 21. Deploy & Build Safety | v3.2 | 0/0 | Not started | — |
 | 22. Reliability Bugs | v3.2 | 0/0 | Not started | — |
 | 23. Supply Chain, Secrets & Accessibility | v3.2 | 0/0 | Not started | — |
