@@ -5,7 +5,7 @@
 - âœ… **v2.0 Auth Infrastructure & Hardening** â€” Phases 1â€“9 (shipped 2026-05-28)
 - âœ… **v3.0 Quality, Polish & DevX** â€” Phases 10â€“14 (shipped 2026-06-15)
 - âœ… **v3.1 E2E Stabilization** â€” Phases 15â€“19 (shipped 2026-07-23)
-- ðŸ”œ **v3.2 Security & Code Health Hardening** â€” Phases 20â€“24 (candidate, not started â€” see `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`)
+- ðŸ”œ **v3.2 Security & Code Health Hardening** â€” Phases 20â€“26 (candidate, not started â€” see `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`)
 
 ## Phases
 
@@ -120,13 +120,15 @@ Plans:
 
 ### v3.2 Security & Code Health Hardening (candidate — not started)
 
-Synthesized from `ANALISIS-REPO.md` and `codex-review.md` (both in repo root). Full findings, per-item verification status, and rationale in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. To formalize: run `/gsd-new-milestone` once v3.1 ships, which turns this draft into real phases via `/gsd-plan-phase`.
+Synthesized from `ANALISIS-REPO.md` (7 passes, ~84 actionable findings) and `codex-review.md` (both in repo root). Full findings, per-item verification status, and rationale in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. To formalize: run `/gsd-new-milestone` when ready to start v3.2, which turns this draft into real phases via `/gsd-plan-phase`.
 
-- [ ] **Phase 20: Critical Security Fixes** — OTP CSPRNG, XSS widget hardening (unescaped RSS/passkey-label/search-highlight `innerHTML`), frontend CSP
-- [ ] **Phase 21: Deploy & Build Safety** — gate `deploy-*.yml` on CI success, fix backend `wrangler deploy --dry-run` (Node builtins bundled via `pg`), upgrade high/critical-severity runtime deps
-- [ ] **Phase 22: Reliability Bugs** — activity-reorder UI bug (order_index not applied to optimistic update), hung promise on 401, first-login auto-provision race, stale sessionStorage doc comment
-- [ ] **Phase 23: Secrets & Accessibility** — triage/rotate the 14 Gitleaks findings, add secret/a11y scanning to CI, fix `aria-expanded` misuse + contrast + heading-order violations
-- [ ] **Phase 24: Architecture Debt & Test Coverage** (stretch) — unit tests for `trips.ts` authorization cascade (currently zero), `DATABASE_URL`/`getDb` middleware dedup, dual-DB-driver env-var instead of substring match
+- [ ] **Phase 20: Critical Security Fixes** — OTP CSPRNG (SEC-01), widget XSS + CSP package (SEC-02/03/04), remove or scope the unused Keycloak `manage-users` admin role/secret (SEC-14)
+- [ ] **Phase 21: Deploy & Build Safety** — backend build is currently broken (`wrangler deploy --dry-run` fails on `string_decoder`, INFRA-03); gate `deploy-*.yml` on CI success (INFRA-01/02), pin wrangler (INFRA-04), fix KC Docker healthcheck (INFRA-05), upgrade `drizzle-orm`/`dompurify` (DEP-01)
+- [ ] **Phase 22: Reliability Bugs** — activity-reorder UI bug (BUG-01), hung promise on 401 (BUG-02), first-login auto-provision race (BUG-03), stale sessionStorage doc comment (BUG-06), plus ~12 lower-severity bugs (BUG-04/05/07..16)
+- [ ] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet SRI on all 9 map pages incl. public `trip.html` (SEC-15), service-worker cache-versioning fix so deployed fixes actually reach users (SEC-16), triage/rotate the 14 Gitleaks findings (DEP-02), add secret/a11y scanning to CI (DEP-03), fix `aria-expanded` misuse + contrast + heading-order violations (A11Y-01..05)
+- [ ] **Phase 24: Architecture Debt & Test Coverage** — point backend unit tests at a real ephemeral DB instead of a nonexistent mock (currently 3/4 `public.test.ts` tests vacuously pass on a 500, ARCH-06); this unblocks zero-coverage `trips.ts` authorization cascade (ARCH-03); `DATABASE_URL`/`getDb` middleware dedup (M-01), dual-DB-driver env-var instead of substring match (ARCH-02), OTP table index/TTL + data-layer CHECK constraints (DATA-01..03)
+- [ ] **Phase 25: Trip-Planner Business Logic & Demo Parity** — cross-level date coherence validation, the largest business-logic gap found (BIZ-07); timezone date-shift bug, live-reproduced and affecting most users (BIZ-11); expose `is_optional`/`is_generic`/`maps_url`/`time`/`zoom_level` fields end-to-end through editor → schema → adapter → view (BIZ-01..05); date-order validation (BIZ-06/08/09)
+- [ ] **Phase 26: Remaining Security Hardening & IdP Flow** — Phase 13 backlog passkey-flow restructure now that the `REQUIRED`+`ALTERNATIVE` smell is confirmed still-firing in logs (KC-01), JWKS cache DoS cooldown (SEC-05), JWT error detail leak (SEC-06), OTP TOCTOU (SEC-07), remaining low-severity findings (SEC-08..13, SEC-17..25)
 
 ## Progress
 

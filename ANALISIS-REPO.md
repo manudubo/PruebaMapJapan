@@ -732,6 +732,14 @@ const fmt = (iso: string): string => {
 
 `new Date('2026-02-22')` se interpreta como **UTC 00:00**, y `toLocaleDateString` lo renderiza en el timezone **local del visitante**. En cualquier zona con offset negativo (todo América: UTC-3 a UTC-8), medianoche UTC del 22 es la **noche del 21 local** → se muestra **"Feb 21"**. Para una app cuyo producto es *mostrar fechas de viaje*, mostrar el día equivocado según quién mira es un bug real y difícil de notar en desarrollo (si el dev está en UTC+). El mismo patrón acecha en cualquier `new Date(isoDateOnly)` del frontend. **Fix:** parsear como fecha local (`new Date(y, m-1, d)` tras split, o formatear los componentes sin construir un `Date` con semántica UTC), o usar una lib de fechas date-only. Verificar todos los `new Date(` sobre strings date-only del repo.
 
+> **Reproducido (séptima pasada, ejecutado):** corriendo el patrón exacto de `buildDateRange` con distintos timezones:
+> ```
+> UTC                             2026-02-22 -> Feb 22, 2026
+> America/Argentina/Buenos_Aires  2026-02-22 -> Feb 21, 2026   ← un día antes
+> America/Los_Angeles             2026-02-22 -> Feb 21, 2026   ← un día antes
+> ```
+> Ya no es inferencia estática: un usuario en Argentina (o cualquier offset negativo) ve **todas** las fechas de viaje corridas un día. Bug confirmado.
+
 ## 19. Evaluación: passkeys simples y ¿hacen falta SPIs custom? (a pedido)
 
 **Contexto:** `.planning/PROJECT.md` marca **"Java KC SPIs — Out of Scope: all KC customization via built-in flows + FreeMarker themes only"**. La pregunta del usuario es si ese constraint aguanta dados los objetivos (passkeys simples de usar, personalización total). **Conclusión: el constraint es correcto; ningún objetivo actual justifica un SPI.** Detalle:
@@ -785,7 +793,7 @@ X [ERROR] Could not resolve "string_decoder"
 - `npm run build` falla → y como **`wrangler deploy` usa el mismo bundler**, el deploy real fallaría idénticamente. **El backend, hoy, no se puede desplegar.**
 - Concatena con **O-01/O-02** (los deploys no corren build/typecheck ni dependen del CI): el pipeline ni siquiera detectaría esto antes de intentar publicar; y como el `deploy-backend.yml` hace `wrangler deploy` directo, un push a `main` que dispare el deploy **fallaría en el step de deploy** (o peor, dejaría el Worker en un estado inconsistente según el punto de fallo).
 
-**Fix (una línea):** subir `compatibility_date` a `2024-09-23` o posterior en `wrangler.toml` y re-verificar `npm run build` en verde. Es el hallazgo de mayor urgencia operacional de todo el análisis: el objetivo "production deployment" (deferido en PROJECT.md) está **bloqueado** hasta resolverlo.
+**Fix (el bloqueo inmediato es una línea):** subir `compatibility_date` a `2024-09-23` o posterior en `wrangler.toml` y re-verificar `npm run build`. Puede que detrás de `string_decoder` aparezcan más sorpresas de `nodejs_compat` (otras built-ins sin prefijo `node:`), así que "una línea" desbloquea *esta* resolución, no garantiza el build entero en verde de un tiro. Aun así es el hallazgo de mayor urgencia operacional del análisis: el objetivo "production deployment" (deferido en PROJECT.md) está **bloqueado** hasta resolverlo.
 
 ### KC-A — **CONFIRMADO EN RUNTIME** (era teórico en la 5ª pasada)
 Los logs de Keycloak (`docker logs keycloak-keycloak-1`) están **inundados**, en cada request de autenticación, con:
@@ -796,12 +804,15 @@ WARN [org.keycloak.authentication.DefaultAuthenticationFlow]
   Those alternative executions will be ignored: [webauthn-authenticator-passwordless]
 ```
 
-Esto es prueba directa de KC-A (sección 15): Keycloak **está ignorando la ejecución `webauthn-authenticator-passwordless`** en el subflow `passkey-forms`, en **cada** login, ahora mismo. Consecuencias:
-- El diseño "passkey como primer factor en `passkey-forms`" **no opera como se cree** — esa ejecución se descarta. El login pasa por otros caminos (cookie, o `password-forms`), lo que explica por qué "no es un bypass" (el usuario termina autenticando por password-forms), pero también significa que **el subflow de passkey no aporta lo que su nombre promete**.
-- Contradice directamente el objetivo del usuario *"los usuarios deberían poder usar passkeys de manera simple"*: la ruta de passkey del flow está, literalmente, siendo ignorada por el motor. La simplicidad de passkeys hoy depende de un flow que el propio Keycloak marca como mal formado en cada request.
-- Ya no es "seguro pero frágil por semántica": es **observablemente disfuncional en runtime**. Sube a prioridad. El fix es el restructure de Phase 13 (subflow de credencial REQUIRED con `webauthn|password` como ALTERNATIVEs internas), que elimina el warning y hace que la passkey se ofrezca de verdad.
+Esto es prueba directa de KC-A (sección 15): Keycloak **está ignorando la ejecución `webauthn-authenticator-passwordless`** en el subflow `passkey-forms`, en **cada** login, ahora mismo. El mecanismo exacto (por qué no es un bypass) no lo puedo afirmar desde el log solo: lo probable es que `passkey-forms` **falle** (el `auth-username-form` REQUIRED no es un autenticador de credencial, así que el subflow no completa sin el webauthn ignorado) y Keycloak caiga al ALTERNATIVE `password-forms` — pero eso es hipótesis, no lectura directa. Lo **cierto** es que la ejecución de passkey se descarta en cada request.
 
-### KC-C (Media) — El logout no cierra la sesión del cliente frontend
+**Corroboración en vivo (corrí los specs de passkey):** con el stack arriba corrí `npx playwright test --project=chromium-passkeys`. **Los 3 tests fallan**: los tres esperan que Keycloak presente su página de confirmación de registro de passkey (botón "Register", previo a la ceremonia WebAuthn) y **nunca aparece** (timeout 15s); el navegador queda **autenticado en `profile.html`** sin haber pasado por la ceremonia de passkey. Atribución honesta:
+- PROJECT.md ya lista *"passkeys ×3"* como **known-failing** en estabilización (Phase 18), así que **confirmo un estado ya conocido**, no descubro uno nuevo.
+- El log de KC-A (webauthn ignorado) es un **candidato concreto de causa raíz** para ese fallo que el equipo debería verificar en la Phase 18/13: si la ejecución de passkey se descarta, la ceremonia no se presenta — que es exactamente el síntoma observado. No puedo probar la causación al 100% desde aquí (podría ser también test-bug tras el rewrite del login-helper de Phase 17), pero la correlación log↔síntoma es fuerte.
+- Para el objetivo del usuario *"passkeys de manera simple"*: **hoy, en este entorno, la ruta de passkey no funciona** (los tests que la ejercitan fallan, y el flow está mal formado según el propio Keycloak). Sea test-bug o config-bug, la afirmación "passkeys funcionan" no se sostiene en el estado actual.
+- El fix candidato es el restructure de Phase 13 (subflow de credencial REQUIRED con `webauthn|password` como ALTERNATIVEs internas), que elimina el warning `REQUIRED and ALTERNATIVE` y haría que la passkey se presente de verdad. Sube a prioridad: es a la vez un smell de seguridad, un flow disfuncional en runtime, y el bloqueante del objetivo de passkeys.
+
+### KC-C — **VERIFICADO BENIGNO (falso positivo)** — Warning de logout de cliente
 `docker logs` muestra, en el flujo de logout:
 
 ```
@@ -810,7 +821,15 @@ WARN [org.keycloak.services.managers.AuthenticationManager]
   in japan-trip realm: japan-trip-frontend
 ```
 
-Keycloak reporta que al cerrar sesión **no pudo cerrar la sesión del cliente `japan-trip-frontend`**. Típicamente esto indica que falta configurar el *backchannel/frontchannel logout URL* del cliente, o que el SPA no está haciendo el OIDC RP-initiated logout completo. Efecto práctico: tras "cerrar sesión", puede quedar sesión residual del lado de Keycloak para ese cliente → un siguiente login podría hacer SSO silencioso sin re-autenticar, o la sesión no expira como el usuario espera. Es directamente relevante a la Phase 19 (session-management, en progreso, con specs tocados en el `git status`). **Fix:** configurar el logout del cliente en Terraform (`frontchannel_logout_enabled` / `backchannel_logout_url` según el modelo del SPA) y verificar que `keycloak.logout()` del frontend pasa `id_token_hint` y `post_logout_redirect_uri`.
+> **Resuelto con verificación en vivo — no es un bug.** Mi lectura inicial ("sesión residual → SSO silencioso sin re-auth") era incorrecta. Este es el mensaje **estándar** de Keycloak para un cliente público SPA sin backchannel/frontchannel logout URL — config normal para un SPA. El warning solo dice que KC no pudo *empujar* una notificación al cliente, cosa que un SPA no necesita.
+
+**Prueba discriminante ejecutada:** corrí `npx playwright test session-management.spec.ts --project=chromium` contra el stack en vivo → **7/7 tests en verde (34s)**, incluyendo:
+- *"logout destroys KC session and returns to login prompt"* — asserta vía la Admin API que **`sessions.length === 0`** tras el logout, y que aparece `#dashboard-login-prompt`. **El logout SÍ destruye la sesión server-side de Keycloak.**
+- *"logout clears app sessionStorage tokens"*, *"new browser context without KC cookie requires re-login"*, *"logout in one tab makes other tabs unauthenticated on next navigation"* — todos verdes.
+
+Con la sesión efectivamente destruida en el logout, el warning es **puramente informativo**. KC-C queda **cerrado como no-issue**. (Se conserva documentado para que una futura lectura del log no lo re-levante como bug.)
+
+**Dato de contraste valioso para TQ-03:** este run muestra que **la suite E2E no está uniformemente rota** — `session-management` (7 tests, incluyendo lógica multi-tab y multi-context) está **bien escrita y pasa en vivo**, mientras `passkeys` (3 tests) falla. La calidad de los specs es heterogénea: los de sesión son sólidos; el problema está concentrado en passkeys (KC-A) y en los patrones de sleeps/skips de otros specs.
 
 ### KC-D (Baja) — "Non-secure context" en POST cross-origin (contexto de S-21)
 ```
@@ -854,17 +873,76 @@ La suite unitaria nunca ejercita la capa de datos (queries, la cascada de owners
 ### Nota positiva — los tests de middleware son sólidos
 `auth.test.ts` y `cors.test.ts` asertan **exactamente** (401 con `success:false` para token ausente/malformado/audience inválido; comportamiento CORS determinista) **sin** tocar la DB, así que son deterministas y significativos. `index.test.ts` (8 tests) cubre el wiring básico. El problema de calidad está **concentrado en las rutas que dependen de datos** (public, y por ausencia trips) — precisamente donde vive la lógica de negocio y de autorización. Arreglar TQ-02 (DB de test real) desbloquea arreglar TQ-01 y T-01 de una vez.
 
+## 22. Vulnerabilidades de dependencias — `npm audit` en vivo (corrige el número del candidato v3.2)
+
+`.planning/v3.2-CANDIDATE-REQUIREMENTS.md` cita *"21 known dependency vulnerabilities (2 critical)"*. **El `npm audit` actual no coincide** — el número está stale o se contó distinto (con devDeps de otra fecha). Estado real hoy:
+
+| Workspace | Resultado `npm audit` |
+|---|---|
+| root | 3 (1 moderate, 2 high) |
+| backend | 2 high |
+| frontend | 1 moderate (prod) / varios en devDeps |
+| tests | **0** |
+| **críticas** | **0** (no hay ninguna crítica) |
+
+**Las dos que importan de verdad** (el resto es dev-tooling: `esbuild`/`vite`/`brace-expansion`/`@hono/node-server`, todas de superficie dev-server, no de runtime de producción):
+
+### D-VULN-01 (High) — `drizzle-orm <0.45.2`: SQL injection vía identificadores mal escapados
+`GHSA-gpj5-g38j-94v9` — afecta **toda la capa de datos** (el ORM del backend). La vulnerabilidad es en el escape de **identificadores** SQL (nombres de tabla/columna dinámicos), **no** en los valores parametrizados. El repo usa identificadores **estáticos** (el schema Drizzle es fijo, ningún nombre de columna viene de input de usuario), así que la explotabilidad práctica es **baja** — pero es un advisory HIGH sobre el ORM y el fix es un bump de versión (`drizzle-orm@0.45.2`, breaking). Recomendado actualizar y correr los tests (que, ver TQ-02, hoy no ejercitan las queries — otra razón para cerrar ese gap antes de bumpear).
+
+### D-VULN-02 (Moderate) — `dompurify <=3.4.11`: el control anti-XSS tiene su propia vulnerabilidad
+Notable **porque toda la defensa XSS de las pasadas 1-3 descansa en DOMPurify** (`tripDetail.ts`, `map.ts`). Una vuln en la librería de saneo debilita justo el control del que depende la vista cross-user. Fix: bump a la versión parcheada. Con esto + S-23 (Leaflet sin SRI) + M-07 (sin CSP), refuerza que la postura XSS del frontend necesita las tres cosas: sanear con una DOMPurify **al día**, pinear dependencias, y una CSP de respaldo.
+
+**Nota:** correr `npm audit fix` sin `--force` para los parches no-breaking, y planificar los breaking (`drizzle-orm`, `vite`) con testing. Que `tests/` tenga 0 vulns y `backend`/`frontend` no, sugiere que las dev-deps de build son la mayor fuente — priorizar las de runtime (drizzle-orm, dompurify) sobre las de tooling.
+
 ## Actualización de totales tras la séptima pasada
 
 | Categoría | Antes | Ahora | Nuevos |
 |---|---|---|---|
 | **CI/CD-Ops** | 6 | 8 | **O-08 (build roto / deploy bloqueado, Alta)**, O-07 (healthcheck KC roto) |
-| **Auth flow / IdP (runtime)** | 2 | 4 | KC-C (logout no propaga), KC-D (cookies no-secure); **KC-A confirmado en runtime** |
+| **Auth flow / IdP (runtime)** | 2 | 4 | KC-C (**verificado benigno — cerrado**, 7/7 session-management verdes), KC-D (cookies no-secure); **KC-A confirmado en runtime + corroborado con los 3 specs de passkey fallando en vivo** |
 | **Calidad de tests** | 0 | 3 | TQ-01 (tests vacuos aceptan 500), TQ-02 (sin DB de test real), TQ-03 (E2E: sleeps + skips + spec muerto) |
+| **Dependencias** | 0 | 2 | D-VULN-01 (drizzle-orm HIGH SQLi-identificadores), D-VULN-02 (dompurify — el control XSS); v3.2 "21 vulns/2 críticas" desmentido (0 críticas hoy) |
 
 ### Lo confirmado empíricamente en esta pasada (antes teórico)
-1. **KC-A** pasó de "diseño frágil" a **"Keycloak ignora la ejecución de passkey en cada request"** (log directo). Sube de prioridad.
+1. **KC-A** pasó de "diseño frágil" a **"Keycloak ignora la ejecución de passkey en cada request"** (log directo) **+ los 3 specs de passkey fallan en vivo** (la ceremonia de registro nunca se presenta). Candidato de causa raíz del "passkeys ×3 known-failing". Sube de prioridad y toca directo el objetivo "passkeys simples".
 2. **O-04** (compat date vieja) pasó de "Baja, se pierden fixes" a **"rompe el build → bloquea el deploy"** (O-08, reproducido).
 3. **La suite verde no garantiza corrección**: tests de ruta vacuos (TQ-01) + skips silenciosos (TQ-03) significan que "todo pasa" convive con lógica de negocio/autorización sin ejercitar.
 
-**Nota de método (séptima pasada):** primera pasada con ejecución. Comandos corridos: `docker ps`/`docker logs`/`docker inspect` (Keycloak/Postgres/Mailpit), `npm test` en `backend/` (30 tests verdes, salida real inspeccionada), `npm run build` en `backend/` (fallo de `string_decoder` reproducido y root-causado a `compatibility_date`). No se corrió la suite E2E completa (requiere frontend+backend dev servers arriba, no solo los containers) — TQ-03 se basa en lectura estática de los specs (conteos verificados con `rg`), no en su ejecución.
+**Nota de método (séptima pasada):** primera pasada con ejecución. Comandos corridos: `docker ps`/`docker logs`/`docker inspect` (Keycloak/Postgres/Mailpit), `npm test` en `backend/` (30 tests verdes, salida real inspeccionada), `npm run build` en `backend/` (fallo de `string_decoder` reproducido y root-causado a `compatibility_date`), y `npx playwright test --project=chromium-passkeys` contra el stack en vivo (frontend/backend/KC arriba) — **los 3 tests de passkey fallan**, todos esperando la página "Register" de KC que no aparece, con el navegador autenticado en `profile.html`. Esto corrobora KC-A y coincide con el estado "passkeys ×3 known-failing" de PROJECT.md. Además, para cerrar KC-C, se corrió `session-management.spec.ts --project=chromium` en vivo → **7/7 verdes (34s)**, con la aserción `sessions.length === 0` post-logout confirmando que el logout destruye la sesión de KC (KC-C **cerrado como benigno**). No se corrió la suite E2E completa (las demás specs usan sleeps duros y skips condicionales; ver TQ-03, cuyos conteos se verificaron con `rg`). Los dos runs en vivo (passkeys 3/3 rojo, session-management 7/7 verde) muestran que la calidad de la suite es heterogénea, no uniformemente rota.
+
+---
+
+# Ledger de verificación — qué está probado, qué es estáticamente cierto, y qué queda por verificar
+
+> Añadido tras la pregunta "¿algo que quede por verificar?". Clasifica cada hallazgo por su **grado de evidencia**, para que quede claro dónde una prueba en vivo agregaría valor y dónde sería redundante.
+
+### A. Verificado empíricamente (ejecutado en esta sesión)
+- **O-08** — build del backend falla (`string_decoder`), reproducido con `npm run build`.
+- **KC-A** — Keycloak ignora la ejecución de passkey: log directo en cada request **+** 3/3 specs de passkey fallan en vivo.
+- **KC-C** — **cerrado como benigno**: 7/7 de `session-management.spec.ts` en verde, `sessions.length === 0` post-logout.
+- **KC-D**, **O-07** — vistos en `docker logs`/`docker inspect` (cookies no-secure; healthcheck roto por `curl` ausente).
+- **TQ-01** — tests de ruta vacuos: corrida real muestra el 500 de la DB mock que los tests aceptan.
+- **BL-11** — desfase de fecha por timezone: reproducido (`2026-02-22 → Feb 21` en TZ negativos).
+- **D-VULN-01/02** — `npm audit` en vivo (drizzle-orm HIGH, dompurify moderate; 0 críticas).
+
+### B. Estáticamente cierto — un test en vivo sería confirmatorio, no revelador
+Estos se siguen **necesariamente** del código; no hay ambigüedad de runtime que una ejecución resuelva:
+- **BL-06 / BL-07 / BL-08 / BL-09** — `schemas.ts` no tiene **ningún** `.refine()`; por la semántica de Zod, un schema sin refinamiento **acepta** end<start, PATCH vacío, y lat/lng fuera de rango. La ausencia es verificable por lectura (grep) y determina el comportamiento. *(Intenté además una prueba en vivo vía API autenticada; quedó bloqueada por la fricción de capturar un token PKCE al recargar el dashboard — pero no cambia la certeza: el intento habría confirmado lo que el código ya garantiza.)*
+- **BL-01 / BL-02 / BL-03 / BL-04 / BL-05** — la ausencia de campos en el form y en `CreateActivitySchema`, y el descarte en `tripAdapter`, son hechos de código (lectura directa), no comportamientos inciertos.
+- **S-01** (OTP `Math.random`), **S-05**, **B-01**, **N-01/N-02** — todos determinados por el código leído.
+
+### C. Queda por verificar en vivo (valor real, no ejecutado esta sesión)
+- **La suite E2E completa** — solo se corrieron `passkeys` (rojo) y `session-management` (verde). Falta correr `trips`, `trip-edit`, `public-sharing`, `otp`, `auth`, `accessibility`, `pwa`, etc. con frontend+backend arriba, para un mapa real de verde/rojo (el milestone v3.1 es precisamente eso).
+- **Tests unitarios del frontend** (`dashboard.test.ts` y otros bajo `frontend/`) — no se corrieron.
+- **BL-06/BL-07 vía API autenticada** — la certeza estática es total, pero una prueba end-to-end (crear un viaje con `end < start` desde la UI y verlo aceptado) sería una demo contundente para el equipo; requiere resolver la captura de token o usar el editor real en navegador.
+- **BL-03 en la vista pública** — crear un viaje de usuario, compartirlo, y confirmar visualmente que el link "Google Maps" no aparece y que `time` no se muestra. Cerraría el círculo de la paridad con la demo.
+- **El fix de O-08** — bumpear `compatibility_date` y re-correr `npm run build` para confirmar que desbloquea (y ver si aparecen más built-ins sin prefijo).
+- **S-23** (Leaflet sin SRI) — verificable con un test que compruebe presencia de `integrity` en los `<script>` de las 9 páginas.
+
+### Áreas del repo no auditadas en profundidad en ninguna pasada
+- Módulos estáticos de bajo riesgo ya confirmados DOM-safe: `search.ts`/`countdown.ts`/`theme.ts`.
+- Los specs E2E individuales a nivel de aserción (más allá de conteos de anti-patrones en TQ-03) — no se leyó cada `expect` de los ~103 tests.
+- Rendimiento/carga, y el comportamiento real de la PWA offline (el SW y sus gaps se analizaron por lectura, no ejecutando el modo offline).
+
+**Conclusión:** los hallazgos de **seguridad e infraestructura** de mayor severidad (S-01, S-19, O-08, KC-A) están **verificados o son de código directo**. Lo que más valor tendría verificar a continuación es **correr la suite E2E completa** (mapa real de estado) y **una demo end-to-end de los gaps de validación de fechas** (BL-06/BL-07) — no porque haya duda de que existen, sino porque verlos en la UI del producto es el argumento más difícil de refutar frente a "anda bien".
