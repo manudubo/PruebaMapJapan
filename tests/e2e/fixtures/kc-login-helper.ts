@@ -7,26 +7,36 @@ export async function loginViaKcForm(page: Page, username: string, password: str
   await page.goto(`${FRONTEND_URL}/PruebaMapJapan/dashboard.html`);
 
   const loginPromptBtn = page.locator('#auth-login-prompt-btn');
-  if (await loginPromptBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
+  // Use waitFor (polls until visible) rather than isVisible (checks current state only).
+  // #auth-login-prompt-btn is always in DOM with [hidden]; JS removes [hidden] after auth
+  // check fails. webkit JS init is slow enough to exceed isVisible's non-polling check.
+  // If KC redirects automatically (chromium/firefox), waitFor throws (element gone) → false.
+  const btnVisible = await loginPromptBtn.waitFor({ state: 'visible', timeout: 30_000 }).then(() => true).catch(() => false);
+  if (btnVisible) {
     await loginPromptBtn.click();
   }
 
-  await page.waitForURL(/localhost:8080/, { timeout: 15_000 });
+  await page.waitForURL(/localhost:8080/, { timeout: 30_000 });
   await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
 
+  // Navigate past any KC authenticator-selection page.
+  // chromium/firefox: KC shows WebAuthn flow with "Try another way" → click to reach
+  //   the authenticator list, then click "Username and password".
+  // webkit: KC shows the authenticator list directly (no "Try another way" link).
   const tryAnotherWay = page.locator('a, button').filter({ hasText: /try another way/i });
   if (await tryAnotherWay.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
     await tryAnotherWay.first().click();
     await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-    const passwordOpt = page.locator('a, button').filter({ hasText: /username and password|^password$/i });
-    if (await passwordOpt.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await passwordOpt.first().click();
-      await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
-    }
+  }
+  // After either path, select "Username and password" if the authenticator list is visible.
+  const passwordOpt = page.locator('a, button').filter({ hasText: /username and password|^password$/i });
+  if (await passwordOpt.first().waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
+    await passwordOpt.first().click();
+    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('load'));
   }
 
   const usernameField = page.locator('#username, input[name="username"], input[autocomplete="username"]');
-  await usernameField.first().waitFor({ state: 'visible', timeout: 10_000 });
+  await usernameField.first().waitFor({ state: 'visible', timeout: 20_000 });
   await usernameField.first().fill(username);
 
   const passwordField = page.locator('input[name="password"], #password');

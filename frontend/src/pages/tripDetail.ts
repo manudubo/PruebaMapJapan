@@ -435,14 +435,17 @@ function updateHotelInfo(hotel: Hotel): void {
 // ---------------------------------------------------------------------------
 
 function loadDestination(trip: ApiTrip, destIndex: number): void {
+  // Header must reflect the trip regardless of whether it has any destinations yet —
+  // a trip can legitimately have zero destinations (e.g. right after creation), and the
+  // title placeholder must not be left stuck on "Loading trip…" in that case.
+  const titleEl = document.getElementById('trip-title');
+  if (titleEl) titleEl.textContent = trip.name;
+
   const cities = apiTripToCityData(trip);
   const data = cities[destIndex] ?? cities[0];
   if (!data) return;
 
-  // Update page header
-  const titleEl = document.getElementById('trip-title');
   const subtitleEl = document.getElementById('trip-subtitle');
-  if (titleEl) titleEl.textContent = trip.name;
   if (subtitleEl) subtitleEl.textContent = `${data.name} · ${data.dates}`;
 
   // Activate tab

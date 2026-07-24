@@ -47,3 +47,10 @@ variable "trip_edit_test_user_password" {
   sensitive   = true
   default     = "Trip-Edit-Test-1!"
 }
+
+variable "e2e_session_password" {
+  description = "Password for session-test@local Playwright test user"
+  type        = string
+  sensitive   = true
+  default     = "Session-Test-Password-1!"
+}
