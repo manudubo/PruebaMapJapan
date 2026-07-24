@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: Security & Code Health Hardening
-status: planning
-stopped_at: Phase 20 context gathered
-last_updated: "2026-07-24T22:12:12.892Z"
-last_activity: 2026-07-24 — Roadmap created; Phases 20–26 formalized with success criteria
+status: ready_to_execute
+stopped_at: Phase 20 planned — 4 plans in 3 waves ready to execute
+last_updated: "2026-07-24T22:30:00.000Z"
+last_activity: 2026-07-24 — Phase 20 planned (4 plans: Wave 0 test infra, Wave 1 OTP+XSS fixes, Wave 2 CSP+Terraform)
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-07-24 — v3.2 milestone started)
 
 ## Current Position
 
-Phase: Not started (roadmap defined, ready to plan Phase 20)
+Phase: 20 — Critical Security (planned, 4/4 plans ready)
 Plan: —
-Status: Ready to plan
-Last activity: 2026-07-24 — Roadmap created; Phases 20–26 formalized with success criteria
+Status: Ready to execute
+Last activity: 2026-07-24 — Phase 20 planned (Wave 0: test infra; Wave 1: OTP CSPRNG fix + XSS DOM rewrite; Wave 2: CSP Vite plugin + Terraform cleanup)
 
 Progress: [          ] 0% (0/7 phases complete)
 
