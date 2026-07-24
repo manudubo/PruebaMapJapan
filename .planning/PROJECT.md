@@ -4,15 +4,6 @@
 
 A full-stack web app for planning, visualizing, and sharing trip itineraries. Users build trips with destinations, hotels, day-by-day chronograms, and activities — all rendered on an interactive Leaflet map. Keycloak OIDC auth with passkeys and OTP fallback. Built as both a portfolio piece and a personally useful tool. v2.0 shipped a hardened auth infrastructure with Terraform IaC, email OTP fallback, passkey campaign, and Playwright real-auth E2E coverage. v3.0 shipped quality, polish, and developer experience: a unified design language between the app and Keycloak, centralized error handling, a single-command dev environment with all KC test users as IaC, an OAuth/OIDC security audit, and full new-user trip-creation E2E parity.
 
-## Current Milestone: v3.1 E2E Stabilization
-
-**Goal:** Get the full Playwright E2E suite green. Pure stabilization — no new product features.
-
-**Target features:**
-- Fresh full-suite triage run against current `main` to get an accurate failure list (prior known failures — idp-theme, otp, passkeys ×3, public-sharing, session-management — are stale, several commits old)
-- Root-cause and fix each failing spec for real (app bug or test bug, whichever it is)
-- Formally document any spec that's genuinely environment-specific and can't reasonably be fixed as an accepted skip/deferral, not silently ignored
-
 ## Core Value
 
 A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
@@ -42,10 +33,11 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - ✓ Error handling: centralized `toast.ts`, global `unhandledrejection` handler, typed `ApiError`, 401 auto-redirect — v3.0 (Phase 11)
 - ✓ Design consistency: `--jp-*` tokens throughout app + Keycloak IDP (login, account, email templates) — v3.0 (Phase 10)
 - ✓ Theme consistency: light/dark toggle persists across all MPA flows including Leaflet tile switching — v3.0 (Phase 10)
+- ✓ E2E suite stabilized: full Playwright suite green across chromium/firefox/webkit (242 passed, 25 documented deferrals, 0 unexplained failures); shared `loginViaKcForm` helper replaces four independent KC-navigation implementations; every environment-specific deferral is a `test.fixme(condition, reason)`, never a silent skip — v3.1 (Phases 15-19)
 
-### Active (v3.1)
+### Active
 
-(Defined in next step — see `.planning/REQUIREMENTS.md`)
+Not yet defined — v3.2 requirements pending (`/gsd-new-milestone`). Draft scope at `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`.
 
 ### Future (deferred, unscoped)
 
@@ -72,16 +64,17 @@ Not started — draft requirements at `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`
 
 ## Context
 
-**Codebase state (as of 2026-06-22, v3.1 Phase 16 complete):**
+**Codebase state (as of 2026-07-23, v3.1 shipped):**
 - Full-stack brownfield: Hono + Cloudflare Workers backend, Vanilla TypeScript frontend (MPA), Keycloak 26.6.1 OIDC auth
-- 16 phases complete; 83 plans shipped (62 v2.0 + 19 v3.0 + 2 v3.1)
+- 19 phases complete; 94 plans shipped (62 v2.0 + 19 v3.0 + 13 v3.1)
 - Design: unified `--jp-*` token system across app + KC login/account/email themes; light/dark toggle persists across MPA navigations
 - Error handling: centralized `toast.ts`, global `unhandledrejection` handlers, typed `ApiError`, 401 auto-redirect to KC login
 - Dev environment: `npm run dev` (Docker detection → KC health wait → backend → frontend); all KC test users + strict redirect URIs as Terraform IaC
 - Security: RFC 9700 checklist on file, JWKS retry-on-failure, CSP/HSTS/X-Frame-Options headers, E2E audience-rejection coverage
 - New-user flow: full UI-driven trip creation (destination/hotel/day/activity/geocoder/map/search) covered by Playwright E2E with no ROPC anywhere in the suite
-- Production deployment still not configured (Cloudflare + Neon + Railway) — deferred, unscoped
-- Phase 16 complete: public-sharing.spec.ts rewritten with self-contained beforeAll/afterAll fixtures; idp-theme.spec.ts fixed with empty storageState override and valid PKCE S256 challenge
+- Production deployment still not configured (Cloudflare + Neon + Railway) — deferred, unscoped; **the backend currently fails `wrangler deploy --dry-run`** (v3.2 candidate INFRA-03), so deployment is blocked on more than just being unscoped
+- E2E suite fully stabilized (v3.1, Phases 15-19): 242 passed / 25 skipped / 0 failed on the full Playwright suite across chromium/firefox/webkit/chromium-passkeys; shared `loginViaKcForm` helper; dedicated `session-test@local` KC user eliminates cross-spec session contamination; every deferral is a documented `test.fixme`
+- A comprehensive 7-pass security/code-health audit (`ANALISIS-REPO.md`, ~84 findings) is complete and synthesized into `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`, not yet formalized into a milestone
 
 **Known critical constraint (carried forward):**
 - `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before any prod passkey registration — no migration path exists
@@ -113,6 +106,10 @@ Not started — draft requirements at `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`
 | Keep DEV-gated `console.debug`/`warn` in auth code | Useful for future auth debugging; silent in production builds (`import.meta.env.DEV` guard) | ✓ Good — zero production cost |
 | `keycloak-js getToken()` only refreshes when `isTokenExpired(30)` | `updateToken(30)` throws when KC issues a token with no refresh token (e.g. post silent-check-sso); unconditional refresh was a latent bug | ✓ Good — real bug fix found via E2E |
 | `z.coerce.string()` for lat/lng Zod schemas | Frontend sends `parseFloat()`'d numbers; `z.string()` rejected valid geocoded coordinates | ✓ Good — real bug fix found via E2E |
+| Dedicated `session-test@local` KC user for `session-management.spec.ts` (v3.1 Phase 19) | Sharing `e2e-test@local` across specs caused `logoutUser()` calls in one spec to cross-contaminate KC sessions in another | ✓ Good — standing preference: every E2E spec should ideally have its own dedicated KC user going forward |
+| passkeyCampaign per-device cookie pre-seeded via `context.addCookies()` before login (v3.1 Phase 19) | Every fresh test context re-triggered the full webauthn-register-passwordless required-action redirect, slowing the suite and breaking session-count assertions | ⚠️ Revisit — reliable on chromium/firefox; doesn't suppress the redirect on webkit, accepted as a documented `test.fixme` deferral |
+| `waitForLoadState('networkidle')` removed from E2E waits (v3.1 Phase 19) | Vite's HMR WebSocket keeps the page perpetually non-idle in dev, causing indefinite hangs (worst on webkit) | ✓ Good — replaced with locator-based waits, no regressions |
+| 69 unpushed local commits backed up to `origin/backup/2026-07-22` rather than merged straight to `main` (v3.1 session) | Deploy workflows have no CI gate and the backend fails `wrangler deploy --dry-run` — a straight merge risked pushing a broken build to a prod deploy trigger | ✓ Good — no data loss, no accidental deploy; commits later merged properly after the E2E gate was green |
 
 ## Evolution
 
@@ -132,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-Last updated: 2026-06-22
+Last updated: 2026-07-23 after v3.1 milestone

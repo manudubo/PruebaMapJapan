@@ -1,5 +1,35 @@
 # Milestones
 
+## v3.1 — E2E Stabilization
+
+**Shipped:** 2026-07-23
+**Phases:** 15–19
+**Plans:** 11 total
+**Timeline:** 2026-06-21 → 2026-07-23 (32 days)
+**Stats:** 68 files changed, +8,837 / -343 lines (79 commits)
+
+### Delivered
+
+Pure stabilization milestone — no new product features. Took the E2E suite from a stale, several-commits-old failure list to a fresh authoritative triage, root-caused and fixed every real bug found (test and app), and closed with zero unexplained failures: 242 passed, 25 skipped (all documented deferrals), 0 failed.
+
+### Key Accomplishments
+
+1. Fresh full-suite triage established an authoritative, current failure list, and passkeys Chromium-scoping was corrected so cross-browser config bugs no longer polluted signal from subsequent fixes
+2. Fixed `public-sharing.spec.ts` and `idp-theme.spec.ts` independently — self-contained `beforeAll` fixtures, valid PKCE S256 challenge, current KC 26 template assertions
+3. Extracted a single shared `loginViaKcForm` helper replacing four independent, fragile KC-navigation implementations; fixed OTP route-contract mismatches and SMTP-lag false failures
+4. Fixed `passkeys.spec.ts` reliability — `afterEach` authenticator cleanup, `resetCredentials` clearing stale `webauthn-register-passwordless` required actions
+5. Root-caused and fixed the passkeyCampaign-driven session flakiness across multiple specs (per-device cookie pre-seed), found and fixed a real production bug (`tripDetail.ts` trip title never set for zero-destination trips), and closed the milestone with a clean 242 passed / 25 skipped / 0 failed full-suite run
+6. Every environment-specific deferral documented via `test.fixme(condition, reason)` with explicit rationale — no silent skips; all 25 deferrals trace to two known, documented root causes
+
+### Known Gaps at Close
+
+- None — all 17 v3.1 requirements complete, 0 unexplained test failures
+
+### Archive
+
+- Roadmap: `.planning/milestones/v3.1-ROADMAP.md`
+- Requirements: `.planning/milestones/v3.1-REQUIREMENTS.md`
+
 ## v3.0 — Quality, Polish & DevX
 
 **Shipped:** 2026-06-15
