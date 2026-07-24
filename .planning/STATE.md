@@ -1,35 +1,35 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1
-milestone_name: E2E Stabilization
-status: complete
-stopped_at: v3.1 milestone shipped — Phase 19 closed, full suite 242 passed/25 skipped/0 failed
-last_updated: "2026-07-23T22:00:00.000Z"
+milestone: v3.2
+milestone_name: Security & Code Health Hardening
+status: defining_requirements
+stopped_at: v3.2 milestone started — PROJECT.md updated, defining REQUIREMENTS.md next
+last_updated: "2026-07-24T00:00:00.000Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_phases: 7
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-23 — v3.1 milestone evolution review complete)
+See: .planning/PROJECT.md (updated 2026-07-24 — v3.2 milestone started)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** v3.1 shipped. Next: formalize v3.2 candidate via `/gsd-new-milestone` (not started)
+**Current focus:** v3.2 Security & Code Health Hardening — defining requirements
 
 ## Current Position
 
-Phase: 19 (Session + Closure) — COMPLETE
-Plan: 2 of 2 (19-02) — done
-Next: Formalize `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` into a real milestone when ready
-Status: v3.1 E2E Stabilization milestone complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-24 — Milestone v3.2 started
 
-Progress: [==========] 100% (5/5 phases complete)
+Progress: [          ] 0% (0/7 phases complete)
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Full log in PROJECT.md Key Decisions table. v3.1 closed with no open decision th
 
 ### Pending Todos
 
-- Formalize `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` into a real milestone via `/gsd-new-milestone` when ready to start v3.2.
+- Define formal REQUIREMENTS.md (REQ-IDs) for v3.2 from `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`'s 9 clusters, then spawn the roadmapper for Phases 20-26.
 
 ### Blockers/Concerns
 
@@ -66,6 +66,6 @@ Full log in PROJECT.md Key Decisions table. v3.1 closed with no open decision th
 
 ## Session Continuity
 
-Last session: 2026-07-23
-Stopped at: v3.1 milestone complete — Phase 19 closed, worktree merged and removed
-Resume: start v3.2 planning via `/gsd-new-milestone` when ready, or pick up any other backlog item
+Last session: 2026-07-24
+Stopped at: v3.2 milestone started — PROJECT.md's Current Milestone section written, requirements definition in progress
+Resume: continue `/gsd-new-milestone` at the requirements-definition step, or re-run it fresh — MILESTONE-CONTEXT.md already carries the full scope

@@ -35,9 +35,9 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - ✓ Theme consistency: light/dark toggle persists across all MPA flows including Leaflet tile switching — v3.0 (Phase 10)
 - ✓ E2E suite stabilized: full Playwright suite green across chromium/firefox/webkit (242 passed, 25 documented deferrals, 0 unexplained failures); shared `loginViaKcForm` helper replaces four independent KC-navigation implementations; every environment-specific deferral is a `test.fixme(condition, reason)`, never a silent skip — v3.1 (Phases 15-19)
 
-### Active
+### Active (v3.2)
 
-Not yet defined — v3.2 requirements pending (`/gsd-new-milestone`). Draft scope at `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`.
+(Defined in next step — see `.planning/REQUIREMENTS.md`)
 
 ### Future (deferred, unscoped)
 
@@ -48,9 +48,19 @@ Not yet defined — v3.2 requirements pending (`/gsd-new-milestone`). Draft scop
 - [ ] **Passkey rename**: PUT credentials/{id}/label
 - [ ] **Prod rpId for passkeys**: Set to Railway hostname in Terraform before any prod passkey registration
 
-## Candidate Milestone: v3.2 Security & Code Health Hardening
+## Current Milestone: v3.2 Security & Code Health Hardening
 
-Not started — draft requirements at `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (~85 actionable findings across 9 clusters), phase skeleton in ROADMAP.md (Phases 20-26). Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 → 2026-07-23) and `codex-review.md` (2026-06-23 live-environment audit, largely superseded by v3.1's login-harness rewrite but still valid on security/deploy/dependency findings). Headline items, live-reverified 2026-07-23: OTP uses `Math.random()` instead of a CSPRNG; a Keycloak service-account has an unused realm-wide `manage-users` admin permission deployed to prod; the backend Worker currently **fails to build** (`wrangler deploy --dry-run` errors on `string_decoder`, blocking any real deploy); unescaped RSS/passkey-label HTML in `innerHTML` sinks; prod deploys aren't gated on CI passing; an activity drag-reorder UI bug that doesn't persist visually until page reload; a date-parsing bug that shows the wrong day to any user in a negative-UTC-offset timezone (confirmed via live reproduction); and a structural gap between what the trip-planner demo can show and what a real user can build with it (several fields — optional/generic activities, custom map links, per-destination zoom — exist in the DB/schema but are unreachable from the editor or silently dropped before the shared view).
+**Goal:** Fix the ~85 actionable findings from a 7-pass live-verified repo audit — security, deploy safety, reliability bugs, dependencies, accessibility, architecture/test debt, data layer, business-logic/demo-parity, and IdP hardening.
+
+**Target features:**
+- Fix the two highest-severity live-verified findings: the backend currently fails to build (`wrangler deploy --dry-run` errors, blocking all deployment), and an unused Keycloak service account holds realm-wide `manage-users` admin permission deployed to prod
+- Close the OTP RNG and widget-XSS security gaps (the two most exploitable findings)
+- Gate prod deploys on CI passing, and fix the CI e2e job that has never once passed in this repo's history
+- Fix the most user-visible reliability bug (activity drag-reorder not persisting visually) plus ~15 lower-severity bugs
+- Close the structural gap between the trip-planner demo and what a real user can build with it — cross-level date coherence validation, the confirmed timezone date-shift bug, and exposing DB/schema fields (optional/generic activities, custom map links, zoom) through the actual editor UI
+- Full detail, per-item verification status, and rationale: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`
+
+Source: Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 → 2026-07-24) and `codex-review.md` (2026-06-23 live-environment audit, largely superseded by v3.1's login-harness rewrite but still valid on security/deploy/dependency findings).
 
 ### Out of Scope
 
@@ -129,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-Last updated: 2026-07-23 after v3.1 milestone
+Last updated: 2026-07-24 — v3.2 milestone started
