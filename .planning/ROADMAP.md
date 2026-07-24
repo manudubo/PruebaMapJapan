@@ -4,7 +4,7 @@
 
 - âœ… **v2.0 Auth Infrastructure & Hardening** â€” Phases 1â€“9 (shipped 2026-05-28)
 - âœ… **v3.0 Quality, Polish & DevX** â€” Phases 10â€“14 (shipped 2026-06-15)
-- ðŸ”„ **v3.1 E2E Stabilization** â€” Phases 15â€“19 (in progress)
+- âœ… **v3.1 E2E Stabilization** â€” Phases 15â€“19 (shipped 2026-07-23)
 - ðŸ”œ **v3.2 Security & Code Health Hardening** â€” Phases 20â€“24 (candidate, not started â€” see `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`)
 
 ## Phases
@@ -41,7 +41,7 @@
 - [x] **Phase 16: Independent Spec Fixes** - Fix public-sharing fixture and IDP theme assertions
 - [x] **Phase 17: OTP + Login Helper** - Fix OTP contract and extract shared KC form helper
 - [x] **Phase 18: Passkeys Fixes** - Fix authenticator lifecycle and credential reset
-- [ ] **Phase 19: Session + Closure** - Fix session-management selectors and document all outcomes
+- [x] **Phase 19: Session + Closure** - Fix session-management selectors and document all outcomes
 
 ## Phase Details
 
@@ -116,7 +116,7 @@ Plans:
 
 Plans:
 - [x] 19-01-PLAN.md — Add storageState to firefox/webkit projects; mark trip-edit-integration and new-user webkit as test.fixme (DOC-01, DOC-02) — commit dff16ca,836fc25
-- [ ] 19-02-PLAN.md — Run full E2E suite, verify session-management live, write 19-CLOSURE.md (SESSION-01, DOC-02)
+- [x] 19-02-PLAN.md — Run full E2E suite, verify session-management live, write 19-CLOSURE.md (SESSION-01, DOC-02) — commit d89d075
 
 ### v3.2 Security & Code Health Hardening (candidate — not started)
 
@@ -150,7 +150,7 @@ Synthesized from `ANALISIS-REPO.md` and `codex-review.md` (both in repo root). F
 | 16. Independent Spec Fixes | v3.1 | 2/2 | Complete | 2026-06-22 |
 | 17. OTP + Login Helper | v3.1 | 2/2 | Complete | 2026-06-23 |
 | 18. Passkeys Fixes | v3.1 | 2/2 | Complete | 2026-07-13 |
-| 19. Session + Closure | v3.1 | 1/2 | In progress | - |
+| 19. Session + Closure | v3.1 | 2/2 | Complete | 2026-07-23 |
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*
 *Full v3.0 phase details in `.planning/milestones/v3.0-ROADMAP.md`*

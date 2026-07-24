@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: E2E Stabilization
-status: executing
-stopped_at: Phase 19 plan 19-02 in progress — session cross-contamination fix applied, live suite run pending
-last_updated: "2026-07-22T22:00:00.000Z"
+status: complete
+stopped_at: v3.1 milestone shipped — Phase 19 closed, full suite 242 passed/25 skipped/0 failed
+last_updated: "2026-07-23T22:00:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 9
-  completed_plans: 8
-  percent: 90
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State
@@ -20,16 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-22 — v3.2 candidate added)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** Phase 19 (Session + Closure), plan 19-02
+**Current focus:** v3.1 shipped. Next: formalize v3.2 candidate via `/gsd-new-milestone` (not started)
 
 ## Current Position
 
-Phase: 19 (Session + Closure) — EXECUTING
-Plan: 2 of 2 (19-02)
-Next: Confirm live full-suite run is clean, write 19-CLOSURE.md, close v3.1 milestone
-Status: Executing Phase 19
+Phase: 19 (Session + Closure) — COMPLETE
+Plan: 2 of 2 (19-02) — done
+Next: Formalize `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` into a real milestone when ready
+Status: v3.1 E2E Stabilization milestone complete
 
-Progress: [========= ] 90% (4/5 phases complete; Phase 19 plan 2/2 in progress)
+Progress: [==========] 100% (5/5 phases complete)
 
 ## Performance Metrics
 
@@ -58,12 +58,11 @@ Full log in PROJECT.md Key Decisions table. v3.0 closed with no open decision th
 
 ### Pending Todos
 
-- Confirm 19-02's full E2E suite run comes back clean (or with only the two already-accepted test.fixme deferrals), then write 19-CLOSURE.md and close v3.1.
-- Formalize `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` into a real milestone via `/gsd-new-milestone` once v3.1 ships.
+- Formalize `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` into a real milestone via `/gsd-new-milestone` when ready to start v3.2.
 
 ### Blockers/Concerns
 
-- Local dev stack (Docker Keycloak/Postgres, backend, frontend) has been intermittently going down between sessions — restart and re-verify before trusting any "stack is up" assumption from a prior turn.
+- Local dev stack (Docker Keycloak/Postgres, backend, frontend) has been intermittently going down between sessions — restart and re-verify before trusting any "stack is up" assumption from a prior turn. Note: a git worktree's `backend/.dev.vars` is gitignored and NOT copied on worktree creation — if the backend was ever restarted from within a worktree, verify `.dev.vars` exists there before trusting DB-backed test results (observed 2026-07-23: missing `.dev.vars` caused silent per-request DB failures that looked like a hung test suite rather than a clear startup error).
 
 ## Deferred Items
 
@@ -79,6 +78,6 @@ Full log in PROJECT.md Key Decisions table. v3.0 closed with no open decision th
 
 ## Session Continuity
 
-Last session: 2026-07-22
-Stopped at: Phase 19 plan 19-02 — session-test@local fix committed in worktree, live full-suite run in progress
-Resume: check worktree `.claude/worktrees/agent-a52c4553b974efb75` full-suite result; if clean, write 19-CLOSURE.md and close v3.1
+Last session: 2026-07-23
+Stopped at: v3.1 milestone complete — Phase 19 closed, worktree merged and removed
+Resume: start v3.2 planning via `/gsd-new-milestone` when ready, or pick up any other backlog item
