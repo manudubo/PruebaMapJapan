@@ -187,19 +187,65 @@ async function fetchWithProxy(query: string, proxyType: 'allorigins' | 'corsprox
   } catch { return []; }
 }
 
-function renderList(container: HTMLElement, items: NewsItem[], type: 'news' | 'events', city: string): void {
-  const listItems = items.map(item => {
-    const title = cleanTitle(item.title);
-    const date = formatDate(item.pubDate);
-    let actionBtn = '';
-    if (type === 'events') {
-      const calUrl = createCalendarUrl(title, item.link, `${city}, Japan`);
-      actionBtn = `<a href="${calUrl}" target="_blank" rel="noopener" class="calendar-btn" title="Add to calendar" aria-label="Add ${title} to calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg></a>`;
-    }
-    return `<li class="widget-list-item"><div class="widget-text-content"><a href="${item.link}" target="_blank" rel="noopener" class="widget-link"><span class="widget-link-title">${title}</span><span class="widget-meta"><span>${item.source}</span><time datetime="${item.pubDate}">${date}</time></span></a></div>${actionBtn}</li>`;
-  }).join('');
+export function renderList(container: HTMLElement, items: NewsItem[], type: 'news' | 'events', city: string): void {
   container.setAttribute('aria-busy', 'false');
-  container.innerHTML = `<ul class="widget-list" role="list">${listItems}</ul>`;
+  const ul = document.createElement('ul');
+  ul.className = 'widget-list';
+  ul.setAttribute('role', 'list');
+
+  for (const item of items) {
+    const li = document.createElement('li');
+    li.className = 'widget-list-item';
+
+    const div = document.createElement('div');
+    div.className = 'widget-text-content';
+
+    const a = document.createElement('a');
+    a.setAttribute('href', item.link);
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener');
+    a.className = 'widget-link';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'widget-link-title';
+    titleSpan.textContent = cleanTitle(item.title);
+
+    const metaSpan = document.createElement('span');
+    metaSpan.className = 'widget-meta';
+
+    const sourceSpan = document.createElement('span');
+    sourceSpan.textContent = item.source;
+
+    const time = document.createElement('time');
+    time.setAttribute('datetime', item.pubDate);
+    time.textContent = formatDate(item.pubDate);
+
+    metaSpan.appendChild(sourceSpan);
+    metaSpan.appendChild(time);
+    a.appendChild(titleSpan);
+    a.appendChild(metaSpan);
+    div.appendChild(a);
+    li.appendChild(div);
+
+    if (type === 'events') {
+      const calUrl = createCalendarUrl(cleanTitle(item.title), item.link, `${city}, Japan`);
+      const calA = document.createElement('a');
+      calA.setAttribute('href', calUrl);
+      calA.setAttribute('target', '_blank');
+      calA.setAttribute('rel', 'noopener');
+      calA.className = 'calendar-btn';
+      calA.setAttribute('title', 'Add to calendar');
+      calA.setAttribute('aria-label', `Add ${cleanTitle(item.title)} to calendar`);
+      // SVG is a hardcoded literal — not RSS data — safe to use innerHTML here
+      calA.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>`;
+      li.appendChild(calA);
+    }
+
+    ul.appendChild(li);
+  }
+
+  container.innerHTML = '';  // clear previous — safe: no user data
+  container.appendChild(ul);
 }
 
 function renderEmptyState(container: HTMLElement, type: 'news' | 'events'): void {
