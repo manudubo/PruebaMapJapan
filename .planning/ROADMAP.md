@@ -89,7 +89,10 @@ Plans:
   3. `wrangler` appears as a pinned version in `backend/package.json` `devDependencies`; no `npx wrangler` in any `backend/package.json` script
   4. `docker ps` shows the Keycloak container with `healthy` status (not `unhealthy` or `health: starting`); the healthcheck uses `wget` or `/dev/tcp`, not `curl`
   5. `npm audit --workspace=backend --omit=dev` shows 0 HIGH or CRITICAL vulnerabilities; `npm audit` confirms `GHSA-gpj5-g38j-94v9` (drizzle-orm) closed by the bump to `^0.45.2`
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 21-01-PLAN.md — Wave 1: Build fix (compatibility_date) + dep bumps (drizzle-orm, hono, drizzle-kit, dompurify)
+- [ ] 21-02-PLAN.md — Wave 2: KC healthcheck + CI test-backend/build-backend jobs + deploy workflow_run gates
 
 ### Phase 22: Reliability Bugs
 **Goal**: All 16 confirmed reliability bugs from the audit are fixed — the most user-visible first, and remaining low-severity items cleaned up
