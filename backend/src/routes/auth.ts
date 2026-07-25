@@ -120,7 +120,8 @@ authRoute.post('/otp-request', async (c) => {
       );
     }
 
-    const code = String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
+    // bias < 0.023% across Uint32 range — negligible for 6-digit OTP
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
     const codeHash = await hashOtp(code, c.env.OTP_SECRET);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
