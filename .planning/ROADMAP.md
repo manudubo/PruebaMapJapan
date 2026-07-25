@@ -52,7 +52,7 @@ Full outcome: 242 passed, 25 skipped (documented deferrals), 0 failed. See `.pla
 
 Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md`. Full findings and per-item verification status in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. Requirements defined: `.planning/REQUIREMENTS.md` (82 requirements, 100% mapped).
 
-- [ ] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14)
+- [x] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14) — completed 2026-07-24
 - [ ] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01)
 - [ ] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
 - [ ] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05)
@@ -74,9 +74,9 @@ Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `cod
 **Plans**: 4 plans
 Plans:
 - [x] 20-00-PLAN.md — Wave 0: RED test infrastructure (OTP source-audit test + widget XSS tests)
-- [ ] 20-01-PLAN.md — Wave 1: SEC-01 OTP CSPRNG fix + SEC-14 Terraform cleanup
-- [ ] 20-02-PLAN.md — Wave 1: SEC-02/03 renderList DOM API rewrite + export
-- [ ] 20-03-PLAN.md — Wave 2: SEC-04 CSP Vite plugin + human-verify 0-violations
+- [x] 20-01-PLAN.md — Wave 1: SEC-01 OTP CSPRNG fix + SEC-14 Terraform cleanup
+- [x] 20-02-PLAN.md — Wave 1: SEC-02/03 renderList DOM API rewrite + export
+- [x] 20-03-PLAN.md — Wave 2: SEC-04 CSP Vite plugin + browser-verified 0-violations
 **UI hint**: yes
 
 ### Phase 21: Deploy & Build Safety
