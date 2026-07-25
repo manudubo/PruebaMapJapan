@@ -2,7 +2,7 @@
 
 **Researched:** 2026-07-25
 **Domain:** GitHub Actions workflow_run CI gates, Cloudflare Workers compatibility flags, Keycloak Docker healthcheck, npm dependency security
-**Confidence:** HIGH (most claims verified via tooling or official docs)
+**Confidence:** HIGH (most claims verified via tooling or live container probing)
 
 ---
 
@@ -25,7 +25,7 @@
 
 **INFRA-05: KC Healthcheck**
 - D-07: Replace `curl -sf http://localhost:8080/realms/japan-trip` with `wget -q --spider http://localhost:8080/health/ready` in `keycloak/docker-compose.yml`
-- **(NOTE: This decision has implementation conflicts — see INFRA-05 section below for required deviations)**
+- **(NOTE: This decision has implementation conflicts — see INFRA-05 section below for required deviation. The spirit is preserved, the letter is replaced.)**
 
 **DEP-01: Dependency Bumps**
 - D-08: `drizzle-orm` bumped to `^0.45.2`
@@ -50,23 +50,25 @@
 | INFRA-02 | Backend deploy runs typecheck/tests before deploy; backend CI unit-test job exists | New `test-backend` job in ci.yml; `typecheck-backend` already exists |
 | INFRA-03 | `wrangler deploy --dry-run` exits 0; `compatibility_date` ≥ 2024-09-23 | VERIFIED: current build fails with 25 errors; error message confirms fix date |
 | INFRA-04 | `wrangler` pinned as devDep; no `npx wrangler` in any backend script | VERIFIED: already in devDeps; fix is workflow change only |
-| INFRA-05 | KC Docker healthcheck uses method available in quay.io/keycloak/keycloak:26.6.1 | `wget` NOT available; use `/proc/net/tcp` or `/dev/tcp` — see deviation section |
-| DEP-01 | drizzle-orm ≥ 0.45.2; dompurify ≥ 3.4.12; runtime vulns resolved | VERIFIED: both versions confirmed on npm; RQBv1 API safe through 0.45.x |
+| INFRA-05 | KC Docker healthcheck uses method available in quay.io/keycloak/keycloak:26.6.1 | VERIFIED: curl and wget both absent; bash /dev/tcp to port 8080 works — see deviation section |
+| DEP-01 | drizzle-orm ≥ 0.45.2; dompurify ≥ 3.4.12; runtime vulns resolved | VERIFIED: both versions confirmed on npm; RQBv1 API safe through 0.45.x; hono bump required for 0 HIGH |
 </phase_requirements>
 
 ---
 
 ## Summary
 
-Phase 21 consists of six independent fixes that span CI workflow configuration, Cloudflare Workers build configuration, Keycloak Docker setup, and npm dependency versions. The work is primarily configuration-level — no new logic is added — but several fixes have non-obvious gotchas that will break the implementation if missed.
+Phase 21 consists of six independent fixes spanning CI workflow configuration, Cloudflare Workers build configuration, Keycloak Docker setup, and npm dependency versions. The work is primarily configuration-level — no new logic is added — but several fixes have non-obvious gotchas that will break the implementation if missed.
 
 The highest-confidence fix is INFRA-03: the current `wrangler deploy --dry-run` fails with 25 errors and the error message itself specifies the `compatibility_date` that resolves it. INFRA-04 is already half-done (wrangler is already a devDep). INFRA-01/02 via `workflow_run` has two critical YAML details (the checkout SHA and the loss of `paths:` filtering) that must be addressed or explicitly accepted.
 
-INFRA-05 has a locked decision (D-07) that is unimplementable as written: `wget` is not in the Keycloak container image and the health endpoint is on port 9000, not 8080. The planner must deviate from the letter of D-07 while honoring its spirit.
+INFRA-05 has a locked decision (D-07) that is unimplementable as written: neither `wget` nor `curl` is in the Keycloak container image. The correct fix — verified empirically via live container probe — is to use bash `/dev/tcp` to check `http://localhost:8080/realms/japan-trip` (the same endpoint the original curl check targeted). No env var changes needed.
 
-DEP-01's drizzle-orm bump is safe for this codebase's query patterns, but the ROADMAP success criterion #5 ("0 HIGH or CRITICAL") cannot be met by drizzle-only bump — hono has 17 HIGH advisories that are unfixed. A hono bump to `^4.12.32` is non-breaking and closes the gap; the planner must decide whether to include it.
+DEP-01's drizzle-orm bump is safe for this codebase's query patterns. The ROADMAP success criterion #5 ("0 HIGH or CRITICAL") requires bumping hono to `^4.12.32` in addition to drizzle-orm — both are needed. The hono bump is within the existing `^4.6.17` semver range and is resolved by `npm audit fix` (no `--force`).
 
-**Primary recommendation:** Implement all six changes in a single commit wave. Sequence: INFRA-03 first (fixes the build), then DEP-01 (verify build still passes after drizzle bump), then INFRA-01/02 (CI gate), INFRA-04/05 (workflow and Docker changes). Include hono bump in DEP-01 to satisfy success criterion #5.
+**Critical risk in D-08:** The drizzle-orm bump uses "E2E suite catches runtime regressions" as its safety net (per CONTEXT D-08), but D-02 marks E2E as `continue-on-error: true` and ARCH-09 records 100% failure rate since April. `wrangler deploy --dry-run` exercises esbuild + TypeScript — it never executes ORM queries. A bump that silently changes relational-query SQL generation passes dry-run cleanly. The planner must add an explicit local verification step for the three-level nested relational queries in `queries/trips.ts` and `queries/destinations.ts`.
+
+**Primary recommendation:** Implement all six changes in a single commit wave. Sequence: INFRA-03 first (fixes the build), then DEP-01 (verify build + local stack), then INFRA-01/02 (CI gate), INFRA-04/05 (workflow and Docker changes). Include hono bump in DEP-01 to satisfy success criterion #5.
 
 ---
 
@@ -92,7 +94,7 @@ DEP-01's drizzle-orm bump is safe for this codebase's query patterns, but the RO
 | drizzle-orm | 0.38.3 | 0.45.2 | ORM for Neon Postgres |
 | drizzle-kit | 0.30.1 | 0.30.1 (unchanged, see Pitfall 4) | Migration tooling |
 | dompurify | 3.4.1 (frontend) | 3.4.12 | DOM sanitization |
-| hono | 4.6.17+ | 4.12.32 (see DEP-01 gap note) | HTTP framework |
+| hono | 4.6.17+ | 4.12.32 (required for 0 HIGH — see DEP-01) | HTTP framework |
 
 **Version verification:** [VERIFIED: `npm view drizzle-orm version` → `0.45.2`; `npm view dompurify version` → `3.4.12`; `npm view hono version` → `4.12.32`]
 
@@ -142,7 +144,7 @@ CI workflow (ci.yml)
 
 - **`actions/checkout@v4` without `ref:` in a `workflow_run` workflow:** Checks out default branch HEAD, not the SHA CI validated. The SHA that CI ran on and the SHA that gets deployed diverge under rapid pushes.
 - **Trusting `paths:` filtering carries over to `workflow_run`:** The `workflow_run` event does NOT support `paths:` or `paths-ignore` filters. Every completed CI run on main triggers both deploy workflows.
-- **Checking job-level conclusion for e2e:** With `continue-on-error: true`, `needs.e2e.result` will be `"success"` even when e2e fails. There is no field that exposes the actual failure; this is intentional GitHub Actions behavior used to implement D-02.
+- **Checking job-level conclusion for e2e:** With `continue-on-error: true`, `needs.e2e.result` will be `"success"` even when e2e fails. This is intentional GitHub Actions behavior used to implement D-02.
 
 ---
 
@@ -152,7 +154,7 @@ CI workflow (ci.yml)
 |---------|-------------|-------------|-----|
 | CI gate | Custom webhook or polling | `workflow_run` trigger + `conclusion == 'success'` | Native GH feature; atomic |
 | Node.js compat polyfills | Custom polyfill layer | `compatibility_date = "2024-09-23"` + `nodejs_compat` flag | CF provides verified polyfills |
-| KC container tool detection | Bundling curl/wget in image | `/proc/net/tcp` check (cat + grep) | No image modification needed |
+| KC container HTTP check | Bundling curl/wget in image | bash `/dev/tcp` redirect | No image modification needed; bash is available |
 
 ---
 
@@ -221,7 +223,7 @@ jobs:
 - If only `e2e` (which has `continue-on-error: true`) fails → conclusion = `success` → deploy proceeds
 - D-04's "gates on typecheck-frontend and test-frontend" is satisfied implicitly: those jobs don't have `continue-on-error`, so their failure sets conclusion to `failure`
 
-[VERIFIED: GitHub community discussion — `continue-on-error: true` at job level → workflow conclusion reports `success` even on job failure]
+[CITED: docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idcontinue-on-error — "Prevents a workflow run from failing when a job fails."]
 
 ### `continue-on-error: true` Effect
 
@@ -297,67 +299,58 @@ run: npm run deploy --workspace=backend
 
 D-07 specifies: `wget -q --spider http://localhost:8080/health/ready`
 
-**Both elements are wrong:**
+**Both elements are wrong, and both have been empirically confirmed:**
 
-1. **`wget` is not available** in `quay.io/keycloak/keycloak:26.6.1`. The KC container image is based on `ubi9-micro`, which contains "only enough for a bash shell, and to run Keycloak itself." [CITED: keycloak.org/server/containers — "Due to security measures that remove curl and other packages from the Keycloak container image"]
+1. **`wget` is not available** in `quay.io/keycloak/keycloak:26.6.1`. [VERIFIED: `command -v wget` in live container → "wget NOT found"]
 
-2. **Port 8080 is wrong.** The KC health endpoint (`/health/ready`) is on the **management port 9000**, not the application port 8080. Port 8080 serves the KC application (login pages, token endpoints, admin console). [CITED: keycloak.org/observability/health — "exposed on the management port 9000 by default"]
+2. **`curl` is also not available.** [VERIFIED: `command -v curl` in live container → "curl NOT found"]
 
-### Available Tools in KC Container
+3. **Port 9000 (the KC management port) is NOT bound** in the current setup. [VERIFIED: `/proc/net/tcp6` in live container — port 9000 (`0x2328`) not listed; only port 8080 (`0x1F90`) in LISTEN state]
 
-Confirmed available: `bash`, `cat`, `grep`, `/proc/net/tcp` [CITED: multiple KC healthcheck discussions; official KC container docs]
+4. **`/health/ready` on port 8080 returns 404** without `KC_HEALTH_ENABLED=true`. [VERIFIED: bash `/dev/tcp` HTTP GET to port 8080 `/health/ready` → `HTTP/1.1 404 Not Found`]
 
-`/dev/tcp` (bash TCP redirect): available if `/bin/sh` resolves to bash. In `ubi9-micro`, `/bin/sh` is typically bash-linked, but this is unconfirmed empirically for the KC wrapper. [ASSUMED: /dev/tcp works; use `/proc/net/tcp` as the safe fallback]
+5. **`/realms/japan-trip` on port 8080 returns 200 OK.** [VERIFIED: bash `/dev/tcp` HTTP GET to port 8080 `/realms/japan-trip` → `HTTP/1.1 200 OK`]
 
-### Working Approaches
+6. **The verified healthcheck command succeeds end-to-end.** [VERIFIED: full command run inside container → "PASS"]
 
-**Option A — Port check via `/proc/net/tcp` (safest, uses only cat+grep):**
+### What the Original curl Check Was Testing
 
-Checks that the KC management port is bound. Port 9000 in hex = `0x2328`. Must check both TCP stacks:
+The original `curl -sf http://localhost:8080/realms/japan-trip` was checking that the japan-trip realm is imported and KC is serving requests — the meaningful readiness signal for this setup. This is exactly what the replacement should preserve.
+
+### Verified Replacement Command
+
+```bash
+exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /realms/japan-trip HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && head -1 <&3 | grep -q 200
+```
+
+This command: opens a TCP connection to port 8080, sends a minimal HTTP/1.1 GET request, reads the first response line, and exits 0 only if it contains "200".
+
+**`bash` is available in the KC container** (required for `/dev/tcp`). [VERIFIED: command executed inside container successfully]
+
+No `KC_HEALTH_ENABLED=true` is needed — `/realms/japan-trip` is a standard application endpoint, not a management health endpoint.
+
+### Docker Compose Healthcheck Replacement
 
 ```yaml
 healthcheck:
-  test: ["CMD-SHELL", "cat /proc/net/tcp6 | grep -q '00000000000000000000000000002328' || cat /proc/net/tcp | grep -q '00000000:2328'"]
+  test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/japan-trip HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q 200"]
   interval: 10s
   timeout: 5s
   retries: 15
   start_period: 30s
 ```
 
-Port 8080 in hex = `0x1F90` (simpler alternative if management port is not exposed):
-```
-cat /proc/net/tcp | grep -q '00000000:1F90'
-```
+Note the YAML escaping: `\\r\\n` inside a double-quoted string becomes the literal `\r\n` that the shell expands to CRLF.
 
-**Option B — HTTP health check via bash `/dev/tcp` on port 9000 (checks actual readiness):**
+### Who Consumes This Healthcheck
 
-```yaml
-healthcheck:
-  test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q '200'"]
-  interval: 10s
-  timeout: 5s
-  retries: 15
-  start_period: 30s
-```
+[VERIFIED: docker-compose search] No other service in `keycloak/docker-compose.yml` uses `depends_on: keycloak: condition: service_healthy`. The healthcheck is informational (shows status in `docker ps` output).
 
-Use `["CMD", "bash", "-c", "..."]` form (not `CMD-SHELL`) to ensure bash is used (not `/bin/sh`), which is required for `/dev/tcp`.
+`keycloak/apply-local-settings.sh` does its own readiness polling independently from the docker healthcheck, using host-side curl. That script's `until curl -sf "$KC_URL/health/ready"` (line 18) polls `http://localhost:8080/health/ready` which also returns 404 without `KC_HEALTH_ENABLED=true`. That is a pre-existing bug in apply-local-settings.sh and is OUT OF SCOPE for INFRA-05. The docker healthcheck fix does not depend on it.
 
-### KC_HEALTH_ENABLED
+### No Race Condition Risk
 
-The `/health/ready` endpoint requires `KC_HEALTH_ENABLED: "true"` to be set. [CITED: keycloak.org/observability/health]
-
-In `start-dev` mode, health may or may not be enabled by default. Add to `keycloak/docker-compose.yml` environment:
-```yaml
-KC_HEALTH_ENABLED: "true"
-```
-
-This is needed for Option B (HTTP check); not needed for Option A (TCP port check).
-
-### Recommended Implementation
-
-Use **Option A** (port check on 8080 or 9000 via `/proc/net/tcp`) to avoid the bash/sh ambiguity. For the management port approach that aligns with D-07's intent, combine with `KC_HEALTH_ENABLED: "true"` and check port 9000. For the simplest equivalent to the current behavior (port open = KC started), check port 8080.
-
-The planner must choose one and document the deviation from D-07.
+The `/realms/japan-trip` endpoint returns 200 only after KC has started AND the realm from `realm-export.json` has been imported. Port 8080 binds before realm import completes — but the endpoint returns 404 until import finishes. This check preserves the timing semantics of the original curl check.
 
 ---
 
@@ -367,7 +360,7 @@ The planner must choose one and document the deviation from D-07.
 
 **API safety:** [VERIFIED: grep of backend/src] The backend uses:
 - Standard query builders: `eq`, `and`, `asc`, `desc`, `gt`, `isNull`, `sql`, `inArray` — unchanged
-- **Relational query API (RQBv1):** `db.query.trips.findFirst({ with: {...} })`, `db.query.destinations.findFirst(...)` — present in `queries/trips.ts` and `queries/destinations.ts`
+- **Relational query API (RQBv1):** `db.query.trips.findFirst({ with: {...} })`, `db.query.destinations.findFirst(...)` — present in `queries/trips.ts` and `queries/destinations.ts` with three-level nested `with:` clauses
 - Schema: `pgTable`, `relations` from `drizzle-orm/pg-core` — unchanged
 
 **RQBv1 is NOT removed in 0.45.2.** Removal only occurs in 1.0.x (currently in beta/rc as a separate dist-tag). The `latest` tag on npm is `0.45.2`. [VERIFIED: `npm view drizzle-orm dist-tags`]
@@ -380,6 +373,10 @@ The planner must choose one and document the deviation from D-07.
 
 **npm labels 0.45.2 as "breaking change"** (`npm audit fix --force`) because the fix patches a SQL injection in `sql.identifier()` and `sql.as()`. The "breaking" label is npm's conservative policy, not an API surface change. [CITED: github.com/advisories/GHSA-gpj5-g38j-94v9]
 
+**D-08 risk — E2E is not a safety net:** D-08 states "E2E suite catches runtime regressions." But D-02 adds `continue-on-error: true` to E2E (which has 100% failure rate per ARCH-09). `wrangler deploy --dry-run` is esbuild + TypeScript — it never executes ORM queries. A version bump that silently changes relational-query SQL generation (e.g., JOIN ordering, subquery structure in three-level nested `with:`) passes dry-run cleanly and breaks `GET /trips/:id` at runtime.
+
+**Required additional verification step for planner:** After bumping drizzle-orm, bring up the local stack (`docker compose up -d && npm run dev --workspace=backend`) and exercise `getTripById` and the destinations resolver against dev Postgres before committing. This must appear as an explicit task action, not just a verification suggestion.
+
 **drizzle-kit compatibility concern:** Current drizzle-kit is `^0.30.1`; latest is `0.31.10`. Official guidance aligns drizzle-orm and drizzle-kit major versions. The `db:generate`/`db:migrate` commands may warn or behave unexpectedly with a kit/orm version mismatch. The planner should bump drizzle-kit to `^0.31.10` in the same commit or verify `db:generate` works after the orm bump. [ASSUMED: 0.30.x kit works with 0.45.2 orm for basic schema; not verified]
 
 **Build verification:** `npm run build --workspace=backend` (= `wrangler deploy --dry-run`) verifies TypeScript compilation succeeds after the bump.
@@ -390,7 +387,7 @@ The planner must choose one and document the deviation from D-07.
 - Frontend audit shows MODERATE severity (9 advisories), NOT HIGH [VERIFIED: `npm audit --workspace=frontend`]
 - Change is in `frontend/package.json` dependencies
 
-### hono HIGH Vulns — NOT in DEP-01 Scope, Blocks Success Criterion
+### hono — Required for Success Criterion #5
 
 [VERIFIED: `npm audit --workspace=backend --omit=dev`]
 
@@ -400,9 +397,13 @@ Current: `"hono": "^4.6.17"`. Audit shows 17 HIGH advisories for hono ≤4.12.26
 
 **After drizzle-only bump:** 1 HIGH package remains (hono). Success criterion #5 FAILS.
 
-**Fix:** Bump `"hono": "^4.12.32"` in `backend/package.json`. This is within the existing semver range (`^4.6.17` allows any 4.x.x ≥ 4.6.17), so `npm audit fix` (no `--force`) handles it. The hono advisories are for Lambda/ALB adapters, AWS integrations, JSX SSR, and cookie helpers — none of which this Cloudflare Workers backend uses. The APIs this project uses (routing, middleware, validators) are unaffected. [ASSUMED: hono Cloudflare Workers adapter is unaffected by the listed advisories; planner should verify API surface against advisory list]
+**hono bump path:** `^4.12.32` is within the existing `^4.6.17` semver range (`^4.6.17` means `>=4.6.17 <5.0.0`). `npm audit fix` (no `--force`) handles it — confirmed by audit output: "fix available via `npm audit fix`" for the hono entry.
 
-**Planner decision:** Include hono bump in DEP-01 scope to satisfy success criterion #5, or explicitly accept that the criterion is not met and file a follow-up.
+**After BOTH bumps (drizzle-orm to 0.45.2 + hono to ≥4.12.27):** 0 HIGH for backend production deps. [VERIFIED: npm audit report confirms drizzle requires `--force`, hono does not]
+
+The hono advisories affect Lambda/ALB adapters, AWS integrations, JSX SSR, and cookie helpers — none of which this Cloudflare Workers backend uses. The APIs this project uses (routing, middleware, validators) are unaffected. [ASSUMED: hono Cloudflare Workers adapter is unaffected by the listed advisories; planner should verify API surface against advisory list]
+
+**Planner action:** Include `"hono": "^4.12.32"` bump in DEP-01 package.json edit. Success criterion #5 is achievable only with this included.
 
 ---
 
@@ -480,16 +481,16 @@ This is within "Claude's Discretion" per CONTEXT.md.
 **How to avoid:** Bump drizzle-kit to `^0.31.10` alongside drizzle-orm, or run `npm run db:generate` after the bump and verify the generated migration file is empty (no schema drift detected).
 **Warning signs:** `drizzle-kit generate` produces an unexpected migration file.
 
-### Pitfall 5: KC Healthcheck Using wget or Port 8080
-**What goes wrong:** The healthcheck command `wget ... http://localhost:8080/health/ready` fails silently: container stays `unhealthy` because `wget` is not installed and the health endpoint is on port 9000.
-**Why it happens:** D-07 was based on an incorrect assumption about tool availability and port assignment.
-**How to avoid:** Use `/proc/net/tcp` port check or bash `/dev/tcp` on port 9000. See INFRA-05 section.
-**Warning signs:** `docker compose ps` shows KC as `unhealthy`; KC itself starts fine but healthcheck keeps failing.
+### Pitfall 5: KC Healthcheck Using curl, wget, or Port 9000 Without KC_HEALTH_ENABLED
+**What goes wrong:** `curl` and `wget` are both absent from the KC 26.6.1 container. Port 9000 (management port) is not bound without `KC_HEALTH_ENABLED=true`. Any healthcheck using these will cause the container to remain permanently `unhealthy`.
+**Why it happens:** D-07 was based on incorrect assumptions about tool availability and port assignment.
+**How to avoid:** Use bash `/dev/tcp` on port 8080 for `/realms/japan-trip` (verified working). See INFRA-05 section for the exact command.
+**Warning signs:** `docker ps` shows KC as `(unhealthy)`; KC itself is serving fine on port 8080.
 
-### Pitfall 6: `npm audit` Shows 2 HIGH After Phase Completion
+### Pitfall 6: `npm audit` Shows HIGH After Phase Completion
 **What goes wrong:** After bumping only drizzle-orm, `npm audit --workspace=backend --omit=dev` reports 1 HIGH package remaining (hono ≤4.12.26).
-**Why it happens:** DEP-01 scope as defined in CONTEXT covers drizzle-orm and dompurify but not hono.
-**How to avoid:** Include `"hono": "^4.12.32"` bump in DEP-01.
+**Why it happens:** DEP-01 scope as defined in CONTEXT covers drizzle-orm and dompurify but not hono. drizzle requires `--force` for `audit fix` but hono does not — they have different fix paths.
+**How to avoid:** Include `"hono": "^4.12.32"` bump in DEP-01. Both bumps together achieve 0 HIGH.
 **Warning signs:** Success criterion #5 fails verification even though drizzle was bumped.
 
 ---
@@ -520,7 +521,7 @@ jobs:
 ### continue-on-error at Job Level
 
 ```yaml
-# Source: ci.yml pattern; behavior verified via GitHub community discussion
+# Source: docs.github.com/actions/writing-workflows/workflow-syntax#jobsjob_idcontinue-on-error
 e2e:
   runs-on: ubuntu-latest
   continue-on-error: true   # job failure → conclusion stays 'success'
@@ -529,37 +530,31 @@ e2e:
     # ... existing e2e steps unchanged
 ```
 
-### KC Healthcheck (Recommended Fix — Option A)
+### KC Healthcheck (Verified Replacement)
 
 ```yaml
-# Option A: TCP port check (safest — no tool requirements beyond cat+grep)
+# Replaces: curl -sf http://localhost:8080/realms/japan-trip || exit 1
+# Uses bash /dev/tcp — verified working in quay.io/keycloak/keycloak:26.6.1
 healthcheck:
-  test: ["CMD-SHELL", "cat /proc/net/tcp6 | grep -q '00000000000000000000000000002328' || cat /proc/net/tcp | grep -q '00000000:2328'"]
+  test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/japan-trip HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q 200"]
   interval: 10s
   timeout: 5s
   retries: 15
   start_period: 30s
 ```
 
-```yaml
-# Option B: HTTP health check via bash /dev/tcp (checks actual /health/ready response)
-# Requires KC_HEALTH_ENABLED: "true" in environment
-healthcheck:
-  test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q '200'"]
-  interval: 10s
-  timeout: 5s
-  retries: 15
-  start_period: 30s
-```
-
-### drizzle-orm Bump
+### drizzle-orm + hono Bump (backend/package.json)
 
 ```bash
-# In backend/package.json: change "drizzle-orm": "^0.38.3" to "^0.45.2"
-# Optionally also: "drizzle-kit": "^0.30.1" to "^0.31.10"
-npm install --workspace=backend  # resolves new versions
-npm run build --workspace=backend  # verify dry-run still exits 0
-npm run typecheck --workspace=backend
+# In backend/package.json, change:
+#   "drizzle-orm": "^0.38.3"  →  "^0.45.2"
+#   "hono": "^4.6.17"         →  "^4.12.32"
+# Optionally also:
+#   "drizzle-kit": "^0.30.1"  →  "^0.31.10"
+npm install --workspace=backend          # resolves new versions
+npm run build --workspace=backend        # verify dry-run exits 0
+npm run typecheck --workspace=backend    # verify types clean
+# Then bring up local stack and exercise nested relational queries
 ```
 
 ---
@@ -571,7 +566,7 @@ npm run typecheck --workspace=backend
 | `npx wrangler deploy` (pulls latest) | `npm run deploy` (uses pinned devDep) | Phase 21 | Deterministic deploys |
 | `compatibility_date = "2024-01-01"` + nodejs_compat | `compatibility_date = "2024-09-23"` + nodejs_compat (auto-enables v2) | Phase 21 | Workers can import Node.js builtins |
 | Deploy on every push to main (CI and deploy in same workflow) | Deploy only after CI gate passes (workflow_run) | Phase 21 | Broken typechecks block deploys |
-| KC healthcheck via curl (not available) | KC healthcheck via /proc/net/tcp | Phase 21 | Container reports healthy correctly |
+| KC healthcheck via curl (not available in image) | KC healthcheck via bash /dev/tcp on port 8080 /realms/japan-trip | Phase 21 | Container reports healthy correctly |
 | drizzle-orm 0.38.x (SQL injection in sql.identifier) | drizzle-orm 0.45.2 (patched) | Phase 21 | GHSA-gpj5-g38j-94v9 closed |
 
 ---
@@ -581,29 +576,31 @@ npm run typecheck --workspace=backend
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | `^3.101.0` caret range satisfies INFRA-04 "pinned devDep" intent | INFRA-04 | Success criterion #3 fails; planner may need to use exact version |
-| A2 | `/bin/sh` in KC 26.6.1 container resolves to bash (enabling `/dev/tcp`) | INFRA-05 Option B | Option B healthcheck silently fails; fall back to Option A |
-| A3 | drizzle-kit 0.30.1 works with drizzle-orm 0.45.2 for `db:generate`/`db:migrate` | DEP-01 | Migrations produce unexpected output; bump drizzle-kit to 0.31.10 preemptively |
-| A4 | hono APIs used by this project (CF Workers routing/middleware) are unaffected by hono <=4.12.26 advisories | DEP-01 hono | Existing routes/middleware break after hono bump to 4.12.32; test routes after bump |
-| A5 | KC `/health/ready` requires `KC_HEALTH_ENABLED=true` even in start-dev mode | INFRA-05 | Option B healthcheck returns 404; add env var if missing |
+| A2 | drizzle-kit 0.30.1 works with drizzle-orm 0.45.2 for `db:generate`/`db:migrate` | DEP-01 | Migrations produce unexpected output; bump drizzle-kit to 0.31.10 preemptively |
+| A3 | hono Cloudflare Workers adapter (routing, middleware, validators) is unaffected by the listed advisories (which target Lambda/ALB/JSX SSR adapters) | DEP-01 hono | Existing routes/middleware break after hono bump; verify against advisory list |
+
+**Resolved assumptions (no longer open):**
+- A2 (prior): `/bin/sh` = bash in KC container → VERIFIED: bash `/dev/tcp` executed successfully in live container
+- A5 (prior): `KC_HEALTH_ENABLED` needed for any health check → VERIFIED NOT NEEDED: the correct endpoint is `/realms/japan-trip` on port 8080, which is a standard application endpoint requiring no env var
 
 ---
 
 ## Open Questions
 
-1. **KC healthcheck Option A vs B**
-   - What we know: Both approaches work in the KC container; Option B checks actual readiness; Option A only checks port is bound
-   - What's unclear: Whether `/bin/sh` is bash in ubi9-micro (required for Option B)
-   - Recommendation: Use Option A (port 9000 via /proc/net/tcp) unless the container can be tested empirically. Add `KC_HEALTH_ENABLED: "true"` regardless in case a future version switches to Option B.
+1. **hono bump scope (planner decision)**
+   - What we know: 17 HIGH hono advisories; fix is within semver range (`npm audit fix` no-force); success criterion #5 requires 0 HIGH; advisories affect adapter paths this project doesn't use
+   - What's unclear: Whether CONTEXT D-08 intentionally excluded hono from scope
+   - Recommendation: Include hono bump in DEP-01; document the gap from CONTEXT explicitly
 
-2. **hono bump scope**
-   - What we know: 17 HIGH hono advisories; fix is non-breaking; success criterion #5 requires 0 HIGH
-   - What's unclear: Whether the CONTEXT D-08 scope intentionally excluded hono
-   - Recommendation: Include hono bump (`^4.12.32`) in DEP-01 to satisfy success criterion #5
-
-3. **`paths:` filter replacement**
+2. **`paths:` filter replacement**
    - What we know: `workflow_run` does not support path filters; current workflows are path-filtered
-   - What's unclear: Whether this redeploy-on-every-push is acceptable
+   - What's unclear: Whether redeploy-on-every-push is acceptable for this project
    - Recommendation: Accept the behavior for a personal project; note in commit message that path filtering is intentionally removed
+
+3. **drizzle-kit version alignment**
+   - What we know: drizzle-kit 0.30.1 with drizzle-orm 0.45.2 — official guidance says align major versions
+   - What's unclear: Whether 0.30.1 kit works acceptably with 0.45.2 orm for this schema
+   - Recommendation: Bump drizzle-kit to `^0.31.10` in the same DEP-01 commit to avoid surprise; cost is near-zero
 
 ---
 
@@ -611,14 +608,13 @@ npm run typecheck --workspace=backend
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Docker | INFRA-05 verification (`docker ps`) | Unknown (was down at research time) | — | — |
+| Docker | INFRA-05 verification | ✓ | Running (KC + postgres up) | — |
 | Node.js 22 | CI jobs, local dev | ✓ (CI uses `node-version: '22'`) | 22.x | — |
 | npm workspaces | All npm commands | ✓ (package.json uses workspaces) | npm 10.x | — |
-| wrangler (local) | INFRA-03 verification | ✓ 3.114.17 | 3.114.17 | — |
+| wrangler (local) | INFRA-03 verification | ✓ | 3.114.17 | — |
 | GitHub Actions runner | CI gate | ✓ (ubuntu-latest) | — | — |
 
-**Missing dependencies with no fallback:**
-- Docker: success criterion #4 requires `docker ps` showing `healthy`. KC container must be running to verify the healthcheck. Planner must restart the stack before verification.
+**Missing dependencies with no fallback:** None — Docker is confirmed running.
 
 ---
 
@@ -641,8 +637,9 @@ npm run typecheck --workspace=backend
 | INFRA-02 | test-backend job runs and is green | manual | Inspect Actions run after merge | N/A — CI job |
 | INFRA-03 | `wrangler deploy --dry-run` exits 0 | smoke | `npm run build --workspace=backend` | ✅ (script exists) |
 | INFRA-04 | No `npx wrangler` in workflow or scripts | static | `grep -r 'npx wrangler' .github/` | N/A — grep check |
-| INFRA-05 | KC container shows `healthy` | manual | `docker ps` | N/A — runtime |
+| INFRA-05 | KC container shows `healthy` | smoke | `docker ps` after 30s start period | N/A — runtime |
 | DEP-01 | 0 HIGH/CRITICAL in backend prod deps | smoke | `npm audit --workspace=backend --omit=dev` | ✅ (npm built-in) |
+| DEP-01 | Relational queries work after drizzle bump | integration | Local stack: `GET /trips/:id`, `GET /destinations/:id` | N/A — HTTP check |
 
 ### Wave 0 Gaps
 
@@ -674,15 +671,15 @@ None — no new test files are required. Verification is configuration-level (wo
 - `.github/workflows/ci.yml`, `deploy-frontend.yml`, `deploy-backend.yml` — all read directly
 - Local build run: `npm run build --workspace=backend` → 25 errors, confirmed message
 - `npm view drizzle-orm version` → `0.45.2`; `npm view dompurify version` → `3.4.12`; `npm view hono version` → `4.12.32`
-- `npm audit --workspace=backend --omit=dev` → 2 HIGH packages (drizzle-orm, hono)
-- `npm audit --workspace=frontend --omit=dev` → 1 MODERATE package (dompurify)
+- `npm audit --workspace=backend --omit=dev` → 2 HIGH packages (drizzle-orm, hono); drizzle requires --force; hono does not
+- Live KC container probes: `command -v wget/curl` (both absent), `cat /proc/net/tcp6` (port 9000 unbound, port 8080 listening), `/dev/tcp` HTTP GET to `/realms/japan-trip` (200 OK), full healthcheck command (PASS)
 
 ### Secondary (MEDIUM confidence)
 - [GitHub Actions workflow_run docs](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_run) — trigger syntax, branches filter, conclusion check, paths: limitation
+- [GitHub Actions continue-on-error docs](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idcontinue-on-error) — "Prevents a workflow run from failing when a job fails"
 - [Cloudflare Workers compatibility flags](https://developers.cloudflare.com/workers/configuration/compatibility-flags/) — nodejs_compat_v2 activation at 2024-09-23
 - [Keycloak observability/health](https://www.keycloak.org/observability/health) — health endpoints on port 9000, KC_HEALTH_ENABLED
 - [Keycloak server/containers](https://www.keycloak.org/server/containers) — wget/curl not available in KC image
-- GitHub community discussion #41655 — health endpoint on port 9000 confirmed from server logs
 - GitHub community discussion #45546 — `continue-on-error: true` at job level → workflow conclusion = success
 
 ### Tertiary (LOW confidence)
@@ -696,10 +693,10 @@ None — no new test files are required. Verification is configuration-level (wo
 - INFRA-03 fix: HIGH — verified by actual build failure output
 - INFRA-04 state: HIGH — verified by file read
 - workflow_run syntax: HIGH — official docs fetched
-- continue-on-error behavior: MEDIUM — community discussion, not primary doc
-- INFRA-05 KC healthcheck: HIGH (conflict) — official KC docs override CONTEXT D-07
+- continue-on-error behavior: HIGH — primary GitHub Actions docs ("Prevents a workflow run from failing when a job fails")
+- INFRA-05 KC healthcheck: HIGH — all elements empirically verified in live container
 - drizzle-orm API safety: HIGH — grep confirms no breaking API patterns used
-- hono audit impact: HIGH — live npm audit confirms HIGH vulns remain
+- hono audit impact: HIGH — live npm audit + registry confirms fix path
 
 **Research date:** 2026-07-25
 **Valid until:** 2026-08-25 (30 days — tools and versions stable)
