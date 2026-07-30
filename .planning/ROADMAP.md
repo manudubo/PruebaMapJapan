@@ -53,7 +53,7 @@ Full outcome: 242 passed, 25 skipped (documented deferrals), 0 failed. See `.pla
 Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md`. Full findings and per-item verification status in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. Requirements defined: `.planning/REQUIREMENTS.md` (82 requirements, 100% mapped).
 
 - [x] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14) — completed 2026-07-24
-- [ ] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01)
+- [x] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01) (completed 2026-07-30)
 - [ ] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
 - [ ] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05)
 - [ ] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03)
@@ -91,8 +91,8 @@ Plans:
   5. `npm audit --workspace=backend --omit=dev` shows 0 HIGH or CRITICAL vulnerabilities; `npm audit` confirms `GHSA-gpj5-g38j-94v9` (drizzle-orm) closed by the bump to `^0.45.2`
 **Plans**: 2 plans
 Plans:
-- [ ] 21-01-PLAN.md — Wave 1: Build fix (compatibility_date) + dep bumps (drizzle-orm, hono, drizzle-kit, dompurify)
-- [ ] 21-02-PLAN.md — Wave 2: KC healthcheck + CI test-backend/build-backend jobs + deploy workflow_run gates
+- [x] 21-01-PLAN.md — Wave 1: Build fix (compatibility_date) + dep bumps (drizzle-orm, hono, drizzle-kit, dompurify)
+- [x] 21-02-PLAN.md — Wave 2: KC healthcheck + CI test-backend/build-backend jobs + deploy workflow_run gates
 
 ### Phase 22: Reliability Bugs
 **Goal**: All 16 confirmed reliability bugs from the audit are fixed — the most user-visible first, and remaining low-severity items cleaned up
@@ -181,7 +181,7 @@ Plans:
 | 18. Passkeys Fixes | v3.1 | 2/2 | Complete | 2026-07-13 |
 | 19. Session + Closure | v3.1 | 2/2 | Complete | 2026-07-23 |
 | 20. Critical Security | v3.2 | 0/4 | Not started | — |
-| 21. Deploy & Build Safety | v3.2 | 0/0 | Not started | — |
+| 21. Deploy & Build Safety | v3.2 | 2/2 | Complete    | 2026-07-30 |
 | 22. Reliability Bugs | v3.2 | 0/0 | Not started | — |
 | 23. Supply Chain, Secrets & Accessibility | v3.2 | 0/0 | Not started | — |
 | 24. Architecture Debt & Test Coverage | v3.2 | 0/0 | Not started | — |
