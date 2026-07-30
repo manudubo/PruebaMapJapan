@@ -17,11 +17,15 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 
 ### Deploy & Build Safety — Phase 21
 
-- [ ] **INFRA-01**: `deploy-frontend.yml`/`deploy-backend.yml` gate on `typecheck`/`build`/unit-test CI jobs before deploying (explicitly excluding the `e2e` job until ARCH-09 is fixed)
-- [ ] **INFRA-02**: Backend deploy workflow runs typecheck/tests before `wrangler deploy`; a backend CI unit-test job exists in `ci.yml`
+- [x] **INFRA-01
+**: `deploy-frontend.yml`/`deploy-backend.yml` gate on `typecheck`/`build`/unit-test CI jobs before deploying (explicitly excluding the `e2e` job until ARCH-09 is fixed)
+- [x] **INFRA-02
+**: Backend deploy workflow runs typecheck/tests before `wrangler deploy`; a backend CI unit-test job exists in `ci.yml`
 - [ ] **INFRA-03**: Backend build succeeds on `wrangler deploy --dry-run` (`compatibility_date` updated to ≥ 2024-09-23 to resolve `string_decoder` builtin gap)
-- [ ] **INFRA-04**: `wrangler` is pinned as a `devDependency` in `backend/package.json` (no more `npx wrangler` pulling latest on each run)
-- [ ] **INFRA-05**: Keycloak Docker healthcheck uses a method available in the `quay.io/keycloak/keycloak:26.6.1` image (`wget`/`/dev/tcp`) instead of `curl`
+- [x] **INFRA-04
+**: `wrangler` is pinned as a `devDependency` in `backend/package.json` (no more `npx wrangler` pulling latest on each run)
+- [x] **INFRA-05
+**: Keycloak Docker healthcheck uses a method available in the `quay.io/keycloak/keycloak:26.6.1` image (`wget`/`/dev/tcp`) instead of `curl`
 - [ ] **DEP-01**: `drizzle-orm` upgraded to `^0.45.2` and `dompurify` upgraded to `^3.4.12` (runtime dependency vulnerabilities resolved; not the RQBv2/1.0 rewrite — targeted minor bump only)
 
 ### Reliability Bugs — Phase 22
