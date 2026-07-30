@@ -82,7 +82,7 @@ Source: Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 �
 - Dev environment: `npm run dev` (Docker detection → KC health wait → backend → frontend); all KC test users + strict redirect URIs as Terraform IaC
 - Security: RFC 9700 checklist on file, JWKS retry-on-failure, CSP/HSTS/X-Frame-Options headers, E2E audience-rejection coverage
 - New-user flow: full UI-driven trip creation (destination/hotel/day/activity/geocoder/map/search) covered by Playwright E2E with no ROPC anywhere in the suite
-- Production deployment still not configured (Cloudflare + Neon + Railway) — deferred, unscoped; **the backend currently fails `wrangler deploy --dry-run`** (v3.2 candidate INFRA-03), so deployment is blocked on more than just being unscoped
+- Production deployment still not configured (Cloudflare + Neon + Railway) — deferred, unscoped; the backend build is fixed as of Phase 21 (2026-07-30): `wrangler deploy --dry-run` passes (nodejs_compat_v2 via `compatibility_date = "2024-09-23"`), deploy workflows are CI-gated via `workflow_run`, and deps are patched to 0 HIGH/CRITICAL advisories
 - E2E suite fully stabilized (v3.1, Phases 15-19): 242 passed / 25 skipped / 0 failed on the full Playwright suite across chromium/firefox/webkit/chromium-passkeys; shared `loginViaKcForm` helper; dedicated `session-test@local` KC user eliminates cross-spec session contamination; every deferral is a documented `test.fixme`
 - A comprehensive 7-pass security/code-health audit (`ANALISIS-REPO.md`, ~85 findings) is complete and synthesized into `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`, not yet formalized into a milestone
 
@@ -139,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-Last updated: 2026-07-24 — v3.2 milestone started
+Last updated: 2026-07-30 — Phase 21 (Deploy & Build Safety) complete
