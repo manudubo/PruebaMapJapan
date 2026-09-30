@@ -1,0 +1,1 @@
+CREATE INDEX "email_otp_codes_user_id_expires_at_idx" ON "email_otp_codes" USING btree ("user_id","expires_at");

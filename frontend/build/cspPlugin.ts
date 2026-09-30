@@ -29,7 +29,6 @@ const IMG_SRC_STATIC = [
   // data: carries Leaflet's control/marker images, which Vite inlines from leaflet.css.
   'data:',
   'https://*.basemaps.cartocdn.com', // theme.ts map tiles
-  'https://cdn-icons-png.flaticon.com', // favicon / manifest icons
 ];
 
 export type CspTarget = 'serve' | 'build';

@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import pg from 'pg';
 import * as schema from '../schema';
+import type { Db } from '../index';
 import { getTripBySlug } from './trips';
+import { closeTestPool, resetDb, testDb } from '../../test-utils/db';
 
 // SEC-21 — public trip response exposure.
 
@@ -14,7 +12,7 @@ type FindFirstConfig = Parameters<ReturnType<typeof drizzle.mock<typeof schema>>
 async function capturedConfig(): Promise<FindFirstConfig> {
   let captured: FindFirstConfig;
   const fake = { query: { trips: { findFirst: async (cfg: FindFirstConfig) => { captured = cfg; return undefined; } } } };
-  await getTripBySlug(fake, '00000000-0000-0000-0000-000000000000');
+  await getTripBySlug(fake as unknown as Db, '00000000-0000-0000-0000-000000000000');
   return captured;
 }
 
@@ -39,26 +37,13 @@ describe('getTripBySlug projection (SEC-21)', () => {
   });
 });
 
-const url = process.env['TEST_DATABASE_URL'];
-
-describe.skipIf(!url)('getTripBySlug against real Postgres (SEC-21)', () => {
-  const schemaName = `pub_trip_${process.pid}_${Date.now()}`;
-  let admin: pg.Pool;
-  let pool: pg.Pool;
-  let db: ReturnType<typeof drizzle<typeof schema>>;
+describe('getTripBySlug against real Postgres (SEC-21)', () => {
+  const db = testDb();
   let publicSlug: string;
   let privateSlug: string;
 
   beforeAll(async () => {
-    admin = new pg.Pool({ connectionString: url, max: 1 });
-    await admin.query(`CREATE SCHEMA "${schemaName}"`);
-    pool = new pg.Pool({ connectionString: url, max: 2, options: `-c search_path="${schemaName}",public` });
-    const dir = join(dirname(fileURLToPath(import.meta.url)), '../migrations');
-    for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) {
-      await pool.query(readFileSync(join(dir, f), 'utf8'));
-    }
-    db = drizzle(pool, { schema });
-
+    await resetDb();
     const [u] = await db.insert(schema.users).values({ keycloak_id: 'kc-owner', email: 'o@x', name: 'Owner' }).returning();
     const mk = async (is_public: boolean) => {
       const [t] = await db.insert(schema.trips).values({ user_id: u!.id, name: is_public ? 'Pub' : 'Priv', is_public }).returning();
@@ -70,11 +55,7 @@ describe.skipIf(!url)('getTripBySlug against real Postgres (SEC-21)', () => {
     privateSlug = await mk(false);
   });
 
-  afterAll(async () => {
-    await pool?.end();
-    await admin?.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
-    await admin?.end();
-  });
+  afterAll(closeTestPool);
 
   it('public trip: no user_id anywhere in the payload, hotel included', async () => {
     const trip = await getTripBySlug(db, publicSlug);

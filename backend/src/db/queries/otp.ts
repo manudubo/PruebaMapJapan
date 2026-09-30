@@ -1,5 +1,5 @@
 import { eq, and, gt, lt, isNull, sql } from 'drizzle-orm';
-import type { Db } from '../index';
+import { asPgDatabase, type Db } from '../index';
 import { emailOtpCodes } from '../schema';
 
 export type OtpRow = typeof emailOtpCodes.$inferSelect;
@@ -100,7 +100,7 @@ export const OTP_MAX_ATTEMPTS = 5;
  * exhausted, already used, or gone — in which case no guess is allowed.
  */
 export async function consumeOtpAttempt(db: Db, otpId: number): Promise<number | null> {
-  const rows: { attempts: number }[] = await db
+  const rows: { attempts: number }[] = await asPgDatabase(db)
     .update(emailOtpCodes)
     .set({ attempts: sql`${emailOtpCodes.attempts} + 1` })
     .where(
@@ -121,12 +121,32 @@ export async function markOtpUsed(db: Db, otpId: number): Promise<void> {
     .where(eq(emailOtpCodes.id, otpId));
 }
 
+// ---------------------------------------------------------------------------
+// Opportunistic cleanup (DATA-01)
+//
+// Nothing ever purged used/expired codes, so the table grew monotonically.
+// Each otp-request now deletes codes that can no longer matter: already
+// expired AND issued before the hourly-cap window. Codes inside the window
+// must survive — even used/burned ones — or deleting them would reset the
+// BUG-16 cap and reopen the request/burn/re-request cycle.
+// ---------------------------------------------------------------------------
+
+/** Delete every user's codes that are expired and older than the cap window. Returns rows deleted. */
+export async function deleteStaleOtps(db: Db, now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - OTP_CAP_WINDOW_MS);
+  const deleted = await db
+    .delete(emailOtpCodes)
+    .where(and(lt(emailOtpCodes.expires_at, cutoff), lt(emailOtpCodes.created_at, cutoff)))
+    .returning();
+  return deleted.length;
+}
+
 /**
  * Mark the code used only if nothing else did first. Returns false when a
  * concurrent request already consumed it, so one code verifies exactly once.
  */
 export async function markOtpUsedIfUnused(db: Db, otpId: number): Promise<boolean> {
-  const rows: { id: number }[] = await db
+  const rows: { id: number }[] = await asPgDatabase(db)
     .update(emailOtpCodes)
     .set({ used_at: new Date() })
     .where(and(eq(emailOtpCodes.id, otpId), isNull(emailOtpCodes.used_at)))

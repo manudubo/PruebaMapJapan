@@ -11,7 +11,7 @@
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import * as schema from './schema';
-import { createDb } from './index';
+import { createDb, parseDbDriver } from './index';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -526,7 +526,8 @@ async function seed() {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  const db = createDb(databaseUrl);
+  // Node process: node-postgres works for local Postgres and Neon's TCP endpoint.
+  const db = createDb(databaseUrl, parseDbDriver(process.env['DB_DRIVER'], 'pg'));
 
   console.log('Seeding database...');
 
@@ -555,7 +556,7 @@ async function seed() {
         name: 'Demo User',
         preferences: {},
       })
-      .returning({ id: schema.users.id });
+      .returning();
 
     if (!newUser) throw new Error('Failed to insert demo user');
     userId = newUser.id;
@@ -589,7 +590,7 @@ async function seed() {
       end_date: '2026-03-23',
       is_public: false,
     })
-    .returning({ id: schema.trips.id });
+    .returning();
 
   if (!trip) throw new Error('Failed to insert trip');
   console.log(`Created trip "Japan 2026" (id=${trip.id})`);
@@ -613,7 +614,7 @@ async function seed() {
         zoom_level: dest.zoom,
         order_index: destIndex,
       })
-      .returning({ id: schema.destinations.id });
+      .returning();
 
     if (!destination) throw new Error(`Failed to insert destination ${dest.name}`);
     console.log(`  Destination: ${dest.name} (id=${destination.id})`);
@@ -643,7 +644,7 @@ async function seed() {
           color_hex: dayData.color,
           order_index: dayIndex,
         })
-        .returning({ id: schema.days.id });
+        .returning();
 
       if (!day) throw new Error(`Failed to insert day ${dateStr}`);
 

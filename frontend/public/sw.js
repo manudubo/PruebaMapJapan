@@ -13,7 +13,10 @@ const PRECACHE_ASSETS = [
   './naoshima.html',
   './hakone.html',
   './tokyo2.html',
-  './manifest.json'
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
 // Hashed JS/CSS chunks emitted by the build (stamped by the swVersion Vite plugin).

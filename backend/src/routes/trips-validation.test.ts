@@ -48,6 +48,20 @@ vi.mock('../db', async (importOriginal) => {
   };
 });
 
+// Ownership is a single-JOIN query since M-02 (db/queries/ownership.ts); the
+// real cascade is covered on Postgres by trips.test.ts, so it is stubbed as
+// "owned" here to keep this file about the HTTP validation contract.
+vi.mock('../db/queries/ownership', () => ({
+  resolveTrip: async (_db: unknown, tripId: number) => ({ tripId }),
+  resolveDestination: async () => ({ dest: { id: 2, trip_id: 1 } }),
+  resolveDay: async () => ({ dest: { id: 2, trip_id: 1 }, day: { id: 3, destination_id: 2 } }),
+  resolveActivity: async () => ({
+    dest: { id: 2, trip_id: 1 },
+    day: { id: 3, destination_id: 2 },
+    act: { id: 4, day_id: 3 },
+  }),
+}));
+
 import app from '../index';
 import type { Env } from '../types';
 import * as db from '../db';

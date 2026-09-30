@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '../index';
 import { users } from '../schema';
+import { isUniqueViolation } from '../pg-errors';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,6 +84,22 @@ export async function updateUser(
   return updated;
 }
 
+/** DB-level unique index on lower(email) (DATA-02). */
+export const USERS_EMAIL_UNIQUE_IDX = 'users_email_unique_idx';
+
+/**
+ * The token's email already belongs to a different app user (different
+ * keycloak_id) — e.g. a recreated realm or migrated IdP issuing new subject
+ * ids. Never auto-merged: relinking by email would let whoever controls that
+ * address take over the old account.
+ */
+export class EmailConflictError extends Error {
+  constructor() {
+    super('Email already belongs to another account');
+    this.name = 'EmailConflictError';
+  }
+}
+
 export type UserClaims = {
   keycloak_id: string;
   /** Empty string when the token carries no email claim. */
@@ -104,17 +121,24 @@ export async function upsertUser(
   db: Db,
   claims: UserClaims,
 ): Promise<{ user: User; created: boolean }> {
-  const [inserted] = await db
-    .insert(users)
-    .values({
-      keycloak_id: claims.keycloak_id,
-      email: claims.email,
-      name: claims.name,
-      avatar_url: null,
-      preferences: {},
-    })
-    .onConflictDoNothing({ target: users.keycloak_id })
-    .returning();
+  let inserted: User | undefined;
+  try {
+    [inserted] = await db
+      .insert(users)
+      .values({
+        keycloak_id: claims.keycloak_id,
+        email: claims.email,
+        name: claims.name,
+        avatar_url: null,
+        preferences: {},
+      })
+      .onConflictDoNothing({ target: users.keycloak_id })
+      .returning();
+  } catch (err) {
+    // New subject, but its email is taken by another row (DATA-02).
+    if (isUniqueViolation(err, USERS_EMAIL_UNIQUE_IDX)) throw new EmailConflictError();
+    throw err;
+  }
 
   if (inserted) return { user: inserted, created: true };
 
@@ -129,6 +153,19 @@ export async function upsertUser(
 
   if (Object.keys(changes).length === 0) return { user: existing, created: false };
 
-  const updated = await updateUser(db, claims.keycloak_id, changes);
-  return { user: updated, created: false };
+  try {
+    const updated = await updateUser(db, claims.keycloak_id, changes);
+    return { user: updated, created: false };
+  } catch (err) {
+    if (!changes.email || !isUniqueViolation(err, USERS_EMAIL_UNIQUE_IDX)) throw err;
+    // Keycloak moved this user to an email another row owns (DATA-02). Keep
+    // the stored email so the user can still sign in; refresh the rest.
+    console.warn(
+      `upsertUser: email refresh for keycloakId=${claims.keycloak_id} conflicts with another account; keeping stored email`,
+    );
+    delete changes.email;
+    if (Object.keys(changes).length === 0) return { user: existing, created: false };
+    const updated = await updateUser(db, claims.keycloak_id, changes);
+    return { user: updated, created: false };
+  }
 }

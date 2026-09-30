@@ -37,7 +37,7 @@ describe('buildCsp', () => {
         "default-src 'none'",
         "script-src 'self' 'unsafe-inline'",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "img-src 'self' data: https://*.basemaps.cartocdn.com https://cdn-icons-png.flaticon.com",
+        "img-src 'self' data: https://*.basemaps.cartocdn.com",
         `connect-src 'self' https://api.example.com https://auth.example.com ${STATIC_CONNECT}`,
         "font-src 'self' https://fonts.gstatic.com",
         "frame-src 'self' https://auth.example.com",
