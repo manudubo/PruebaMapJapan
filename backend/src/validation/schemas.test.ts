@@ -7,6 +7,8 @@ import {
   CreateDestinationSchema,
   UpdateDestinationSchema,
   UpsertHotelSchema,
+  UpdateDaySchema,
+  UpdateUserSchema,
 } from './schemas';
 
 // ---------------------------------------------------------------------------
@@ -176,5 +178,68 @@ describe.each(dateRangeSchemas)('%s date order (BIZ-06)', (_name, schema, base, 
   it('accepts a leap day and rejects a non-leap Feb 29', () => {
     expect(parse('2028-02-29', '2028-03-01').success).toBe(true);
     expect(parse('2026-02-29', '2026-03-01').success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BIZ-09 / ARCH-05 — PATCH schemas require at least one field
+// ---------------------------------------------------------------------------
+
+const patchSchemas = [
+  ['UpdateTripSchema', UpdateTripSchema, { name: 'x' }],
+  ['UpdateDestinationSchema', UpdateDestinationSchema, { country: 'Japan' }],
+  ['UpdateDaySchema', UpdateDaySchema, { label: 'Day 1' }],
+  ['UpdateActivitySchema', UpdateActivitySchema, { notes: 'n' }],
+  ['UpdateUserSchema', UpdateUserSchema, { name: 'n' }],
+] as const;
+
+describe.each(patchSchemas)('%s non-empty (BIZ-09)', (_name, schema, oneField) => {
+  it('rejects {}', () => {
+    const result = schema.safeParse({});
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe('Request body must include at least one field to update');
+    }
+  });
+
+  it('rejects a body whose only keys are unknown (they are stripped)', () => {
+    expect(schema.safeParse({ id: 1, created_at: 'x', hacker: true }).success).toBe(false);
+  });
+
+  it('rejects a body whose only key is explicitly undefined', () => {
+    const key = Object.keys(oneField)[0];
+    expect(schema.safeParse({ [key]: undefined }).success).toBe(false);
+  });
+
+  it('accepts a single real field', () => {
+    expect(schema.safeParse(oneField).success).toBe(true);
+  });
+});
+
+describe('BIZ-09 edge cases', () => {
+  it('null counts as a change (clearing a field)', () => {
+    expect(UpdateTripSchema.safeParse({ description: null }).success).toBe(true);
+    expect(UpdateActivitySchema.safeParse({ time: null }).success).toBe(true);
+  });
+
+  it('false counts as a change', () => {
+    expect(UpdateTripSchema.safeParse({ is_public: false }).success).toBe(true);
+    expect(UpdateActivitySchema.safeParse({ is_optional: false }).success).toBe(true);
+  });
+
+  it('PATCH does not apply the create-time is_public default', () => {
+    const result = UpdateTripSchema.safeParse({ name: 'x' });
+    expect(result.success && result.data).toEqual({ name: 'x' });
+  });
+
+  it('create schemas are not affected by the non-empty rule beyond their required fields', () => {
+    expect(CreateTripSchema.safeParse({ name: 'x' }).success).toBe(true);
+    expect(CreateTripSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('a PATCH with one invalid field reports the field error, not "empty body"', () => {
+    const result = UpdateTripSchema.safeParse({ start_date: 'nope' });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0].path).toEqual(['start_date']);
   });
 });

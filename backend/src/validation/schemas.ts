@@ -34,6 +34,20 @@ function coordinate(axis: 'lat' | 'lng') {
 }
 
 /**
+ * PATCH bodies must change something (BIZ-09). Unknown keys are already
+ * stripped by z.object, so `{}` and `{ unknown: 1 }` both fail here instead of
+ * returning 200 having only bumped `updated_at`.
+ */
+function atLeastOneField(data: Record<string, unknown>, ctx: z.RefinementCtx): void {
+  if (!Object.values(data).some((value) => value !== undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Request body must include at least one field to update',
+    });
+  }
+}
+
+/**
  * Null-safe date-range check (BIZ-06): only compares when both ends are
  * present, so partial-date records stay valid. Dates are already validated
  * as YYYY-MM-DD, so string comparison is calendar order (no Date/timezone
@@ -70,7 +84,9 @@ const tripDateOrder = dateOrder('start_date', 'end_date');
 
 export const CreateTripSchema = TripFields.superRefine(tripDateOrder);
 
-export const UpdateTripSchema = TripFields.partial().superRefine(tripDateOrder);
+export const UpdateTripSchema = TripFields.partial()
+  .superRefine(atLeastOneField)
+  .superRefine(tripDateOrder);
 
 // ---------------------------------------------------------------------------
 // Destination schemas
@@ -91,7 +107,9 @@ const destinationDateOrder = dateOrder('start_date', 'end_date');
 
 export const CreateDestinationSchema = DestinationFields.superRefine(destinationDateOrder);
 
-export const UpdateDestinationSchema = DestinationFields.partial().superRefine(destinationDateOrder);
+export const UpdateDestinationSchema = DestinationFields.partial()
+  .superRefine(atLeastOneField)
+  .superRefine(destinationDateOrder);
 
 // ---------------------------------------------------------------------------
 // Day schemas
@@ -108,7 +126,7 @@ export const CreateDaySchema = z.object({
   order_index: z.number().int().min(0).optional(),
 });
 
-export const UpdateDaySchema = CreateDaySchema.partial();
+export const UpdateDaySchema = CreateDaySchema.partial().superRefine(atLeastOneField);
 
 // ---------------------------------------------------------------------------
 // Activity schemas
@@ -125,7 +143,7 @@ export const CreateActivitySchema = z.object({
   time: z.string().nullable().optional(),
 });
 
-export const UpdateActivitySchema = CreateActivitySchema.partial();
+export const UpdateActivitySchema = CreateActivitySchema.partial().superRefine(atLeastOneField);
 
 export const ReorderActivitiesSchema = z.object({
   ordered_ids: z.array(z.number().int().positive()),
@@ -150,11 +168,13 @@ export const UpsertHotelSchema = z
 // User schemas
 // ---------------------------------------------------------------------------
 
-export const UpdateUserSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  avatar_url: z.string().url().nullable().optional(),
-  preferences: z.record(z.unknown()).optional(),
-});
+export const UpdateUserSchema = z
+  .object({
+    name: z.string().min(1).max(255).optional(),
+    avatar_url: z.string().url().nullable().optional(),
+    preferences: z.record(z.unknown()).optional(),
+  })
+  .superRefine(atLeastOneField);
 
 // ---------------------------------------------------------------------------
 // OTP schemas
