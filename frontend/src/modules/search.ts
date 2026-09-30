@@ -244,6 +244,9 @@ function calculateScore(item: SearchResult, terms: string[], fullQuery: string):
     }
   });
   
+  // No textual match: don't let the type boost turn an unrelated item into a result.
+  if (score === 0) return 0;
+
   // Boost by type (cities and activities first)
   const typeBoost: Record<string, number> = {
     city: 5,

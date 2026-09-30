@@ -1,6 +1,6 @@
 import { search, buildSearchIndex, getTypeIcon, getSuggestions } from '@/modules/search';
 import type { SearchResult } from '@/modules/search';
-import { debounce } from '@/modules/utils';
+import { debounce, escapeHtml } from '@/modules/utils';
 
 /**
  * Global Search Bar Component
@@ -456,7 +456,7 @@ class SearchBar extends HTMLElement {
     
     html += this.results.map((result, index) => {
       const iconHtml = getTypeIcon(result.type);
-      const iconStyle = result.color ? `background:${result.color}` : '';
+      const iconStyle = result.color ? `background:${escapeHtml(result.color)}` : '';
       const iconClass = result.color ? 'result-icon has-color' : 'result-icon';
       
       return `
@@ -469,7 +469,7 @@ class SearchBar extends HTMLElement {
             <div class="${iconClass}" style="${iconStyle}">${iconHtml}</div>
             <div class="result-content">
               <div class="result-title">${this.highlightMatch(result.title)}</div>
-              <div class="result-subtitle">${result.subtitle}</div>
+              <div class="result-subtitle">${escapeHtml(result.subtitle)}</div>
             </div>
             <span class="result-badge">${result.type === 'activity' ? 'place' : result.type === 'day' ? 'day' : result.type}</span>
           </a>
@@ -517,18 +517,19 @@ class SearchBar extends HTMLElement {
   }
 
   private highlightMatch(text: string): string {
-    if (!this.input?.value) return text;
+    // `text` comes from API-backed trip data: escape every fragment before it enters innerHTML.
+    if (!this.input?.value) return escapeHtml(text);
     
     const query = this.input.value.toLowerCase();
     const index = text.toLowerCase().indexOf(query);
     
-    if (index === -1) return text;
+    if (index === -1) return escapeHtml(text);
     
-    return text.substring(0, index) +
+    return escapeHtml(text.substring(0, index)) +
            '<mark style="background:var(--jp-accent);color:var(--jp-white);padding:0 2px;">' +
-           text.substring(index, index + query.length) +
+           escapeHtml(text.substring(index, index + query.length)) +
            '</mark>' +
-           text.substring(index + query.length);
+           escapeHtml(text.substring(index + query.length));
   }
 
   private handleKeydown(e: KeyboardEvent): void {
