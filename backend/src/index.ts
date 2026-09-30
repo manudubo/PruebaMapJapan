@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { bodyLimit } from 'hono/body-limit';
 import { corsMiddleware } from './middleware/cors';
 import { securityMiddleware } from './middleware/security';
 import routes from './routes';
@@ -12,6 +13,18 @@ const app = new Hono<{ Bindings: Env }>();
 // ---------------------------------------------------------------------------
 app.use('*', corsMiddleware);
 app.use('*', securityMiddleware);
+
+// Refuse oversized bodies before any auth or DB work. Real payloads (an
+// activity with long notes) are a few KB; without a cap one request could
+// store megabytes in unbounded text columns.
+const MAX_BODY_BYTES = 1024 * 1024;
+app.use(
+  '/api/*',
+  bodyLimit({
+    maxSize: MAX_BODY_BYTES,
+    onError: (c) => c.json({ success: false, error: 'Payload too large' }, 413),
+  }),
+);
 
 // ---------------------------------------------------------------------------
 // Root health check (unauthenticated)

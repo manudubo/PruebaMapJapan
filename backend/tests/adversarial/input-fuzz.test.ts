@@ -162,13 +162,25 @@ it('empty body with application/json → 400', async () => {
       expect(res.status).toBeGreaterThanOrEqual(400);
     });
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('oversized body (2 MB) is rejected with 413 before touching the DB', async () => {
+it('oversized body (2 MB) is rejected with 413 before touching the DB', async () => {
       const res = await req('POST', '/api/trips', {
         token: user.token,
         body: { name: 'big', description: 'x'.repeat(2 * 1024 * 1024) },
       });
       expect(res.status).toBe(413);
+    });
+
+    it('body just under 1 MB is still accepted (limit does not bite real payloads)', async () => {
+      const res = await req('POST', '/api/trips', {
+        token: user.token,
+        body: { name: 'near-limit', description: 'x'.repeat(1000 * 1000) },
+      });
+      expect(res.status).toBe(201);
+    });
+
+    it('oversized body without a token → 413 or 401, never reaches the DB', async () => {
+      const res = await req('POST', '/api/trips', { body: { name: 'x', description: 'y'.repeat(2 * 1024 * 1024) } });
+      expect([401, 413]).toContain(res.status);
     });
 
 // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
