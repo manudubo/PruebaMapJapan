@@ -1,0 +1,30 @@
+# Gitleaks triage results (DEP-02). See docs/security/gitleaks-triage.md.
+# Fingerprints only (commit:file:rule:line) - no secret values.
+
+# --- False positives: synthetic test fixtures / placeholders ---
+3409fd1ec6c04387f07d987061a17d1cbc21783f:backend/src/index.test.ts:generic-api-key:14
+3409fd1ec6c04387f07d987061a17d1cbc21783f:backend/src/routes/public.test.ts:generic-api-key:12
+44af50a97804769a367095bdcbc8e1f72845337d:.planning/phases/13-security-audit-documentation/13-01-PLAN.md:generic-api-key:97
+44af50a97804769a367095bdcbc8e1f72845337d:.planning/phases/13-security-audit-documentation/13-02-PLAN.md:generic-api-key:241
+5826812e3e91557b3d8eeec908e78a218f3a11a1:backend/.dev.vars.example:generic-api-key:9
+c820cd9dbf13c0638286ac9aedfa50a8c02ece19:.planning/milestones/v3.0-phases/13-security-audit-documentation/13-01-PLAN.md:generic-api-key:97
+c820cd9dbf13c0638286ac9aedfa50a8c02ece19:.planning/milestones/v3.0-phases/13-security-audit-documentation/13-02-PLAN.md:generic-api-key:220
+d35371a500b6aaad81825d6e6abed32dcdb56b1d:.planning/phases/08-demo-trip-seed-a-public-demo-trip-in-the-database-add-view-d/08-01-PLAN.md:generic-api-key:129
+d35371a500b6aaad81825d6e6abed32dcdb56b1d:.planning/phases/08-demo-trip-seed-a-public-demo-trip-in-the-database-add-view-d/08-01-PLAN.md:generic-api-key:138
+d35371a500b6aaad81825d6e6abed32dcdb56b1d:.planning/phases/08-demo-trip-seed-a-public-demo-trip-in-the-database-add-view-d/08-01-PLAN.md:generic-api-key:148
+f9542984e041838350fc23a7740621ff46a183e4:backend/src/auth/keycloak.test.ts:generic-api-key:76
+
+# --- Historical: japan-trip-worker local KC client secret in docs (rotation required, see triage doc) ---
+44af50a97804769a367095bdcbc8e1f72845337d:.planning/phases/13-security-audit-documentation/13-03-PLAN.md:generic-api-key:81
+b2b4f6dd425a1ef7e6599127a1615033599193ad:.planning/phases/07-passkey-login-wire-browser-passkey-keycloak-flow-as-default-/07-08-SUMMARY.md:generic-api-key:38
+c820cd9dbf13c0638286ac9aedfa50a8c02ece19:.planning/milestones/v3.0-phases/13-security-audit-documentation/13-03-PLAN.md:generic-api-key:81
+
+# --- Working-tree (--no-git) fingerprints of the same false positives ---
+.planning/milestones/v2.0-phases/08-demo-trip-seed-a-public-demo-trip-in-the-database-add-view-d/08-01-PLAN.md:generic-api-key:129
+.planning/milestones/v2.0-phases/08-demo-trip-seed-a-public-demo-trip-in-the-database-add-view-d/08-01-PLAN.md:generic-api-key:138
+.planning/milestones/v2.0-phases/08-demo-trip-seed-a-public-demo-trip-in-the-database-add-view-d/08-01-PLAN.md:generic-api-key:148
+.planning/milestones/v3.0-phases/13-security-audit-documentation/13-01-PLAN.md:generic-api-key:97
+backend/.dev.vars.example:generic-api-key:9
+backend/src/auth/keycloak.test.ts:generic-api-key:76
+backend/src/index.test.ts:generic-api-key:14
+backend/src/routes/public.test.ts:generic-api-key:12
