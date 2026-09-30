@@ -48,7 +48,7 @@
       isolation: isolate;
       overflow: hidden;
       background: var(--bg-primary, #f5f5f7);
-      color: var(--text-primary, #1d1d1f);
+      color: var(--jp-text, #1d1d1f);
       --landing-image-opacity: 0.18;
       --landing-image-blur: 9px;
       --landing-image-scale: 1.08;
@@ -111,7 +111,7 @@
     .landing-title {
       font-size: clamp(32px, 6vw, 56px);
       font-weight: 700;
-      color: var(--text-primary, #1d1d1f);
+      color: var(--jp-text, #1d1d1f);
       letter-spacing: -0.02em;
       line-height: 1.1;
       margin: 0 0 20px;
@@ -162,7 +162,7 @@
 
     .landing-btn--secondary {
       background: transparent;
-      color: var(--text-primary, #1d1d1f);
+      color: var(--jp-text, #1d1d1f);
       border-color: var(--border-strong, rgba(0,0,0,0.1));
     }
 
@@ -230,7 +230,7 @@
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--text-tertiary, #86868b);
+      color: var(--text-tertiary, #6e6e73);
       margin-bottom: 24px;
       text-align: center;
     }
@@ -258,13 +258,13 @@
       font-size: 32px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
-      color: var(--text-primary, #1d1d1f);
+      color: var(--jp-text, #1d1d1f);
       line-height: 1;
     }
 
     .countdown-label {
       font-size: 11px;
-      color: var(--text-tertiary, #86868b);
+      color: var(--text-tertiary, #6e6e73);
       margin-top: 6px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -275,6 +275,20 @@
       font-size: 13px;
       color: var(--text-secondary, #515154);
       margin-bottom: 16px;
+    }
+
+    html[data-theme="dark"] .demo-countdown-title,
+    html[data-theme="dark"] .demo-section-title {
+      color: #a1a1a6;
+    }
+
+    /* Countdown cards stay light in dark mode; keep label text dark enough */
+    html[data-theme="dark"] .countdown-label {
+      color: #6e6e73;
+    }
+
+    html[data-theme="dark"] .landing-loading {
+      color: #a1a1a6;
     }
 
     /* City chips */
