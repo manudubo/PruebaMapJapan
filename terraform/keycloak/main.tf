@@ -10,7 +10,7 @@ resource "keycloak_realm" "japan_trip" {
   reset_password_allowed   = true
   edit_username_allowed    = false
 
-  ssl_required = "external"
+  ssl_required = var.ssl_required # SEC-17: "all" in prod once proxy headers are verified
 
   access_token_lifespan            = "5m"
   sso_session_idle_timeout         = "30m"

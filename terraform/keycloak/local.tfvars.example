@@ -2,6 +2,9 @@ kc_url        = "http://localhost:8080"
 kc_admin_user = "admin"
 kc_admin_pass = "REPLACE_WITH_ADMIN_PASSWORD"
 
+# SEC-17: keep "external" locally (plain HTTP). Production: "all" — see keycloak/README.md.
+ssl_required = "external"
+
 # Playwright test users (SEC-19: no defaults in variables.tf — set them here).
 # Must satisfy the realm password policy: >= 8 chars, 1 uppercase, 1 digit, 1 special.
 # Mirror the values in tests/.env.test (E2E_*_PASSWORD).

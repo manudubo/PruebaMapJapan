@@ -53,15 +53,46 @@ Railway is the cheapest managed option at ~$5/month on the Hobby plan.
 | `KC_DB_URL` | JDBC connection string (from Railway Postgres) | `jdbc:postgresql://host:5432/railway` |
 | `KC_DB_USERNAME` | Database username | `postgres` |
 | `KC_DB_PASSWORD` | Database password | (from Railway Postgres credentials) |
-| `KC_HOSTNAME` | Public hostname (Railway provides this) | `keycloak.up.railway.app` |
-| `KC_HOSTNAME_STRICT` | Enforce hostname | `true` |
-| `KC_PROXY` | Proxy mode (Railway uses edge proxy) | `edge` |
-| `KEYCLOAK_ADMIN` | Admin username | `admin` |
-| `KEYCLOAK_ADMIN_PASSWORD` | Admin password (use a strong password) | (generate a secret) |
+| `KC_HOSTNAME` | Public URL (Railway provides the domain) | `https://keycloak.up.railway.app` |
+| `KC_HTTP_ENABLED` | Railway terminates TLS and forwards plain HTTP to the container | `true` |
+| `KC_PROXY_HEADERS` | Trust Railway's `X-Forwarded-*` headers (scheme, host, client IP) | `xforwarded` |
+| `KC_BOOTSTRAP_ADMIN_USERNAME` | Initial admin username | `admin` |
+| `KC_BOOTSTRAP_ADMIN_PASSWORD` | Initial admin password (use a strong password) | (generate a secret) |
+
+> `KC_PROXY=edge` (listed here previously) no longer exists in Keycloak 26 — `kc.sh start --help`
+> has no `--proxy` option — so it was silently ignored. `KC_PROXY_HEADERS` + `KC_HTTP_ENABLED`
+> replace it. `KEYCLOAK_ADMIN*` are the pre-26 names of the bootstrap admin variables.
 
 5. Railway will use the `Dockerfile` in this directory to build and the `railway.toml` for deployment config.
 6. Once Keycloak is up, apply `terraform/keycloak` against the public URL to create/configure the realm
    (nothing is imported at startup — neither `railway.toml` nor `docker-compose.yml` passes `--import-realm`).
+
+### TLS behind the Railway proxy (SEC-17)
+
+The realm's `sslRequired` comes from the Terraform variable `ssl_required`:
+
+- `external` (default, used locally): plain HTTP is accepted from loopback/private addresses.
+  Behind Railway every request arrives from the proxy's private address, so **if Keycloak does
+  not trust `X-Forwarded-Proto`, it treats all traffic as internal HTTP**: TLS is not enforced by
+  Keycloak and its cookies are not marked `Secure` (the "Non-secure context detected" warning).
+- `all`: HTTPS is required for every request. Correct for production, but it only works when
+  Keycloak sees the original scheme via the proxy headers — otherwise every login fails with
+  "HTTPS required".
+
+Before setting `ssl_required = "all"` in the production var-file, verify on the deployed
+instance (with `KC_PROXY_HEADERS=xforwarded` and `KC_HOSTNAME=https://…` set):
+
+```bash
+KC=https://keycloak.up.railway.app
+# 1. Issuer must be https:// (hostname/scheme resolved correctly)
+curl -s "$KC/realms/japan-trip/.well-known/openid-configuration" | jq -r .issuer
+# 2. Login-page cookies must carry the Secure flag
+curl -s -o /dev/null -D - "$KC/realms/japan-trip/protocol/openid-connect/auth?client_id=japan-trip-frontend&response_type=code&scope=openid&redirect_uri=https%3A%2F%2Fmanud.github.io%2FPruebaMapJapan%2Fdashboard.html" \
+  | grep -i '^set-cookie' | grep -ci secure   # expect > 0
+```
+
+Then apply with `ssl_required = "all"` and repeat step 2 plus a real browser login. If step 1
+prints `http://` or step 2 prints `0`, fix the proxy configuration first and keep `external`.
 
 ### Connecting backend/frontend to production Keycloak
 
