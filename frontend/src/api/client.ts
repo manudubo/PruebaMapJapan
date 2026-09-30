@@ -74,6 +74,29 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * True once a 401 has triggered the session-expired toast + login redirect,
+ * so concurrent 401s on the same page don't toast/redirect more than once.
+ */
+let sessionExpiredHandled = false;
+
+/**
+ * Centralised 401 handling: toast once and start the Keycloak login redirect
+ * right away (not behind a timer that navigation could cancel). Callers still
+ * receive an ApiError(401) so their spinners/buttons can reset.
+ */
+function handleSessionExpired(): void {
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
+
+  const redirectTarget = new URL('dashboard.html', window.location.href).href;
+  showToast('Session expired — redirecting to login', 'info');
+  login(redirectTarget).catch(() => {
+    // Redirect failed to start — allow a later 401 to retry.
+    sessionExpiredHandled = false;
+  });
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = true } = options;
 
@@ -86,13 +109,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (response.status === 401) {
-    const redirectTarget = new URL('dashboard.html', window.location.href).href;
     if (import.meta.env.DEV) {
-      console.warn(`[auth] 401 on ${method} ${path} — isAuthenticated=${isAuthenticated()}, redirecting to ${redirectTarget}`);
+      console.warn(`[auth] 401 on ${method} ${path} — isAuthenticated=${isAuthenticated()}`);
     }
-    showToast('Session expired — redirecting to login', 'info');
-    setTimeout(() => { void login(redirectTarget); }, 1500);
-    return new Promise<never>(() => { /* intentionally never resolves — prevents double-toast */ });
+    handleSessionExpired();
+    throw new ApiError(401, 'unauthorized', 'Session expired');
   }
 
   if (!response.ok) {
@@ -229,12 +250,21 @@ export async function deleteDay(
 // Hotel endpoints
 // ---------------------------------------------------------------------------
 
-/** Get the hotel for a destination (null if none). */
-export async function getHotel(tripId: string, destId: string): Promise<ApiHotel> {
-  return request<ApiHotel>(
-    `/trips/${tripId}/destinations/${destId}/hotel`,
-    { auth: true }
-  );
+/**
+ * Get the hotel for a destination, or null if it has none.
+ * The backend answers 404 when there is no hotel, so 404 maps to null;
+ * any other error still throws.
+ */
+export async function getHotel(tripId: string, destId: string): Promise<ApiHotel | null> {
+  try {
+    return await request<ApiHotel>(
+      `/trips/${tripId}/destinations/${destId}/hotel`,
+      { auth: true }
+    );
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 /** Create or replace the hotel for a destination. */
@@ -302,7 +332,8 @@ export async function deleteActivity(
 }
 
 /**
- * Reorder activities within a day.
+ * Reorder activities within a day. `orderedIds` must list every activity of
+ * the day. Resolves with the updated rows (new order_index) in that order.
  * Uses POST (not PATCH) — backend endpoint is tripsRoute.post('.../reorder').
  */
 export async function reorderActivities(
@@ -310,8 +341,8 @@ export async function reorderActivities(
   destId: string,
   dayId: string,
   orderedIds: number[]
-): Promise<void> {
-  return request<void>(
+): Promise<ApiActivity[]> {
+  return request<ApiActivity[]>(
     `/trips/${tripId}/destinations/${destId}/days/${dayId}/activities/reorder`,
     { method: 'POST', body: { ordered_ids: orderedIds }, auth: true }
   );
@@ -330,7 +361,11 @@ export async function getPublicTrip(slug: string): Promise<ApiTrip> {
 // User endpoints
 // ---------------------------------------------------------------------------
 
-/** Get the authenticated user's profile. */
+/**
+ * Get the authenticated user's app-DB profile (authoritative for app-owned
+ * fields: id, avatar_url, preferences). For synchronous identity/display data
+ * straight from the JWT use getUserInfo() — see its JSDoc for which to use when.
+ */
 export async function getMe(): Promise<ApiUser> {
   return request<ApiUser>('/users/me', { auth: true });
 }

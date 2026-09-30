@@ -93,17 +93,46 @@ export async function deleteActivity(db: Db, actId: number): Promise<void> {
   await db.delete(activities).where(eq(activities.id, actId));
 }
 
+/** Thrown when a reorder request does not list the day's activities exactly once. */
+export class InvalidActivityOrderError extends Error {
+  constructor() {
+    super('ordered_ids must list every activity of the day exactly once');
+    this.name = 'InvalidActivityOrderError';
+  }
+}
+
+/**
+ * True when `orderedIds` is a permutation of `existingIds`: same size, no
+ * duplicates, no foreign ids.
+ */
+export function isCompleteOrdering(existingIds: number[], orderedIds: number[]): boolean {
+  if (orderedIds.length !== existingIds.length) return false;
+  const ordered = new Set(orderedIds);
+  if (ordered.size !== orderedIds.length) return false;
+  return existingIds.every((id) => ordered.has(id));
+}
+
 /**
  * Reorder activities within a day.
  *
- * `orderedIds` must contain every activity id that belongs to `dayId`.
- * Each id receives an order_index equal to its position in the array.
+ * `orderedIds` must contain every activity id that belongs to `dayId`
+ * exactly once; otherwise InvalidActivityOrderError is thrown and nothing is
+ * written (a partial set would leave duplicate/inconsistent order_index
+ * values). Each id receives an order_index equal to its position in the array.
  */
 export async function reorderActivities(
   db: Db,
   dayId: number,
   orderedIds: number[],
 ): Promise<Activity[]> {
+  const existing: { id: number }[] = await db
+    .select({ id: activities.id })
+    .from(activities)
+    .where(eq(activities.day_id, dayId));
+
+  if (!isCompleteOrdering(existing.map((r) => r.id), orderedIds)) {
+    throw new InvalidActivityOrderError();
+  }
   if (orderedIds.length === 0) return [];
 
   // Build a SQL CASE expression so we can update all rows in a single query.

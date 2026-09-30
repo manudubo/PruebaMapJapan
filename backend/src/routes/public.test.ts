@@ -40,6 +40,24 @@ describe('Public trip route — slug-based (SHARE-02, SHARE-04)', () => {
     expect(body.error).toBe('Invalid slug');
   });
 
+  it.each([
+    ['all dashes', '-'.repeat(36)],
+    ['36 hex chars without dashes', 'a'.repeat(36)],
+    ['dashes in the wrong places', 'a1b2c3d4e-5f6-7890-abcd-ef1234567890'],
+    ['non-hex characters', 'g1b2c3d4-e5f6-7890-abcd-ef1234567890'],
+  ])('36-char non-UUID (%s) → 400 "Invalid slug" (BUG-15)', async (_label, slug) => {
+    expect(slug).toHaveLength(36);
+    const res = await app.request(`/api/public/trips/${slug}`, {}, mockEnv);
+    expect(res.status).toBe(400);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.error).toBe('Invalid slug');
+  });
+
+  it('upper-case UUID is not rejected as an invalid slug (BUG-15)', async () => {
+    const res = await app.request(`/api/public/trips/${VALID_SLUG.toUpperCase()}`, {}, mockEnv);
+    expect(res.status).not.toBe(400);
+  });
+
   it('valid UUID + no matching trip → 404 (or 500 without real DB)', async () => {
     const slug = '00000000-0000-0000-0000-000000000000';
     const res = await app.request(`/api/public/trips/${slug}`, {}, mockEnv);

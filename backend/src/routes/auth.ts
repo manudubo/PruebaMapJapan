@@ -8,6 +8,9 @@ import type { Env, ContextVariables, ApiResponse } from '../types';
 import { OtpVerifySchema } from '../validation/schemas';
 import {
   getLatestUnexpiredOtp,
+  getOtpCreatedAtsSince,
+  otpHourlyCapRetryAfter,
+  OTP_CAP_WINDOW_MS,
   insertOtp,
   incrementOtpAttempts,
   markOtpUsed,
@@ -116,6 +119,19 @@ authRoute.post('/otp-request', async (c) => {
       );
       return c.json(
         { success: false as const, error: 'otp_pending', retryAfter },
+        429,
+      );
+    }
+
+    // BUG-16: per-user hourly cap — stops the request/burn/re-request cycle.
+    const now = new Date();
+    const capRetryAfter = otpHourlyCapRetryAfter(
+      await getOtpCreatedAtsSince(db, userId, new Date(now.getTime() - OTP_CAP_WINDOW_MS)),
+      now,
+    );
+    if (capRetryAfter !== null) {
+      return c.json(
+        { success: false as const, error: 'otp_rate_limited', retryAfter: capRetryAfter },
         429,
       );
     }

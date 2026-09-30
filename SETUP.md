@@ -70,7 +70,7 @@ This creates the Keycloak realm, clients (japan-trip-frontend, japan-trip-worker
 
 After apply, get the worker client secret:
 ```bash
-terraform output -raw japan_trip_worker_secret
+terraform output -raw worker_client_secret
 ```
 
 Update `backend/.dev.vars` with this value for `KC_ADMIN_CLIENT_SECRET`.

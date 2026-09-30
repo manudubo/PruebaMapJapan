@@ -29,7 +29,9 @@ let initPromise: Promise<boolean> | null = null;
  * same promise after the first call.
  *
  * Uses silent check-sso to restore an existing session without a full redirect.
- * Tokens are stored in sessionStorage (not localStorage) for better security.
+ * Tokens live only in keycloak-js memory (never localStorage/sessionStorage);
+ * after a reload the session is restored from the Keycloak SSO cookie via the
+ * silent check-sso iframe.
  */
 export async function initKeycloak(): Promise<boolean> {
   if (initPromise) return initPromise;
@@ -152,6 +154,18 @@ export function getTokenParsed(): Keycloak.KeycloakTokenParsed | undefined {
 /**
  * Returns a standard user info object from the decoded token, or null if not
  * authenticated.
+ *
+ * Source of truth — getUserInfo() vs getMe() (api/client.ts):
+ * - getUserInfo() is synchronous and local (JWT claims as issued by Keycloak
+ *   at the last token refresh). Use it for identity and instant UI that must
+ *   not wait on the network: the Keycloak subject (`id`, e.g. the passkey
+ *   campaign key), the navbar name, and first paint of greetings/profile.
+ * - getMe() is the backend's app-DB user record (numeric id, avatar_url,
+ *   preferences, created_at). Use it for anything the app stores or edits, and
+ *   prefer its name/email once loaded; the backend refreshes email/name from
+ *   the token on each authenticated request, so the two converge.
+ * Pattern: render from getUserInfo() first, then enrich from getMe()
+ * (see dashboard.ts renderUserGreeting and profile.ts).
  */
 export function getUserInfo(): {
   id: string;

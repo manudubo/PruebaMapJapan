@@ -199,8 +199,10 @@ function openModal(act: ApiActivity | null): void {
   timeInput.value = act?.time ?? '';
   notesInput.value = act?.notes ?? '';
   geocoderInput.value = '';
-  latInput.value = act ? String(act.lat) : '';
-  lngInput.value = act ? String(act.lng) : '';
+  // lat/lng are null at runtime for activities without coordinates; avoid
+  // String(null) === "null" leaking into the form.
+  latInput.value = String(act?.lat ?? '');
+  lngInput.value = String(act?.lng ?? '');
 
   geocoderResults.setAttribute('hidden', '');
   geocoderResults.replaceChildren();
@@ -413,20 +415,33 @@ async function handleReorder(
   day: ApiDay,
   container: HTMLElement,
 ): Promise<void> {
-  const newActivities = [...activities];
+  const swapped = [...activities];
   const swapIndex = direction === 'up' ? movedIndex - 1 : movedIndex + 1;
-  [newActivities[movedIndex], newActivities[swapIndex]] = [
-    newActivities[swapIndex],
-    newActivities[movedIndex],
+  [swapped[movedIndex], swapped[swapIndex]] = [
+    swapped[swapIndex],
+    swapped[movedIndex],
   ];
 
-  // Optimistic update — mutate shared state before API call
+  // Optimistic update. order_index must be renumbered too: the render sorts
+  // by order_index, so a bare array swap would be undone on re-render.
+  // Copies (not mutations) keep `activities` intact for the revert path.
+  const newActivities = swapped.map((a, idx) => ({ ...a, order_index: idx }));
   day.activities = newActivities;
   renderActivitiesDisplay(container, day, tripId, destId);
 
   try {
     const orderedIds = newActivities.map((a) => Number(a.id));
-    await reorderActivities(tripId, destId, day.id, orderedIds);
+    const saved = await reorderActivities(tripId, destId, day.id, orderedIds);
+
+    // Confirm with the server's order_index values — unless a newer reorder
+    // has already replaced this state, in which case that one wins.
+    if (day.activities !== newActivities) return;
+    const savedIndex = new Map(saved.map((a) => [String(a.id), a.order_index]));
+    day.activities = newActivities.map((a) => ({
+      ...a,
+      order_index: savedIndex.get(String(a.id)) ?? a.order_index,
+    }));
+    renderActivitiesDisplay(container, day, tripId, destId);
   } catch {
     // Revert to original order
     day.activities = activities;

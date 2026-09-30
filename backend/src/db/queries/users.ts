@@ -83,23 +83,52 @@ export async function updateUser(
   return updated;
 }
 
+export type UserClaims = {
+  keycloak_id: string;
+  /** Empty string when the token carries no email claim. */
+  email: string;
+  name: string;
+};
+
 /**
- * Insert-or-update a user on every login.
- * If the user already exists their email and name are refreshed; otherwise
- * a new row is created.
- * Returns the user record (existing or freshly created).
+ * Provision-or-refresh the app user for an authenticated request.
+ *
+ * - Race-safe first login (BUG-03): `INSERT ... ON CONFLICT (keycloak_id)
+ *   DO NOTHING` followed by a re-select, so near-simultaneous first requests
+ *   never hit the unique index and 500.
+ * - Keycloak is the source of truth for identity (BUG-08): if the token's
+ *   email/name differ from the stored row, the row is updated. Empty claims
+ *   never overwrite stored values, and nothing is written when unchanged.
  */
 export async function upsertUser(
   db: Db,
-  keycloakId: string,
-  email: string,
-  name: string,
-): Promise<User> {
-  const existing = await getUserByKeycloakId(db, keycloakId);
+  claims: UserClaims,
+): Promise<{ user: User; created: boolean }> {
+  const [inserted] = await db
+    .insert(users)
+    .values({
+      keycloak_id: claims.keycloak_id,
+      email: claims.email,
+      name: claims.name,
+      avatar_url: null,
+      preferences: {},
+    })
+    .onConflictDoNothing({ target: users.keycloak_id })
+    .returning();
 
-  if (existing) {
-    return updateUser(db, keycloakId, { email, name });
+  if (inserted) return { user: inserted, created: true };
+
+  const existing = await getUserByKeycloakId(db, claims.keycloak_id);
+  if (!existing) {
+    throw new Error(`upsertUser: no user for keycloakId=${claims.keycloak_id} after conflict`);
   }
 
-  return createUser(db, { keycloak_id: keycloakId, email, name });
+  const changes: UpdateUserData = {};
+  if (claims.email && claims.email !== existing.email) changes.email = claims.email;
+  if (claims.name && claims.name !== existing.name) changes.name = claims.name;
+
+  if (Object.keys(changes).length === 0) return { user: existing, created: false };
+
+  const updated = await updateUser(db, claims.keycloak_id, changes);
+  return { user: updated, created: false };
 }

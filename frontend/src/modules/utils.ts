@@ -43,12 +43,18 @@ export function clearCache(key: string): void {
   } catch { /* ignore */ }
 }
 
+/**
+ * Create an element with an optional class and text content.
+ * `text` is always assigned via textContent, so it is safe for untrusted data.
+ * There is deliberately no HTML parameter: code that genuinely needs markup
+ * must opt in explicitly at the call site (e.g. DOMPurify.sanitize + innerHTML).
+ */
 export function createElement<K extends keyof HTMLElementTagNameMap>(
-  tag: K, className = '', html = ''
+  tag: K, className = '', text = ''
 ): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   if (className) el.className = className;
-  if (html) el.innerHTML = html;
+  if (text) el.textContent = text;
   return el;
 }
 

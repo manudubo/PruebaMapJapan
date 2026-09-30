@@ -5,6 +5,9 @@ import type { Env, ContextVariables, ApiResponse } from '../types';
 
 const publicRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
+/** Canonical 8-4-4-4-12 hex UUID (public_slug is a Postgres uuid column). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ===========================================================================
 // PUBLIC ROUTES — no authentication required
 // ===========================================================================
@@ -18,7 +21,7 @@ publicRoute.get('/trips/:slug', async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const slug = c.req.param('slug');
 
-  if (!slug || !/^[0-9a-f-]{36}$/.test(slug)) {
+  if (!slug || !UUID_RE.test(slug)) {
     const response: ApiResponse = { success: false, error: 'Invalid slug' };
     return c.json(response, 400);
   }

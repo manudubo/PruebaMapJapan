@@ -53,8 +53,9 @@ Full outcome: 242 passed, 25 skipped (documented deferrals), 0 failed. See `.pla
 Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md`. Full findings and per-item verification status in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. Requirements defined: `.planning/REQUIREMENTS.md` (82 requirements, 100% mapped).
 
 - [x] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14) — completed 2026-07-24
-- [x] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01) (completed 2026-07-30)
-- [ ] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
+- [x] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01)
+ (completed 2026-07-30)
+- [x] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
 - [x] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05)
 - [ ] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03)
 - [ ] **Phase 25: Business Logic & Demo Parity** — timezone date-shift bug (BIZ-11), cross-level date coherence (BIZ-07), expose is_optional/is_generic/maps_url/time/zoom_level through editor (BIZ-01..05), date-order validation (BIZ-06/08/09), remaining parity items (BIZ-10)
@@ -104,7 +105,7 @@ Plans:
   3. Rapid concurrent `getMe()` calls at first login (simulated with two near-simultaneous requests) produce no 500; `auth.ts` uses `INSERT ... ON CONFLICT (keycloak_id) DO NOTHING` + re-select (BUG-03)
   4. `getHotel()` returns `null` on 404 without throwing (BUG-04); `createElement` defaults to `textContent`, raw `innerHTML` requires explicit opt-in (BUG-07); `upsertUser` is wired into the login path so KC email/name changes reflect in the app DB (BUG-08); SETUP.md documents the correct `terraform output -raw worker_client_secret` command (BUG-10)
   5. Remaining BUG-05/06/09/11/12/13/14/15/16 items pass the acceptance check in REQUIREMENTS.md (reorderActivities validates full ID set; stale `sessionStorage` comment corrected; `getUserInfo`/`getMe` use cases documented; lat/lng null uses `?? ''`; dead User-Agent header removed; `dest:any` replaced with proper narrowing; redundant query eliminated; slug regex tightened; per-user/hour OTP cap added)
-**Plans**: TBD
+**Plans**: executed as one pass, one commit per bug; see `phases/22-reliability-bugs/22-SUMMARY.md`
 **UI hint**: yes
 
 ### Phase 23: Supply Chain, Secrets & Accessibility
@@ -182,8 +183,8 @@ Plans:
 | 19. Session + Closure | v3.1 | 2/2 | Complete | 2026-07-23 |
 | 20. Critical Security | v3.2 | 0/4 | Not started | — |
 | 21. Deploy & Build Safety | v3.2 | 2/2 | Complete    | 2026-07-30 |
-| 22. Reliability Bugs | v3.2 | 0/0 | Not started | — |
-| 23. Supply Chain, Secrets & Accessibility | v3.2 | 0/0 | Not started | — |
+| 22. Reliability Bugs | v3.2 | 1/1 | Complete    | 2026-09-30 |
+| 23. Supply Chain, Secrets & Accessibility | v3.2 | 1/1 | Complete (A11Y-04/05 partial) | 2026-09-30 |
 | 24. Architecture Debt & Test Coverage | v3.2 | 0/0 | Not started | — |
 | 25. Business Logic & Demo Parity | v3.2 | 0/0 | Not started | — |
 | 26. Remaining Security Hardening & IdP Flow | v3.2 | 0/0 | Not started | — |

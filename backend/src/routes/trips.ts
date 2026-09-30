@@ -23,10 +23,12 @@ import {
   updateActivity,
   deleteActivity,
   reorderActivities,
+  InvalidActivityOrderError,
 } from '../db';
 import { destinations, days, hotels, activities, trips } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { ensureUserProvisioned } from '../middleware/user';
+import type { Destination, Day } from '../db';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import {
   CreateTripSchema,
@@ -46,6 +48,9 @@ const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 // Apply auth + user-provisioning to every route in this router.
 tripsRoute.use('*', authMiddleware, ensureUserProvisioned);
 
+/** Failure result shared by the resolve* ownership helpers below. */
+type ResolveError = { error: 'not_found' | 'forbidden' };
+
 // ---------------------------------------------------------------------------
 // Helper — verify that a destination belongs to a trip (and the trip belongs
 // to the user). Returns the destination row or an error code.
@@ -55,7 +60,7 @@ async function resolveDestination(
   tripId: number,
   destId: number,
   userId: number,
-) {
+): Promise<ResolveError | { dest: Destination }> {
   // Verify trip ownership first
   const tripRows = await db
     .select({ id: trips.id, user_id: trips.user_id })
@@ -89,7 +94,7 @@ async function resolveDay(
   destId: number,
   dayId: number,
   userId: number,
-) {
+): Promise<ResolveError | { dest: Destination; day: Day }> {
   const destResult = await resolveDestination(db, tripId, destId, userId);
   if ('error' in destResult) return destResult;
 
@@ -129,7 +134,8 @@ async function resolveActivity(
   const act = actRows[0];
   if (!act || act.day_id !== dayId) return { error: 'not_found' as const };
 
-  const { dest, day } = dayResult as { dest: any; day: any };
+  // Narrowed by the `'error' in dayResult` guard above — no cast needed.
+  const { dest, day } = dayResult;
   return { dest, day, act };
 }
 
@@ -865,7 +871,11 @@ tripsRoute.post(
       const reordered = await reorderActivities(db, dayId, body.ordered_ids);
       const response: ApiResponse<typeof reordered> = { success: true, data: reordered };
       return c.json(response);
-    } catch {
+    } catch (err) {
+      if (err instanceof InvalidActivityOrderError) {
+        const response: ApiResponse<never> = { success: false, error: err.message };
+        return c.json(response, 400);
+      }
       const response: ApiResponse<never> = { success: false, error: 'Failed to reorder activities' };
       return c.json(response, 500);
     }

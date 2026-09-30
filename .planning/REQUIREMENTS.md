@@ -30,22 +30,22 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 
 ### Reliability Bugs — Phase 22
 
-- [ ] **BUG-01**: Activity drag-reorder persists visually — `order_index` is updated in the optimistic array swap and the API response is used to confirm state (not discarded)
-- [ ] **BUG-02**: `request()` API client throws `ApiError(401)` on 401 responses instead of hanging indefinitely
-- [ ] **BUG-03**: First-login race condition resolved — user creation uses `INSERT ... ON CONFLICT (keycloak_id) DO NOTHING` + re-select
-- [ ] **BUG-04**: `getHotel()` returns `null` on 404 instead of throwing an unhandled error
-- [ ] **BUG-05**: `reorderActivities` backend validates that `orderedIds` covers the full activity set for the day
-- [ ] **BUG-06**: Stale comment in `keycloak.ts:32` corrected — tokens live in keycloak-js memory, not `sessionStorage`
-- [ ] **BUG-07**: `createElement` DOM helper does not expose an `html` path by default; raw HTML insertion requires an explicit opt-in; default path uses `textContent`
-- [ ] **BUG-08**: `upsertUser` is wired into the login path so email/name changes in Keycloak are reflected in the app DB (no more stale user records)
-- [ ] **BUG-09**: `getUserInfo()` (JWT-local) and `getMe()` (backend) sources of truth are documented per use case to prevent divergence confusion
-- [ ] **BUG-10**: `terraform output` command in SETUP.md matches the actual Terraform output name (`worker_client_secret`)
-- [ ] **BUG-11**: Activity lat/lng null handling uses `act.lat ?? ''` instead of `String(act.lat)` (prevents literal `"null"` string)
-- [ ] **BUG-12**: Dead `User-Agent` header removed from Nominatim browser fetch (browser overrides it silently — the comment describing server-fetch behavior is wrong)
-- [ ] **BUG-13**: `dest: any`/`day: any` cast in `trips.ts:132` replaced with proper type narrowing
-- [ ] **BUG-14**: Redundant double-query in `getTripById` (select followed by findFirst with same `where`) eliminated
-- [ ] **BUG-15**: Slug regex tightened to match an actual UUID pattern (not just `[0-9a-f-]{36}`)
-- [ ] **BUG-16**: Per-user/hour cap added to OTP issuance to prevent cycling attack (request OTP → exhaust 5 attempts → burn → repeat, throttled only by email rate)
+- [x] **BUG-01**: Activity drag-reorder persists visually — `order_index` is updated in the optimistic array swap and the API response is used to confirm state (not discarded)
+- [x] **BUG-02**: `request()` API client throws `ApiError(401)` on 401 responses instead of hanging indefinitely
+- [x] **BUG-03**: First-login race condition resolved — user creation uses `INSERT ... ON CONFLICT (keycloak_id) DO NOTHING` + re-select
+- [x] **BUG-04**: `getHotel()` returns `null` on 404 instead of throwing an unhandled error
+- [x] **BUG-05**: `reorderActivities` backend validates that `orderedIds` covers the full activity set for the day
+- [x] **BUG-06**: Stale comment in `keycloak.ts:32` corrected — tokens live in keycloak-js memory, not `sessionStorage`
+- [x] **BUG-07**: `createElement` DOM helper does not expose an `html` path by default; raw HTML insertion requires an explicit opt-in; default path uses `textContent`
+- [x] **BUG-08**: `upsertUser` is wired into the login path so email/name changes in Keycloak are reflected in the app DB (no more stale user records)
+- [x] **BUG-09**: `getUserInfo()` (JWT-local) and `getMe()` (backend) sources of truth are documented per use case to prevent divergence confusion
+- [x] **BUG-10**: `terraform output` command in SETUP.md matches the actual Terraform output name (`worker_client_secret`)
+- [x] **BUG-11**: Activity lat/lng null handling uses `act.lat ?? ''` instead of `String(act.lat)` (prevents literal `"null"` string)
+- [x] **BUG-12**: Dead `User-Agent` header removed from Nominatim browser fetch (browser overrides it silently — the comment describing server-fetch behavior is wrong)
+- [x] **BUG-13**: `dest: any`/`day: any` cast in `trips.ts:132` replaced with proper type narrowing
+- [x] **BUG-14**: Redundant double-query in `getTripById` (select followed by findFirst with same `where`) eliminated
+- [x] **BUG-15**: Slug regex tightened to match an actual UUID pattern (not just `[0-9a-f-]{36}`)
+- [x] **BUG-16**: Per-user/hour cap added to OTP issuance to prevent cycling attack (request OTP → exhaust 5 attempts → burn → repeat, throttled only by email rate)
 
 ### Supply Chain, Secrets & Accessibility — Phase 23
 
@@ -57,8 +57,8 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 - [x] **A11Y-01**: `aria-expanded` attribute removed from `<input>` elements across all 12 affected pages (invalid ARIA role/attribute combo — highest-leverage a11y fix)
 - [x] **A11Y-02**: Contrast violations fixed on landing page (`.demo-countdown-title`, loading span), dashboard `.nav-link`, and profile page (13 nodes)
 - [x] **A11Y-03**: `tripDetail.ts`'s `showError()` error-render path includes a proper heading element (currently wipes `<main>` and rebuilds with no `<h1>`)
-- [x] **A11Y-04**: `tokyo.html` heading-order and target-size violations resolved
-- [x] **A11Y-05**: Mobile LCP improved for landing and Tokyo pages (Lighthouse mobile-throttled baseline: landing 5.856s, Tokyo 6.261s)
+- [ ] **A11Y-04**: `tokyo.html` heading-order and target-size violations resolved
+- [ ] **A11Y-05**: Mobile LCP improved for landing and Tokyo pages (Lighthouse mobile-throttled baseline: landing 5.856s, Tokyo 6.261s)
 
 ### Architecture Debt & Test Coverage — Phase 24
 
@@ -166,22 +166,22 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | INFRA-04 | Phase 21 | Complete |
 | INFRA-05 | Phase 21 | Complete |
 | DEP-01 | Phase 21 | Complete |
-| BUG-01 | Phase 22 | Pending |
-| BUG-02 | Phase 22 | Pending |
-| BUG-03 | Phase 22 | Pending |
-| BUG-04 | Phase 22 | Pending |
-| BUG-05 | Phase 22 | Pending |
-| BUG-06 | Phase 22 | Pending |
-| BUG-07 | Phase 22 | Pending |
-| BUG-08 | Phase 22 | Pending |
-| BUG-09 | Phase 22 | Pending |
-| BUG-10 | Phase 22 | Pending |
-| BUG-11 | Phase 22 | Pending |
-| BUG-12 | Phase 22 | Pending |
-| BUG-13 | Phase 22 | Pending |
-| BUG-14 | Phase 22 | Pending |
-| BUG-15 | Phase 22 | Pending |
-| BUG-16 | Phase 22 | Pending |
+| BUG-01 | Phase 22 | Complete |
+| BUG-02 | Phase 22 | Complete |
+| BUG-03 | Phase 22 | Complete |
+| BUG-04 | Phase 22 | Complete |
+| BUG-05 | Phase 22 | Complete |
+| BUG-06 | Phase 22 | Complete |
+| BUG-07 | Phase 22 | Complete |
+| BUG-08 | Phase 22 | Complete |
+| BUG-09 | Phase 22 | Complete |
+| BUG-10 | Phase 22 | Complete |
+| BUG-11 | Phase 22 | Complete |
+| BUG-12 | Phase 22 | Complete |
+| BUG-13 | Phase 22 | Complete |
+| BUG-14 | Phase 22 | Complete |
+| BUG-15 | Phase 22 | Complete |
+| BUG-16 | Phase 22 | Complete |
 | SEC-15 | Phase 23 | Complete |
 | SEC-16 | Phase 23 | Complete |
 | INFRA-06 | Phase 23 | Complete |
@@ -190,8 +190,8 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | A11Y-01 | Phase 23 | Complete |
 | A11Y-02 | Phase 23 | Complete |
 | A11Y-03 | Phase 23 | Complete |
-| A11Y-04 | Phase 23 | Complete |
-| A11Y-05 | Phase 23 | Complete |
+| A11Y-04 | Phase 23 | Partial |
+| A11Y-05 | Phase 23 | Partial |
 | ARCH-01 | Phase 24 | Pending |
 | ARCH-02 | Phase 24 | Pending |
 | ARCH-03 | Phase 24 | Pending |
