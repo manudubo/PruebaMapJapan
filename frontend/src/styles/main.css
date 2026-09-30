@@ -982,7 +982,7 @@ body {
 }
 
 .legend-item.is-optional::before {
-  content: 'Opcional';
+  content: 'Optional';
   position: absolute;
   top: 4px;
   right: 12px;
