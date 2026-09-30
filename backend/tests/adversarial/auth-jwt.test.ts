@@ -132,6 +132,7 @@ describe('JWT claim/algorithm attacks (no DB needed)', () => {
     ['exp missing', { exp: undefined }],
     ['exp = 0', { exp: 0 }],
     ['nbf in the future', { nbf: now() + 3600 }],
+    ['nbf as a string', { nbf: 'later' }],
     ['wrong issuer', { iss: 'http://evil.test/realms/japan-trip' }],
     ['issuer with trailing slash', { iss: `${ISSUER}/` }],
     ['issuer different realm', { iss: 'http://kc.test/realms/master' }],
@@ -147,8 +148,7 @@ describe('JWT claim/algorithm attacks (no DB needed)', () => {
     expect(res.status).toBe(401);
   });
 
-  // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-  it.fails('exp that is not a number is rejected (a string exp must not mean "never expires")', async () => {
+  it('exp that is not a number is rejected (a string exp must not mean "never expires")', async () => {
     for (const exp of ['tomorrow', '9999999999x', null, true]) {
       const token = await signer.sign(claims({ exp }));
       expect.soft((await get(`Bearer ${token}`)).status, JSON.stringify(exp)).toBe(401);

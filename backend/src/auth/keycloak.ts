@@ -179,13 +179,18 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   }
 
   // Validate expiry
+  // exp/nbf must be numbers: a string such as "tomorrow" compares false
+  // against `now` and would make the token never expire.
   const now = Math.floor(Date.now() / 1000);
-  if (!payload.exp || payload.exp < now) {
+  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+    throw new Error('JWT exp claim missing or not a number');
+  }
+  if (payload.exp < now) {
     throw new Error('JWT has expired');
   }
 
   // Validate not-before (nbf) if present
-  if (payload.nbf !== undefined && payload.nbf > now) {
+  if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || payload.nbf > now)) {
     throw new Error('JWT is not yet valid (nbf)');
   }
 
