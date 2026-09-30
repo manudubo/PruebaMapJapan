@@ -109,8 +109,7 @@ describeDb('input fuzzing', () => {
 
   // -------------------------------------------------------------------------
   describe('request bodies / content types', () => {
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('malformed JSON with application/json → 400 (not 500)', async () => {
+it('malformed JSON with application/json → 400 (not 500)', async () => {
       const res = await req('POST', '/api/trips', { token: user.token, body: '{"name": "x",' });
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -123,8 +122,7 @@ describeDb('input fuzzing', () => {
       }
     });
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('empty body with application/json → 400', async () => {
+it('empty body with application/json → 400', async () => {
       const res = await req('POST', '/api/trips', { token: user.token, body: '' });
       expect(res.status).toBe(400);
     });

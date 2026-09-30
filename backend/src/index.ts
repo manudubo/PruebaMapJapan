@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { corsMiddleware } from './middleware/cors';
 import { securityMiddleware } from './middleware/security';
 import routes from './routes';
@@ -40,6 +41,11 @@ app.notFound((c) => {
 // Error handler
 // ---------------------------------------------------------------------------
 app.onError((err, c) => {
+  // Client errors raised by Hono itself (e.g. the JSON validator's
+  // "Malformed JSON in request body") carry their own 4xx status.
+  if (err instanceof HTTPException && err.status < 500) {
+    return c.json({ success: false, error: err.message }, err.status);
+  }
   console.error('Unhandled error:', err);
   return c.json({ success: false, error: 'Internal server error', code: 'internal_error' }, 500);
 });
