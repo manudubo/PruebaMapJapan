@@ -12,8 +12,9 @@ import {
   otpHourlyCapRetryAfter,
   OTP_CAP_WINDOW_MS,
   insertOtp,
-  incrementOtpAttempts,
+  consumeOtpAttempt,
   markOtpUsed,
+  markOtpUsedIfUnused,
 } from '../db/queries/otp';
 
 // ---------------------------------------------------------------------------
@@ -171,7 +172,9 @@ authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => 
       return c.json(response, 400);
     }
 
-    if (otp.attempts >= 5) {
+    // SEC-07: reserve the attempt atomically *before* comparing, so
+    // concurrent requests can never evaluate more than OTP_MAX_ATTEMPTS guesses.
+    if ((await consumeOtpAttempt(db, otp.id)) === null) {
       await markOtpUsed(db, otp.id);
       const response: ApiResponse<never> = { success: false, error: 'max_attempts' };
       return c.json(response, 429);
@@ -182,12 +185,15 @@ authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => 
     const match = await timingSafeCompare(code, otp.code_hash, c.env.OTP_SECRET);
 
     if (!match) {
-      await incrementOtpAttempts(db, otp.id);
       const response: ApiResponse<never> = { success: false, error: 'invalid_code' };
       return c.json(response, 400);
     }
 
-    await markOtpUsed(db, otp.id);
+    // Single use: a concurrent request with the same code may have won.
+    if (!(await markOtpUsedIfUnused(db, otp.id))) {
+      const response: ApiResponse<never> = { success: false, error: 'otp_not_found' };
+      return c.json(response, 400);
+    }
     const response: ApiResponse<never> = { success: true };
     return c.json(response, 200);
   } catch {
