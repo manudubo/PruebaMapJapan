@@ -80,7 +80,7 @@ resource "keycloak_openid_client" "japan_trip_frontend" {
     "https://manud.github.io/PruebaMapJapan/index.html",
     "https://manud.github.io/",
   ]
-  web_origins                     = ["+"]
+  web_origins = ["+"]
 
   full_scope_allowed = true
 }
