@@ -129,6 +129,14 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
     }
   });
 
+  test('username alone never authenticates the seeded e2e-test@local user', async ({ page }) => {
+    // No admin credentials needed: the user is seeded by Terraform, and no password is sent.
+    const hits = trackAppRedirects(page);
+    await submitUsername(page, process.env.E2E_TEST_USERNAME ?? 'e2e-test@local');
+    expect(issuedCode(hits)).toBe(false);
+    expect(page.url()).toContain(KEYCLOAK_URL);
+  });
+
   test('unknown username is rejected', async ({ page }) => {
     const hits = trackAppRedirects(page);
     await submitUsername(page, uniqueUser('idp-flow-does-not-exist'));
