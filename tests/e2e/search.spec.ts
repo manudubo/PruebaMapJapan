@@ -18,16 +18,16 @@ test.describe('Search functionality', () => {
     await expect(page.locator('#landing-hero')).toBeVisible();
   });
 
-  test('search input is labelled and starts collapsed', async ({ page }) => {
+  test('search input is labelled and starts with the results closed', async ({ page }) => {
     await expect(input(page)).toBeVisible();
     await expect(input(page)).toHaveAttribute('aria-label', /search/i);
-    await expect(input(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('search-bar .search-dropdown')).not.toHaveClass(/\bopen\b/);
   });
 
   test('focusing an empty search offers city suggestions', async ({ page }) => {
     await input(page).click();
 
-    await expect(input(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('search-bar .search-dropdown')).toHaveClass(/\bopen\b/);
     await expect(page.locator('search-bar .section-header')).toHaveText('Cities');
     await expect(options(page).first()).toBeVisible();
   });
@@ -37,7 +37,7 @@ test.describe('Search functionality', () => {
     await expect(resultsSettled(page)).toBeVisible();
 
     await expect(options(page).first()).toBeVisible();
-    await expect(input(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('search-bar .search-dropdown')).toHaveClass(/\bopen\b/);
     await expect(page.locator('search-bar .result-title').first()).toContainText(/tok/i);
     await expect(page.locator('search-bar .result-title mark').first()).toHaveText(/tok/i);
     // The best match must be the one that actually contains the query.
@@ -79,7 +79,7 @@ test.describe('Search functionality', () => {
     await input(page).fill('kyoto '.repeat(500));
 
     await expect(resultsSettled(page)).toBeVisible();
-    await expect(input(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('search-bar .search-dropdown')).toHaveClass(/\bopen\b/);
     expect(errors).toEqual([]);
   });
 
@@ -100,7 +100,7 @@ test.describe('Search functionality', () => {
 
     await page.keyboard.press('Escape');
 
-    await expect(input(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('search-bar .search-dropdown')).not.toHaveClass(/\bopen\b/);
     await expect(page.locator('search-bar .search-dropdown')).not.toHaveClass(/open/);
   });
 
@@ -110,7 +110,7 @@ test.describe('Search functionality', () => {
 
     await page.locator('h1').first().click();
 
-    await expect(input(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('search-bar .search-dropdown')).not.toHaveClass(/\bopen\b/);
   });
 
   test('Ctrl+K focuses the search from anywhere', async ({ page }) => {
