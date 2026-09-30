@@ -20,6 +20,8 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
   return {
     DATABASE_URL: testDatabaseUrl(),
     DB_DRIVER: 'pg',
+    // Local-dev semantics (Mailpit OTP fallback, localhost CORS) — Phase 26 SEC-08/23.
+    ENVIRONMENT: 'development',
     KEYCLOAK_URL: 'http://localhost:8080',
     KEYCLOAK_REALM: 'japan-trip',
     VALID_AUDIENCES: 'japan-trip-frontend',
@@ -34,7 +36,7 @@ let pool: pg.Pool | undefined;
 
 /** Raw pool on the test database, for fixtures and assertions. */
 export function testPool(): pg.Pool {
-  pool ??= new pg.Pool({ connectionString: testDatabaseUrl(), max: 4 });
+  pool ??= new pg.Pool({ connectionString: testDatabaseUrl(), max: 10 });
   return pool;
 }
 

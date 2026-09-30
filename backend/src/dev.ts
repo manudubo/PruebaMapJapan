@@ -25,6 +25,8 @@ const env = {
   KC_ADMIN_CLIENT_SECRET: process.env.KC_ADMIN_CLIENT_SECRET ?? '',
   OTP_SECRET: process.env.OTP_SECRET ?? '',
   RESEND_API_KEY: process.env.RESEND_API_KEY,
+  // This entry point only ever runs locally, so default to development.
+  ENVIRONMENT: process.env.ENVIRONMENT ?? 'development',
 };
 
 serve(

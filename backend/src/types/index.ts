@@ -36,7 +36,9 @@ export interface Env {
   KC_ADMIN_CLIENT_ID: string;     // D-03: worker client credentials
   KC_ADMIN_CLIENT_SECRET: string; // D-03: worker client credentials
   OTP_SECRET: string;             // HMAC-SHA256 key for OTP hashing (D-07)
-  RESEND_API_KEY?: string;        // absent in local dev → Mailpit fallback (D-08)
+  RESEND_API_KEY?: string;        // required unless ENVIRONMENT=development (SEC-08)
+  /** "development" enables localhost CORS + Mailpit; anything else = production (fail-closed). */
+  ENVIRONMENT?: string;
 }
 
 // ---------------------------------------------------------------------------

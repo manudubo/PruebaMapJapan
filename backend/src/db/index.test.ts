@@ -92,8 +92,8 @@ describe('createDb driver + pooling', () => {
       `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1`,
       [dbName],
     );
-    // node-postgres default max is 10; + this helper's own pool (max 4).
-    expect(rows[0].n).toBeLessThanOrEqual(14);
+    // node-postgres default max is 10; + this helper's own pool (max 10).
+    expect(rows[0].n).toBeLessThanOrEqual(20);
   });
 
   it('closeDbPools ends the pools; the next createDb opens a fresh one that works', async () => {

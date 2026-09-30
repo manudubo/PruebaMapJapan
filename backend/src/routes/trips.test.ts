@@ -263,11 +263,12 @@ describe('trips CRUD (owner)', () => {
     ['name of wrong type', { name: 42 }],
     ['bad date', { name: 'ok', start_date: '2026-02-30x' }],
     ['non-URL cover image', { name: 'ok', cover_image_url: 'not a url' }],
-  ])('POST /api/trips with %s → 400, nothing written', async (_l, body) => {
+  ])('POST /api/trips with %s → 422 validation_error, nothing written', async (_l, body) => {
     await world();
     const before = await snapshotDb();
     const res = await call('POST', '/api/trips', { sub: 'owner', body });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
+    expect(res.body['code']).toBe('validation_error');
     expect(await snapshotDb()).toBe(before);
   });
 
@@ -359,10 +360,10 @@ describe('destinations / days / activities / hotel CRUD (owner)', () => {
     ['invalid color', { date: '2026-03-02', color_hex: 'red' }],
     ['missing date', { label: 'x' }],
     ['impossible date', { date: '2026-13-45' }],
-  ])('POST day with %s → 400, no write', async (_l, body) => {
+  ])('POST day with %s → 422, no write', async (_l, body) => {
     const { A } = await world();
     const before = await snapshotDb();
-    expect((await call('POST', `${D(A as Ids)}/days`, { sub: 'owner', body })).status).toBe(400);
+    expect((await call('POST', `${D(A as Ids)}/days`, { sub: 'owner', body })).status).toBe(422);
     expect(await snapshotDb()).toBe(before);
   });
 
@@ -427,9 +428,9 @@ describe('destinations / days / activities / hotel CRUD (owner)', () => {
     ['non-positive id', { ordered_ids: [0] }],
     ['string ids', { ordered_ids: ['1'] }],
     ['not an array', { ordered_ids: 5 }],
-  ])('reorder with %s → 400 (schema)', async (_l, body) => {
+  ])('reorder with %s → 422 (schema)', async (_l, body) => {
     const { A } = await world();
-    expect((await call('POST', `${Y(A as Ids)}/activities/reorder`, { sub: 'owner', body })).status).toBe(400);
+    expect((await call('POST', `${Y(A as Ids)}/activities/reorder`, { sub: 'owner', body })).status).toBe(422);
   });
 
   it('hotel: GET → PUT replaces (never two rows) → DELETE → GET 404', async () => {
@@ -585,5 +586,46 @@ describe('unusual values and races', () => {
     results.forEach((r, i) => expect(r.status).toBe(i % 2 ? 403 : 200));
     const { rows } = await testPool().query('SELECT name FROM activities WHERE id = $1', [A.act]);
     expect(rows[0].name).toMatch(/^good-\d$/);
+  });
+});
+
+// ===========================================================================
+// URL fields are http(s)-only (Phase 25 httpUrl) — verified end to end
+// ===========================================================================
+
+describe('URL fields reject non-http(s) schemes', () => {
+  const HOSTILE = [
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'data:text/html,<script>1</script>',
+    'vbscript:msgbox(1)',
+    'file:///etc/passwd',
+  ];
+
+  // [label, request target, body builder, success status]
+  const FIELDS: [string, (A: Ids) => [string, string], (url: string) => object, number][] = [
+    ['trip cover_image_url', (A) => ['PATCH', T(A)], (url) => ({ cover_image_url: url }), 200],
+    ['activity maps_url', (A) => ['POST', `${Y(A)}/activities`], (url) => ({ name: 'x', maps_url: url }), 201],
+    ['hotel url', (A) => ['PUT', `${D(A)}/hotel`], (url) => ({ name: 'H', url }), 200],
+    ['user avatar_url', () => ['PATCH', '/api/users/me'], (url) => ({ avatar_url: url }), 200],
+  ];
+
+  describe.each(FIELDS)('%s', (_label, target, body, okStatus) => {
+    it.each(HOSTILE)('%s → 422, nothing written', async (url) => {
+      const { A } = await world();
+      const [method, path] = target(A as Ids);
+      const before = await snapshotDb();
+      const res = await call(method, path, { sub: 'owner', body: body(url) });
+      expect(res.status).toBe(422);
+      expect(res.body['code']).toBe('validation_error');
+      expect(await snapshotDb()).toBe(before);
+    });
+
+    it.each(['https://example.com/a?b=c#d', 'http://例え.jp/パス'])('%s is accepted', async (url) => {
+      const { A } = await world();
+      const [method, path] = target(A as Ids);
+      const res = await call(method, path, { sub: 'owner', body: body(url) });
+      expect(res.status).toBe(okStatus);
+    });
   });
 });

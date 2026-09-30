@@ -28,8 +28,9 @@ const CLIENT_ERRORS: Record<string, Mapped> = {
  * raw error message is never sent to the client.
  */
 export function errorHandler(err: Error, c: Context) {
-  if (err instanceof HTTPException) {
-    // e.g. malformed JSON body from the validator → 400, not 500.
+  if (err instanceof HTTPException && err.status < 500) {
+    // Deliberate client errors (e.g. malformed JSON body → 400) keep their
+    // status; a 5xx HTTPException is still a server fault, handled below.
     const response: ApiResponse<never> = { success: false, error: err.message || 'Bad request' };
     return c.json(response, err.status);
   }

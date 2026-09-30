@@ -19,6 +19,11 @@ const PRECACHE_ASSETS = [
   './icons/apple-touch-icon.png'
 ];
 
+// Hashed JS/CSS chunks emitted by the build (stamped by the swVersion Vite plugin).
+// Without them the precached HTML renders unstyled and script-less when opened offline
+// before its assets were ever fetched.
+const BUILD_ASSETS = [] /* __BUILD_ASSETS__ */;
+
 const NETWORK_ONLY_DOMAINS = [
   'api.allorigins.win',
   'corsproxy.io',
@@ -33,7 +38,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(PRECACHE_ASSETS).catch(err => {
+      return cache.addAll([...PRECACHE_ASSETS, ...BUILD_ASSETS]).catch(err => {
         console.warn('Cache error:', err);
       });
     })

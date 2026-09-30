@@ -71,7 +71,7 @@ PruebaMapJapan/
 │   └── wrangler.toml  # Cloudflare Workers config
 │
 ├── keycloak/          # Keycloak 26 (Docker + Railway)
-│   ├── realm-export.json
+│   ├── themes/
 │   └── docker-compose.yml
 │
 ├── tests/             # Playwright E2E + integration tests

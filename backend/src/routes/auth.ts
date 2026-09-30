@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { Resend } from 'resend';
 import { authMiddleware } from '../middleware/auth';
 import { dbMiddleware } from '../middleware/db';
 import { ensureUserProvisioned } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { OtpVerifySchema } from '../validation/schemas';
+import { otpEmailTransport, sendOtpEmail } from '../auth/otp-email';
 import {
   getLatestUnexpiredOtp,
   getOtpCreatedAtsSince,
@@ -13,8 +13,9 @@ import {
   OTP_CAP_WINDOW_MS,
   insertOtp,
   deleteStaleOtps,
-  incrementOtpAttempts,
+  consumeOtpAttempt,
   markOtpUsed,
+  markOtpUsedIfUnused,
 } from '../db/queries/otp';
 
 // ---------------------------------------------------------------------------
@@ -53,47 +54,15 @@ async function timingSafeCompare(
 }
 
 // ---------------------------------------------------------------------------
-// Email delivery
-// ---------------------------------------------------------------------------
-
-async function sendOtpEmail(
-  env: Env,
-  toEmail: string,
-  code: string,
-): Promise<void> {
-  const subject = 'Your TravelMap verification code';
-  const text = `Your verification code is: ${code}\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
-
-  if (env.RESEND_API_KEY) {
-    const resend = new Resend(env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: 'TravelMap <noreply@travelmap.app>',
-      to: [toEmail],
-      subject,
-      text,
-    });
-  } else {
-    // Local dev — Mailpit HTTP API (Workers cannot do raw SMTP)
-    await fetch('http://localhost:8025/api/v1/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        From: { Name: 'TravelMap', Email: 'noreply@example.com' },
-        To: [{ Name: '', Email: toEmail }],
-        Subject: subject,
-        Text: text,
-      }),
-    });
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Route
 // ---------------------------------------------------------------------------
 
 const authRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
 authRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
+
+// Unexpected failures propagate to the global errorHandler (M-09), which logs
+// them and answers a generic 500.
 
 // POST /api/auth/otp-request
 // No request body — email is taken from c.var.user.email
@@ -106,6 +75,9 @@ authRoute.post('/otp-request', async (c) => {
 
   const db = c.get('db');
   const userId = c.get('dbUserId');
+
+  // SEC-08: fail loudly (before issuing a code) if email cannot be sent.
+  otpEmailTransport(c.env);
 
   // DATA-01: opportunistic purge of dead codes. Best-effort housekeeping —
   // a failure here must not block sign-in, so log and carry on.
@@ -142,8 +114,14 @@ authRoute.post('/otp-request', async (c) => {
   const codeHash = await hashOtp(code, c.env.OTP_SECRET);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-  await insertOtp(db, userId, codeHash, expiresAt);
-  await sendOtpEmail(c.env, email, code);
+  const otp = await insertOtp(db, userId, codeHash, expiresAt);
+  try {
+    await sendOtpEmail(c.env, email, code);
+  } catch (err) {
+    // Undelivered code must not block a retry as otp_pending for 10 min.
+    await markOtpUsed(db, otp.id).catch(() => {});
+    throw err;
+  }
 
   const response: ApiResponse<never> = { success: true };
   return c.json(response, 201);
@@ -162,7 +140,9 @@ authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => 
     return c.json(response, 400);
   }
 
-  if (otp.attempts >= 5) {
+  // SEC-07: reserve the attempt atomically *before* comparing, so
+  // concurrent requests can never evaluate more than OTP_MAX_ATTEMPTS guesses.
+  if ((await consumeOtpAttempt(db, otp.id)) === null) {
     await markOtpUsed(db, otp.id);
     const response: ApiResponse<never> = { success: false, error: 'max_attempts' };
     return c.json(response, 429);
@@ -173,12 +153,15 @@ authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => 
   const match = await timingSafeCompare(code, otp.code_hash, c.env.OTP_SECRET);
 
   if (!match) {
-    await incrementOtpAttempts(db, otp.id);
     const response: ApiResponse<never> = { success: false, error: 'invalid_code' };
     return c.json(response, 400);
   }
 
-  await markOtpUsed(db, otp.id);
+  // Single use: a concurrent request with the same code may have won.
+  if (!(await markOtpUsedIfUnused(db, otp.id))) {
+    const response: ApiResponse<never> = { success: false, error: 'otp_not_found' };
+    return c.json(response, 400);
+  }
   const response: ApiResponse<never> = { success: true };
   return c.json(response, 200);
 });

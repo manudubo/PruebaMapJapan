@@ -12,18 +12,13 @@ describe('Hono app — in-process unit tests', () => {
     const res = await app.request('/', {}, mockEnv);
     expect(res.status).toBe(200);
 
-    const body = await res.json() as Record<string, unknown>;
-    expect(body.success).toBe(true);
-    expect(body.message).toContain('API is running');
+    expect(await res.json()).toEqual({ status: 'ok' });
   });
 
   it('GET /api/health returns { status: "ok" }', async () => {
     const res = await app.request('/api/health', {}, mockEnv);
     expect(res.status).toBe(200);
-
-    const body = await res.json() as Record<string, unknown>;
-    expect(body.success).toBe(true);
-    expect(body.status).toBe('ok');
+    expect(await res.json()).toEqual({ status: 'ok' });
   });
 
   it('GET /api/trips without Authorization header returns 401', async () => {

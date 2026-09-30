@@ -149,11 +149,11 @@ describe('PATCH /api/users/me', () => {
     expect((res.body['data'] as { preferences: unknown }).preferences).toEqual(nested);
   });
 
-  it('400 for an invalid body, nothing written', async () => {
+  it('422 for an invalid body, nothing written', async () => {
     await call('GET', '/api/users/me', { sub: 'kc-a' });
     const before = await snapshotDb();
     const res = await call('PATCH', '/api/users/me', { sub: 'kc-a', body: { name: 12 } });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     expect(await snapshotDb()).toBe(before);
   });
 });

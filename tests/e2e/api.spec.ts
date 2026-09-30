@@ -3,7 +3,7 @@ import { test, expect, request } from '@playwright/test';
 const BACKEND_URL = 'http://localhost:8787';
 
 // Check if backend is reachable before running these tests.
-// Individual tests use test.skip() when the backend is not available.
+// Individual tests are marked test.fixme(!backendUp, reason) when the backend is not available.
 async function isBackendRunning(): Promise<boolean> {
   try {
     const ctx = await request.newContext({ baseURL: BACKEND_URL });
@@ -18,7 +18,7 @@ async function isBackendRunning(): Promise<boolean> {
 test.describe('Backend API integration tests', () => {
   test('Health endpoint returns 200', async () => {
     const backendUp = await isBackendRunning();
-    test.skip(!backendUp, 'Backend is not running — skipping API integration tests');
+    test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
     const ctx = await request.newContext({ baseURL: BACKEND_URL });
     const res = await ctx.get('/api/health');
@@ -31,7 +31,7 @@ test.describe('Backend API integration tests', () => {
 
   test('Trips endpoint requires auth', async () => {
     const backendUp = await isBackendRunning();
-    test.skip(!backendUp, 'Backend is not running — skipping API integration tests');
+    test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
     const ctx = await request.newContext({ baseURL: BACKEND_URL });
     // No Authorization header — should return 401
@@ -42,7 +42,7 @@ test.describe('Backend API integration tests', () => {
 
   test('Users endpoint requires auth', async () => {
     const backendUp = await isBackendRunning();
-    test.skip(!backendUp, 'Backend is not running — skipping API integration tests');
+    test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
     const ctx = await request.newContext({ baseURL: BACKEND_URL });
     // No Authorization header — should return 401
@@ -53,7 +53,7 @@ test.describe('Backend API integration tests', () => {
 
   test('Public trip returns 404 for missing slug', async () => {
     const backendUp = await isBackendRunning();
-    test.skip(!backendUp, 'Backend is not running — skipping API integration tests');
+    test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
     const ctx = await request.newContext({ baseURL: BACKEND_URL });
     // All-zeros UUID passes regex but will never match a real trip
@@ -69,7 +69,7 @@ test.describe('Backend API integration tests', () => {
 test.describe('JWT audience rejection', () => {
   test('worker client_credentials token without japan-trip-frontend audience returns 401', async () => {
     const backendUp = await isBackendRunning();
-    test.skip(!backendUp, 'Backend is not running — skipping audience assertion test');
+    test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
     const keycloakUrl = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
     const kcRealm = process.env['KEYCLOAK_REALM'] ?? 'japan-trip';

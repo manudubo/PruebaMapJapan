@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 
-// DATA-03: lat/lng CHECK constraints, exercised through the real routes.
-// Zod does not range-check coordinates yet (ARCH-05, separate work), so today
-// the database is what turns an out-of-range pin into a 400.
+// Coordinates end to end on the real routes. Two layers:
+// - BIZ-08/ARCH-05 (Phase 25): Zod rejects out-of-range/NaN → 422 before any SQL.
+// - DATA-03: the DB CHECK constraint is the last line of defence for writes
+//   that bypass the schema (query layer, scripts, SQL) — tested below.
 vi.mock('../middleware/auth', () => import('../test-utils/fake-auth'));
 
-import { closeDbPools } from '../db';
+import { closeDbPools, createActivity } from '../db';
+import { pgConstraint, pgErrorCode } from '../db/pg-errors';
 import { call, snapshotDb } from '../test-utils/app';
 import {
   closeTestPool,
@@ -15,6 +17,7 @@ import {
   insertTrip,
   insertUser,
   resetDb,
+  testDb,
   testPool,
 } from '../test-utils/db';
 
@@ -57,17 +60,17 @@ const VALID: [string, object][] = [
   ['only lat', { lat: 45 }],
 ];
 
-// [label, coords, expected error code]
+// [label, coords, offending field]
 const INVALID: [string, object, string][] = [
-  ['lat just above 90', { lat: 90.0000001, lng: 0 }, 'constraint_violation'],
-  ['lat just below -90', { lat: -90.0000001, lng: 0 }, 'constraint_violation'],
-  ['lng just above 180', { lat: 0, lng: 180.0000001 }, 'constraint_violation'],
-  ['lng just below -180', { lat: 0, lng: -180.0000001 }, 'constraint_violation'],
-  ['swapped lat/lng (Tokyo)', { lat: 139.7671248, lng: 35.6812362 }, 'constraint_violation'],
-  ['NaN', { lat: 'NaN', lng: 0 }, 'constraint_violation'],
-  ['null lat with an out-of-range lng', { lat: null, lng: 181 }, 'constraint_violation'],
-  ['Infinity (NUMERIC(10,7) overflow)', { lat: 'Infinity', lng: 0 }, 'invalid_input'],
-  ['1000 (NUMERIC(10,7) overflow)', { lat: 1000, lng: 0 }, 'invalid_input'],
+  ['lat just above 90', { lat: 90.0000001, lng: 0 }, 'lat'],
+  ['lat just below -90', { lat: -90.0000001, lng: 0 }, 'lat'],
+  ['lng just above 180', { lat: 0, lng: 180.0000001 }, 'lng'],
+  ['lng just below -180', { lat: 0, lng: -180.0000001 }, 'lng'],
+  ['swapped lat/lng (Tokyo)', { lat: 139.7671248, lng: 35.6812362 }, 'lat'],
+  ['NaN', { lat: 'NaN', lng: 0 }, 'lat'],
+  ['null lat with an out-of-range lng', { lat: null, lng: 181 }, 'lng'],
+  ['Infinity', { lat: 'Infinity', lng: 0 }, 'lat'],
+  ['1000', { lat: 1000, lng: 0 }, 'lat'],
 ];
 
 describe.each([
@@ -81,24 +84,23 @@ describe.each([
     expect(res.status).toBe(op === 'putHotel' ? 200 : 201);
   });
 
-  it.each(INVALID)('rejects %s with 400 and writes nothing', async (_l, coords, code) => {
+  it.each(INVALID)('rejects %s with 422 on that field and writes nothing', async (_l, coords, field) => {
     const t = await tree();
     const before = await snapshotDb();
     const res = await t[op](coords);
-    expect(res.status).toBe(400);
-    expect(res.body['success']).toBe(false);
-    expect(res.body['code']).toBe(code);
+    expect(res.status).toBe(422);
+    expect(res.body['code']).toBe('validation_error');
+    expect((res.body['issues'] as { path: string }[]).map((i) => i.path)).toContain(field);
     expect(await snapshotDb()).toBe(before);
   });
 });
 
 describe('updates are checked too', () => {
-  it('PATCH activity to lat 91 → 400 constraint_violation, row unchanged', async () => {
+  it('PATCH activity to lat 91 → 422, row unchanged', async () => {
     const t = await tree();
     await testPool().query(`UPDATE activities SET lat = 10, lng = 10 WHERE id = $1`, [t.act.id]);
     const res = await t.patchAct({ lat: 91 });
-    expect(res.status).toBe(400);
-    expect(res.body['code']).toBe('constraint_violation');
+    expect(res.status).toBe(422);
     const { rows } = await testPool().query('SELECT lat, lng FROM activities WHERE id = $1', [t.act.id]);
     expect(rows[0]).toEqual({ lat: '10.0000000', lng: '10.0000000' });
   });
@@ -131,3 +133,33 @@ describe('the constraint is in the database, not just the API', () => {
     });
   });
 });
+
+describe('DB CHECK as last line of defence (writes that bypass Zod)', () => {
+  it.each([
+    ['lat 91', '91', '0'],
+    ['lng -181', '0', '-181'],
+    ['NaN', 'NaN', '0'],
+  ])('query-layer createActivity with %s is rejected by activities_lat_lng_range', async (_l, lat, lng) => {
+    const t = await tree();
+    await expect(
+      createActivity(testDb(), t.act.day_id, { name: 'bypass', lat, lng }),
+    ).rejects.toSatisfy((err: unknown) => pgErrorCode(err) === '23514' && pgConstraint(err) === 'activities_lat_lng_range');
+  });
+
+  it('the global handler maps a CHECK violation to 400 constraint_violation', async () => {
+    const res = await errorHandlerProbe(Object.assign(new Error('x'), { code: '23514' }));
+    expect(res).toEqual({ status: 400, code: 'constraint_violation' });
+  });
+});
+
+async function errorHandlerProbe(err: Error) {
+  const { Hono } = await import('hono');
+  const { errorHandler } = await import('../middleware/errors');
+  const probe = new Hono();
+  probe.get('/', () => {
+    throw err;
+  });
+  probe.onError(errorHandler);
+  const res = await probe.request('/');
+  return { status: res.status, code: ((await res.json()) as { code: string }).code };
+}

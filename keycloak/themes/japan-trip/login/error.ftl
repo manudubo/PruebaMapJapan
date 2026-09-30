@@ -4,7 +4,7 @@
         ${msg("errorTitle")}
     <#elseif section="form">
         <div id="kc-error-message">
-            <p class="instruction">${message.summary?no_esc}</p>
+            <p class="instruction">${kcSanitize(message.summary)?no_esc}</p>
             <#if skipLink??>
             <#else>
                 <p>

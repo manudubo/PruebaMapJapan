@@ -135,7 +135,7 @@ describe('errors from real routes reach the global handler (M-09)', () => {
   it.each([
     ['numeric overflow', '12345'],
     ['non-numeric text', 'abc'],
-  ])('destination lat with %s → 400 and nothing written', async (_l, lat) => {
+  ])('destination lat with %s → 422 from validation (before the DB) and nothing written', async (_l, lat) => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { trip } = await ownerWithTrip();
     const before = await snapshotDb();
@@ -143,8 +143,8 @@ describe('errors from real routes reach the global handler (M-09)', () => {
       sub: 'owner',
       body: { city_name: 'X', country: 'Y', lat },
     });
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ success: false, code: 'invalid_input' });
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ success: false, code: 'validation_error' });
     expect(await snapshotDb()).toBe(before);
   });
 
@@ -168,7 +168,10 @@ describe('errors from real routes reach the global handler (M-09)', () => {
     try {
       const res = await call('GET', '/api/trips', { sub: 'owner' });
       expect(res.status).toBe(500);
+      expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
       expect(JSON.stringify(res.body)).not.toMatch(/users|relation/);
+      // …while the real cause is logged server-side.
+      expect(JSON.stringify(log.mock.calls.map((c) => String(c[1])))).toMatch(/users/);
       expect(log).toHaveBeenCalled();
     } finally {
       await testPool().query('ALTER TABLE users_gone RENAME TO users');

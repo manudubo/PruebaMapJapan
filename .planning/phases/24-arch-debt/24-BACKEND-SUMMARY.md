@@ -70,10 +70,24 @@ Duplicate-email pre-check for production: `SELECT lower(email), array_agg(id) FR
 
 ## Open concerns / findings for other owners
 
-1. **OTP issuance race (SEC-07 area):** 8 concurrent `otp-request` for one user issued 2 codes (pending check is check-then-insert). Not fixed here (auth.ts OTP atomicity belongs to SEC-05..08).
-2. **Email-send partial failure:** if email delivery fails after the code row is inserted, the user gets 500 and then `429 otp_pending` for 10 min with no email. Suggest deleting/marking the row on send failure (same owner as 1).
-3. **`z.string().url()` accepts `javascript:` URLs** (`cover_image_url`, `maps_url`, hotel `url`, `avatar_url`) — for ARCH-05/schemas owner; any `href` rendering is a stored-XSS vector.
+1. **OTP issuance race (SEC-07 area, still open after merge):** 8 concurrent `otp-request` for one user issued 2 codes (pending check is check-then-insert). Not fixed here (auth.ts OTP atomicity belongs to SEC-05..08).
+2. ~~Email-send partial failure~~ — resolved by Phase 26 (the undelivered code is burned so the user can retry).
+3. ~~`z.string().url()` accepts `javascript:` URLs~~ — **resolved by Phase 25** (`httpUrl` in schemas.ts). Verified end to end after the merge: javascript:/mixed-case/data:/vbscript:/file: → 422 with no write on `cover_image_url`, `maps_url`, hotel `url`, `avatar_url`; http(s) incl. IDN accepted (`routes/trips.test.ts`).
 4. **`drizzle-kit push` vs SQL migrations drift (pre-existing):** DBs created with the documented `push --force` differ from `db:migrate` ones (FK names, FK indexes from 0000, `preferences NOT NULL`, `public_slug` default). `push` against a migrated DB wants to drop those FK indexes. New constraints/indexes from this phase are *not* in that drift. Recommend standardising on `db:migrate` (DEVELOPMENT.md still says `push --force`) and reconciling `schema.ts` in a follow-up.
 5. **Path ids:** `Number()` parsing still accepts `0x10`/`1e1` (→ 16/10); harmless for authz (ownership still enforced) but sloppy. Non-integers/overflow now give 400 via SQLSTATE mapping.
 6. **Behaviour changes to note for merges:** error bodies for unexpected failures are now `{ error: 'Internal server error', code: 'internal_error' }` instead of per-route "Failed to X"; hotel id is stable across PUTs; unknown `/api/users/*` paths now 401 before 404; ensureUserProvisioned requires `dbMiddleware` before it.
 7. CI Postgres service job not yet exercised on GitHub (no push from this worktree).
+
+## Integration merge with `claude/focused-lovelace-cryssy` (Phases 25 + 26 + e2e/QA)
+
+Conflicts resolved:
+- `routes/auth.ts`: kept Phase 26 behaviour (SEC-08 email transport gate before issuing, SEC-07 atomic `consumeOtpAttempt` + single-use `markOtpUsedIfUnused`, burn code on send failure) on top of this phase's structure (`dbMiddleware`, no swallowing try/catch, DATA-01 cleanup, BUG-16 hourly cap). Unexpected failures now return the generic `internal_error` body (the SEC-08 test was updated from `'Failed to send OTP'`).
+- `index.ts`: Phase 26's HTTPException rule folded into `errorHandler` (HTTPException < 500 keeps its status; 5xx HTTPException is logged as a server fault). Phase 25 validation keeps 422 (`validation/validator.ts`), malformed JSON stays 400.
+- `db/queries/otp.ts`: both `deleteStaleOtps` and `markOtpUsedIfUnused`/`consumeOtpAttempt`. Their `.returning({ col })` calls use a new `asPgDatabase(db)` widening (the union `Db` cannot resolve that overload).
+- `wrangler.toml`: merged the two `[vars]` tables (`ENVIRONMENT = "production"`, `DB_DRIVER = "neon"`) — two tables would be invalid TOML.
+- `REQUIREMENTS.md`: union of ticks.
+- Test harness unified: Phase 26's `describe.skipIf(!TEST_DATABASE_URL)` + private-schema tests (`otp-attempts.test.ts`, `trips-public.test.ts`) now use the ARCH-06 `globalSetup` DB (`testDb`/`resetDb`), so they always run; shared test pool raised to 10 connections for their 50-way race. `testEnv()` sets `ENVIRONMENT: 'development'`. `trips-validation.test.ts` (mocked DB) stubs the M-02 ownership module; `otp-email.test.ts` stubs `deleteStaleOtps`.
+- My tests updated for Phase 25: schema rejections are 422 `validation_error` (was 400); coordinates are rejected by Zod first, and the DATA-03 CHECK is now tested as defence in depth via the query layer (`createActivity` with lat 91 / NaN → 23514 on `activities_lat_lng_range`) and direct SQL.
+- `ensureUserProvisioned` (Phase 26 concern): already propagates to the global handler; the test now asserts the exact generic body and that the real cause is logged server-side.
+
+Post-merge results: backend `tsc` clean, Vitest 30 files / 1066 tests on real Postgres 16; frontend `tsc` clean, Vitest 31 files / 700 tests (also with `TZ=America/Argentina/Buenos_Aires`); `npm run build --workspace=frontend` OK; `wrangler deploy --dry-run` OK (`ENVIRONMENT`, `DB_DRIVER` vars); `drizzle-kit generate` reports no drift.

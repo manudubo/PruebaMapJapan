@@ -62,11 +62,19 @@ interface ApiEnvelope<T> {
   message?: string;
 }
 
+/** One field problem from a 422 validation response. */
+export interface ApiValidationIssue {
+  path: string;
+  message: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string,
     message?: string,
+    /** Field-level problems when the API rejected the body (422). */
+    public readonly issues: ApiValidationIssue[] = [],
   ) {
     super(message ?? `API error ${status}`);
     this.name = 'ApiError';
@@ -117,8 +125,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok) {
-    const envelope = await response.json().catch(() => null) as { code?: string } | null;
-    throw new ApiError(response.status, envelope?.code ?? 'unknown');
+    const envelope = await response.json().catch(() => null) as
+      | { code?: string; error?: string; issues?: ApiValidationIssue[] }
+      | null;
+    throw new ApiError(
+      response.status,
+      envelope?.code ?? 'unknown',
+      envelope?.error,
+      Array.isArray(envelope?.issues) ? envelope.issues : [],
+    );
   }
 
   if (response.status === 204) {

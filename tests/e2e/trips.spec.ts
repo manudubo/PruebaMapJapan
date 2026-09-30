@@ -1,5 +1,7 @@
-import { test, expect } from '@playwright/test';
-import { mockTrip, mockSingleTripApiResponse, mockTripsApiResponse } from './fixtures/mockTrip';
+import { test, expect, type Page } from '@playwright/test';
+import { mockTrip } from './fixtures/mockTrip';
+import { mockApi } from './fixtures/mockApi';
+import { mockKeycloakLoggedIn, mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
 
 // Mock trip with two destinations for tab tests
 const mockTripTwoDestinations = {
@@ -38,231 +40,295 @@ const mockTripTwoDestinations = {
   ],
 };
 
-test.describe('Dynamic trip tests', () => {
-  test('Dashboard loads with demo trip card when unauthenticated', async ({ page }) => {
-    // Mock Keycloak
-    await page.route('**/realms/**', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-    });
-    // Mock public trips API
-    await page.route('**/api/**', (route) => {
-      const url = route.request().url();
-      if (url.includes('/api/public/trips/1')) {
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockSingleTripApiResponse),
-        });
-      } else {
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockTripsApiResponse),
-        });
-      }
-    });
+// Every spec starts from a clean browser so the result does not depend on
+// whether the project injected a real-auth storageState.
+test.use({ storageState: { cookies: [], origins: [] } });
+
+// The preview build's CSP omits the API origin from connect-src (see
+// 24-E2E-SUMMARY.md); authenticated specs bypass it so the page logic is testable.
+async function signedInDashboard(page: Page, options: Parameters<typeof mockApi>[1] = {}) {
+  await mockKeycloakLoggedIn(page);
+  const calls = await mockApi(page, options);
+  await page.goto('dashboard.html');
+  await expect(page.locator('#new-trip-btn')).toBeVisible();
+  return calls;
+}
+
+test.describe('Dashboard access', () => {
+  test('a guest is offered sign-in instead of trips', async ({ page }) => {
+    await mockKeycloakLoggedOut(page);
+    await mockApi(page);
 
     await page.goto('dashboard.html');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(500);
 
-    // The trips grid should be present
-    const tripsGrid = page.locator('#trips-grid, .trips-grid');
-    await expect(tripsGrid).toBeVisible({ timeout: 10000 });
-
-    // Either trip cards or a loading/empty message should be shown
-    const gridInner = await tripsGrid.innerHTML();
-    expect(gridInner.length).toBeGreaterThan(0);
+    await expect(page.locator('#dashboard-login-prompt')).toBeVisible();
+    await expect(page.locator('#trips-grid')).toBeHidden();
+    await expect(page.locator('.trip-card')).toHaveCount(0);
   });
+});
 
-  test('Trip detail page renders map container', async ({ page }) => {
-    // Mock Keycloak
-    await page.route('**/realms/**', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-    });
-    // Mock trip detail API
-    await page.route('**/api/**', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(mockSingleTripApiResponse),
-      });
-    });
+test.describe('Trip detail page', () => {
+  test.use({ bypassCSP: true });
+
+  test('renders title, destination subtitle, active tab and a Leaflet map', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page);
 
     await page.goto('trip.html?tripId=1');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(500);
 
-    // The map container should be in the DOM
-    const mapEl = page.locator('#map');
-    await expect(mapEl).toBeAttached({ timeout: 10000 });
+    await expect(page.locator('#trip-title')).toHaveText(mockTrip.name);
+    await expect(page.locator('#trip-subtitle')).toContainText('Tokyo');
+    await expect(page.locator('#map.leaflet-container')).toBeVisible();
+
+    const tabs = page.locator('#dest-tabs .dest-tab');
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.first()).toHaveText('Tokyo');
+    await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+    // Owner sees the edit link pointing at this trip.
+    await expect(page.locator('#trip-edit-link')).toHaveAttribute('href', `trip-edit.html?tripId=${mockTrip.id}`);
   });
 
-  test('Trip detail page renders destination tabs', async ({ page }) => {
-    // Mock Keycloak
-    await page.route('**/realms/**', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-    });
-    // Mock trip with two destinations
-    await page.route('**/api/**', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: mockTripTwoDestinations }),
-      });
-    });
+  test('switching destination tabs updates selection, subtitle and the URL', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page, { trip: mockTripTwoDestinations });
 
     await page.goto('trip.html?tripId=1');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
 
-    // The dest-tabs container should be in the DOM
-    const destTabs = page.locator('#dest-tabs, .dest-tabs');
-    await expect(destTabs).toBeAttached({ timeout: 10000 });
+    const tabs = page.locator('#dest-tabs .dest-tab');
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'false');
 
-    // Check if tab buttons were rendered
-    const tabButtons = destTabs.locator('button, [role="tab"]');
-    const tabCount = await tabButtons.count();
+    await tabs.nth(1).click();
 
-    // Either tabs were rendered by the JS module or the container exists (depends on live backend)
-    expect(typeof tabCount).toBe('number');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'false');
+    await expect(tabs.nth(1)).toHaveClass(/is-active/);
+    await expect(page.locator('#trip-subtitle')).toContainText('Kyoto');
+    await expect(page.locator('#trip-subtitle')).not.toContainText('Tokyo');
+    await expect(page).toHaveURL(/[?&]destIndex=1/);
+    await expect(page.locator('#map.leaflet-container')).toBeVisible();
   });
 
-  test('Create trip form requires name', async ({ page }) => {
-    // Mock Keycloak
-    await page.route('**/realms/**', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-    });
-    // Mock API
-    await page.route('**/api/**', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(mockTripsApiResponse),
-      });
-    });
+  test('a deep link with destIndex opens that destination directly', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page, { trip: mockTripTwoDestinations });
 
-    await page.goto('dashboard.html');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(300);
+    await page.goto('trip.html?tripId=1&destIndex=1');
 
-    // Open the create trip modal by clicking the "New Trip" button
-    const newTripBtn = page.locator('#new-trip-btn');
-    const btnExists = await newTripBtn.count() > 0;
-
-    if (btnExists) {
-      // Make the button visible if hidden
-      await page.evaluate(() => {
-        const btn = document.getElementById('new-trip-btn');
-        if (btn) btn.removeAttribute('hidden');
-      });
-      await newTripBtn.click();
-      await page.waitForTimeout(300);
-
-      // The overlay / modal should appear
-      const overlay = page.locator('#create-trip-overlay, .overlay');
-      const overlayVisible = await overlay.isVisible().catch(() => false);
-
-      if (overlayVisible) {
-        // Find the trip name input
-        const nameInput = page.locator('#trip-name, input[name="name"]');
-        await expect(nameInput).toBeVisible({ timeout: 5000 });
-
-        // Leave the name empty and submit
-        await nameInput.fill('');
-        const submitBtn = page.locator('#create-trip-form button[type="submit"], .btn-primary[type="submit"]');
-        await submitBtn.click();
-        await page.waitForTimeout(300);
-
-        // HTML5 validation should prevent submission — check for validity
-        const isValid = await nameInput.evaluate((el: HTMLInputElement) => el.validity.valid);
-        expect(isValid).toBe(false);
-
-        // Or check for a visible error message
-        const errorMsg = page.locator('#create-trip-error, .error-msg');
-        const errorExists = await errorMsg.count() > 0;
-        if (errorExists) {
-          // Error message element exists in DOM (may or may not have text)
-          expect(errorExists).toBe(true);
-        }
-      } else {
-        // Modal not shown — just verify the button existed
-        expect(btnExists).toBe(true);
-      }
-    } else {
-      // Button might be auth-gated — verify the page still loaded
-      const tripsGrid = page.locator('#trips-grid, .trips-grid');
-      await expect(tripsGrid).toBeVisible({ timeout: 10000 });
-    }
+    await expect(page.locator('#dest-tabs .dest-tab').nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#trip-subtitle')).toContainText('Kyoto');
   });
 
-  test('Create trip form submits to API', async ({ page }) => {
-    let apiCallMade = false;
-    let apiMethod = '';
+  test('an out-of-range destIndex does not break the page', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page, { trip: mockTripTwoDestinations });
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
 
-    // Mock Keycloak
-    await page.route('**/realms/**', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+    await page.goto('trip.html?tripId=1&destIndex=99');
+
+    await expect(page.locator('#trip-title')).toHaveText(mockTrip.name);
+    await expect(page.locator('#map.leaflet-container')).toBeVisible();
+    await expect(page.locator('body')).toHaveClass(/ready/);
+    expect(errors).toEqual([]);
+  });
+
+  test('a trip with zero destinations still shows its name (no stuck placeholder)', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page, { trip: { ...mockTrip, destinations: [] } });
+
+    await page.goto('trip.html?tripId=1');
+
+    await expect(page.locator('#trip-title')).toHaveText(mockTrip.name);
+    await expect(page.locator('#dest-tabs .dest-tab')).toHaveCount(0);
+    await expect(page.locator('body')).toHaveClass(/ready/);
+  });
+
+  test('a trip the API refuses (404) shows the no-access message, not a broken page', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page, { tripStatus: 404 });
+
+    await page.goto('trip.html?tripId=12345');
+
+    await expect(page.locator('#main-content')).toContainText("You don't have access to this trip");
+    await expect(page.locator('#map.leaflet-container')).toHaveCount(0);
+  });
+
+  test('a missing tripId is reported instead of loading forever', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page);
+
+    await page.goto('trip.html');
+
+    await expect(page.locator('#main-content')).toContainText('No trip specified');
+  });
+
+  test('a guest opening a private trip URL gets no trip data', async ({ page }) => {
+    await mockKeycloakLoggedOut(page);
+    const calls = await mockApi(page);
+
+    await page.goto('trip.html?tripId=1');
+
+    await expect(page.locator('#main-content')).toContainText("You don't have access to this trip");
+    // The guest path must not even try the owner-only endpoint.
+    expect(calls.filter((c) => c.path.startsWith('/trips/'))).toEqual([]);
+  });
+
+  test('a trip name with markup is shown as text', async ({ page }) => {
+    const evil = '<img src=x onerror="window.__pwned=1">Trip';
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page, { trip: { ...mockTrip, name: evil } });
+
+    await page.goto('trip.html?tripId=1');
+
+    await expect(page.locator('#trip-title')).toHaveText(evil);
+    await expect(page.locator('#trip-title img')).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
+  });
+});
+
+test.describe('Create trip form', () => {
+  test.use({ bypassCSP: true });
+
+  test('opens from the New Trip button and closes via Cancel and via the backdrop', async ({ page }) => {
+    await signedInDashboard(page);
+    const overlay = page.locator('#create-trip-overlay');
+    await expect(overlay).toBeHidden();
+
+    await page.locator('#new-trip-btn').click();
+    await expect(overlay).toBeVisible();
+    await expect(page.locator('#trip-name')).toBeVisible();
+
+    await page.locator('#create-trip-cancel').click();
+    await expect(overlay).toBeHidden();
+
+    await page.locator('#new-trip-btn').click();
+    await expect(overlay).toBeVisible();
+    // Click on the dim backdrop (top-left corner is outside the centered modal).
+    await overlay.click({ position: { x: 2, y: 2 } });
+    await expect(overlay).toBeHidden();
+  });
+
+  test('submitting a valid trip POSTs the entered data and opens the new trip', async ({ page }) => {
+    const calls = await signedInDashboard(page);
+    await page.locator('#new-trip-btn').click();
+
+    await page.locator('#trip-name').fill('New Test Trip');
+    await page.locator('#trip-description').fill('Cherry blossoms');
+    await page.locator('#trip-start').fill('2027-03-20');
+    await page.locator('#trip-end').fill('2027-04-02');
+    await page.locator('#create-trip-form button[type="submit"]').click();
+
+    await page.waitForURL(/trip\.html\?tripId=99$/);
+    const post = calls.find((c) => c.method === 'POST' && c.path === '/trips');
+    expect(post?.body).toEqual({
+      name: 'New Test Trip',
+      description: 'Cherry blossoms',
+      start_date: '2027-03-20',
+      end_date: '2027-04-02',
+      is_public: false,
     });
+  });
 
-    // Mock API — capture POST /api/trips
-    await page.route('**/api/**', (route) => {
-      const req = route.request();
-      const url = req.url();
+  test('optional fields left blank are sent as null, not empty strings', async ({ page }) => {
+    const calls = await signedInDashboard(page);
+    await page.locator('#new-trip-btn').click();
 
-      if (url.includes('/api/trips') && req.method() === 'POST') {
-        apiCallMade = true;
-        apiMethod = req.method();
-        route.fulfill({
-          status: 201,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: { ...mockTrip, id: 99, name: 'New Test Trip' } }),
-        });
-      } else {
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockTripsApiResponse),
-        });
-      }
+    await page.locator('#trip-name').fill('Minimal');
+    await page.locator('#create-trip-form button[type="submit"]').click();
+
+    await page.waitForURL(/trip\.html\?tripId=99$/);
+    const post = calls.find((c) => c.method === 'POST' && c.path === '/trips');
+    expect(post?.body).toMatchObject({ name: 'Minimal', description: null, start_date: null, end_date: null });
+  });
+
+  for (const [label, name] of [
+    ['empty', ''],
+    ['whitespace-only', '   '],
+  ] as const) {
+    test(`a ${label} name is rejected: error toast, form stays open, no navigation`, async ({ page }) => {
+      await signedInDashboard(page);
+      await page.locator('#new-trip-btn').click();
+
+      await page.locator('#trip-name').fill(name);
+      await page.locator('#create-trip-form button[type="submit"]').click();
+
+      await expect(page.locator('.toast--error')).toBeVisible();
+      await expect(page.locator('#create-trip-overlay')).toBeVisible();
+      expect(new URL(page.url()).pathname).toMatch(/dashboard\.html$/);
+      // Submit button must be usable again after the failure.
+      await expect(page.locator('#create-trip-form button[type="submit"]')).toBeEnabled();
     });
+  }
 
+  test('an API failure on create shows an error toast and lets the user retry', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
     await page.goto('dashboard.html');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(300);
-
-    // Try to open and fill the create trip modal
-    const newTripBtn = page.locator('#new-trip-btn');
-    const btnExists = await newTripBtn.count() > 0;
-
-    if (btnExists) {
-      await page.evaluate(() => {
-        const btn = document.getElementById('new-trip-btn');
-        if (btn) btn.removeAttribute('hidden');
-      });
-      await newTripBtn.click();
-      await page.waitForTimeout(300);
-
-      const overlay = page.locator('#create-trip-overlay, .overlay');
-      const overlayVisible = await overlay.isVisible().catch(() => false);
-
-      if (overlayVisible) {
-        const nameInput = page.locator('#trip-name, input[name="name"]');
-        await expect(nameInput).toBeVisible({ timeout: 5000 });
-        await nameInput.fill('New Test Trip');
-
-        const submitBtn = page.locator('#create-trip-form button[type="submit"], .btn-primary[type="submit"]');
-        await submitBtn.click();
-        await page.waitForTimeout(1000);
-
-        // Either the form was submitted (apiCallMade) or it passed validation
-        // The outcome depends on whether the user is authenticated
-        expect(typeof apiCallMade).toBe('boolean');
+    // Fail only the POST; everything else falls back to the regular API mock.
+    await mockApi(page);
+    let posts = 0;
+    await page.route('**/api/trips', (route) => {
+      if (route.request().method() === 'POST') {
+        posts += 1;
+        return route.fulfill({ status: 500, contentType: 'application/json', body: '{"success":false}' });
       }
-    }
+      return route.fallback();
+    });
+    await expect(page.locator('#new-trip-btn')).toBeVisible();
 
-    // Verify page is still operational
-    const tripsGrid = page.locator('#trips-grid, .trips-grid');
-    await expect(tripsGrid).toBeVisible({ timeout: 10000 });
+    await page.locator('#new-trip-btn').click();
+    await page.locator('#trip-name').fill('Will fail');
+    const submit = page.locator('#create-trip-form button[type="submit"]');
+    await submit.click();
+
+    await expect(page.locator('.toast--error')).toContainText('Something went wrong');
+    await expect(submit).toBeEnabled();
+    await expect(page.locator('#trip-name')).toHaveValue('Will fail');
+    expect(posts).toBe(1);
+  });
+
+  // KNOWN APP BUG (found while writing this suite, reported in 24-E2E-SUMMARY.md):
+  // dashboard.ts handleCreateTrip() awaits a dynamic import BEFORE it disables the
+  // submit button, so a fast double-click creates two trips. Fix belongs in
+  // frontend/src/pages/dashboard.ts (disable the button first); remove the fixme then.
+  test.fixme('double-clicking submit sends a single create request (duplicate-trip bug)', async ({ page }) => {
+    const calls = await signedInDashboard(page, { createDelayMs: 600 });
+    await page.locator('#new-trip-btn').click();
+    await page.locator('#trip-name').fill('Once only');
+
+    const submit = page.locator('#create-trip-form button[type="submit"]');
+    await submit.dblclick();
+
+    await page.waitForURL(/trip\.html\?tripId=99$/);
+    expect(calls.filter((c) => c.method === 'POST' && c.path === '/trips')).toHaveLength(1);
+  });
+
+  test('a name with markup and quotes is sent verbatim as data', async ({ page }) => {
+    const calls = await signedInDashboard(page);
+    await page.locator('#new-trip-btn').click();
+    const nasty = `"><script>alert(1)</script> ' OR 1=1 --`;
+
+    await page.locator('#trip-name').fill(nasty);
+    await page.locator('#create-trip-form button[type="submit"]').click();
+
+    await page.waitForURL(/trip\.html\?tripId=99$/);
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ name: nasty });
+  });
+
+  // BIZ-06 (Phase 25) adds start_date <= end_date validation. Until then the form
+  // happily submits an end date before the start date. Kept as a documented
+  // known-gap so the expectation is written down and flips on when BIZ-06 lands.
+  test.fixme('an end date before the start date is rejected client-side (BIZ-06, Phase 25)', async ({ page }) => {
+    const calls = await signedInDashboard(page);
+    await page.locator('#new-trip-btn').click();
+
+    await page.locator('#trip-name').fill('Backwards');
+    await page.locator('#trip-start').fill('2027-04-02');
+    await page.locator('#trip-end').fill('2027-03-20');
+    await page.locator('#create-trip-form button[type="submit"]').click();
+
+    await expect(page.locator('#create-trip-overlay')).toBeVisible();
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
   });
 });

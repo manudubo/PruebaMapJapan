@@ -84,7 +84,6 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    continue-on-error: true  # ARCH-09: 100% failure rate since April 2026; Phase 24 removes this flag
     needs: [typecheck-frontend]
     steps:
       - uses: actions/checkout@v4
@@ -97,10 +96,12 @@ jobs:
         working-directory: tests
       - run: npx playwright install --with-deps chromium
         working-directory: tests
-      - name: Build and preview frontend
-        run: npm run build:frontend && npm run preview:frontend &
+      # The preview server is started by Playwright's `webServer` (tests/playwright.config.ts).
+      - name: Build frontend
+        run: npm run build:frontend
         env:
-          VITE_API_URL: http://localhost:8787
+          # Must include /api: client.ts appends paths like /trips to it, and the specs mock **/api/**.
+          VITE_API_URL: http://localhost:8787/api
           VITE_KEYCLOAK_URL: http://localhost:8080
           VITE_KEYCLOAK_REALM: japan-trip
           VITE_KEYCLOAK_CLIENT_ID: japan-trip-frontend

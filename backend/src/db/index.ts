@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle as drizzleNeon, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzlePg, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import * as schema from './schema';
 
@@ -43,6 +44,16 @@ export type NeonDb = NeonHttpDatabase<Schema>;
  * helpers accept this union and keep full column/row typing (ARCH-01).
  */
 export type Db = PgDb | NeonDb;
+
+/**
+ * The driver-agnostic base both handles extend. A few builder overloads (e.g.
+ * `.returning({ col })`) cannot be resolved on the union; upcast with
+ * `asPgDatabase(db)` for those calls — a widening, never a lie.
+ */
+export type PgDatabaseBase = PgDatabase<PgQueryResultHKT, Schema>;
+export function asPgDatabase(db: Db): PgDatabaseBase {
+  return db;
+}
 
 // One pool per connection string: a Pool per request would leak TCP
 // connections (each keeps idle clients open), exhausting the server.
