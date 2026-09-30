@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
-import { getDb } from '../db';
 import {
   getTripsByUser,
   getTripById,
@@ -27,8 +26,9 @@ import {
 } from '../db';
 import { destinations, days, hotels, activities, trips } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
+import { dbMiddleware } from '../middleware/db';
 import { ensureUserProvisioned } from '../middleware/user';
-import type { Destination, Day } from '../db';
+import type { Db, Destination, Day } from '../db';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import {
   CreateTripSchema,
@@ -45,8 +45,8 @@ import {
 
 const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
-// Apply auth + user-provisioning to every route in this router.
-tripsRoute.use('*', authMiddleware, ensureUserProvisioned);
+// Apply auth + DB handle + user-provisioning to every route in this router.
+tripsRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 
 /** Failure result shared by the resolve* ownership helpers below. */
 type ResolveError = { error: 'not_found' | 'forbidden' };
@@ -56,7 +56,7 @@ type ResolveError = { error: 'not_found' | 'forbidden' };
 // to the user). Returns the destination row or an error code.
 // ---------------------------------------------------------------------------
 async function resolveDestination(
-  db: ReturnType<typeof getDb>,
+  db: Db,
   tripId: number,
   destId: number,
   userId: number,
@@ -89,7 +89,7 @@ async function resolveDestination(
 // the right trip / user). Returns the day row or an error code.
 // ---------------------------------------------------------------------------
 async function resolveDay(
-  db: ReturnType<typeof getDb>,
+  db: Db,
   tripId: number,
   destId: number,
   dayId: number,
@@ -115,7 +115,7 @@ async function resolveDay(
 // right destination / trip / user).
 // ---------------------------------------------------------------------------
 async function resolveActivity(
-  db: ReturnType<typeof getDb>,
+  db: Db,
   tripId: number,
   destId: number,
   dayId: number,
@@ -148,11 +148,7 @@ async function resolveActivity(
  * Returns all trips belonging to the authenticated user.
  */
 tripsRoute.get('/', async (c) => {
-  if (!c.env.DATABASE_URL) {
-    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-    return c.json(response, 500);
-  }
-  const db = getDb(c.env.DATABASE_URL);
+  const db = c.get('db');
   const userId = c.get('dbUserId');
 
   try {
@@ -170,11 +166,7 @@ tripsRoute.get('/', async (c) => {
  * Creates a new trip for the authenticated user.
  */
 tripsRoute.post('/', zValidator('json', CreateTripSchema), async (c) => {
-  if (!c.env.DATABASE_URL) {
-    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-    return c.json(response, 500);
-  }
-  const db = getDb(c.env.DATABASE_URL);
+  const db = c.get('db');
   const userId = c.get('dbUserId');
   const body = c.req.valid('json');
 
@@ -193,11 +185,7 @@ tripsRoute.post('/', zValidator('json', CreateTripSchema), async (c) => {
  * Returns a single trip with full nested details (destinations → hotel, days → activities).
  */
 tripsRoute.get('/:tripId', async (c) => {
-  if (!c.env.DATABASE_URL) {
-    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-    return c.json(response, 500);
-  }
-  const db = getDb(c.env.DATABASE_URL);
+  const db = c.get('db');
   const userId = c.get('dbUserId');
   const tripId = Number(c.req.param('tripId'));
 
@@ -228,11 +216,7 @@ tripsRoute.patch(
   '/:tripId',
   zValidator('json', UpdateTripSchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const body = c.req.valid('json');
@@ -258,11 +242,7 @@ tripsRoute.patch(
  * Deletes a trip belonging to the authenticated user.
  */
 tripsRoute.delete('/:tripId', async (c) => {
-  if (!c.env.DATABASE_URL) {
-    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-    return c.json(response, 500);
-  }
-  const db = getDb(c.env.DATABASE_URL);
+  const db = c.get('db');
   const userId = c.get('dbUserId');
   const tripId = Number(c.req.param('tripId'));
 
@@ -297,11 +277,7 @@ tripsRoute.delete('/:tripId', async (c) => {
  * Returns all destinations for a trip.
  */
 tripsRoute.get('/:tripId/destinations', async (c) => {
-  if (!c.env.DATABASE_URL) {
-    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-    return c.json(response, 500);
-  }
-  const db = getDb(c.env.DATABASE_URL);
+  const db = c.get('db');
   const userId = c.get('dbUserId');
   const tripId = Number(c.req.param('tripId'));
 
@@ -344,11 +320,7 @@ tripsRoute.post(
   '/:tripId/destinations',
   zValidator('json', CreateDestinationSchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const body = c.req.valid('json');
@@ -395,11 +367,7 @@ tripsRoute.patch(
   '/:tripId/destinations/:destId',
   zValidator('json', UpdateDestinationSchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -438,11 +406,7 @@ tripsRoute.patch(
 tripsRoute.delete(
   '/:tripId/destinations/:destId',
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -484,11 +448,7 @@ tripsRoute.delete(
 tripsRoute.get(
   '/:tripId/destinations/:destId/days',
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -527,11 +487,7 @@ tripsRoute.post(
   '/:tripId/destinations/:destId/days',
   zValidator('json', CreateDaySchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -571,11 +527,7 @@ tripsRoute.patch(
   '/:tripId/destinations/:destId/days/:dayId',
   zValidator('json', UpdateDaySchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -615,11 +567,7 @@ tripsRoute.patch(
 tripsRoute.delete(
   '/:tripId/destinations/:destId/days/:dayId',
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -662,11 +610,7 @@ tripsRoute.delete(
 tripsRoute.get(
   '/:tripId/destinations/:destId/days/:dayId/activities',
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -706,11 +650,7 @@ tripsRoute.post(
   '/:tripId/destinations/:destId/days/:dayId/activities',
   zValidator('json', CreateActivitySchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -751,11 +691,7 @@ tripsRoute.patch(
   '/:tripId/destinations/:destId/days/:dayId/activities/:actId',
   zValidator('json', UpdateActivitySchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -796,11 +732,7 @@ tripsRoute.patch(
 tripsRoute.delete(
   '/:tripId/destinations/:destId/days/:dayId/activities/:actId',
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -841,11 +773,7 @@ tripsRoute.post(
   '/:tripId/destinations/:destId/days/:dayId/activities/reorder',
   zValidator('json', ReorderActivitiesSchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -893,11 +821,7 @@ tripsRoute.post(
 tripsRoute.get(
   '/:tripId/destinations/:destId/hotel',
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -946,11 +870,7 @@ tripsRoute.put(
   '/:tripId/destinations/:destId/hotel',
   zValidator('json', UpsertHotelSchema),
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));
@@ -989,11 +909,7 @@ tripsRoute.put(
 tripsRoute.delete(
   '/:tripId/destinations/:destId/hotel',
   async (c) => {
-    if (!c.env.DATABASE_URL) {
-      const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-      return c.json(response, 500);
-    }
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const userId = c.get('dbUserId');
     const tripId = Number(c.req.param('tripId'));
     const destId = Number(c.req.param('destId'));

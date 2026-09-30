@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { Resend } from 'resend';
-import { getDb } from '../db';
 import { authMiddleware } from '../middleware/auth';
+import { dbMiddleware } from '../middleware/db';
 import { ensureUserProvisioned } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { OtpVerifySchema } from '../validation/schemas';
@@ -92,23 +92,18 @@ async function sendOtpEmail(
 
 const authRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
-authRoute.use('*', authMiddleware, ensureUserProvisioned);
+authRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 
 // POST /api/auth/otp-request
 // No request body — email is taken from c.var.user.email
 authRoute.post('/otp-request', async (c) => {
-  if (!c.env.DATABASE_URL) {
-    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-    return c.json(response, 500);
-  }
-
   const email = c.get('user').email;
   if (!email) {
     const response: ApiResponse<never> = { success: false, error: 'no_email' };
     return c.json(response, 422);
   }
 
-  const db = getDb(c.env.DATABASE_URL);
+  const db = c.get('db');
   const userId = c.get('dbUserId');
 
   try {
@@ -155,12 +150,7 @@ authRoute.post('/otp-request', async (c) => {
 // POST /api/auth/otp-verify
 // Body: { code: string } — validated by OtpVerifySchema
 authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => {
-  if (!c.env.DATABASE_URL) {
-    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
-    return c.json(response, 500);
-  }
-
-  const db = getDb(c.env.DATABASE_URL);
+  const db = c.get('db');
   const userId = c.get('dbUserId');
   const { code } = c.req.valid('json');
 

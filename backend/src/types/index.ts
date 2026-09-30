@@ -1,5 +1,6 @@
 import type { users, trips, destinations, hotels, days, activities } from '../db/schema';
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
+import type { Db } from '../db';
 
 // ---------------------------------------------------------------------------
 // Inferred row types from Drizzle schema
@@ -62,6 +63,8 @@ export interface ContextVariables {
   user: KeycloakJwtPayload;
   /** DB primary key for the authenticated user — set by ensureUserProvisioned */
   dbUserId: number;
+  /** Typed database handle — set by dbMiddleware (M-01) */
+  db: Db;
 }
 
 // ---------------------------------------------------------------------------

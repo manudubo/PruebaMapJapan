@@ -5,14 +5,18 @@ import {
   updateUser,
   upsertUser,
   getTripsByUser,
-  getDb,
 } from '../db';
 import { authMiddleware } from '../middleware/auth';
+import { dbMiddleware } from '../middleware/db';
 import { userClaimsFromJwt } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { UpdateUserSchema } from '../validation/schemas';
 
 const usersRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
+
+// Every /users route is authenticated and DB-backed (M-01: GET /me used to
+// call getDb(undefined) with no configuration guard).
+usersRoute.use('*', authMiddleware, dbMiddleware);
 
 // ===========================================================================
 // ROUTES
@@ -24,8 +28,8 @@ const usersRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
  * If the user does not exist in the DB yet (first login) it is auto-created;
  * otherwise email/name are refreshed from the token when they changed.
  */
-usersRoute.get('/me', authMiddleware, async (c) => {
-  const db = getDb(c.env.DATABASE_URL);
+usersRoute.get('/me', async (c) => {
+  const db = c.get('db');
   // Race-safe auto-provision + Keycloak email/name refresh (BUG-03/BUG-08).
   const { user, created } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
 
@@ -40,10 +44,9 @@ usersRoute.get('/me', authMiddleware, async (c) => {
  */
 usersRoute.patch(
   '/me',
-  authMiddleware,
   zValidator('json', UpdateUserSchema),
   async (c) => {
-    const db = getDb(c.env.DATABASE_URL);
+    const db = c.get('db');
     const jwtUser = c.get('user');
     const body = c.req.valid('json');
 
@@ -64,8 +67,8 @@ usersRoute.patch(
  * GET /api/users/me/trips
  * Shortcut — returns the same trip list as GET /api/trips.
  */
-usersRoute.get('/me/trips', authMiddleware, async (c) => {
-  const db = getDb(c.env.DATABASE_URL);
+usersRoute.get('/me/trips', async (c) => {
+  const db = c.get('db');
   // Auto-provision if needed (idempotent, race-safe on every call).
   const { user } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
 
