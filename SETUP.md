@@ -42,8 +42,14 @@ VALID_AUDIENCES=japan-trip-frontend
 KC_ADMIN_CLIENT_ID=japan-trip-worker
 KC_ADMIN_CLIENT_SECRET=<get from terraform output or KC admin console after step 5>
 OTP_SECRET=<any secure random string, e.g. openssl rand -hex 32>
-RESEND_API_KEY=<optional — only needed for email sending>
+RESEND_API_KEY=<optional locally — required when ENVIRONMENT is not development>
+ENVIRONMENT=development
 ```
+
+`ENVIRONMENT=development` enables the localhost CORS origins and the Mailpit
+email fallback. Any other value (including unset under `wrangler`) is treated as
+production: only `https://manud.github.io` is allowed by CORS and OTP requests
+fail loudly if `RESEND_API_KEY` is missing.
 
 ## Step 4 — Start Keycloak
 

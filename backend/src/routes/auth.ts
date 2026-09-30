@@ -1,19 +1,20 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { Resend } from 'resend';
 import { getDb } from '../db';
 import { authMiddleware } from '../middleware/auth';
 import { ensureUserProvisioned } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { OtpVerifySchema } from '../validation/schemas';
+import { otpEmailTransport, sendOtpEmail } from '../auth/otp-email';
 import {
   getLatestUnexpiredOtp,
   getOtpCreatedAtsSince,
   otpHourlyCapRetryAfter,
   OTP_CAP_WINDOW_MS,
   insertOtp,
-  incrementOtpAttempts,
+  consumeOtpAttempt,
   markOtpUsed,
+  markOtpUsedIfUnused,
 } from '../db/queries/otp';
 
 // ---------------------------------------------------------------------------
@@ -52,41 +53,6 @@ async function timingSafeCompare(
 }
 
 // ---------------------------------------------------------------------------
-// Email delivery
-// ---------------------------------------------------------------------------
-
-async function sendOtpEmail(
-  env: Env,
-  toEmail: string,
-  code: string,
-): Promise<void> {
-  const subject = 'Your TravelMap verification code';
-  const text = `Your verification code is: ${code}\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
-
-  if (env.RESEND_API_KEY) {
-    const resend = new Resend(env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: 'TravelMap <noreply@travelmap.app>',
-      to: [toEmail],
-      subject,
-      text,
-    });
-  } else {
-    // Local dev — Mailpit HTTP API (Workers cannot do raw SMTP)
-    await fetch('http://localhost:8025/api/v1/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        From: { Name: 'TravelMap', Email: 'noreply@example.com' },
-        To: [{ Name: '', Email: toEmail }],
-        Subject: subject,
-        Text: text,
-      }),
-    });
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Route
 // ---------------------------------------------------------------------------
 
@@ -112,6 +78,9 @@ authRoute.post('/otp-request', async (c) => {
   const userId = c.get('dbUserId');
 
   try {
+    // SEC-08: fail loudly (before issuing a code) if email cannot be sent.
+    otpEmailTransport(c.env);
+
     const existing = await getLatestUnexpiredOtp(db, userId);
     if (existing) {
       const retryAfter = Math.ceil(
@@ -141,12 +110,19 @@ authRoute.post('/otp-request', async (c) => {
     const codeHash = await hashOtp(code, c.env.OTP_SECRET);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await insertOtp(db, userId, codeHash, expiresAt);
-    await sendOtpEmail(c.env, email, code);
+    const otp = await insertOtp(db, userId, codeHash, expiresAt);
+    try {
+      await sendOtpEmail(c.env, email, code);
+    } catch (err) {
+      // Undelivered code must not block a retry as otp_pending for 10 min.
+      await markOtpUsed(db, otp.id).catch(() => {});
+      throw err;
+    }
 
     const response: ApiResponse<never> = { success: true };
     return c.json(response, 201);
-  } catch {
+  } catch (err) {
+    console.error('[otp-request] failed:', err);
     const response: ApiResponse<never> = { success: false, error: 'Failed to send OTP' };
     return c.json(response, 500);
   }
@@ -171,7 +147,9 @@ authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => 
       return c.json(response, 400);
     }
 
-    if (otp.attempts >= 5) {
+    // SEC-07: reserve the attempt atomically *before* comparing, so
+    // concurrent requests can never evaluate more than OTP_MAX_ATTEMPTS guesses.
+    if ((await consumeOtpAttempt(db, otp.id)) === null) {
       await markOtpUsed(db, otp.id);
       const response: ApiResponse<never> = { success: false, error: 'max_attempts' };
       return c.json(response, 429);
@@ -182,12 +160,15 @@ authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => 
     const match = await timingSafeCompare(code, otp.code_hash, c.env.OTP_SECRET);
 
     if (!match) {
-      await incrementOtpAttempts(db, otp.id);
       const response: ApiResponse<never> = { success: false, error: 'invalid_code' };
       return c.json(response, 400);
     }
 
-    await markOtpUsed(db, otp.id);
+    // Single use: a concurrent request with the same code may have won.
+    if (!(await markOtpUsedIfUnused(db, otp.id))) {
+      const response: ApiResponse<never> = { success: false, error: 'otp_not_found' };
+      return c.json(response, 400);
+    }
     const response: ApiResponse<never> = { success: true };
     return c.json(response, 200);
   } catch {

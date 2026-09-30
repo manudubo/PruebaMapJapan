@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { corsMiddleware } from './middleware/cors';
 import { securityMiddleware } from './middleware/security';
 import routes from './routes';
+import { healthResponse } from './routes/health';
 import type { Env } from './types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -9,20 +10,14 @@ const app = new Hono<{ Bindings: Env }>();
 // ---------------------------------------------------------------------------
 // Global middleware
 // ---------------------------------------------------------------------------
-app.use('*', corsMiddleware);
+// Security headers first so they also wrap CORS preflight responses.
 app.use('*', securityMiddleware);
+app.use('*', corsMiddleware);
 
 // ---------------------------------------------------------------------------
 // Root health check (unauthenticated)
 // ---------------------------------------------------------------------------
-app.get('/', (c) => {
-  return c.json({
-    success: true,
-    message: 'PruebaMapJapan API is running',
-    version: '0.1.0',
-    timestamp: new Date().toISOString(),
-  });
-});
+app.get('/', healthResponse);
 
 // ---------------------------------------------------------------------------
 // API routes — all business logic lives under /api

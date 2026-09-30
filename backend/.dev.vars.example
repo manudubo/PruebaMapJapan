@@ -7,3 +7,7 @@ KC_ADMIN_CLIENT_SECRET=replace-with-local-uuid
 # Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 # For prod: wrangler secret put OTP_SECRET
 OTP_SECRET=replace-with-64-char-hex
+# ENVIRONMENT=development allows localhost CORS origins and the Mailpit OTP
+# email fallback. Any other value (or unset under wrangler) is treated as
+# production, where a missing RESEND_API_KEY makes otp-request fail loudly.
+ENVIRONMENT=development
