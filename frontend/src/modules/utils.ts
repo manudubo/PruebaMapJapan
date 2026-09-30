@@ -58,6 +58,16 @@ export function createElement<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
+/** Escape text for interpolation into an HTML string (element content and quoted attributes). */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function cleanTitle(title: string): string {
   return title.split(' - ')[0].split(' | ')[0].trim();
 }
