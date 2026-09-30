@@ -143,6 +143,20 @@ describeDb('concurrency', () => {
     expect(rows).toHaveLength(1);
   });
 
+  // Local driver (src/db/index.ts): every getDb() call builds a new pg.Pool
+  // that is never ended — two per authenticated request — each keeping an
+  // idle connection for ~10 s and having no 'error' listener. Under load the
+  // dev server exhausts max_connections (default 100); a DB restart crashes
+  // it. Owner: Phase 24 getDb/dbMiddleware (M-01/ARCH-01).
+  it.fails('M-01: 40 sequential requests do not leave 40+ idle connections behind', async () => {
+    const db = new URL(dbUrl).pathname.slice(1);
+    const conns = async () =>
+      (await sql<{ n: number }>(dbUrl, 'select count(*)::int as n from pg_stat_activity where datname=$1', [db]))[0]!.n;
+    const before = await conns();
+    for (let i = 0; i < 40; i++) await req('GET', '/api/trips', { token: user.token });
+    expect((await conns()) - before).toBeLessThan(10);
+  });
+
   it('concurrent PATCHes of the same trip: last-writer-wins, row stays valid', async () => {
     const t = await buildTree(req, user.token, 0);
     const names = Array.from({ length: 15 }, (_, i) => `n${i}`);
