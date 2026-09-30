@@ -67,7 +67,7 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 - [ ] **ARCH-03**: `trips.ts` authorization cascade has unit test coverage (unblocked by ARCH-06)
 - [ ] **ARCH-05**: Zod schemas include null-safe `.refine()` guards for `start_date ≤ end_date` (trip/destination/hotel) and lat/lng numeric range; `.partial()` PATCH schemas require at least one field
 - [ ] **ARCH-06**: Backend unit tests point `DATABASE_URL` at a real ephemeral Postgres DB (migrations + minimal seed); vacuous `toContain([200, 500])` assertions replaced with real assertions
-- [ ] **ARCH-07**: E2E suite `waitForTimeout` hard sleeps replaced with web-first `expect(locator)` assertions (31 instances); conditional `test.skip()` calls converted to documented `test.fixme(condition, reason)` or removed (35 instances)
+- [x] **ARCH-07**: E2E suite `waitForTimeout` hard sleeps replaced with web-first `expect(locator)` assertions (31 instances); conditional `test.skip()` calls converted to documented `test.fixme(condition, reason)` or removed (35 instances)
 - [ ] **ARCH-08**: Terraform documented as sole source of truth for KC realm config; `apply-local-settings.sh` browserFlow override documented or removed; vestigial `realm-export.json` deleted or regenerated (tracked as SEC-13)
 - [ ] **ARCH-09**: CI `e2e` job is green (100% historical failure rate since April 2026 — `#trips-grid`/`#dashboard-login-prompt` timing assertions fixed for preview-build context)
 - [ ] **M-01**: `DATABASE_URL`/`getDb` middleware extracted to a shared helper, eliminating ~20 duplicated guard blocks across `trips.ts`/`auth.ts`/`users.ts`/`public.ts`
@@ -197,7 +197,7 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | ARCH-03 | Phase 24 | Pending |
 | ARCH-05 | Phase 24 | Pending |
 | ARCH-06 | Phase 24 | Pending |
-| ARCH-07 | Phase 24 | Pending |
+| ARCH-07 | Phase 24 | Complete |
 | ARCH-08 | Phase 24 | Pending |
 | ARCH-09 | Phase 24 | Pending |
 | M-01 | Phase 24 | Pending |
