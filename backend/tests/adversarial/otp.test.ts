@@ -1,0 +1,248 @@
+/**
+ * Adversarial: email OTP (POST /api/auth/otp-request, /api/auth/otp-verify)
+ * against a real DB. The Mailpit call is captured so tests can read the
+ * issued code, which lets us exercise the success path too.
+ */
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  client,
+  createSigner,
+  createTestDatabase,
+  describeDb,
+  dropTestDatabase,
+  installFakeNetwork,
+  makeEnv,
+  makeUser,
+  sql,
+  type FakeNetwork,
+  type Req,
+  type Signer,
+  type TestUser,
+} from './harness';
+
+let dbUrl: string;
+let req: Req;
+let signer: Signer;
+let net: FakeNetwork;
+let user: TestUser;
+
+const request = (u: TestUser = user) => req('POST', '/api/auth/otp-request', { token: u.token });
+const verify = (code: unknown, u: TestUser = user) =>
+  req('POST', '/api/auth/otp-verify', { token: u.token, body: { code } });
+
+async function otpRows(u: TestUser) {
+  return sql<{ id: number; attempts: number; used_at: Date | null; expires_at: Date }>(
+    dbUrl,
+    `select o.id, o.attempts, o.used_at, o.expires_at from email_otp_codes o
+       join users u on u.id = o.user_id where u.keycloak_id = $1 order by o.id`,
+    [u.sub],
+  );
+}
+
+function wrong(code: string): string {
+  return String((Number(code) + 1) % 1_000_000).padStart(6, '0');
+}
+
+describeDb('OTP', () => {
+  beforeAll(async () => {
+    signer = await createSigner();
+    net = installFakeNetwork([signer]);
+    dbUrl = await createTestDatabase('otp');
+    req = client(makeEnv(dbUrl));
+  }, 60_000);
+
+  afterAll(async () => {
+    await dropTestDatabase(dbUrl);
+  });
+
+  beforeEach(async () => {
+    user = await makeUser(signer); // fresh user per test: no shared OTP state
+    net.failMail = false;
+  });
+
+  describe('happy path and replay', () => {
+    it('request → email carries a 6-digit code → verify 200 → replay rejected', async () => {
+      expect((await request()).status).toBe(201);
+      const code = net.lastCodeFor(user.email)!;
+      expect(code).toMatch(/^\d{6}$/);
+      expect((await verify(code)).status).toBe(200);
+      const replay = await verify(code);
+      expect(replay.status).toBe(400);
+      expect(replay.body.error).toBe('otp_not_found');
+    });
+
+    it('the code is stored hashed, never in clear', async () => {
+      await request();
+      const code = net.lastCodeFor(user.email)!;
+      const rows = await sql<{ code_hash: string }>(
+        dbUrl,
+        'select code_hash from email_otp_codes o join users u on u.id=o.user_id where u.keycloak_id=$1',
+        [user.sub],
+      );
+      expect(rows[0]!.code_hash).not.toContain(code);
+    });
+
+    it('a code issued to user A cannot be redeemed by user B', async () => {
+      const b = await makeUser(signer);
+      await request(user);
+      await request(b);
+      const aCode = net.lastCodeFor(user.email)!;
+      const bCode = net.lastCodeFor(b.email)!;
+      if (aCode !== bCode) expect((await verify(aCode, b)).status).toBe(400);
+      expect((await verify(bCode, b)).status).toBe(200);
+    });
+  });
+
+  describe('attempt exhaustion', () => {
+    it('5 wrong guesses → 6th request is max_attempts (429) and even the right code is dead', async () => {
+      await request();
+      const code = net.lastCodeFor(user.email)!;
+      for (let i = 0; i < 5; i++) {
+        const r = await verify(wrong(code));
+        expect(r.status).toBe(400);
+        expect(r.body.error).toBe('invalid_code');
+      }
+      const sixth = await verify(code);
+      expect(sixth.status).toBe(429);
+      expect(sixth.body.error).toBe('max_attempts');
+      expect((await verify(code)).status).toBe(400); // burned → otp_not_found
+    });
+
+    // SEC-07 (Phase 26): attempts check + increment is read-then-write, so
+    // parallel guesses all see attempts < 5 and all get evaluated.
+    it.fails('SEC-07: 30 parallel wrong guesses are capped at 5 evaluated attempts', async () => {
+      await request();
+      const code = net.lastCodeFor(user.email)!;
+      const results = await Promise.all(Array.from({ length: 30 }, () => verify(wrong(code))));
+      const evaluated = results.filter((r) => r.body.error === 'invalid_code').length;
+      expect(evaluated).toBeLessThanOrEqual(5);
+    });
+
+    it.fails('SEC-07: two parallel verifies of the correct code succeed at most once', async () => {
+      await request();
+      const code = net.lastCodeFor(user.email)!;
+      const results = await Promise.all(Array.from({ length: 5 }, () => verify(code)));
+      expect(results.filter((r) => r.status === 200)).toHaveLength(1);
+    });
+  });
+
+  describe('expiry, pending and hourly cap (BUG-16)', () => {
+    it('expired code → otp_not_found, and a new code can be requested', async () => {
+      await request();
+      const code = net.lastCodeFor(user.email)!;
+      await sql(
+        dbUrl,
+        `update email_otp_codes set expires_at = now() - interval '1 second'
+           where user_id = (select id from users where keycloak_id=$1)`,
+        [user.sub],
+      );
+      expect((await verify(code)).body.error).toBe('otp_not_found');
+      expect((await request()).status).toBe(201);
+    });
+
+    it('second request while a code is pending → 429 otp_pending with retryAfter ≤ 600', async () => {
+      await request();
+      const res = await request();
+      expect(res.status).toBe(429);
+      expect(res.body.error).toBe('otp_pending');
+      expect(res.body.retryAfter).toBeGreaterThan(0);
+      expect(res.body.retryAfter).toBeLessThanOrEqual(600);
+    });
+
+    it('request/burn cycle is capped at 5 codes per hour, then 429 otp_rate_limited', async () => {
+      for (let i = 0; i < 5; i++) {
+        expect((await request()).status).toBe(201);
+        const code = net.lastCodeFor(user.email)!;
+        expect((await verify(code)).status).toBe(200); // use it so it is no longer pending
+      }
+      const capped = await request();
+      expect(capped.status).toBe(429);
+      expect(capped.body.error).toBe('otp_rate_limited');
+      expect(capped.body.retryAfter).toBeGreaterThan(3000);
+      expect(net.mails.filter((m) => m.to === user.email)).toHaveLength(5);
+    });
+
+    it('cap resets once the oldest code is older than one hour', async () => {
+      for (let i = 0; i < 5; i++) {
+        await request();
+        await verify(net.lastCodeFor(user.email)!);
+      }
+      expect((await request()).status).toBe(429);
+      await sql(
+        dbUrl,
+        `update email_otp_codes set created_at = created_at - interval '61 minutes'
+           where id = (select min(o.id) from email_otp_codes o join users u on u.id=o.user_id where u.keycloak_id=$1)`,
+        [user.sub],
+      );
+      expect((await request()).status).toBe(201);
+      expect((await request()).status).toBe(429);
+    });
+
+    it('the cap is per user: another user is unaffected', async () => {
+      for (let i = 0; i < 5; i++) {
+        await request();
+        await verify(net.lastCodeFor(user.email)!);
+      }
+      expect((await request()).status).toBe(429);
+      const other = await makeUser(signer);
+      expect((await request(other)).status).toBe(201);
+    });
+
+    // SEC-07 (Phase 26, OTP atomicity): the pending check, the hourly cap and
+    // the insert are separate statements, so a burst of parallel requests
+    // passes every check and issues (and emails) many codes at once.
+    it.fails('SEC-07: 20 parallel otp-requests issue at most one code', async () => {
+      const results = await Promise.all(Array.from({ length: 20 }, () => request()));
+      expect(results.filter((r) => r.status === 201)).toHaveLength(1);
+      expect(await otpRows(user)).toHaveLength(1);
+    });
+  });
+
+  describe('input and account edge cases', () => {
+    it.each([
+      ['5 digits', '12345'],
+      ['7 digits', '1234567'],
+      ['letters', 'abcdef'],
+      ['spaces', ' 12345'],
+      ['arabic-indic digits', '١٢٣٤٥٦'],
+      ['number instead of string', 123456],
+      ['null', null],
+      ['SQL-ish', "1' OR 1"],
+    ])('code = %s → 400 validation error, attempts not consumed', async (_l, code) => {
+      await request();
+      const res = await verify(code);
+      expect(res.status).toBe(400);
+      expect((await otpRows(user))[0]!.attempts).toBe(0);
+    });
+
+    it('verify without any issued code → 400 otp_not_found', async () => {
+      const res = await verify('123456');
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('otp_not_found');
+    });
+
+    it('user whose token has no email → 422 no_email, nothing stored', async () => {
+      const noMail = await makeUser(signer, { email: undefined });
+      const res = await request(noMail);
+      expect(res.status).toBe(422);
+      expect(await otpRows(noMail)).toHaveLength(0);
+    });
+
+    it('otp routes require auth', async () => {
+      expect((await req('POST', '/api/auth/otp-request')).status).toBe(401);
+      expect((await req('POST', '/api/auth/otp-verify', { body: { code: '123456' } })).status).toBe(401);
+    });
+
+    // SEC-08 (Phase 26, email delivery): the code row is inserted before the
+    // email is sent; if delivery fails the user gets 500 and is then locked
+    // out by otp_pending for 10 minutes with a code they never received.
+    it.fails('SEC-08: a failed email send does not leave the user locked out by otp_pending', async () => {
+      net.failMail = true;
+      const first = await request();
+      expect(first.status).toBe(500);
+      net.failMail = false;
+      const retry = await request();
+      expect(retry.status).toBe(201);
+    });
+  });
+});

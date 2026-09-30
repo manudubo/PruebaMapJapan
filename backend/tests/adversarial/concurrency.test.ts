@@ -1,0 +1,156 @@
+/**
+ * Adversarial: concurrent requests against a real multi-connection Postgres
+ * (every app request opens its own pg.Pool in local mode, so these really
+ * interleave on separate connections).
+ */
+import pg from 'pg';
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import {
+  buildTree,
+  client,
+  createSigner,
+  createTestDatabase,
+  describeDb,
+  dropTestDatabase,
+  installFakeNetwork,
+  makeEnv,
+  makeUser,
+  sql,
+  waitForLockWaiters,
+  type Req,
+  type Signer,
+  type TestUser,
+} from './harness';
+
+let dbUrl: string;
+let req: Req;
+let signer: Signer;
+let user: TestUser;
+
+describeDb('concurrency', () => {
+  beforeAll(async () => {
+    signer = await createSigner();
+    installFakeNetwork([signer]);
+    dbUrl = await createTestDatabase('concurrency');
+    req = client(makeEnv(dbUrl));
+    user = await makeUser(signer);
+  }, 60_000);
+
+  afterAll(async () => {
+    await dropTestDatabase(dbUrl);
+  });
+
+  it('BUG-03 regression: 25 simultaneous first requests from a brand-new user → all 2xx, exactly one user row', async () => {
+    const fresh = await makeUser(signer);
+    const paths = ['/api/trips', '/api/users/me', '/api/users/me/trips'];
+    const results = await Promise.all(
+      Array.from({ length: 25 }, (_, i) => req('GET', paths[i % 3]!, { token: fresh.token })),
+    );
+    for (const r of results) expect(r.status, r.text).toBeLessThan(300);
+    const rows = await sql(dbUrl, 'select id from users where keycloak_id=$1', [fresh.sub]);
+    expect(rows).toHaveLength(1);
+    const meCreated = results.filter((r, i) => i % 3 === 1 && r.status === 201);
+    expect(meCreated.length).toBeLessThanOrEqual(1);
+  });
+
+  it('30 concurrent trip creates → 30 distinct trips, 30 distinct slugs', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 30 }, (_, i) => req('POST', '/api/trips', { token: user.token, body: { name: `c${i}` } })),
+    );
+    for (const r of results) expect(r.status).toBe(201);
+    expect(new Set(results.map((r) => r.body.data.id)).size).toBe(30);
+    expect(new Set(results.map((r) => r.body.data.public_slug)).size).toBe(30);
+  });
+
+  it('concurrent activity creates in one day all land in that day', async () => {
+    const t = await buildTree(req, user.token, 0);
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        req('POST', `${t.base}/activities`, { token: user.token, body: { name: `p${i}`, order_index: i } }),
+      ),
+    );
+    for (const r of results) expect(r.status).toBe(201);
+    const rows = await sql(dbUrl, 'select count(*)::int as n from activities where day_id=$1', [t.dayId]);
+    expect(rows[0]!.n).toBe(20);
+  });
+
+  // Deterministic TOCTOU: the ownership check reads the trip, then the parent
+  // is deleted before the INSERT; the FK violation (23503) reaches the
+  // route's catch-all and becomes a 500. Owner: M-09 (Phase 24, per-route
+  // catch blocks → propagate / map DB errors).
+  it.fails('M-09: create under a trip deleted mid-request → 404, not 500', async () => {
+    const t = await buildTree(req, user.token, 0);
+    const locker = new pg.Client({ connectionString: dbUrl });
+    await locker.connect();
+    try {
+      await locker.query('BEGIN');
+      await locker.query('DELETE FROM trips WHERE id = $1', [t.tripId]); // uncommitted: row still visible
+      const pending = req('POST', `/api/trips/${t.tripId}/destinations`, {
+        token: user.token,
+        body: { city_name: 'race', country: 'JP' },
+      });
+      await waitForLockWaiters(dbUrl, 1); // request passed the ownership check, now blocked on the FK lock
+      await locker.query('COMMIT');
+      const res = await pending;
+      expect(res.status).toBe(404);
+    } finally {
+      await locker.end();
+    }
+  });
+
+  it('creating children while the parent trip is being deleted → no orphans, no success after delete', async () => {
+    const t = await buildTree(req, user.token, 0);
+    const ops = [
+      req('DELETE', `/api/trips/${t.tripId}`, { token: user.token }),
+      ...Array.from({ length: 10 }, (_, i) =>
+        req('POST', `${t.base}/activities`, { token: user.token, body: { name: `race${i}` } }),
+      ),
+      ...Array.from({ length: 5 }, () =>
+        req('POST', `/api/trips/${t.tripId}/destinations`, { token: user.token, body: { city_name: 'r', country: 'r' } }),
+      ),
+    ];
+    const results = await Promise.all(ops);
+    // 500s here are the M-09 race above; this test only guards data integrity.
+    for (const r of results) expect([200, 201, 404, 500], r.text).toContain(r.status);
+    const orphans = await sql(dbUrl, 'select 1 from destinations where trip_id=$1', [t.tripId]);
+    expect(orphans).toHaveLength(0);
+  });
+
+  // No unique constraint on hotels.destination_id and upsertHotel is
+  // DELETE-then-INSERT without a transaction, so two PUTs whose DELETEs both
+  // run before either INSERT each insert a row. Forced deterministically:
+  // a side transaction holds the existing hotel row, both PUTs queue behind
+  // it, then it deletes the row itself — both DELETEs find nothing and both
+  // INSERTs succeed. Fix needs a DB constraint (Phase 24, DB constraints).
+  it.fails('PHASE-24 (hotel uniqueness): concurrent PUT hotel leaves exactly one hotel row', async () => {
+    const t = await buildTree(req, user.token, 0);
+    const p = `/api/trips/${t.tripId}/destinations/${t.destId}/hotel`;
+    expect((await req('PUT', p, { token: user.token, body: { name: 'H0' } })).status).toBe(200);
+    const locker = new pg.Client({ connectionString: dbUrl });
+    await locker.connect();
+    try {
+      await locker.query('BEGIN');
+      await locker.query('SELECT id FROM hotels WHERE destination_id = $1 FOR UPDATE', [t.destId]);
+      const puts = [1, 2].map((i) => req('PUT', p, { token: user.token, body: { name: `H${i}` } }));
+      await waitForLockWaiters(dbUrl, 2);
+      await locker.query('DELETE FROM hotels WHERE destination_id = $1', [t.destId]);
+      await locker.query('COMMIT');
+      for (const r of await Promise.all(puts)) expect(r.status).toBe(200);
+    } finally {
+      await locker.end();
+    }
+    const rows = await sql(dbUrl, 'select id from hotels where destination_id=$1', [t.destId]);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('concurrent PATCHes of the same trip: last-writer-wins, row stays valid', async () => {
+    const t = await buildTree(req, user.token, 0);
+    const names = Array.from({ length: 15 }, (_, i) => `n${i}`);
+    const results = await Promise.all(
+      names.map((name) => req('PATCH', `/api/trips/${t.tripId}`, { token: user.token, body: { name } })),
+    );
+    for (const r of results) expect(r.status).toBe(200);
+    const final = await sql<{ name: string }>(dbUrl, 'select name from trips where id=$1', [t.tripId]);
+    expect(names).toContain(final[0]!.name);
+  });
+});
