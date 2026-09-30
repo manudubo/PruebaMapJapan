@@ -365,18 +365,33 @@ it.each([
       expect(res.body.data.start_date).toBe('2028-02-29');
     });
 
+    it('accepts the earliest storable year 0001', async () => {
+      expect((await tripWith('0001-01-01')).status).toBe(201);
+    });
+
+    it('hotel/destination dates with year 0000 → 400, never 500', async () => {
+      const hotel = await req('PUT', `/api/trips/${tree.tripId}/destinations/${tree.destId}/hotel`, {
+        token: user.token,
+        body: { name: 'h', check_in_date: '0000-01-01' },
+      });
+      expect(hotel.status).toBe(400);
+      const dest = await req('PATCH', `/api/trips/${tree.tripId}/destinations/${tree.destId}`, {
+        token: user.token,
+        body: { end_date: '0000-12-31' },
+      });
+      expect(dest.status).toBe(400);
+    });
+
     it('accepts far-future 9999-12-31', async () => {
       expect((await tripWith('9999-12-31')).status).toBe(201);
     });
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('year 0000 (valid leap-day shape, invalid in Postgres) → 400, never 500', async () => {
+it('year 0000 (valid leap-day shape, invalid in Postgres) → 400, never 500', async () => {
       expect((await tripWith('0000-02-29')).status).toBe(400);
       expect((await tripWith('0000-01-01')).status).toBe(400);
     });
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('day date 0000-01-01 → 400, never 500', async () => {
+it('day date 0000-01-01 → 400, never 500', async () => {
       const res = await req('POST', `/api/trips/${tree.tripId}/destinations/${tree.destId}/days`, {
         token: user.token,
         body: { date: '0000-01-01' },

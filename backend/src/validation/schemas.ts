@@ -28,6 +28,16 @@ function containsNul(value: unknown): boolean {
 }
 
 /**
+ * ISO calendar date (YYYY-MM-DD) that Postgres can store. zod's .date()
+ * accepts year 0000 (e.g. "0000-02-29"), which Postgres rejects with a 500.
+ */
+const isoDate = () =>
+  z
+    .string()
+    .date()
+    .refine((d) => !d.startsWith('0000-'), 'year must be 0001 or later');
+
+/**
  * Absolute http(s) URL. z.string().url() alone also accepts javascript:,
  * data:, vbscript: and file: URLs, which become stored XSS once a view
  * renders the value as a link or image (public trips are shared).
@@ -44,8 +54,8 @@ const httpUrl = () =>
 export const CreateTripSchema = z.object({
   name: text().min(1).max(255),
   description: text().nullable().optional(),
-  start_date: z.string().date().nullable().optional(),
-  end_date: z.string().date().nullable().optional(),
+  start_date: isoDate().nullable().optional(),
+  end_date: isoDate().nullable().optional(),
   cover_image_url: httpUrl().nullable().optional(),
   is_public: z.boolean().optional().default(false),
 });
@@ -59,8 +69,8 @@ export const UpdateTripSchema = CreateTripSchema.partial();
 export const CreateDestinationSchema = z.object({
   city_name: text().min(1).max(255),
   country: text().min(1).max(100),
-  start_date: z.string().date().nullable().optional(),
-  end_date: z.string().date().nullable().optional(),
+  start_date: isoDate().nullable().optional(),
+  end_date: isoDate().nullable().optional(),
   lat: z.coerce.string().nullable().optional(),
   lng: z.coerce.string().nullable().optional(),
   zoom_level: z.number().int().min(1).max(20).nullable().optional(),
@@ -74,7 +84,7 @@ export const UpdateDestinationSchema = CreateDestinationSchema.partial();
 // ---------------------------------------------------------------------------
 
 export const CreateDaySchema = z.object({
-  date: z.string().date(),
+  date: isoDate(),
   label: text().max(255).nullable().optional(),
   color_hex: z
     .string()
@@ -115,8 +125,8 @@ export const UpsertHotelSchema = z.object({
   name: text().min(1).max(255),
   lat: z.coerce.string().nullable().optional(),
   lng: z.coerce.string().nullable().optional(),
-  check_in_date: z.string().date().nullable().optional(),
-  check_out_date: z.string().date().nullable().optional(),
+  check_in_date: isoDate().nullable().optional(),
+  check_out_date: isoDate().nullable().optional(),
   url: httpUrl().nullable().optional(),
 });
 
