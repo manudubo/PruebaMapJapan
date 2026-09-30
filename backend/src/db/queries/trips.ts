@@ -131,9 +131,20 @@ export async function deleteTrip(
 /**
  * Return a public trip by its UUID slug.
  * Only returns trips with is_public = true.
+ *
+ * Field exposure (SEC-21):
+ *  - `user_id` is projected out: it identifies the owner's internal account
+ *    and nothing in the public view uses it.
+ *  - Hotel name/coordinates/check-in/out dates and day dates ARE returned on
+ *    purpose: sharing the full itinerary is the feature (the owner opts in
+ *    per trip via is_public, and the slug is an unguessable UUID).
+ *  - Numeric row ids (trip/destination/day/activity/hotel and their FKs) are
+ *    kept: the frontend adapter keys days by id when a date is missing, and
+ *    ids grant nothing — every authenticated route re-checks ownership.
  */
 export async function getTripBySlug(db: Db, slug: string) {
   return db.query.trips.findFirst({
+    columns: { user_id: false },
     where: and(eq(trips.public_slug, slug), eq(trips.is_public, true)),
     with: {
       destinations: {
