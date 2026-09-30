@@ -120,6 +120,17 @@ describe('PATCH with no fields → 422 (BIZ-09)', () => {
     expect(db.updateTrip).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['truncated object', '{not json'],
+    ['bare string', 'hello'],
+  ])('malformed JSON (%s) → 400, not 500 and not 422', async (_label, raw) => {
+    const res = await send('PATCH', TRIP, raw);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { success: boolean; error: string };
+    expect(body).toEqual({ success: false, error: 'Malformed JSON in request body' });
+    expect(db.updateTrip).not.toHaveBeenCalled();
+  });
+
   it('trip: a single real field is enough → 200', async () => {
     const res = await send('PATCH', TRIP, { is_public: true });
     expect(res.status).toBe(200);
