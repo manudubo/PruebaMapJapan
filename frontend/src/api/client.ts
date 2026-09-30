@@ -332,7 +332,8 @@ export async function deleteActivity(
 }
 
 /**
- * Reorder activities within a day.
+ * Reorder activities within a day. `orderedIds` must list every activity of
+ * the day. Resolves with the updated rows (new order_index) in that order.
  * Uses POST (not PATCH) — backend endpoint is tripsRoute.post('.../reorder').
  */
 export async function reorderActivities(
@@ -340,8 +341,8 @@ export async function reorderActivities(
   destId: string,
   dayId: string,
   orderedIds: number[]
-): Promise<void> {
-  return request<void>(
+): Promise<ApiActivity[]> {
+  return request<ApiActivity[]>(
     `/trips/${tripId}/destinations/${destId}/days/${dayId}/activities/reorder`,
     { method: 'POST', body: { ordered_ids: orderedIds }, auth: true }
   );
