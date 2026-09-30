@@ -499,3 +499,91 @@ describe('destinations / days / activities / hotel CRUD (owner)', () => {
     expect((await call('DELETE', `${D(A as Ids)}/hotel`, { sub: 'owner' })).status).toBe(200);
   });
 });
+
+// ===========================================================================
+// Hostile / unusual input and racing operations
+// ===========================================================================
+
+describe('unusual values and races', () => {
+  it('multi-byte names at the length limit round-trip (Zod counts UTF-16 units, Postgres counts characters)', async () => {
+    await world();
+    const name = '日'.repeat(253) + '🗾'; // .length 255, 254 characters
+    const res = await call('POST', '/api/trips', { sub: 'owner', body: { name } });
+    expect(res.status).toBe(201);
+    expect((res.body['data'] as { name: string }).name).toBe(name);
+  });
+
+  it('a ~200 KB unicode note round-trips exactly', async () => {
+    const { A } = await world();
+    const notes = 'ラーメン🍜 — café\n\t"quotes" \\ backslash '.repeat(5_000);
+    const res = await call('POST', `${Y(A as Ids)}/activities`, { sub: 'owner', body: { name: 'Big', notes } });
+    expect(res.status).toBe(201);
+    const { rows } = await testPool().query('SELECT notes FROM activities WHERE id = $1', [
+      (res.body['data'] as { id: number }).id,
+    ]);
+    expect(rows[0].notes).toBe(notes);
+  });
+
+  it('SQL-looking strings are stored literally, never executed', async () => {
+    const { A } = await world();
+    const name = "'); DROP TABLE trips; --";
+    const res = await call('PATCH', T(A as Ids), { sub: 'owner', body: { name } });
+    expect(res.status).toBe(200);
+    expect(await count('trips')).toBe(3);
+    expect((res.body['data'] as { name: string }).name).toBe(name);
+  });
+
+  it('a NUL byte in a string → 400 (Postgres rejects it), nothing written', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { A } = await world();
+    const before = await snapshotDb();
+    const res = await call('PATCH', T(A as Ids), { sub: 'owner', body: { name: 'bad\u0000name' } });
+    expect(res.status).toBe(400);
+    expect(await snapshotDb()).toBe(before);
+    warn.mockRestore();
+  });
+
+  it('extra fields (trip_id, id) in a body cannot move or renumber a row', async () => {
+    const { A, X } = await world();
+    const res = await call('PATCH', D(A as Ids), {
+      sub: 'owner',
+      body: { city_name: 'Moved?', trip_id: X.trip, id: 424242 },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body['data']).toMatchObject({ id: A.dest, trip_id: A.trip, city_name: 'Moved?' });
+  });
+
+  it('deleting a destination while days are being added to it never 500s and leaves no orphans', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { A } = await world();
+    const creates = (from: number) =>
+      Array.from({ length: 5 }, (_, i) =>
+        call('POST', `${D(A as Ids)}/days`, { sub: 'owner', body: { date: `2026-03-${10 + from + i}` } }),
+      );
+    const results = await Promise.all([...creates(0), call('DELETE', D(A as Ids), { sub: 'owner' }), ...creates(5)]);
+    const del = results.splice(5, 1)[0]!;
+    expect(del.status).toBe(200);
+    // Each create won (201, then cascaded away), lost the ownership check (404)
+    // or hit the FK after the delete committed (409). Genuinely racy, so the
+    // assertion is the invariant, not one interleaving.
+    for (const r of results) expect([201, 404, 409]).toContain(r.status);
+    expect(await count('destinations', 'id = $1', [A.dest])).toBe(0);
+    expect(await count('days', 'destination_id = $1', [A.dest])).toBe(0);
+    warn.mockRestore();
+  });
+
+  it('owner and intruder writing the same activity concurrently: only the owner’s writes land', async () => {
+    const { A } = await world();
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        call('PATCH', A_(A as Ids), {
+          sub: i % 2 ? 'intruder' : 'owner',
+          body: { name: `${i % 2 ? 'evil' : 'good'}-${i}` },
+        }),
+      ),
+    );
+    results.forEach((r, i) => expect(r.status).toBe(i % 2 ? 403 : 200));
+    const { rows } = await testPool().query('SELECT name FROM activities WHERE id = $1', [A.act]);
+    expect(rows[0].name).toMatch(/^good-\d$/);
+  });
+});

@@ -130,6 +130,25 @@ describe('PATCH /api/users/me', () => {
     expect(await userRow('kc-ghost')).toHaveLength(0);
   });
 
+  it('a \\u0000 inside preferences (rejected by jsonb) → 400, nothing written', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await call('GET', '/api/users/me', { sub: 'kc-a' });
+    const before = await snapshotDb();
+    const res = await call('PATCH', '/api/users/me', { sub: 'kc-a', body: { preferences: { note: 'a\u0000b' } } });
+    expect(res.status).toBe(400);
+    expect(res.body['code']).toBe('invalid_input');
+    expect(await snapshotDb()).toBe(before);
+  });
+
+  it('deeply nested / large preferences round-trip', async () => {
+    await call('GET', '/api/users/me', { sub: 'kc-a' });
+    let nested: Record<string, unknown> = { leaf: '葉 🍃' };
+    for (let i = 0; i < 50; i++) nested = { [`k${i}`]: nested, list: [i, null, true] };
+    const res = await call('PATCH', '/api/users/me', { sub: 'kc-a', body: { preferences: nested } });
+    expect(res.status).toBe(200);
+    expect((res.body['data'] as { preferences: unknown }).preferences).toEqual(nested);
+  });
+
   it('400 for an invalid body, nothing written', async () => {
     await call('GET', '/api/users/me', { sub: 'kc-a' });
     const before = await snapshotDb();

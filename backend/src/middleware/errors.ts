@@ -14,6 +14,8 @@ const CLIENT_ERRORS: Record<string, Mapped> = {
   '22007': { status: 400, error: 'Invalid input', code: 'invalid_input' }, // invalid_datetime_format
   '22008': { status: 400, error: 'Invalid input', code: 'invalid_input' }, // datetime_field_overflow
   '22001': { status: 400, error: 'Invalid input', code: 'invalid_input' }, // string_data_right_truncation
+  '22021': { status: 400, error: 'Invalid input', code: 'invalid_input' }, // character_not_in_repertoire (NUL in text)
+  '22P05': { status: 400, error: 'Invalid input', code: 'invalid_input' }, // untranslatable_character (\u0000 in jsonb)
   '23514': { status: 400, error: 'Invalid input', code: 'constraint_violation' }, // check_violation
   '23505': { status: 409, error: 'Conflict', code: 'conflict' }, // unique_violation
   '23503': { status: 409, error: 'Conflict', code: 'conflict' }, // foreign_key_violation

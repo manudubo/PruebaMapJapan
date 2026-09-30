@@ -85,6 +85,8 @@ describe('errorHandler (M-09)', () => {
     ['22007', 400, 'invalid_input'],
     ['22008', 400, 'invalid_input'],
     ['22001', 400, 'invalid_input'],
+    ['22021', 400, 'invalid_input'],
+    ['22P05', 400, 'invalid_input'],
     ['23514', 400, 'constraint_violation'],
     ['23505', 409, 'conflict'],
     ['23503', 409, 'conflict'],
