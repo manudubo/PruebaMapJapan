@@ -9,8 +9,9 @@ const app = new Hono<{ Bindings: Env }>();
 // ---------------------------------------------------------------------------
 // Global middleware
 // ---------------------------------------------------------------------------
-app.use('*', corsMiddleware);
+// Security headers first so they also wrap CORS preflight responses.
 app.use('*', securityMiddleware);
+app.use('*', corsMiddleware);
 
 // ---------------------------------------------------------------------------
 // Root health check (unauthenticated)
