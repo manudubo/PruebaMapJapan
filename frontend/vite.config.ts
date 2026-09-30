@@ -9,7 +9,7 @@ function cspPlugin(): Plugin {
     "default-src 'none'",
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org https://cdn-icons-png.flaticon.com",
+    "img-src 'self' data: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org",
     `connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.open-meteo.com https://nominatim.openstreetmap.org https://fonts.googleapis.com ${keycloakUrl}`,
     "font-src 'self' https://fonts.gstatic.com",
     `frame-src 'self' ${keycloakUrl}`,
