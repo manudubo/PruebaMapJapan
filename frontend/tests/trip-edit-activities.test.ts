@@ -49,6 +49,38 @@ async function flush(): Promise<void> {
   await new Promise((r) => setTimeout(r, 0));
 }
 
+describe('trip-edit activity modal coordinates (BUG-11)', () => {
+  function openEditFor(activity: ApiActivity): void {
+    // Don't wipe document.body: the modal is a module-level singleton that is
+    // built once and appended to the body on first open.
+    document.getElementById('acts')?.remove();
+    const container = document.createElement('div');
+    container.id = 'acts';
+    document.body.appendChild(container);
+    const day = makeDay();
+    day.activities = [activity];
+    renderActivitiesSection(container, day, '1', '2');
+    const editBtn = Array.from(container.querySelectorAll('button'))
+      .find((b) => b.textContent === 'Edit')!;
+    editBtn.click();
+  }
+
+  it('leaves hidden lat/lng empty (not "null") for an activity without coordinates', () => {
+    // The API sends null for activities without coordinates even though the
+    // TS type says number.
+    const noCoords = { ...act('5', 'No coords', 0), lat: null, lng: null } as unknown as ApiActivity;
+    openEditFor(noCoords);
+    expect((document.getElementById('act-lat') as HTMLInputElement).value).toBe('');
+    expect((document.getElementById('act-lng') as HTMLInputElement).value).toBe('');
+  });
+
+  it('fills hidden lat/lng for an activity with coordinates', () => {
+    openEditFor(act('6', 'Has coords', 0));
+    expect((document.getElementById('act-lat') as HTMLInputElement).value).toBe('35');
+    expect((document.getElementById('act-lng') as HTMLInputElement).value).toBe('139');
+  });
+});
+
 describe('trip-edit activities reorder (BUG-01)', () => {
   let container: HTMLElement;
   let day: ApiDay;

@@ -199,8 +199,10 @@ function openModal(act: ApiActivity | null): void {
   timeInput.value = act?.time ?? '';
   notesInput.value = act?.notes ?? '';
   geocoderInput.value = '';
-  latInput.value = act ? String(act.lat) : '';
-  lngInput.value = act ? String(act.lng) : '';
+  // lat/lng are null at runtime for activities without coordinates; avoid
+  // String(null) === "null" leaking into the form.
+  latInput.value = String(act?.lat ?? '');
+  lngInput.value = String(act?.lng ?? '');
 
   geocoderResults.setAttribute('hidden', '');
   geocoderResults.replaceChildren();
