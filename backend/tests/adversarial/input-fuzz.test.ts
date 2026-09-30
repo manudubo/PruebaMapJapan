@@ -229,8 +229,7 @@ it('oversized body (2 MB) is rejected with 413 before touching the DB', async ()
       expect(res.status).toBe(400);
     });
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails.each([
+it.each([
       ['trip name', 'POST', () => '/api/trips', (v: string) => ({ name: v })],
       ['trip description', 'POST', () => '/api/trips', (v: string) => ({ name: 'n', description: v })],
       ['destination city', 'POST', () => `/api/trips/${tree.tripId}/destinations`, (v: string) => ({ city_name: v, country: 'JP' })],
@@ -238,6 +237,9 @@ it('oversized body (2 MB) is rejected with 413 before touching the DB', async ()
       ['activity notes', 'POST', () => `${tree.base}/activities`, (v: string) => ({ name: 'n', notes: v })],
       ['activity name (PATCH)', 'PATCH', () => `${tree.base}/activities/${tree.actIds[0]}`, (v: string) => ({ name: v })],
       ['trip name (PATCH)', 'PATCH', () => `/api/trips/${tree.tripId}`, (v: string) => ({ name: v })],
+      ['activity time', 'POST', () => `${tree.base}/activities`, (v: string) => ({ name: 'n', time: v })],
+      ['hotel name', 'PUT', () => `/api/trips/${tree.tripId}/destinations/${tree.destId}/hotel`, (v: string) => ({ name: v })],
+      ['maps_url', 'POST', () => `${tree.base}/activities`, (v: string) => ({ name: 'n', maps_url: `https://x.test/${v}` })],
     ])('NUL byte in %s → 400 (Postgres text cannot store \\u0000)', async (_l, method, path, body) => {
       const res = await req(method, path(), { token: user.token, body: body('bad\u0000value') });
       expect(res.status).toBe(400);

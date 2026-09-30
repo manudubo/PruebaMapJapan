@@ -267,14 +267,21 @@ describeDb('flows', () => {
       }
     });
 
-    // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('users/me with a NUL byte in the PATCHed name or preferences → 400, never 500', async () => {
+    it('users/me with a NUL byte in the PATCHed name or preferences → 400, never 500', async () => {
       const u = await makeUser(signer);
       await req('GET', '/api/users/me', { token: u.token });
       const name = await req('PATCH', '/api/users/me', { token: u.token, body: { name: 'a\u0000b' } });
       expect.soft(name.status).toBe(400);
       const prefs = await req('PATCH', '/api/users/me', { token: u.token, body: { preferences: { k: 'a\u0000b' } } });
       expect.soft(prefs.status).toBe(400);
+      const nestedKey = await req('PATCH', '/api/users/me', {
+        token: u.token,
+        body: { preferences: { deep: [{ ['k\u0000']: 1 }] } },
+      });
+      expect.soft(nestedKey.status).toBe(400);
+      // A literal backslash-u sequence is ordinary text and must still be accepted.
+      const literal = await req('PATCH', '/api/users/me', { token: u.token, body: { preferences: { k: '\\u0000' } } });
+      expect.soft(literal.status).toBe(200);
     });
   });
 
