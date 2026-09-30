@@ -1,6 +1,39 @@
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
+// Shared field helpers
+// ---------------------------------------------------------------------------
+
+/** Plain decimal notation only: no hex, exponent, "NaN", "Infinity" or blanks. */
+const DECIMAL_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+/**
+ * A latitude/longitude value. Accepts a JSON number or a decimal string (the
+ * DB `numeric` columns round-trip as strings), rejects non-finite / non-decimal
+ * input such as "null", "NaN" or "", and enforces the geographic range.
+ * Output is a string because Drizzle expects strings for `numeric` columns.
+ */
+function coordinate(axis: 'lat' | 'lng') {
+  const limit = axis === 'lat' ? 90 : 180;
+  return z.union([z.number(), z.string()]).transform((raw, ctx) => {
+    const text = typeof raw === 'string' ? raw.trim() : String(raw);
+    const value = typeof raw === 'number' ? raw : DECIMAL_RE.test(text) ? Number(text) : NaN;
+    if (!Number.isFinite(value)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${axis} must be a decimal number` });
+      return z.NEVER;
+    }
+    if (value < -limit || value > limit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${axis} must be between -${limit} and ${limit}`,
+      });
+      return z.NEVER;
+    }
+    return text;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Trip schemas
 // ---------------------------------------------------------------------------
 
@@ -24,8 +57,8 @@ export const CreateDestinationSchema = z.object({
   country: z.string().min(1).max(100),
   start_date: z.string().date().nullable().optional(),
   end_date: z.string().date().nullable().optional(),
-  lat: z.coerce.string().nullable().optional(),
-  lng: z.coerce.string().nullable().optional(),
+  lat: coordinate('lat').nullable().optional(),
+  lng: coordinate('lng').nullable().optional(),
   zoom_level: z.number().int().min(1).max(20).nullable().optional(),
   order_index: z.number().int().min(0).optional(),
 });
@@ -55,8 +88,8 @@ export const UpdateDaySchema = CreateDaySchema.partial();
 
 export const CreateActivitySchema = z.object({
   name: z.string().min(1).max(255),
-  lat: z.coerce.string().nullable().optional(),
-  lng: z.coerce.string().nullable().optional(),
+  lat: coordinate('lat').nullable().optional(),
+  lng: coordinate('lng').nullable().optional(),
   notes: z.string().nullable().optional(),
   is_optional: z.boolean().optional(),
   maps_url: z.string().url().nullable().optional(),
@@ -76,8 +109,8 @@ export const ReorderActivitiesSchema = z.object({
 
 export const UpsertHotelSchema = z.object({
   name: z.string().min(1).max(255),
-  lat: z.coerce.string().nullable().optional(),
-  lng: z.coerce.string().nullable().optional(),
+  lat: coordinate('lat').nullable().optional(),
+  lng: coordinate('lng').nullable().optional(),
   check_in_date: z.string().date().nullable().optional(),
   check_out_date: z.string().date().nullable().optional(),
   url: z.string().url().nullable().optional(),
