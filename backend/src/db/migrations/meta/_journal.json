@@ -43,6 +43,13 @@
       "when": 1790785001030,
       "tag": "0005_users_email_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790785306550,
+      "tag": "0006_lat_lng_range_checks",
+      "breakpoints": true
     }
   ]
 }

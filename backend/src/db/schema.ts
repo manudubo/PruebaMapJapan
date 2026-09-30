@@ -11,9 +11,17 @@ import {
   date,
   uniqueIndex,
   index,
+  check,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
+
+// DATA-03: last line of defence for coordinates. NULL passes (no pin);
+// NaN fails (Postgres orders NaN above every number).
+function latLngRange(name: string, lat: AnyPgColumn, lng: AnyPgColumn) {
+  return check(name, sql`${lat} BETWEEN -90 AND 90 AND ${lng} BETWEEN -180 AND 180`);
+}
 
 // ---------------------------------------------------------------------------
 // users
@@ -81,21 +89,27 @@ export const tripsRelations = relations(trips, ({ one, many }) => ({
 // ---------------------------------------------------------------------------
 // destinations
 // ---------------------------------------------------------------------------
-export const destinations = pgTable('destinations', {
-  id: serial('id').primaryKey(),
-  trip_id: integer('trip_id')
-    .notNull()
-    .references(() => trips.id, { onDelete: 'cascade' }),
-  city_name: varchar('city_name', { length: 255 }).notNull(),
-  country: varchar('country', { length: 100 }).notNull(),
-  start_date: date('start_date'),
-  end_date: date('end_date'),
-  lat: numeric('lat', { precision: 10, scale: 7 }),
-  lng: numeric('lng', { precision: 10, scale: 7 }),
-  zoom_level: integer('zoom_level').default(12),
-  order_index: integer('order_index').notNull().default(0),
-  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const destinations = pgTable(
+  'destinations',
+  {
+    id: serial('id').primaryKey(),
+    trip_id: integer('trip_id')
+      .notNull()
+      .references(() => trips.id, { onDelete: 'cascade' }),
+    city_name: varchar('city_name', { length: 255 }).notNull(),
+    country: varchar('country', { length: 100 }).notNull(),
+    start_date: date('start_date'),
+    end_date: date('end_date'),
+    lat: numeric('lat', { precision: 10, scale: 7 }),
+    lng: numeric('lng', { precision: 10, scale: 7 }),
+    zoom_level: integer('zoom_level').default(12),
+    order_index: integer('order_index').notNull().default(0),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    latLngRange: latLngRange('destinations_lat_lng_range', table.lat, table.lng),
+  }),
+);
 
 export const destinationsRelations = relations(destinations, ({ one, many }) => ({
   trip: one(trips, {
@@ -112,18 +126,24 @@ export const destinationsRelations = relations(destinations, ({ one, many }) => 
 // ---------------------------------------------------------------------------
 // hotels
 // ---------------------------------------------------------------------------
-export const hotels = pgTable('hotels', {
-  id: serial('id').primaryKey(),
-  destination_id: integer('destination_id')
-    .notNull()
-    .references(() => destinations.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  lat: numeric('lat', { precision: 10, scale: 7 }),
-  lng: numeric('lng', { precision: 10, scale: 7 }),
-  check_in_date: date('check_in_date'),
-  check_out_date: date('check_out_date'),
-  url: text('url'),
-});
+export const hotels = pgTable(
+  'hotels',
+  {
+    id: serial('id').primaryKey(),
+    destination_id: integer('destination_id')
+      .notNull()
+      .references(() => destinations.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    lat: numeric('lat', { precision: 10, scale: 7 }),
+    lng: numeric('lng', { precision: 10, scale: 7 }),
+    check_in_date: date('check_in_date'),
+    check_out_date: date('check_out_date'),
+    url: text('url'),
+  },
+  (table) => ({
+    latLngRange: latLngRange('hotels_lat_lng_range', table.lat, table.lng),
+  }),
+);
 
 export const hotelsRelations = relations(hotels, ({ one }) => ({
   destination: one(destinations, {
@@ -157,21 +177,27 @@ export const daysRelations = relations(days, ({ one, many }) => ({
 // ---------------------------------------------------------------------------
 // activities
 // ---------------------------------------------------------------------------
-export const activities = pgTable('activities', {
-  id: serial('id').primaryKey(),
-  day_id: integer('day_id')
-    .notNull()
-    .references(() => days.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  lat: numeric('lat', { precision: 10, scale: 7 }),
-  lng: numeric('lng', { precision: 10, scale: 7 }),
-  notes: text('notes'),
-  is_optional: boolean('is_optional').notNull().default(false),
-  is_generic: boolean('is_generic').notNull().default(false),
-  maps_url: text('maps_url'),
-  order_index: integer('order_index').notNull().default(0),
-  time: text('time'),
-});
+export const activities = pgTable(
+  'activities',
+  {
+    id: serial('id').primaryKey(),
+    day_id: integer('day_id')
+      .notNull()
+      .references(() => days.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    lat: numeric('lat', { precision: 10, scale: 7 }),
+    lng: numeric('lng', { precision: 10, scale: 7 }),
+    notes: text('notes'),
+    is_optional: boolean('is_optional').notNull().default(false),
+    is_generic: boolean('is_generic').notNull().default(false),
+    maps_url: text('maps_url'),
+    order_index: integer('order_index').notNull().default(0),
+    time: text('time'),
+  },
+  (table) => ({
+    latLngRange: latLngRange('activities_lat_lng_range', table.lat, table.lng),
+  }),
+);
 
 export const activitiesRelations = relations(activities, ({ one }) => ({
   day: one(days, {
