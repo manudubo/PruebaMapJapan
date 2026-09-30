@@ -12,8 +12,6 @@ vi.mock('@/modules/toast', () => ({
 
 // Import AFTER mocks are set up
 import { ApiError } from '@/api/client';
-import { showToast } from '@/modules/toast';
-import { login } from '@/auth/keycloak';
 
 describe('ApiError', () => {
   it('has status, code, name=ApiError, and is instanceof Error', () => {
@@ -35,46 +33,56 @@ describe('ApiError', () => {
   });
 });
 
-describe('request() 401 handling', () => {
+describe('request() 401 handling (BUG-02)', () => {
+  // Fresh module graph per test so the once-per-page "session expired" guard
+  // resets. Mocks are re-created too, so they are re-imported via load().
+  async function load() {
+    vi.resetModules();
+    const client = await import('@/api/client');
+    const toast = await import('@/modules/toast');
+    const kc = await import('@/auth/keycloak');
+    return { client, showToast: vi.mocked(toast.showToast), login: vi.mocked(kc.login) };
+  }
+
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(null, { status: 401 }),
+    vi.spyOn(global, 'fetch').mockImplementation(
+      async () => new Response(null, { status: 401 }),
     );
-    vi.mocked(showToast).mockClear();
-    vi.mocked(login).mockClear();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it('calls showToast with session-expired message and info type', async () => {
-    const { getMyTrips } = await import('@/api/client');
-    void getMyTrips();
-    // runAllTimersAsync flushes pending microtasks (buildHeaders->getToken->fetch)
-    // then advances fake timers — covers the full async chain in one call
-    await vi.runAllTimersAsync();
+  it('rejects with ApiError(401) instead of hanging', async () => {
+    const { client } = await load();
+    const p = client.getMyTrips();
+    await expect(p).rejects.toBeInstanceOf(client.ApiError);
+    await expect(p).rejects.toMatchObject({ status: 401, code: 'unauthorized' });
+  });
+
+  it('shows the session-expired toast', async () => {
+    const { client, showToast } = await load();
+    await client.getMyTrips().catch(() => undefined);
     expect(showToast).toHaveBeenCalledWith(
       'Session expired — redirecting to login',
       'info',
     );
   });
 
-  it('schedules login with absolute dashboard.html URL after 1500ms', async () => {
-    const { getMyTrips } = await import('@/api/client');
-    void getMyTrips();
-    await vi.runAllTimersAsync();
+  it('redirects to login immediately (no timer) with absolute dashboard.html URL', async () => {
+    const { client, login } = await load();
+    await client.getMyTrips().catch(() => undefined);
+    expect(login).toHaveBeenCalledTimes(1);
     expect(login).toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\/.*dashboard\.html$/));
   });
 
-  it('returns a promise that does not resolve (never-resolving)', async () => {
-    const { getMyTrips } = await import('@/api/client');
-    let resolved = false;
-    void getMyTrips().then(() => { resolved = true; });
-    await vi.runAllTimersAsync();
-    expect(resolved).toBe(false);
+  it('toasts and redirects only once for concurrent 401s', async () => {
+    const { client, showToast, login } = await load();
+    const results = await Promise.allSettled([client.getMyTrips(), client.getMe()]);
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(login).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -93,9 +101,10 @@ describe('request() non-401 error handling', () => {
   });
 
   it('throws ApiError with status and code from response', async () => {
-    const { getMyTrips } = await import('@/api/client');
-    const p = getMyTrips();
-    await expect(p).rejects.toBeInstanceOf(ApiError);
+    vi.resetModules();
+    const client = await import('@/api/client');
+    const p = client.getMyTrips();
+    await expect(p).rejects.toBeInstanceOf(client.ApiError);
     await expect(p).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
 });

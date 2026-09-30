@@ -74,6 +74,29 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * True once a 401 has triggered the session-expired toast + login redirect,
+ * so concurrent 401s on the same page don't toast/redirect more than once.
+ */
+let sessionExpiredHandled = false;
+
+/**
+ * Centralised 401 handling: toast once and start the Keycloak login redirect
+ * right away (not behind a timer that navigation could cancel). Callers still
+ * receive an ApiError(401) so their spinners/buttons can reset.
+ */
+function handleSessionExpired(): void {
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
+
+  const redirectTarget = new URL('dashboard.html', window.location.href).href;
+  showToast('Session expired — redirecting to login', 'info');
+  login(redirectTarget).catch(() => {
+    // Redirect failed to start — allow a later 401 to retry.
+    sessionExpiredHandled = false;
+  });
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = true } = options;
 
@@ -86,13 +109,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (response.status === 401) {
-    const redirectTarget = new URL('dashboard.html', window.location.href).href;
     if (import.meta.env.DEV) {
-      console.warn(`[auth] 401 on ${method} ${path} — isAuthenticated=${isAuthenticated()}, redirecting to ${redirectTarget}`);
+      console.warn(`[auth] 401 on ${method} ${path} — isAuthenticated=${isAuthenticated()}`);
     }
-    showToast('Session expired — redirecting to login', 'info');
-    setTimeout(() => { void login(redirectTarget); }, 1500);
-    return new Promise<never>(() => { /* intentionally never resolves — prevents double-toast */ });
+    handleSessionExpired();
+    throw new ApiError(401, 'unauthorized', 'Session expired');
   }
 
   if (!response.ok) {
