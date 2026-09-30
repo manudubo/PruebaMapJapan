@@ -192,10 +192,10 @@ it('deeply nested JSON (depth 20k) → 4xx, never 500', async () => {
       expect(is4xx(res.status), `status ${res.status}`).toBe(true);
     });
 
-    it('preferences: 32 levels and ~15 KB are accepted, 33 levels or >16 KB are 422', async () => {
+    it('preferences: 64 levels and ~15 KB are accepted, 65 levels or >16 KB are 422', async () => {
       const nest = (d: number): unknown => (d === 1 ? { leaf: true } : { n: nest(d - 1) });
-      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(32) } })).status).toBe(200);
-      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(33) } })).status).toBe(422);
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(64) } })).status).toBe(200);
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(65) } })).status).toBe(422);
       const ok = { blob: 'x'.repeat(15 * 1024) };
       expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: ok } })).status).toBe(200);
       const big = { blob: 'x'.repeat(17 * 1024) };

@@ -5,7 +5,47 @@
 **Scope:** Hono API on Workers (`backend/src`), Drizzle/Postgres, Keycloak JWT auth. Frontend, terraform/keycloak and workflows untouched.
 **Suite:** `backend/tests/adversarial/` — 8 test files, **269 test cases** (28 of them documented `it.fails` known bugs owned by Phases 24–26).
 
-## Current status — after merging `claude/focused-lovelace-cryssy` (Phases 23, 25, 26 app-security, e2e/frontend QA)
+## Current status — after merging Phase 24 (`claude/focused-lovelace-cryssy` @ 48f20aa)
+
+**Harness:** the adversarial suite now runs on the shared ARCH-06 harness. It uses `vitest.config.ts` globalSetup with `TEST_DATABASE_URL`, default `postgresql://postgres:postgres@localhost:5432/postgres`. `ADV_DATABASE_URL`, the skip gate and `start-postgres.sh` are gone, so `npm test --workspace=backend` always runs it; no Postgres means the run fails instead of skipping. Each adversarial file still creates its own scratch DB on the harness server (`inject('serverDatabaseUrl')`), migrated with Drizzle's migrator, because the race tests hold row locks and count lock waiters per database. The app's cached pools are closed with `closeDbPools()` before the drop.
+
+```bash
+TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:57691/postgres npm test --workspace=backend
+```
+
+**Conflicts resolved:**
+- `index.ts`: bodyLimit 413 kept; `app.onError(errorHandler)` is Phase 24's global handler, which keeps 4xx HTTPExceptions.
+- `routes/trips.ts`: took Phase 24's rewrite (dbMiddleware, single-JOIN ownership, no catch blocks) and re-applied the `Number(...)` → `parseId(...)` swap on all 42 param reads.
+
+**Reconciled with Phase 24 behaviour:**
+- NUL bytes are rejected by validation (422) before Postgres. Phase 24's two DB-level NUL tests in `routes/trips.test.ts` and `routes/users.test.ts` were updated from 400 to 422; their "nothing written" checks are kept.
+- The preferences depth cap was raised from 32 to 64, because Phase 24's round-trip test uses about 51 levels. The stack-overflow guard still applies: a 20k-deep payload returns 422.
+- JWT fixtures now use a unique email per subject, since DATA-02 makes `users.email` UNIQUE.
+- The OTP lock helper waits for at most 10 lock waiters, the cached pool's size.
+
+| Run (post-Phase-24) | Files | Tests |
+|---|---|---|
+| backend `typecheck` + `tsc -p tests/adversarial` | clean | — |
+| `npm test --workspace=backend` (shared harness, no skips) | 39 passed | 1354 passed |
+| frontend `typecheck`; `TZ=America/Argentina/Buenos_Aires npm run test:run --workspace=frontend` | 33 passed | 757 passed |
+| frontend `build`; backend `wrangler deploy --dry-run` | OK | — |
+
+**Converted to regular tests (fixed by Phase 24, re-verified):**
+- **M-09:** a parent deleted mid-request now answers **409** `conflict` (FK 23503 is mapped by the global handler) instead of 500, and nothing is written. The race test no longer tolerates 500s.
+- **Hotel uniqueness:** a concurrent `PUT …/hotel` forced with a row lock now leaves exactly one row (migration 0007 unique index + atomic upsert).
+- **M-01:** 40 sequential requests no longer leave 80 idle connections (one cached pool per URL).
+
+**Still open (`it.fails`, each re-probed and failing for the documented reason):**
+
+| Finding | Evidence | Owner |
+|---|---|---|
+| SEC-07 (issuance): parallel `otp-request` bypasses `otp_pending` and the BUG-16 hourly cap | 20 parallel → 20 codes/emails | Phase 26 SEC-07 follow-up |
+| SEC-22: nested routes 403 (foreign) vs 404 (missing) | 403 ≠ 404 | Phase 26 |
+| BIZ-07: day outside destination range accepted | 201 | Phase 25 follow-up (deferred) |
+
+All other findings in the tables below are fixed. This section supersedes the open column of the next section, and its run instructions replace the `ADV_DATABASE_URL`/`start-postgres.sh` ones further down.
+
+## Status after merging Phases 23/25/26 (superseded by the section above)
 
 Merge conflicts resolved in `backend/src/index.ts` (kept `bodyLimit` 413 + a single HTTPException→4xx handler) and `backend/src/validation/schemas.ts` (both protection sets combined: this branch's `text()` NUL guard, `isoDate()` year-0000 guard, `orderIndex()` int4 cap, preferences depth/size/NUL guard, **plus** Phase 25's `coordinate()`, `dateOrder`, `atLeastOneField`, `clockTime`, `is_generic`; one `httpUrl` const = Phase 25 protocol check built on `text()`). Also: JWT missing/non-numeric exp message now reads "JWT treated as expired: …" so Phase 26's SEC-06 test (`/expired/` in the server log) and this branch's fix agree; adversarial `tsconfig.json` excludes `src/**/*.test.ts` (DOM lib clashed with a Phase 26 test's `fetch` typing).
 

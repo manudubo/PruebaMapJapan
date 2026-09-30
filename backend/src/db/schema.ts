@@ -10,9 +10,18 @@ import {
   timestamp,
   date,
   uniqueIndex,
+  index,
+  check,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
+
+// DATA-03: last line of defence for coordinates. NULL passes (no pin);
+// NaN fails (Postgres orders NaN above every number).
+function latLngRange(name: string, lat: AnyPgColumn, lng: AnyPgColumn) {
+  return check(name, sql`${lat} BETWEEN -90 AND 90 AND ${lng} BETWEEN -180 AND 180`);
+}
 
 // ---------------------------------------------------------------------------
 // users
@@ -31,6 +40,12 @@ export const users = pgTable(
   },
   (table) => ({
     keycloakIdIdx: uniqueIndex('users_keycloak_id_idx').on(table.keycloak_id),
+    // DATA-02: one account per email (case-insensitive), enforced by the DB
+    // and not only upstream by Keycloak. '' (token without an email claim)
+    // is exempt so several such users can coexist.
+    emailUniqueIdx: uniqueIndex('users_email_unique_idx')
+      .on(sql`lower(${table.email})`)
+      .where(sql`${table.email} <> ''`),
   }),
 );
 
@@ -74,21 +89,27 @@ export const tripsRelations = relations(trips, ({ one, many }) => ({
 // ---------------------------------------------------------------------------
 // destinations
 // ---------------------------------------------------------------------------
-export const destinations = pgTable('destinations', {
-  id: serial('id').primaryKey(),
-  trip_id: integer('trip_id')
-    .notNull()
-    .references(() => trips.id, { onDelete: 'cascade' }),
-  city_name: varchar('city_name', { length: 255 }).notNull(),
-  country: varchar('country', { length: 100 }).notNull(),
-  start_date: date('start_date'),
-  end_date: date('end_date'),
-  lat: numeric('lat', { precision: 10, scale: 7 }),
-  lng: numeric('lng', { precision: 10, scale: 7 }),
-  zoom_level: integer('zoom_level').default(12),
-  order_index: integer('order_index').notNull().default(0),
-  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const destinations = pgTable(
+  'destinations',
+  {
+    id: serial('id').primaryKey(),
+    trip_id: integer('trip_id')
+      .notNull()
+      .references(() => trips.id, { onDelete: 'cascade' }),
+    city_name: varchar('city_name', { length: 255 }).notNull(),
+    country: varchar('country', { length: 100 }).notNull(),
+    start_date: date('start_date'),
+    end_date: date('end_date'),
+    lat: numeric('lat', { precision: 10, scale: 7 }),
+    lng: numeric('lng', { precision: 10, scale: 7 }),
+    zoom_level: integer('zoom_level').default(12),
+    order_index: integer('order_index').notNull().default(0),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    latLngRange: latLngRange('destinations_lat_lng_range', table.lat, table.lng),
+  }),
+);
 
 export const destinationsRelations = relations(destinations, ({ one, many }) => ({
   trip: one(trips, {
@@ -105,18 +126,27 @@ export const destinationsRelations = relations(destinations, ({ one, many }) => 
 // ---------------------------------------------------------------------------
 // hotels
 // ---------------------------------------------------------------------------
-export const hotels = pgTable('hotels', {
-  id: serial('id').primaryKey(),
-  destination_id: integer('destination_id')
-    .notNull()
-    .references(() => destinations.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  lat: numeric('lat', { precision: 10, scale: 7 }),
-  lng: numeric('lng', { precision: 10, scale: 7 }),
-  check_in_date: date('check_in_date'),
-  check_out_date: date('check_out_date'),
-  url: text('url'),
-});
+export const hotels = pgTable(
+  'hotels',
+  {
+    id: serial('id').primaryKey(),
+    destination_id: integer('destination_id')
+      .notNull()
+      .references(() => destinations.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    lat: numeric('lat', { precision: 10, scale: 7 }),
+    lng: numeric('lng', { precision: 10, scale: 7 }),
+    check_in_date: date('check_in_date'),
+    check_out_date: date('check_out_date'),
+    url: text('url'),
+  },
+  (table) => ({
+    latLngRange: latLngRange('hotels_lat_lng_range', table.lat, table.lng),
+    // One hotel per destination, enforced by the DB so concurrent PUTs cannot
+    // leave duplicates (the relation is declared one-to-one).
+    destinationIdx: uniqueIndex('hotels_destination_id_idx').on(table.destination_id),
+  }),
+);
 
 export const hotelsRelations = relations(hotels, ({ one }) => ({
   destination: one(destinations, {
@@ -150,21 +180,27 @@ export const daysRelations = relations(days, ({ one, many }) => ({
 // ---------------------------------------------------------------------------
 // activities
 // ---------------------------------------------------------------------------
-export const activities = pgTable('activities', {
-  id: serial('id').primaryKey(),
-  day_id: integer('day_id')
-    .notNull()
-    .references(() => days.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  lat: numeric('lat', { precision: 10, scale: 7 }),
-  lng: numeric('lng', { precision: 10, scale: 7 }),
-  notes: text('notes'),
-  is_optional: boolean('is_optional').notNull().default(false),
-  is_generic: boolean('is_generic').notNull().default(false),
-  maps_url: text('maps_url'),
-  order_index: integer('order_index').notNull().default(0),
-  time: text('time'),
-});
+export const activities = pgTable(
+  'activities',
+  {
+    id: serial('id').primaryKey(),
+    day_id: integer('day_id')
+      .notNull()
+      .references(() => days.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    lat: numeric('lat', { precision: 10, scale: 7 }),
+    lng: numeric('lng', { precision: 10, scale: 7 }),
+    notes: text('notes'),
+    is_optional: boolean('is_optional').notNull().default(false),
+    is_generic: boolean('is_generic').notNull().default(false),
+    maps_url: text('maps_url'),
+    order_index: integer('order_index').notNull().default(0),
+    time: text('time'),
+  },
+  (table) => ({
+    latLngRange: latLngRange('activities_lat_lng_range', table.lat, table.lng),
+  }),
+);
 
 export const activitiesRelations = relations(activities, ({ one }) => ({
   day: one(days, {
@@ -176,14 +212,24 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
 // ---------------------------------------------------------------------------
 // email_otp_codes
 // ---------------------------------------------------------------------------
-export const emailOtpCodes = pgTable('email_otp_codes', {
-  id: serial('id').primaryKey(),
-  user_id: integer('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  code_hash: text('code_hash').notNull(),
-  expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
-  used_at: timestamp('used_at', { withTimezone: true }),
-  attempts: integer('attempts').notNull().default(0),
-  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const emailOtpCodes = pgTable(
+  'email_otp_codes',
+  {
+    id: serial('id').primaryKey(),
+    user_id: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    code_hash: text('code_hash').notNull(),
+    expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
+    used_at: timestamp('used_at', { withTimezone: true }),
+    attempts: integer('attempts').notNull().default(0),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    // DATA-01: every OTP lookup filters by user_id + expires_at (was a full scan).
+    userExpiresIdx: index('email_otp_codes_user_id_expires_at_idx').on(
+      table.user_id,
+      table.expires_at,
+    ),
+  }),
+);

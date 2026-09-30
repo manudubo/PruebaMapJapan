@@ -8,6 +8,8 @@ compatibility_flags = ["nodejs_compat"]
 # requires RESEND_API_KEY (SEC-08/SEC-23). Local `wrangler dev` overrides this
 # via ENVIRONMENT=development in .dev.vars.
 ENVIRONMENT = "production"
+# Explicit DB driver (ARCH-02): Neon serverless over HTTP on Workers.
+DB_DRIVER = "neon"
 
 # Neon database connection string is provided via secret:
 # wrangler secret put DATABASE_URL

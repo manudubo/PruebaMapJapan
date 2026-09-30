@@ -1,5 +1,5 @@
 /**
- * Self-contained harness for the adversarial API suite (backend/tests/adversarial).
+ * Harness for the adversarial API suite (backend/tests/adversarial).
  *
  * What is real:  the Hono app (src/index.ts) with every middleware, the real
  *                JWT verifier (src/auth/keycloak.ts), Zod validation, the
@@ -8,105 +8,50 @@
  *                tokens with an RSA key generated per test file) and the
  *                Mailpit HTTP API (we capture the OTP email to read the code).
  *
- * Database: set ADV_DATABASE_URL to an admin connection string for any
- * disposable Postgres ≥ 13 on localhost/127.0.0.1, e.g.
- *   ADV_DATABASE_URL=postgresql://postgres@127.0.0.1:57691/postgres
- * Each test file creates its own database (adv_<file>_<pid>), applies
- * src/db/migrations/*.sql in order, and drops it afterwards, so files can run
- * in parallel. Without ADV_DATABASE_URL every DB-backed describe block is
- * skipped (see `describeDb`) and only the DB-free checks run.
- *
- * Folding into the Phase 24 shared harness (ARCH-06): replace
- * `createTestDatabase`/`dropTestDatabase` with the shared globalSetup's
- * database URL (keep one database per file, or truncate between files), and
- * delete the ADV_DATABASE_URL skip gate. Nothing else in the suite depends on
- * how the database was created.
+ * Database: runs on the shared ARCH-06 harness (vitest.config.ts globalSetup,
+ * TEST_DATABASE_URL — see src/test-utils/global-setup.ts). Unlike the unit
+ * suites, which share one database and TRUNCATE it between tests, each
+ * adversarial file creates its own scratch database on the same server
+ * (`inject('serverDatabaseUrl')`), migrated with Drizzle's migrator, and
+ * drops it afterwards: the race tests hold row locks from side transactions
+ * and count lock waiters per database, which needs an isolated database.
+ * Nothing is skipped — no Postgres means the run fails (global-setup).
  */
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import { describe, vi } from 'vitest';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { describe, inject, vi } from 'vitest';
 import app from '../../src/index';
+import { closeDbPools } from '../../src/db';
+import {
+  MIGRATIONS_FOLDER,
+  createDatabase,
+  dropDatabase,
+  uniqueDatabaseName,
+} from '../../src/test-utils/global-setup';
 import type { Env } from '../../src/types';
 
-export const ADMIN_DB_URL = process.env.ADV_DATABASE_URL ?? process.env.TEST_DATABASE_URL ?? '';
-export const hasDb = ADMIN_DB_URL !== '';
+/** Kept for readability of the suites: every DB-backed block always runs. */
+export const describeDb = describe;
 
-/** `describe` that is skipped (with the reason in its title) when no test DB is configured. */
-export const describeDb: typeof describe = (hasDb
-  ? describe
-  : ((name: string, fn: () => void) =>
-      describe.skip(`${name} [skipped: set ADV_DATABASE_URL]`, fn))) as typeof describe;
-
-const MIGRATIONS_DIR = fileURLToPath(new URL('../../src/db/migrations', import.meta.url));
-
-function withDatabase(url: string, db: string): string {
-  const u = new URL(url);
-  u.pathname = `/${db}`;
-  return u.toString();
-}
-
+/** Fresh, fully migrated database for one test file. */
 export async function createTestDatabase(tag: string): Promise<string> {
-  const name = `adv_${tag.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}_${process.pid}`;
-  const admin = new pg.Client({ connectionString: ADMIN_DB_URL });
-  await admin.connect();
+  const server = inject('serverDatabaseUrl');
+  const url = await createDatabase(server, uniqueDatabaseName(`adv_${tag}`));
+  const pool = new pg.Pool({ connectionString: url, max: 1 });
   try {
-    await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
-    await admin.query(`CREATE DATABASE ${name}`);
+    await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS_FOLDER });
   } finally {
-    await admin.end();
-  }
-  const url = withDatabase(ADMIN_DB_URL, name);
-  const client = new pg.Client({ connectionString: url });
-  await client.connect();
-  try {
-    const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
-    for (const f of files) await client.query(readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
-  } finally {
-    await client.end();
+    await pool.end();
   }
   return url;
 }
 
-// src/db/index.ts (local driver) builds a new pg.Pool on every getDb() call
-// and never ends it; the pools keep idle connections open for ~10 s and have
-// no 'error' listener. Track them so teardown can close them before dropping
-// the database — otherwise the forced drop surfaces as uncaught exceptions.
-const livePools = new Set<pg.Pool>();
-const originalPoolQuery = pg.Pool.prototype.query;
-pg.Pool.prototype.query = function patchedQuery(this: pg.Pool, ...args: unknown[]) {
-  if (!livePools.has(this)) {
-    livePools.add(this);
-    // Without a listener an idle client killed by the server (DB restart,
-    // DROP DATABASE ... FORCE) throws an uncaught 'error' and would crash
-    // the dev server — see QA-BACKEND-REPORT (local-driver pool leak).
-    this.on('error', () => {});
-  }
-  return (originalPoolQuery as (...a: unknown[]) => unknown).apply(this, args);
-} as typeof pg.Pool.prototype.query;
-
-/** Number of pg.Pool instances the app has opened so far (per test file). */
-export function appPoolCount(): number {
-  return livePools.size;
-}
-
-export async function closeAppPools(): Promise<void> {
-  const pools = [...livePools];
-  livePools.clear();
-  await Promise.allSettled(pools.map((p) => p.end()));
-}
-
 export async function dropTestDatabase(url: string): Promise<void> {
-  await closeAppPools();
-  const name = new URL(url).pathname.slice(1);
-  const admin = new pg.Client({ connectionString: ADMIN_DB_URL });
-  await admin.connect();
-  try {
-    await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
-  } finally {
-    await admin.end();
-  }
+  // The app caches one pg.Pool per URL (M-01); close it before the forced
+  // drop so its idle clients are not killed under it.
+  await closeDbPools();
+  await dropDatabase(inject('serverDatabaseUrl'), new URL(url).pathname.slice(1));
 }
 
 /** Run raw SQL against the test DB (for arranging state the API cannot reach). */
@@ -158,6 +103,7 @@ const MAILPIT_URL = 'http://localhost:8025/api/v1/send';
 export function makeEnv(databaseUrl: string, extra: Record<string, string> = {}): Env {
   return {
     DATABASE_URL: databaseUrl,
+    DB_DRIVER: 'pg',
     KEYCLOAK_URL: KC_URL,
     KEYCLOAK_REALM: KC_REALM,
     VALID_AUDIENCES: AUDIENCE,

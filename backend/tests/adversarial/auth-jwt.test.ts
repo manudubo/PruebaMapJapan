@@ -13,7 +13,6 @@ import {
   createTestDatabase,
   describeDb,
   dropTestDatabase,
-  hasDb,
   installFakeNetwork,
   makeEnv,
   makeUser,
@@ -29,11 +28,12 @@ let dbUrl = 'postgresql://unused@127.0.0.1:1/none';
 let req: Req;
 
 const now = () => Math.floor(Date.now() / 1000);
+// Email is unique per subject: users.email is UNIQUE since DATA-02 (Phase 24).
 const claims = (over: Record<string, unknown> = {}) => ({
   sub: 'kc-jwt-user',
   iss: ISSUER,
   aud: AUDIENCE,
-  email: 'jwt@example.test',
+  email: `${String(over.sub ?? 'kc-jwt-user')}@example.test`,
   name: 'Jwt User',
   preferred_username: 'jwt',
   email_verified: true,
@@ -46,12 +46,12 @@ beforeAll(async () => {
   signer = await createSigner('kid-main');
   rogue = await createSigner('kid-main');
   net = installFakeNetwork([signer]);
-  if (hasDb) dbUrl = await createTestDatabase('jwt');
+  dbUrl = await createTestDatabase('jwt');
   req = client(makeEnv(dbUrl));
 }, 60_000);
 
 afterAll(async () => {
-  if (hasDb) await dropTestDatabase(dbUrl);
+  await dropTestDatabase(dbUrl);
 });
 
 async function get(authorization?: string | string[]) {

@@ -1,25 +1,76 @@
 import { neon } from '@neondatabase/serverless';
-import { drizzle as drizzleNeon } from 'drizzle-orm/neon-http';
-import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
+import { drizzle as drizzleNeon, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { drizzle as drizzlePg, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import * as schema from './schema';
 
 const { Pool } = pg;
 
 // ---------------------------------------------------------------------------
-// Dual-driver database factory
-// - Local dev (localhost/127.0.0.1): uses node-postgres (TCP)
-// - Production (Neon URL):           uses @neondatabase/serverless (HTTP)
+// Dual-driver database factory, selected explicitly by DB_DRIVER (ARCH-02):
+// - "neon": @neondatabase/serverless over HTTP — Cloudflare Workers (default
+//           there; wrangler.toml sets it)
+// - "pg":   node-postgres over TCP — Node processes (dev server, seed, tests);
+//           works for local Postgres and for Neon's TCP endpoint alike
+// It used to be guessed from a "localhost" substring in the URL, which picks
+// the wrong driver for a tunnel or any Neon URL mentioning localhost.
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createDb(databaseUrl: string): any {
-  const isLocal =
-    databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
+export type DbDriver = 'pg' | 'neon';
 
-  if (isLocal) {
-    const pool = new Pool({ connectionString: databaseUrl });
-    return drizzlePg(pool, { schema });
+/** Thrown for a DB_DRIVER value other than "pg" / "neon". */
+export class InvalidDbDriverError extends Error {
+  constructor(value: string) {
+    super(`Invalid DB_DRIVER "${value}": expected "pg" or "neon"`);
+    this.name = 'InvalidDbDriverError';
+  }
+}
+
+/** Parse DB_DRIVER; unset/empty → `fallback` (the runtime's natural driver). */
+export function parseDbDriver(value: string | undefined, fallback: DbDriver): DbDriver {
+  if (value === undefined || value === '') return fallback;
+  if (value === 'pg' || value === 'neon') return value;
+  throw new InvalidDbDriverError(value);
+}
+
+export type Schema = typeof schema;
+/** node-postgres (TCP) handle — local dev and tests. */
+export type PgDb = NodePgDatabase<Schema>;
+/** Neon serverless (HTTP) handle — production Workers. */
+export type NeonDb = NeonHttpDatabase<Schema>;
+/**
+ * Either driver. Both share Drizzle's PgDatabase query-builder API, so query
+ * helpers accept this union and keep full column/row typing (ARCH-01).
+ */
+export type Db = PgDb | NeonDb;
+
+/**
+ * The driver-agnostic base both handles extend. A few builder overloads (e.g.
+ * `.returning({ col })`) cannot be resolved on the union; upcast with
+ * `asPgDatabase(db)` for those calls — a widening, never a lie.
+ */
+export type PgDatabaseBase = PgDatabase<PgQueryResultHKT, Schema>;
+export function asPgDatabase(db: Db): PgDatabaseBase {
+  return db;
+}
+
+// One pool per connection string: a Pool per request would leak TCP
+// connections (each keeps idle clients open), exhausting the server.
+const pgPools = new Map<string, pg.Pool>();
+
+function pgPool(databaseUrl: string): pg.Pool {
+  let pool = pgPools.get(databaseUrl);
+  if (!pool) {
+    pool = new Pool({ connectionString: databaseUrl });
+    pgPools.set(databaseUrl, pool);
+  }
+  return pool;
+}
+
+export function createDb(databaseUrl: string, driver: DbDriver): Db {
+  if (driver === 'pg') {
+    return drizzlePg(pgPool(databaseUrl), { schema });
   }
 
   const sql = neon(databaseUrl);
@@ -28,7 +79,12 @@ export function createDb(databaseUrl: string): any {
 
 export const getDb = createDb;
 
-export type Db = ReturnType<typeof createDb>;
+/** Close every cached node-postgres pool (tests / graceful shutdown). */
+export async function closeDbPools(): Promise<void> {
+  const pools = [...pgPools.values()];
+  pgPools.clear();
+  await Promise.all(pools.map((p) => p.end()));
+}
 
 export { schema };
 

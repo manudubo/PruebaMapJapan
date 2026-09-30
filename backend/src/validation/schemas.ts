@@ -44,7 +44,7 @@ const orderIndex = () => z.number().int().min(0).max(2_147_483_647);
  * preferences is free-form JSON stored in JSONB. Unbounded nesting blew the
  * stack in JSON.stringify (500), and size was bounded only by the body cap.
  */
-const PREFERENCES_MAX_DEPTH = 32;
+const PREFERENCES_MAX_DEPTH = 64;
 const PREFERENCES_MAX_CHARS = 16 * 1024;
 
 /** Nesting depth of a parsed JSON value, computed without recursion. */

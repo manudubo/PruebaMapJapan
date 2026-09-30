@@ -38,12 +38,10 @@ test.describe('City pages – static itinerary pages', () => {
         await expect(page.locator('#map')).toHaveAttribute('data-city', key);
       });
 
-      // Only tokyo.html gives #map an aria-label; the other 7 static pages omit it
-      // (a11y gap in frontend/*.html, outside the e2e scope). Documented fixme so the
-      // expectation is recorded and turns on as each page is fixed.
-      test('map has an aria-label', async ({ page }) => {
-        test.fixme(key !== 'tokyo', 'map aria-label missing on this static page — a11y gap');
-        await expect(page.locator('#map')).toHaveAttribute('aria-label', /.+/);
+      test('map has an aria-label naming the city', async ({ page }) => {
+        const heading = (await page.locator('h1').first().textContent())?.trim() ?? '';
+        await expect(page.locator('#map')).toHaveAttribute('aria-label', `Map of ${heading}`);
+        await expect(page.getByRole('application', { name: `Map of ${heading}` })).toBeVisible();
       });
 
       test('renders one day button per legend group and markers on the map', async ({ page }) => {

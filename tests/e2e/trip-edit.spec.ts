@@ -66,9 +66,8 @@ async function openEditor(page: Page, options: Parameters<typeof mockApi>[1] = {
   return calls;
 }
 
-// Every spec here starts signed-out and signs in through the Keycloak mock; the preview
-// build's CSP omits the API origin from connect-src (24-E2E-SUMMARY.md), so it is bypassed.
-test.use({ storageState: { cookies: [], origins: [] }, bypassCSP: true });
+// Every spec here starts signed-out and signs in through the Keycloak mock.
+test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('Trip editor access', () => {
   test('a guest is sent back to the dashboard', async ({ page }) => {

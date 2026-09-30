@@ -54,7 +54,10 @@ async function underRowLock<T>(lockSql: string, params: unknown[], n: number, fi
     await locker.query('BEGIN');
     await locker.query(lockSql, params);
     const pending = fire();
-    await waitForLockWaiters(dbUrl, n);
+    // The app's cached pg.Pool (M-01) has 10 connections, so at most 10
+    // requests can be queued on the lock at once; the rest wait for a
+    // connection and then find the lock already released.
+    await waitForLockWaiters(dbUrl, Math.min(n, 10));
     await locker.query('COMMIT');
     return await Promise.all(pending);
   } finally {

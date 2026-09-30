@@ -31,6 +31,7 @@ vi.mock('../db/queries/otp', async (importOriginal) => {
     getOtpCreatedAtsSince: vi.fn(async () => []),
     insertOtp: vi.fn(async () => ({ id: 77 })),
     markOtpUsed: vi.fn(async () => {}),
+    deleteStaleOtps: vi.fn(async () => 0),
   };
 });
 
@@ -136,7 +137,8 @@ describe('POST /api/auth/otp-request — email gating (SEC-08)', () => {
     const res = await post({ ...base, ...extra });
     expect(res.status).toBe(500);
     const text = await res.text();
-    expect(JSON.parse(text)).toEqual({ success: false, error: 'Failed to send OTP' });
+    // Generic body from the global error handler (M-09).
+    expect(JSON.parse(text)).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
     expect(text).not.toMatch(/RESEND|Mailpit|localhost/); // config detail stays server-side
     expect(insertOtp).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();

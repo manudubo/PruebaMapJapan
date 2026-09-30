@@ -75,10 +75,10 @@ describeDb('concurrency', () => {
   });
 
   // Deterministic TOCTOU: the ownership check reads the trip, then the parent
-  // is deleted before the INSERT; the FK violation (23503) reaches the
-  // route's catch-all and becomes a 500. Owner: M-09 (Phase 24, per-route
-  // catch blocks → propagate / map DB errors).
-  it.fails('M-09: create under a trip deleted mid-request → 404, not 500', async () => {
+  // is deleted before the INSERT. The FK violation (23503) used to hit the
+  // route's catch-all and become a 500; since M-09 (Phase 24) the global
+  // error handler maps it to a 409 client error.
+  it('M-09: create under a trip deleted mid-request → 409 conflict, not 500', async () => {
     const t = await buildTree(req, user.token, 0);
     const locker = new pg.Client({ connectionString: dbUrl });
     await locker.connect();
@@ -92,7 +92,9 @@ describeDb('concurrency', () => {
       await waitForLockWaiters(dbUrl, 1); // request passed the ownership check, now blocked on the FK lock
       await locker.query('COMMIT');
       const res = await pending;
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('conflict');
+      expect((await sql(dbUrl, 'select 1 from destinations where trip_id=$1', [t.tripId])).length).toBe(0);
     } finally {
       await locker.end();
     }
@@ -110,8 +112,8 @@ describeDb('concurrency', () => {
       ),
     ];
     const results = await Promise.all(ops);
-    // 500s here are the M-09 race above; this test only guards data integrity.
-    for (const r of results) expect([200, 201, 404, 500], r.text).toContain(r.status);
+    // 409 is the M-09 FK race above (was 500 before Phase 24).
+    for (const r of results) expect([200, 201, 404, 409], r.text).toContain(r.status);
     const orphans = await sql(dbUrl, 'select 1 from destinations where trip_id=$1', [t.tripId]);
     expect(orphans).toHaveLength(0);
   });
@@ -121,8 +123,9 @@ describeDb('concurrency', () => {
   // run before either INSERT each insert a row. Forced deterministically:
   // a side transaction holds the existing hotel row, both PUTs queue behind
   // it, then it deletes the row itself — both DELETEs find nothing and both
-  // INSERTs succeed. Fix needs a DB constraint (Phase 24, DB constraints).
-  it.fails('PHASE-24 (hotel uniqueness): concurrent PUT hotel leaves exactly one hotel row', async () => {
+  // INSERTs succeeded. Fixed in Phase 24 (unique hotels.destination_id +
+  // atomic upsert, migration 0007); kept as a regression guard.
+  it('PHASE-24 (hotel uniqueness): concurrent PUT hotel leaves exactly one hotel row', async () => {
     const t = await buildTree(req, user.token, 0);
     const p = `/api/trips/${t.tripId}/destinations/${t.destId}/hotel`;
     expect((await req('PUT', p, { token: user.token, body: { name: 'H0' } })).status).toBe(200);
@@ -147,8 +150,8 @@ describeDb('concurrency', () => {
   // that is never ended — two per authenticated request — each keeping an
   // idle connection for ~10 s and having no 'error' listener. Under load the
   // dev server exhausts max_connections (default 100); a DB restart crashes
-  // it. Owner: Phase 24 getDb/dbMiddleware (M-01/ARCH-01).
-  it.fails('M-01: 40 sequential requests do not leave 40+ idle connections behind', async () => {
+  // it. Fixed in Phase 24 (one cached pool per URL); regression guard.
+  it('M-01: 40 sequential requests do not leave 40+ idle connections behind', async () => {
     const db = new URL(dbUrl).pathname.slice(1);
     const conns = async () =>
       (await sql<{ n: number }>(dbUrl, 'select count(*)::int as n from pg_stat_activity where datname=$1', [db]))[0]!.n;

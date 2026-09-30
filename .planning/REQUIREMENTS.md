@@ -62,21 +62,21 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 
 ### Architecture Debt & Test Coverage — Phase 24
 
-- [ ] **ARCH-01**: `createDb` returns a typed union (`NeonDb | PgDb`) instead of `any` (cascades into `trips.ts:132` type recovery)
-- [ ] **ARCH-02**: Dual DB driver selection uses an explicit env var (not a `localhost` substring match on the connection string)
-- [ ] **ARCH-03**: `trips.ts` authorization cascade has unit test coverage (unblocked by ARCH-06)
+- [x] **ARCH-01**: `createDb` returns a typed union (`NeonDb | PgDb`) instead of `any` (cascades into `trips.ts:132` type recovery)
+- [x] **ARCH-02**: Dual DB driver selection uses an explicit env var (not a `localhost` substring match on the connection string)
+- [x] **ARCH-03**: `trips.ts` authorization cascade has unit test coverage (unblocked by ARCH-06)
 - [x] **ARCH-05**: Zod schemas include null-safe `.refine()` guards for `start_date ≤ end_date` (trip/destination/hotel) and lat/lng numeric range; `.partial()` PATCH schemas require at least one field
-- [ ] **ARCH-06**: Backend unit tests point `DATABASE_URL` at a real ephemeral Postgres DB (migrations + minimal seed); vacuous `toContain([200, 500])` assertions replaced with real assertions
+- [x] **ARCH-06**: Backend unit tests point `DATABASE_URL` at a real ephemeral Postgres DB (migrations + minimal seed); vacuous `toContain([200, 500])` assertions replaced with real assertions
 - [x] **ARCH-07**: E2E suite `waitForTimeout` hard sleeps replaced with web-first `expect(locator)` assertions (31 instances); conditional `test.skip()` calls converted to documented `test.fixme(condition, reason)` or removed (35 instances)
 - [x] **ARCH-08**: Terraform documented as sole source of truth for KC realm config; `apply-local-settings.sh` browserFlow override documented or removed; vestigial `realm-export.json` deleted or regenerated (tracked as SEC-13)
 - [ ] **ARCH-09**: CI `e2e` job is green (100% historical failure rate since April 2026 — `#trips-grid`/`#dashboard-login-prompt` timing assertions fixed for preview-build context)
-- [ ] **M-01**: `DATABASE_URL`/`getDb` middleware extracted to a shared helper, eliminating ~20 duplicated guard blocks across `trips.ts`/`auth.ts`/`users.ts`/`public.ts`
-- [ ] **M-02**: `resolveActivity` uses a single JOIN query instead of 4 sequential SELECTs
-- [ ] **M-09**: Per-route `catch {}` blocks log the original error before rethrowing (or removed in favor of propagation to the global `onError` handler — currently makes prod 500s undiagnosable from `wrangler tail`)
-- [ ] **PWA-01**: PWA manifest icons use first-party/precached assets instead of remote CDN URLs
-- [ ] **DATA-01**: `email_otp_codes` table has an index on `user_id`/`expires_at`; used/expired rows are cleaned up (cleanup job or opportunistic delete on `otp-request`)
-- [ ] **DATA-02**: `users.email` has a unique constraint at the DB level (not just Keycloak-enforced upstream)
-- [ ] **DATA-03**: `lat`/`lng` columns have `CHECK (lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180)` DB constraint
+- [x] **M-01**: `DATABASE_URL`/`getDb` middleware extracted to a shared helper, eliminating ~20 duplicated guard blocks across `trips.ts`/`auth.ts`/`users.ts`/`public.ts`
+- [x] **M-02**: `resolveActivity` uses a single JOIN query instead of 4 sequential SELECTs
+- [x] **M-09**: Per-route `catch {}` blocks log the original error before rethrowing (or removed in favor of propagation to the global `onError` handler — currently makes prod 500s undiagnosable from `wrangler tail`)
+- [x] **PWA-01**: PWA manifest icons use first-party/precached assets instead of remote CDN URLs
+- [x] **DATA-01**: `email_otp_codes` table has an index on `user_id`/`expires_at`; used/expired rows are cleaned up (cleanup job or opportunistic delete on `otp-request`)
+- [x] **DATA-02**: `users.email` has a unique constraint at the DB level (not just Keycloak-enforced upstream)
+- [x] **DATA-03**: `lat`/`lng` columns have `CHECK (lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180)` DB constraint
 
 ### Business Logic & Demo Parity — Phase 25
 
@@ -192,21 +192,21 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | A11Y-03 | Phase 23 | Complete |
 | A11Y-04 | Phase 23 | Partial |
 | A11Y-05 | Phase 23 | Partial |
-| ARCH-01 | Phase 24 | Pending |
-| ARCH-02 | Phase 24 | Pending |
-| ARCH-03 | Phase 24 | Pending |
+| ARCH-01 | Phase 24 | Complete |
+| ARCH-02 | Phase 24 | Complete |
+| ARCH-03 | Phase 24 | Complete |
 | ARCH-05 | Phase 24 | Complete |
-| ARCH-06 | Phase 24 | Pending |
+| ARCH-06 | Phase 24 | Complete |
 | ARCH-07 | Phase 24 | Complete |
 | ARCH-08 | Phase 24 | Complete (done with SEC-13 in Phase 26) |
 | ARCH-09 | Phase 24 | Pending |
-| M-01 | Phase 24 | Pending |
-| M-02 | Phase 24 | Pending |
-| M-09 | Phase 24 | Pending |
-| PWA-01 | Phase 24 | Pending |
-| DATA-01 | Phase 24 | Pending |
-| DATA-02 | Phase 24 | Pending |
-| DATA-03 | Phase 24 | Pending |
+| M-01 | Phase 24 | Complete |
+| M-02 | Phase 24 | Complete |
+| M-09 | Phase 24 | Complete |
+| PWA-01 | Phase 24 | Complete |
+| DATA-01 | Phase 24 | Complete |
+| DATA-02 | Phase 24 | Complete |
+| DATA-03 | Phase 24 | Complete |
 | BIZ-01 | Phase 25 | Complete |
 | BIZ-02 | Phase 25 | Complete |
 | BIZ-03 | Phase 25 | Complete |

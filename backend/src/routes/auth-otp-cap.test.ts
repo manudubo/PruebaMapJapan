@@ -22,12 +22,14 @@ vi.mock('../db/queries/otp', async (importOriginal) => {
     getLatestUnexpiredOtp: vi.fn(),
     getOtpCreatedAtsSince: vi.fn(),
     insertOtp: vi.fn(),
+    deleteStaleOtps: vi.fn(),
   };
 });
 
 import app from '../index';
 import type { Env } from '../types';
 import {
+  deleteStaleOtps,
   getLatestUnexpiredOtp,
   getOtpCreatedAtsSince,
   insertOtp,
@@ -78,6 +80,7 @@ describe('POST /api/auth/otp-request — hourly cap (BUG-16)', () => {
   beforeEach(() => {
     vi.mocked(getLatestUnexpiredOtp).mockResolvedValue(undefined);
     vi.mocked(insertOtp).mockResolvedValue({} as never);
+    vi.mocked(deleteStaleOtps).mockResolvedValue(0);
     // Mailpit send in the no-RESEND_API_KEY branch.
     vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
   });
@@ -106,5 +109,17 @@ describe('POST /api/auth/otp-request — hourly cap (BUG-16)', () => {
     const res = await app.request('/api/auth/otp-request', { method: 'POST' }, mockEnv);
     expect(res.status).toBe(201);
     expect(insertOtp).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failing stale-code cleanup is logged but does not block issuing (DATA-01)', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getOtpCreatedAtsSince).mockResolvedValue([]);
+    vi.mocked(deleteStaleOtps).mockRejectedValue(new Error('cleanup exploded'));
+
+    const res = await app.request('/api/auth/otp-request', { method: 'POST' }, mockEnv);
+
+    expect(res.status).toBe(201);
+    expect(insertOtp).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith('otp-request: stale OTP cleanup failed:', expect.any(Error));
   });
 });

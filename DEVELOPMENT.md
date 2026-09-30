@@ -158,7 +158,10 @@ To enable passkeys for a test user:
 # Unit tests (frontend)
 npm run test --workspace=frontend
 
-# Unit tests (backend)
+# Unit tests (backend) — need a real Postgres server (ARCH-06). Each run
+# creates a throwaway database on it, applies all migrations, and drops it.
+# Default server: postgresql://postgres:postgres@localhost:5432/postgres
+# (the docker compose Postgres). Override with TEST_DATABASE_URL.
 npm run test --workspace=backend
 
 # E2E tests (Playwright — requires both servers running)

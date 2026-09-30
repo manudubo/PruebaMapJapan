@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
-import pg from 'pg';
 import { emailOtpCodes } from '../schema';
+import type { Db } from '../index';
+import { closeTestPool, insertUser, resetDb, testDb } from '../../test-utils/db';
 import {
   consumeOtpAttempt,
   markOtpUsedIfUnused,
@@ -14,9 +15,8 @@ import {
 //
 // 1. SQL shape: always runs (drizzle.mock, no connection) — proves the guard
 //    lives in the UPDATE's WHERE clause, not in application code.
-// 2. Real race: runs when TEST_DATABASE_URL points at a Postgres server. It
-//    creates a throwaway schema, fires many truly concurrent UPDATEs over a
-//    pool, and drops the schema afterwards.
+// 2. Real race: on the suite's ephemeral, migrated Postgres (ARCH-06
+//    globalSetup) — many truly concurrent UPDATEs over a pool.
 // ---------------------------------------------------------------------------
 
 describe('consumeOtpAttempt SQL (SEC-07)', () => {
@@ -50,7 +50,7 @@ describe('consumeOtpAttempt SQL (SEC-07)', () => {
       },
     });
 
-    return consumeOtpAttempt(recorder, 42).then((res) => {
+    return consumeOtpAttempt(recorder as unknown as Db, 42).then((res) => {
       expect(res).toBeNull(); // no row returned → no attempt granted
       const text = captured!.sql.replace(/\s+/g, ' ');
       expect(text).toMatch(/^update "email_otp_codes" set "attempts" = "email_otp_codes"\."attempts" \+ 1/);
@@ -65,41 +65,20 @@ describe('consumeOtpAttempt SQL (SEC-07)', () => {
   });
 });
 
-const url = process.env['TEST_DATABASE_URL'];
+describe('consumeOtpAttempt against real Postgres (SEC-07)', () => {
+  const db = testDb();
+  let userId: number;
 
-describe.skipIf(!url)('consumeOtpAttempt against real Postgres (SEC-07)', () => {
-  const schemaName = `otp_race_${process.pid}_${Date.now()}`;
-  let admin: pg.Pool;
-  let pool: pg.Pool;
-  let db: ReturnType<typeof drizzle>;
-
-  beforeAll(async () => {
-    admin = new pg.Pool({ connectionString: url, max: 1 });
-    await admin.query(`CREATE SCHEMA "${schemaName}"`);
-    await admin.query(`
-      CREATE TABLE "${schemaName}".email_otp_codes (
-        id serial PRIMARY KEY,
-        user_id integer NOT NULL,
-        code_hash text NOT NULL,
-        expires_at timestamptz NOT NULL,
-        used_at timestamptz,
-        attempts integer NOT NULL DEFAULT 0,
-        created_at timestamptz NOT NULL DEFAULT now()
-      )`);
-    pool = new pg.Pool({ connectionString: url, max: 20, options: `-c search_path="${schemaName}"` });
-    db = drizzle(pool);
+  beforeEach(async () => {
+    await resetDb();
+    userId = (await insertUser()).id;
   });
-
-  afterAll(async () => {
-    await pool?.end();
-    await admin?.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
-    await admin?.end();
-  });
+  afterAll(closeTestPool);
 
   async function newOtp(attempts = 0): Promise<number> {
     const [row] = await db
       .insert(emailOtpCodes)
-      .values({ user_id: 1, code_hash: 'h', expires_at: new Date(Date.now() + 600_000), attempts })
+      .values({ user_id: userId, code_hash: 'h', expires_at: new Date(Date.now() + 600_000), attempts })
       .returning({ id: emailOtpCodes.id });
     return row!.id;
   }
