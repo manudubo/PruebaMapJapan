@@ -259,8 +259,7 @@ it('oversized body (2 MB) is rejected with 413 before touching the DB', async ()
 
   // -------------------------------------------------------------------------
   describe('URLs', () => {
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails.each([
+it.each([
       ['javascript:', 'javascript:alert(document.domain)'],
       ['data:', 'data:text/html,<script>alert(1)</script>'],
       ['vbscript:', 'vbscript:msgbox(1)'],
@@ -277,6 +276,13 @@ it('oversized body (2 MB) is rejected with 413 before touching the DB', async ()
       ];
       const results = await Promise.all(attempts);
       for (const r of results) expect.soft(r.status, r.text).toBe(400);
+    });
+
+    it('rejects scheme-relative and scheme-less URLs', async () => {
+      for (const url of ['//evil.test/x', 'evil.test/x', 'javascript://%0aalert(1)']) {
+        const res = await req('POST', '/api/trips', { token: user.token, body: { name: 'u', cover_image_url: url } });
+        expect.soft(res.status, url).toBe(400);
+      }
     });
 
     it('accepts ordinary https URLs', async () => {

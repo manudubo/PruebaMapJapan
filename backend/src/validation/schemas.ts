@@ -1,6 +1,21 @@
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
+// Shared field helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Absolute http(s) URL. z.string().url() alone also accepts javascript:,
+ * data:, vbscript: and file: URLs, which become stored XSS once a view
+ * renders the value as a link or image (public trips are shared).
+ */
+const httpUrl = () =>
+  z
+    .string()
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), 'URL must use http or https');
+
+// ---------------------------------------------------------------------------
 // Trip schemas
 // ---------------------------------------------------------------------------
 
@@ -9,7 +24,7 @@ export const CreateTripSchema = z.object({
   description: z.string().nullable().optional(),
   start_date: z.string().date().nullable().optional(),
   end_date: z.string().date().nullable().optional(),
-  cover_image_url: z.string().url().nullable().optional(),
+  cover_image_url: httpUrl().nullable().optional(),
   is_public: z.boolean().optional().default(false),
 });
 
@@ -59,7 +74,7 @@ export const CreateActivitySchema = z.object({
   lng: z.coerce.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   is_optional: z.boolean().optional(),
-  maps_url: z.string().url().nullable().optional(),
+  maps_url: httpUrl().nullable().optional(),
   order_index: z.number().int().min(0).optional(),
   time: z.string().nullable().optional(),
 });
@@ -80,7 +95,7 @@ export const UpsertHotelSchema = z.object({
   lng: z.coerce.string().nullable().optional(),
   check_in_date: z.string().date().nullable().optional(),
   check_out_date: z.string().date().nullable().optional(),
-  url: z.string().url().nullable().optional(),
+  url: httpUrl().nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -89,7 +104,7 @@ export const UpsertHotelSchema = z.object({
 
 export const UpdateUserSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  avatar_url: z.string().url().nullable().optional(),
+  avatar_url: httpUrl().nullable().optional(),
   preferences: z.record(z.unknown()).optional(),
 });
 
