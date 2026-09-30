@@ -361,7 +361,11 @@ export async function getPublicTrip(slug: string): Promise<ApiTrip> {
 // User endpoints
 // ---------------------------------------------------------------------------
 
-/** Get the authenticated user's profile. */
+/**
+ * Get the authenticated user's app-DB profile (authoritative for app-owned
+ * fields: id, avatar_url, preferences). For synchronous identity/display data
+ * straight from the JWT use getUserInfo() — see its JSDoc for which to use when.
+ */
 export async function getMe(): Promise<ApiUser> {
   return request<ApiUser>('/users/me', { auth: true });
 }
