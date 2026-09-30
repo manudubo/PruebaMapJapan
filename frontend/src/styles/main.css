@@ -1,5 +1,4 @@
 /* Japan Itinerary - Flat demo design system */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 /* ============================================
    CSS Custom Properties (Design Tokens)
@@ -333,6 +332,17 @@ body {
 .btn-primary:hover {
   background: var(--jp-accent-hover);
   border-color: var(--jp-accent-hover);
+}
+
+/* Dark theme accent (#0a84ff) is too light behind white text (3.6:1) */
+[data-theme="dark"] .btn-primary {
+  background: #0071e3;
+  border-color: #0071e3;
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  background: #0062c4;
+  border-color: #0062c4;
 }
 
 .btn-secondary {
