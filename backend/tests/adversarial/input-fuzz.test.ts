@@ -65,8 +65,7 @@ describeDb('input fuzzing', () => {
     });
 
     // Number() accepts these, so they reach Postgres as non-int4 params.
-    // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails.each(['1.5', 'Infinity', '-Infinity', '99999999999', '9007199254740993'])(
+    it.each(['1.5', 'Infinity', '-Infinity', '99999999999', '9007199254740993'])(
       'GET /api/trips/%s → 400, never 500',
       async (id) => {
         const res = await req('GET', `/api/trips/${encodeURIComponent(id)}`, { token: user.token });
@@ -74,8 +73,7 @@ describeDb('input fuzzing', () => {
       },
     );
 
-    // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails.each(['1.5', 'Infinity', '99999999999'])(
+    it.each(['1.5', 'Infinity', '99999999999'])(
       'nested routes with id %s → 4xx, never 500',
       async (id) => {
         const paths = [
@@ -91,14 +89,12 @@ describeDb('input fuzzing', () => {
       },
     );
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('PATCH /api/trips/1.5 with a valid body → 4xx, and says the id is invalid', async () => {
+it('PATCH /api/trips/1.5 with a valid body → 4xx, and says the id is invalid', async () => {
       const res = await req('PATCH', '/api/trips/1.5', { token: user.token, body: { name: 'x' } });
       expect(res.status).toBe(400);
     });
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('ids that are numeric but not canonical ("0x10", "1e3", " 7") do not alias real rows', async () => {
+it('ids that are numeric but not canonical ("0x10", "1e3", " 7") do not alias real rows', async () => {
       // Number('0x10') === 16 — the API must not treat "0x10" as trip 16.
       for (const id of ['0x' + tree.tripId.toString(16), `${tree.tripId}e0`, `0${tree.tripId}`]) {
         const res = await req('GET', `/api/trips/${id}`, { token: user.token });
