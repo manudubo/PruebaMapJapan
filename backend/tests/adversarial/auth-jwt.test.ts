@@ -213,6 +213,16 @@ describeDb('JWT success paths (real DB)', () => {
     expect(res.body.data.name).toBe('kc-ok-3');
   });
 
+  it('non-ASCII name/email claims are stored exactly (UTF-8, not mojibake)', async () => {
+    const name = 'José Pérez 田中 太郎 👩‍💻';
+    const email = 'josé@exämple.test';
+    const user = await makeUser(signer, { name, email });
+    const me = await req('GET', '/api/users/me', { token: user.token });
+    expect(me.status).toBe(201);
+    expect(me.body.data.name).toBe(name);
+    expect(me.body.data.email).toBe(email);
+  });
+
   it('two different subjects without email can both provision (guards DATA-02 unique-email work)', async () => {
     for (const sub of ['kc-noemail-a', 'kc-noemail-b']) {
       const token = await signer.sign(claims({ sub, email: undefined }));

@@ -55,10 +55,11 @@ function base64urlToArrayBuffer(base64url: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+/** Decode a base64url JWT segment to text. JWT JSON is UTF-8 (RFC 7519). */
 function base64urlDecode(base64url: string): string {
-  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-  return atob(padded);
+  // atob() yields one char per byte; decoding that directly as text turned
+  // non-ASCII claims ("José") into mojibake ("JosÃ©").
+  return new TextDecoder().decode(base64urlToArrayBuffer(base64url));
 }
 
 // ---------------------------------------------------------------------------
