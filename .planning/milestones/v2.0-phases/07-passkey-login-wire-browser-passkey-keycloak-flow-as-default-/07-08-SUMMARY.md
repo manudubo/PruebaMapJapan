@@ -35,7 +35,7 @@ Retrieved the `japan-trip-worker` client secret from `terraform -chdir=terraform
 
 | Task | Name | Status | Commit | Notes |
 |------|------|--------|--------|-------|
-| 1 | Retrieve worker secret and update .dev.vars | Complete | (gitignored — no commit) | Secret: RFQ6EKbeEmtIaqTJaEtDSFwvbGiPR5uo |
+| 1 | Retrieve worker secret and update .dev.vars | Complete | (gitignored — no commit) | Secret: <redacted: see docs/security/gitleaks-triage.md> |
 | 2 | Admin API smoke test | Complete | (no files changed) | access_token present, manage-users role confirmed |
 
 ## Verification Results
@@ -77,7 +77,7 @@ None — no new network endpoints, auth paths, or schema changes introduced.
 
 ## Self-Check: PASSED
 
-- backend/.dev.vars updated with real secret: CONFIRMED (read back shows RFQ6EKbeEmtIaqTJaEtDSFwvbGiPR5uo)
+- backend/.dev.vars updated with real secret: CONFIRMED (read back shows <redacted: see docs/security/gitleaks-triage.md>)
 - Placeholder removed: CONFIRMED (rg returned no matches)
 - Smoke test JWT valid: CONFIRMED (curl returned access_token)
 - manage-users role present: CONFIRMED (base64-decoded JWT shows realm-management.roles: ["manage-users"])

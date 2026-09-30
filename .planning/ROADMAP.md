@@ -55,7 +55,7 @@ Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `cod
 - [x] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14) — completed 2026-07-24
 - [x] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01) (completed 2026-07-30)
 - [ ] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
-- [ ] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05)
+- [x] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05)
 - [ ] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03)
 - [ ] **Phase 25: Business Logic & Demo Parity** — timezone date-shift bug (BIZ-11), cross-level date coherence (BIZ-07), expose is_optional/is_generic/maps_url/time/zoom_level through editor (BIZ-01..05), date-order validation (BIZ-06/08/09), remaining parity items (BIZ-10)
 - [ ] **Phase 26: Remaining Security Hardening & IdP Flow** — KC passkey flow restructure (KC-01, SEC-12), JWKS/JWT/OTP atomicity (SEC-05/06/07), remaining low-severity security findings (SEC-08..11/13/17..25)
@@ -117,7 +117,7 @@ Plans:
   3. Gitleaks re-scan against HEAD shows 0 unresolved findings; all 14 prior `generic-api-key` findings are either documented as confirmed false-positives or had live keys rotated (DEP-02)
   4. `aria-expanded` is removed from `<input>` elements across all 12 affected pages; an axe-core run shows 0 `aria-allowed-attr` violations for this pattern; contrast violations on landing/dashboard/profile pages are fixed; `tripDetail.ts` `showError()` renders a proper heading element (A11Y-01..03)
   5. CI pipeline includes a Gitleaks/TruffleHog secret-scanning job and an axe/Lighthouse accessibility-scanning job; both run on each push to main (DEP-03)
-**Plans**: TBD
+**Plans**: Executed directly (no plan files) - see `.planning/phases/23-supply-chain-a11y/23-SUMMARY.md`
 **UI hint**: yes
 
 ### Phase 24: Architecture Debt & Test Coverage

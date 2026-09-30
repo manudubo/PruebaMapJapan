@@ -1,5 +1,4 @@
 /* Japan Itinerary - Flat demo design system */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 /* ============================================
    CSS Custom Properties (Design Tokens)
@@ -22,16 +21,17 @@
   /* Text Colors */
   --jp-text: #1d1d1f;
   --jp-text-secondary: #515154;
-  --jp-text-tertiary: #86868b;
+  --jp-text-tertiary: #6e6e73;
 
   /* Accent Colors */
   --jp-accent: #0071e3;
   --jp-accent-hover: #0077ed;
+  --jp-accent-text: #0062c4;
   --jp-accent-subtle: rgba(0, 113, 227, 0.08);
   --jp-success: #34c759;
   --jp-success-subtle: rgba(52, 199, 89, 0.1);
-  --jp-danger: #ff3b30;
-  --jp-danger-hover: #d70015;
+  --jp-danger: #d70015;
+  --jp-danger-hover: #b3000f;
   --jp-danger-subtle: rgba(255, 59, 48, 0.08);
 
   /* Shadows */
@@ -84,9 +84,10 @@
   --jp-border-glass: rgba(255, 255, 255, 0.1);
   --jp-text: #f5f5f7;
   --jp-text-secondary: #a1a1a6;
-  --jp-text-tertiary: #6e6e73;
+  --jp-text-tertiary: #98989d;
   --jp-accent: #0a84ff;
   --jp-accent-hover: #409cff;
+  --jp-accent-text: #409cff;
   --jp-accent-subtle: rgba(10, 132, 255, 0.15);
   --jp-success: #30d158;
   --jp-success-subtle: rgba(48, 209, 88, 0.14);
@@ -331,6 +332,17 @@ body {
 .btn-primary:hover {
   background: var(--jp-accent-hover);
   border-color: var(--jp-accent-hover);
+}
+
+/* Dark theme accent (#0a84ff) is too light behind white text (3.6:1) */
+[data-theme="dark"] .btn-primary {
+  background: #0071e3;
+  border-color: #0071e3;
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  background: #0062c4;
+  border-color: #0062c4;
 }
 
 .btn-secondary {
@@ -877,6 +889,7 @@ body {
   flex-direction: column;
 }
 
+.legend h2,
 .legend h3 {
   font-size: 18px;
   font-weight: 600;

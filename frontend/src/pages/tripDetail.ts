@@ -14,6 +14,7 @@ import '@/components/Navbar';
 import '@/components/SearchBar';
 
 import * as L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { initTheme, getThemeConfig } from '@/modules/theme';
 import { initKeycloak, isAuthenticated } from '@/auth/keycloak';
 import { getTrip, getPublicTrip } from '@/api/client';
@@ -471,6 +472,11 @@ function showError(message: string): void {
   card.className = 'page-card';
   card.style.padding = '32px';
   card.style.textAlign = 'center';
+  const heading = document.createElement('h1');
+  heading.textContent = 'Trip unavailable';
+  heading.style.fontSize = '1.5rem';
+  heading.style.marginBottom = '12px';
+  card.appendChild(heading);
   const p = document.createElement('p');
   p.style.color = 'var(--jp-text-secondary,#515154)';
   setText(p, message);

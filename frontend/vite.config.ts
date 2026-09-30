@@ -1,12 +1,14 @@
 import { defineConfig, type Plugin } from 'vite';
 import { resolve } from 'path';
+import { createHash } from 'crypto';
+import { readFileSync, readdirSync, writeFileSync } from 'fs';
 
 function cspPlugin(): Plugin {
   const keycloakUrl = process.env['VITE_KEYCLOAK_URL'] ?? 'http://localhost:8080';
   const csp = [
     "default-src 'none'",
-    "script-src 'self' 'unsafe-inline' https://unpkg.com",
-    "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org https://cdn-icons-png.flaticon.com",
     `connect-src 'self' https://api.allorigins.win https://corsproxy.io https://api.open-meteo.com https://nominatim.openstreetmap.org https://fonts.googleapis.com ${keycloakUrl}`,
     "font-src 'self' https://fonts.gstatic.com",
@@ -26,10 +28,37 @@ function cspPlugin(): Plugin {
   };
 }
 
+// SEC-16: derive the service-worker cache name from the build output so every
+// deploy gets a fresh cache (public/sw.js is copied verbatim by Vite).
+function swVersionPlugin(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'sw-version',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const hash = createHash('sha256');
+      const walk = (dir: string): void => {
+        for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+          const p = resolve(dir, entry.name);
+          if (entry.isDirectory()) walk(p);
+          else if (entry.name !== 'sw.js') hash.update(entry.name).update(readFileSync(p));
+        }
+      };
+      walk(outDir);
+      const swPath = resolve(outDir, 'sw.js');
+      const sw = readFileSync(swPath, 'utf8');
+      writeFileSync(swPath, sw.replace(/__BUILD_VERSION__/g, hash.digest('hex').slice(0, 12)));
+    },
+  };
+}
+
 export default defineConfig({
   // Base URL para GitHub Pages
   base: '/PruebaMapJapan/',
-  plugins: [cspPlugin()],
+  plugins: [cspPlugin(), swVersionPlugin()],
 
   resolve: {
     alias: {

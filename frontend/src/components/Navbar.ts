@@ -192,7 +192,7 @@ class TravelNav extends HTMLElement {
         }
 
         .nav-link.is-active {
-          color: var(--jp-accent, #0071e3);
+          color: var(--jp-accent-text, var(--jp-accent, #0071e3));
           background: var(--jp-accent-subtle, rgba(0,113,227,0.1));
         }
 
