@@ -33,11 +33,31 @@ function coordinate(axis: 'lat' | 'lng') {
   });
 }
 
+/**
+ * Null-safe date-range check (BIZ-06): only compares when both ends are
+ * present, so partial-date records stay valid. Dates are already validated
+ * as YYYY-MM-DD, so string comparison is calendar order (no Date/timezone
+ * parsing involved). Equal dates are allowed (single-day ranges).
+ */
+function dateOrder<K extends string>(startKey: K, endKey: K) {
+  return (data: Partial<Record<K, string | null | undefined>>, ctx: z.RefinementCtx): void => {
+    const start = data[startKey];
+    const end = data[endKey];
+    if (typeof start === 'string' && typeof end === 'string' && start > end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [endKey],
+        message: `${endKey} must be on or after ${startKey}`,
+      });
+    }
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Trip schemas
 // ---------------------------------------------------------------------------
 
-export const CreateTripSchema = z.object({
+const TripFields = z.object({
   name: z.string().min(1).max(255),
   description: z.string().nullable().optional(),
   start_date: z.string().date().nullable().optional(),
@@ -46,13 +66,17 @@ export const CreateTripSchema = z.object({
   is_public: z.boolean().optional().default(false),
 });
 
-export const UpdateTripSchema = CreateTripSchema.partial();
+const tripDateOrder = dateOrder('start_date', 'end_date');
+
+export const CreateTripSchema = TripFields.superRefine(tripDateOrder);
+
+export const UpdateTripSchema = TripFields.partial().superRefine(tripDateOrder);
 
 // ---------------------------------------------------------------------------
 // Destination schemas
 // ---------------------------------------------------------------------------
 
-export const CreateDestinationSchema = z.object({
+const DestinationFields = z.object({
   city_name: z.string().min(1).max(255),
   country: z.string().min(1).max(100),
   start_date: z.string().date().nullable().optional(),
@@ -63,7 +87,11 @@ export const CreateDestinationSchema = z.object({
   order_index: z.number().int().min(0).optional(),
 });
 
-export const UpdateDestinationSchema = CreateDestinationSchema.partial();
+const destinationDateOrder = dateOrder('start_date', 'end_date');
+
+export const CreateDestinationSchema = DestinationFields.superRefine(destinationDateOrder);
+
+export const UpdateDestinationSchema = DestinationFields.partial().superRefine(destinationDateOrder);
 
 // ---------------------------------------------------------------------------
 // Day schemas
@@ -107,14 +135,16 @@ export const ReorderActivitiesSchema = z.object({
 // Hotel schema
 // ---------------------------------------------------------------------------
 
-export const UpsertHotelSchema = z.object({
-  name: z.string().min(1).max(255),
-  lat: coordinate('lat').nullable().optional(),
-  lng: coordinate('lng').nullable().optional(),
-  check_in_date: z.string().date().nullable().optional(),
-  check_out_date: z.string().date().nullable().optional(),
-  url: z.string().url().nullable().optional(),
-});
+export const UpsertHotelSchema = z
+  .object({
+    name: z.string().min(1).max(255),
+    lat: coordinate('lat').nullable().optional(),
+    lng: coordinate('lng').nullable().optional(),
+    check_in_date: z.string().date().nullable().optional(),
+    check_out_date: z.string().date().nullable().optional(),
+    url: z.string().url().nullable().optional(),
+  })
+  .superRefine(dateOrder('check_in_date', 'check_out_date'));
 
 // ---------------------------------------------------------------------------
 // User schemas
