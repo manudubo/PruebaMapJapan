@@ -165,7 +165,9 @@ browser-passkey
   their passkey recovers through "Forgot password" (Keycloak's email reset-credentials flow, which
   signs the user in on completion — not covered by E2E yet) or an admin removing the credential.
 
-`tests/e2e/idp-flow.spec.ts` covers these cases against a running Keycloak.
+`tests/e2e/idp-flow.spec.ts` covers these cases against a running Keycloak, and
+`tests/e2e/idp-config.spec.ts` statically checks the flow layout (no REQUIRED+ALTERNATIVE mix,
+credential subflow after the username, WebAuthn guarded by the condition) without needing Keycloak.
 
 The passwordless policy uses `authenticatorAttachment = platform` to prefer built-in
 authenticators (Touch ID, Windows Hello, Face ID) and `rpId = localhost` (changing it requires
