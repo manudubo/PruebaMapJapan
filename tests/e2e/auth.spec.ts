@@ -129,6 +129,8 @@ test.describe('Auth flow — mocked Keycloak', () => {
 
       await expect(page.locator('.toast--error')).toBeVisible();
       await expect(page.locator('.toast--error')).toContainText('Something went wrong');
+      // The failure must be announced to assistive tech, not only painted.
+      await expect(page.getByRole('alert')).toContainText('Something went wrong');
       // Page still finished initialising (not hung on the loading state forever).
       await expect(page.locator('body')).toHaveClass(/ready/);
     });
