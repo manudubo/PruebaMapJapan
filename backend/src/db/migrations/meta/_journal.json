@@ -50,6 +50,13 @@
       "when": 1790785306550,
       "tag": "0006_lat_lng_range_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790785600271,
+      "tag": "0007_hotels_one_per_destination",
+      "breakpoints": true
     }
   ]
 }

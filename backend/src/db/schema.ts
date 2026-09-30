@@ -142,6 +142,9 @@ export const hotels = pgTable(
   },
   (table) => ({
     latLngRange: latLngRange('hotels_lat_lng_range', table.lat, table.lng),
+    // One hotel per destination, enforced by the DB so concurrent PUTs cannot
+    // leave duplicates (the relation is declared one-to-one).
+    destinationIdx: uniqueIndex('hotels_destination_id_idx').on(table.destination_id),
   }),
 );
 

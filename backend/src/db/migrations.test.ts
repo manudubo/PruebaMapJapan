@@ -26,7 +26,7 @@ async function seedUser(email: string, kc = email) {
 describe('migration journal', () => {
   it('lists every SQL migration in order', () => {
     const tags = journalTags();
-    expect(tags.slice(0, 7)).toEqual([
+    expect(tags.slice(0, 8)).toEqual([
       '0000_initial',
       '0001_add_hotel_url_activity_time',
       '0002_add_public_slug',
@@ -34,6 +34,7 @@ describe('migration journal', () => {
       '0004_email_otp_codes_index',
       '0005_users_email_unique',
       '0006_lat_lng_range_checks',
+      '0007_hotels_one_per_destination',
     ]);
   });
 
@@ -140,7 +141,13 @@ describe('0006 lat/lng CHECK constraints (DATA-03)', () => {
           table === 'destinations'
             ? await q(`INSERT INTO destinations (trip_id, city_name, country, lat, lng) VALUES ($1, $2, 'j', $3, $4) RETURNING id`, [trip.id, label, lat, lng])
             : table === 'hotels'
-              ? await q(`INSERT INTO hotels (destination_id, name, lat, lng) VALUES ($1, $2, $3, $4) RETURNING id`, [dest.id, label, lat, lng])
+              ? // one destination per hotel: 0007 later allows only one hotel each
+                await q(
+                  `WITH d AS (INSERT INTO destinations (trip_id, city_name, country) VALUES ($1, $2::varchar, 'j') RETURNING id)
+                   INSERT INTO hotels (destination_id, name, lat, lng)
+                   SELECT d.id, $2::varchar, $3::numeric, $4::numeric FROM d RETURNING id`,
+                  [trip.id, label, lat, lng],
+                )
               : await q(`INSERT INTO activities (day_id, name, lat, lng) VALUES ($1, $2, $3, $4) RETURNING id`, [day.id, label, lat, lng]);
         ids.push(row.id);
       }
@@ -160,4 +167,26 @@ describe('0006 lat/lng CHECK constraints (DATA-03)', () => {
       expect(con).toEqual({ convalidated: true });
     },
   );
+});
+
+describe('0007 one hotel per destination', () => {
+  it('keeps the newest hotel of each destination, leaves singletons alone, then enforces uniqueness', async () => {
+    db = await scratchDbAt('0006_lat_lng_range_checks');
+    const u = await seedUser('a@example.com');
+    const [trip] = await q(`INSERT INTO trips (user_id, name) VALUES ($1, 't') RETURNING id`, [u]);
+    const [d1] = await q(`INSERT INTO destinations (trip_id, city_name, country) VALUES ($1, 'd1', 'j') RETURNING id`, [trip.id]);
+    const [d2] = await q(`INSERT INTO destinations (trip_id, city_name, country) VALUES ($1, 'd2', 'j') RETURNING id`, [trip.id]);
+    await q(`INSERT INTO hotels (destination_id, name) VALUES ($1, 'old'), ($1, 'mid'), ($1, 'newest'), ($2, 'only')`, [d1.id, d2.id]);
+
+    await db.migrateToLatest();
+
+    expect(await q(`SELECT destination_id, name FROM hotels ORDER BY destination_id`)).toEqual([
+      { destination_id: d1.id, name: 'newest' },
+      { destination_id: d2.id, name: 'only' },
+    ]);
+    await expect(q(`INSERT INTO hotels (destination_id, name) VALUES ($1, 'dup')`, [d1.id])).rejects.toMatchObject({
+      code: '23505',
+      constraint: 'hotels_destination_id_idx',
+    });
+  });
 });

@@ -452,6 +452,47 @@ describe('destinations / days / activities / hotel CRUD (owner)', () => {
     expect(gone.body).toEqual({ success: false, error: 'Hotel not found' });
   });
 
+  it('hotel: 20 concurrent PUTs leave exactly one row, holding one of the submitted names', async () => {
+    const { A } = await world();
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        call('PUT', `${D(A as Ids)}/hotel`, { sub: 'owner', body: { name: `H${i}` } }),
+      ),
+    );
+    expect(results.map((r) => r.status)).toEqual(Array(20).fill(200));
+    const { rows } = await testPool().query('SELECT id, name FROM hotels WHERE destination_id = $1', [A.dest]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(A.hotel); // replaced in place — id is stable
+    expect(rows[0].name).toMatch(/^H\d+$/);
+  });
+
+  it('hotel: PUT replaces every field (omitted ones become null)', async () => {
+    const { A } = await world();
+    await call('PUT', `${D(A as Ids)}/hotel`, {
+      sub: 'owner',
+      body: { name: 'Full', lat: 35, lng: 139, check_in_date: '2026-03-01', url: 'https://example.com' },
+    });
+    const res = await call('PUT', `${D(A as Ids)}/hotel`, { sub: 'owner', body: { name: 'Bare' } });
+    expect(res.status).toBe(200);
+    expect(res.body['data']).toMatchObject({
+      id: A.hotel,
+      name: 'Bare',
+      lat: null,
+      lng: null,
+      check_in_date: null,
+      url: null,
+    });
+  });
+
+  it('hotel: PUT on a destination without one creates it; DELETE then PUT recreates', async () => {
+    const { A } = await world();
+    await call('DELETE', `${D(A as Ids)}/hotel`, { sub: 'owner' });
+    const res = await call('PUT', `${D(A as Ids)}/hotel`, { sub: 'owner', body: { name: 'New' } });
+    expect(res.status).toBe(200);
+    expect(res.body['data']).toMatchObject({ destination_id: A.dest, name: 'New' });
+    expect(await count('hotels', 'destination_id = $1', [A.dest])).toBe(1);
+  });
+
   it('DELETE hotel when none exists → 200 (idempotent)', async () => {
     const { A } = await world();
     await call('DELETE', `${D(A as Ids)}/hotel`, { sub: 'owner' });
