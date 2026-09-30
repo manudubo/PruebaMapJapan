@@ -7,7 +7,10 @@ export interface NominatimResult {
 /**
  * Search Nominatim for a place name.
  * IMPORTANT: Only call on explicit button click — never on keypress (OSM rate limit: 1 req/s).
- * User-Agent header is REQUIRED: stock fetch without it returns 403.
+ * No custom User-Agent: it is a forbidden header in browser fetch and is
+ * silently replaced by the browser's own. From a browser, Nominatim's usage
+ * policy is satisfied by the browser User-Agent plus the page's Referer.
+ * (The "403 without User-Agent" behaviour only applies to server-side fetch.)
  */
 export async function searchNominatim(query: string): Promise<NominatimResult[]> {
   const url = new URL('https://nominatim.openstreetmap.org/search');
@@ -17,7 +20,6 @@ export async function searchNominatim(query: string): Promise<NominatimResult[]>
 
   const res = await fetch(url.toString(), {
     headers: {
-      'User-Agent': 'PruebaMapJapan/1.0 (https://github.com/user/PruebaMapJapan)',
       'Accept-Language': 'es,en',
     },
   });
