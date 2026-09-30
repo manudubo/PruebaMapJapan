@@ -2,33 +2,17 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import {
   getUserByKeycloakId,
-  createUser,
   updateUser,
+  upsertUser,
   getTripsByUser,
   getDb,
 } from '../db';
 import { authMiddleware } from '../middleware/auth';
+import { userClaimsFromJwt } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { UpdateUserSchema } from '../validation/schemas';
 
 const usersRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
-
-// ---------------------------------------------------------------------------
-// Helper — look up the DB user by Keycloak subject; auto-provision on first
-// login. Returns the user row (existing or freshly created).
-// ---------------------------------------------------------------------------
-async function getOrCreateUser(
-  db: ReturnType<typeof getDb>,
-  keycloakId: string,
-  email: string,
-  name: string,
-) {
-  const existing = await getUserByKeycloakId(db, keycloakId);
-  if (existing) return { user: existing, created: false };
-
-  const created = await createUser(db, { keycloak_id: keycloakId, email, name });
-  return { user: created, created: true };
-}
 
 // ===========================================================================
 // ROUTES
@@ -37,18 +21,13 @@ async function getOrCreateUser(
 /**
  * GET /api/users/me
  * Returns the authenticated user's profile.
- * If the user does not exist in the DB yet (first login) it is auto-created.
+ * If the user does not exist in the DB yet (first login) it is auto-created;
+ * otherwise email/name are refreshed from the token when they changed.
  */
 usersRoute.get('/me', authMiddleware, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
-  const jwtUser = c.get('user');
-
-  const { user, created } = await getOrCreateUser(
-    db,
-    jwtUser.sub,
-    jwtUser.email ?? '',
-    jwtUser.name ?? jwtUser.preferred_username,
-  );
+  // Race-safe auto-provision + Keycloak email/name refresh (BUG-03/BUG-08).
+  const { user, created } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
 
   const response: ApiResponse = { success: true, data: user };
   return c.json(response, created ? 201 : 200);
@@ -87,15 +66,8 @@ usersRoute.patch(
  */
 usersRoute.get('/me/trips', authMiddleware, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
-  const jwtUser = c.get('user');
-
-  // Auto-provision if needed (idempotent on every call).
-  const { user } = await getOrCreateUser(
-    db,
-    jwtUser.sub,
-    jwtUser.email ?? '',
-    jwtUser.name ?? jwtUser.preferred_username,
-  );
+  // Auto-provision if needed (idempotent, race-safe on every call).
+  const { user } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
 
   const userTrips = await getTripsByUser(db, user.id);
   const response: ApiResponse = { success: true, data: userTrips };
