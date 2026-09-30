@@ -18,6 +18,8 @@ export interface MockApiOptions {
   createDelayMs?: number;
   /** Status for GET /trips/:id (default 200), e.g. 404 for a trip the user does not own. */
   tripStatus?: number;
+  /** Every non-GET request answers 500 (GETs still succeed) — for save-failure paths. */
+  failWrites?: boolean;
 }
 
 const json = (status: number, body: unknown) => ({
@@ -52,6 +54,9 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     if (options.failWith) {
       return route.fulfill(json(options.failWith, { success: false, error: 'mock_failure' }));
     }
+    if (options.failWrites && request.method() !== 'GET') {
+      return route.fulfill(json(500, { success: false, error: 'mock_write_failure' }));
+    }
     if (path === '/users/me') return route.fulfill(json(200, mockUserApiResponse));
     if (path === '/trips' && request.method() === 'POST') {
       if (options.createDelayMs) await new Promise((r) => setTimeout(r, options.createDelayMs));
@@ -64,11 +69,22 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       return route.fulfill(json(201, { success: true, data: created }));
     }
     if (path === '/trips') return route.fulfill(json(200, { success: true, data: trips }));
-    if (/^\/(public\/)?trips\/\d+$/.test(path)) {
+    if (request.method() === 'GET' && /^\/(public\/)?trips\/\d+$/.test(path)) {
       if (options.tripStatus && options.tripStatus !== 200) {
         return route.fulfill(json(options.tripStatus, { success: false, error: 'not_found' }));
       }
       return route.fulfill(json(200, { success: true, data: trip }));
+    }
+    // Nested writes (destinations/hotel/days/activities): echo the payload back like the Worker does.
+    if (path.startsWith('/trips/') && request.method() !== 'GET') {
+      if (request.method() === 'DELETE' || path.endsWith('/reorder')) return route.fulfill({ status: 204 });
+      if (request.method() === 'PATCH' && /^\/trips\/\d+$/.test(path)) {
+        return route.fulfill(json(200, { success: true, data: { ...(trip as object), ...(body as object) } }));
+      }
+      const lastId = Number(path.split('/').filter((seg) => /^\d+$/.test(seg)).pop() ?? 0);
+      const status = request.method() === 'POST' ? 201 : 200;
+      const id = request.method() === 'POST' ? 50 + calls.length : lastId;
+      return route.fulfill(json(status, { success: true, data: { days: [], hotel: null, ...(body as object), id } }));
     }
     return route.fulfill(json(200, { success: true, data: [] }));
   });
