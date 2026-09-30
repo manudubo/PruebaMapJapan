@@ -210,9 +210,10 @@ function initMap(data: CityData): void {
   setupDayFilter(daySelector, map, data, markersByDay, allMarkers);
 
   const hotelBtn = document.getElementById('hotel-btn');
-  if (hotelBtn && data.hotel?.coords) {
+  const hotelCoords = data.hotel?.coords;
+  if (hotelBtn && hotelCoords) {
     hotelBtn.setAttribute('aria-label', 'Center map on hotel');
-    hotelBtn.onclick = () => map.setView(data.hotel.coords, 15);
+    hotelBtn.onclick = () => map.setView(hotelCoords, 15);
   }
 
   generateLegend(data);

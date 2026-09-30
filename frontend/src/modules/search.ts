@@ -1,6 +1,7 @@
 import { ITINERARY } from '@/data/itinerary';
 import type { ApiTrip } from '@/types';
 import { formatIsoDate } from './dates';
+import { toCoords } from './tripAdapter';
 
 // ============================================
 // Types
@@ -118,7 +119,7 @@ export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
         subtitle: `Hotel in ${dest.city_name} · ${trip.name}`,
         city: dest.city_name,
         cityKey,
-        coords: dest.hotel.lat != null && dest.hotel.lng != null ? [dest.hotel.lat, dest.hotel.lng] : undefined,
+        coords: toCoords(dest.hotel.lat, dest.hotel.lng),
         url: tripUrl,
       });
     }
@@ -143,7 +144,7 @@ export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
           city: dest.city_name,
           cityKey,
           date: day.date,
-          coords: act.lat != null && act.lng != null ? [act.lat, act.lng] : undefined,
+          coords: toCoords(act.lat, act.lng),
           url: tripUrl,
         });
       });
