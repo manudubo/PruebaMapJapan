@@ -125,6 +125,22 @@ resource "keycloak_authentication_execution" "password_form" {
   depends_on = [keycloak_authentication_subflow.passkey]
 }
 
+# SEC-13 / ARCH-08: Terraform is the single source of truth for which flow the realm
+# uses. Bound here (not via keycloak_realm.browser_flow) so a fresh `terraform apply`
+# creates the flow before binding it — setting browser_flow on the realm resource made
+# the realm POST fail with a 500 (flow does not exist yet) on an empty Keycloak.
+resource "keycloak_authentication_bindings" "browser_flow" {
+  realm_id     = keycloak_realm.japan_trip.id
+  browser_flow = keycloak_authentication_flow.browser_passkey.alias
+
+  depends_on = [
+    keycloak_authentication_execution.cookie,
+    keycloak_authentication_execution.username_form,
+    keycloak_authentication_execution.webauthn_passwordless,
+    keycloak_authentication_execution.password_form,
+  ]
+}
+
 resource "keycloak_required_action" "webauthn_register_passwordless" {
   realm_id       = keycloak_realm.japan_trip.realm
   alias          = "webauthn-register-passwordless"

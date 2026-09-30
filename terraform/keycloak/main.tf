@@ -22,8 +22,8 @@ resource "keycloak_realm" "japan_trip" {
 
   password_policy = "length(8) and upperCase(1) and digits(1) and specialChars(1)"
 
-  # KC-02: switched to browser-passkey flow (password-forms ALTERNATIVE pre-declared in flows.tf)
-  browser_flow = "browser-passkey"
+  # browserFlow is bound by keycloak_authentication_bindings.browser_flow in flows.tf
+  # (SEC-13: Terraform is the only thing that sets it; see keycloak/README.md).
 
   # Standard (non-passwordless) WebAuthn — rpId is empty per realm-export.json line 32
   web_authn_policy {
