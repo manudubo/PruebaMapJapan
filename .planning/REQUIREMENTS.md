@@ -94,23 +94,23 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 
 ### Remaining Security Hardening & IdP Flow — Phase 26
 
-- [ ] **SEC-05**: JWKS cache force-invalidation includes a cooldown timestamp to prevent DoS amplification against Keycloak (any bad-signature request currently triggers an unconditional refresh)
-- [ ] **SEC-06**: JWT verification errors return a generic `invalid_token` response body; issuer URL/realm/audience detail logged server-side only
-- [ ] **SEC-07**: OTP attempt counter uses atomic `UPDATE ... WHERE attempts < 5 RETURNING` (eliminates TOCTOU race on concurrent requests)
-- [ ] **SEC-08**: Email delivery in `otp-request` gated on explicit `ENVIRONMENT` env var; production missing `RESEND_API_KEY` fails loudly (no silent fallback to local Mailpit)
-- [ ] **SEC-09**: `profile.ts` passkey label rendered via `textContent` or `DOMPurify.sanitize`, not raw `innerHTML` (closes self-XSS vector)
-- [ ] **SEC-10**: `SearchBar.highlightMatch` uses safe DOM construction instead of substring concat into raw `innerHTML` (currently latent — becomes live once search indexes API data)
+- [x] **SEC-05**: JWKS cache force-invalidation includes a cooldown timestamp to prevent DoS amplification against Keycloak (any bad-signature request currently triggers an unconditional refresh)
+- [x] **SEC-06**: JWT verification errors return a generic `invalid_token` response body; issuer URL/realm/audience detail logged server-side only
+- [x] **SEC-07**: OTP attempt counter uses atomic `UPDATE ... WHERE attempts < 5 RETURNING` (eliminates TOCTOU race on concurrent requests)
+- [x] **SEC-08**: Email delivery in `otp-request` gated on explicit `ENVIRONMENT` env var; production missing `RESEND_API_KEY` fails loudly (no silent fallback to local Mailpit)
+- [x] **SEC-09**: `profile.ts` passkey label rendered via `textContent` or `DOMPurify.sanitize`, not raw `innerHTML` (closes self-XSS vector)
+- [x] **SEC-10**: `SearchBar.highlightMatch` uses safe DOM construction instead of substring concat into raw `innerHTML` (currently latent — becomes live once search indexes API data)
 - [ ] **SEC-11**: Keycloak `error.ftl` template includes `kcSanitize()` before `?no_esc` (consistent with `login.ftl`)
 - [ ] **SEC-12**: Keycloak `passkey-forms` subflow restructured to remove the `REQUIRED`+`ALTERNATIVE` smell (confirmed live at 819 occurrences/2h); negative E2E test asserts that username-only auth is impossible
 - [ ] **SEC-13**: Terraform is the sole source of truth for `browserFlow`; `apply-local-settings.sh` browserFlow override is documented or removed; vestigial `realm-export.json` deleted or regenerated (also tracked as ARCH-08)
 - [ ] **SEC-17**: KC realm `sslRequired` verified against Railway proxy-header configuration; `"all"` enforced in prod if headers are correctly forwarded
 - [ ] **SEC-18**: Nominatim geocoder requests proxied through the Worker (not direct from browser) to comply with OSM Usage Policy and avoid per-user query leakage
 - [ ] **SEC-19**: Terraform `variables.tf` E2E user password defaults removed; forced via `-var-file=local.tfvars` or guarded by a `precondition` checking `kc_url` is localhost
-- [ ] **SEC-20**: `X-Content-Type-Options: nosniff` and `Permissions-Policy` headers added to `backend/src/middleware/security.ts`
-- [ ] **SEC-21**: Public trip response field exposure is documented as an intentional product decision, or `user_id`/numeric internal IDs are projected out of the public response
+- [x] **SEC-20**: `X-Content-Type-Options: nosniff` and `Permissions-Policy` headers added to `backend/src/middleware/security.ts`
+- [x] **SEC-21**: Public trip response field exposure is documented as an intentional product decision, or `user_id`/numeric internal IDs are projected out of the public response
 - [ ] **SEC-22**: `resolveDestination` and similar resolvers return 404 for both existing-and-unauthorized and non-existent resources (no 403 that reveals existence)
-- [ ] **SEC-23**: CORS allowed origins separated by environment (no `localhost:3000`/`:5173` in production config)
-- [ ] **SEC-24**: Health endpoint response minimized, rate-limited, or authenticated to remove fingerprinting data
+- [x] **SEC-23**: CORS allowed origins separated by environment (no `localhost:3000`/`:5173` in production config)
+- [x] **SEC-24**: Health endpoint response minimized, rate-limited, or authenticated to remove fingerprinting data
 - [ ] **SEC-25**: `avatar_url`/`preferences` KC attribute mappers remove `add_to_access_token: true` (unnecessary token bloat; backend only reads them on user-CREATE via `id_token`/`userinfo`)
 - [ ] **KC-01**: Keycloak `passkey-forms` subflow restructured to a single REQUIRED credential-subflow with webauthn/password as internal ALTERNATIVEs using `conditional-user-configured` executor; password fallback for non-passkey users (including E2E `e2e-test@local`) must remain functional
 
@@ -218,23 +218,23 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | BIZ-09 | Phase 25 | Pending |
 | BIZ-10 | Phase 25 | Pending |
 | BIZ-11 | Phase 25 | Pending |
-| SEC-05 | Phase 26 | Pending |
-| SEC-06 | Phase 26 | Pending |
-| SEC-07 | Phase 26 | Pending |
-| SEC-08 | Phase 26 | Pending |
-| SEC-09 | Phase 26 | Pending |
-| SEC-10 | Phase 26 | Pending |
+| SEC-05 | Phase 26 | Complete |
+| SEC-06 | Phase 26 | Complete |
+| SEC-07 | Phase 26 | Complete |
+| SEC-08 | Phase 26 | Complete |
+| SEC-09 | Phase 26 | Complete |
+| SEC-10 | Phase 26 | Complete |
 | SEC-11 | Phase 26 | Pending |
 | SEC-12 | Phase 26 | Pending |
 | SEC-13 | Phase 26 | Pending |
 | SEC-17 | Phase 26 | Pending |
 | SEC-18 | Phase 26 | Pending |
 | SEC-19 | Phase 26 | Pending |
-| SEC-20 | Phase 26 | Pending |
-| SEC-21 | Phase 26 | Pending |
+| SEC-20 | Phase 26 | Complete |
+| SEC-21 | Phase 26 | Complete |
 | SEC-22 | Phase 26 | Pending |
-| SEC-23 | Phase 26 | Pending |
-| SEC-24 | Phase 26 | Pending |
+| SEC-23 | Phase 26 | Complete |
+| SEC-24 | Phase 26 | Complete |
 | SEC-25 | Phase 26 | Pending |
 | KC-01 | Phase 26 | Pending |
 
