@@ -37,6 +37,9 @@ const isoDate = () =>
     .date()
     .refine((d) => !d.startsWith('0000-'), 'year must be 0001 or later');
 
+/** order_index column is int4: larger values failed at INSERT with a 500. */
+const orderIndex = () => z.number().int().min(0).max(2_147_483_647);
+
 /**
  * Absolute http(s) URL. z.string().url() alone also accepts javascript:,
  * data:, vbscript: and file: URLs, which become stored XSS once a view
@@ -74,7 +77,7 @@ export const CreateDestinationSchema = z.object({
   lat: z.coerce.string().nullable().optional(),
   lng: z.coerce.string().nullable().optional(),
   zoom_level: z.number().int().min(1).max(20).nullable().optional(),
-  order_index: z.number().int().min(0).optional(),
+  order_index: orderIndex().optional(),
 });
 
 export const UpdateDestinationSchema = CreateDestinationSchema.partial();
@@ -91,7 +94,7 @@ export const CreateDaySchema = z.object({
     .regex(/^#[0-9A-Fa-f]{6}$/, 'color_hex must be a valid 6-digit hex color')
     .nullable()
     .optional(),
-  order_index: z.number().int().min(0).optional(),
+  order_index: orderIndex().optional(),
 });
 
 export const UpdateDaySchema = CreateDaySchema.partial();
@@ -107,7 +110,7 @@ export const CreateActivitySchema = z.object({
   notes: text().nullable().optional(),
   is_optional: z.boolean().optional(),
   maps_url: httpUrl().nullable().optional(),
-  order_index: z.number().int().min(0).optional(),
+  order_index: orderIndex().optional(),
   time: text().nullable().optional(),
 });
 

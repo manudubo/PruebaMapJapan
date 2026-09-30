@@ -432,8 +432,7 @@ it('day date 0000-01-01 → 400, never 500', async () => {
       expect(res.status).toBe(400);
     });
 
-    // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('order_index beyond int4 → 400, never 500', async () => {
+    it('order_index beyond int4 → 400, never 500', async () => {
       for (const [path, body] of [
         [`${tree.base}/activities`, { name: 'n', order_index: 2 ** 31 }],
         [`/api/trips/${tree.tripId}/destinations`, { city_name: 'c', country: 'JP', order_index: 2 ** 31 }],
