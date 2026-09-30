@@ -17,7 +17,7 @@
   - Token algorithm: RS256
   - PKCE method: S256 (`frontend/src/auth/keycloak.ts` line 43)
   - Valid audiences: `japan-trip-api`, `japan-trip-frontend`, `account`
-  - Keycloak realm: `japan-trip` (exported to `keycloak/realm-export.json`)
+  - Keycloak realm: `japan-trip` (defined in `terraform/keycloak/`)
 
 ## Data Storage
 
@@ -48,7 +48,7 @@
 - Keycloak 25.0 (self-hosted)
   - Local: Docker at `http://localhost:8080` via `keycloak/docker-compose.yml`
   - Production: Railway via Dockerfile at `keycloak/Dockerfile` + `keycloak/railway.toml`
-  - Realm config: `keycloak/realm-export.json`
+  - Realm config: `terraform/keycloak/` (sole source of truth; no realm export)
   - Custom themes: `keycloak/themes/`
 
 **Flow:**

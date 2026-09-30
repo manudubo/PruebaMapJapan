@@ -25,7 +25,7 @@ resource "keycloak_realm" "japan_trip" {
   # browserFlow is bound by keycloak_authentication_bindings.browser_flow in flows.tf
   # (SEC-13: Terraform is the only thing that sets it; see keycloak/README.md).
 
-  # Standard (non-passwordless) WebAuthn — rpId is empty per realm-export.json line 32
+  # Standard (non-passwordless) WebAuthn — empty rpId (defaults to the request hostname)
   web_authn_policy {
     relying_party_entity_name = "japan-trip"
     relying_party_id          = ""

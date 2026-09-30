@@ -126,8 +126,6 @@ backend/
 keycloak/
 ├── docker-compose.yml          # Local dev: Keycloak + Postgres containers
 ├── Dockerfile                  # Custom Keycloak image
-├── realm-export.json           # Realm config (clients, flows, passkeys)
-├── apply-local-settings.sh     # Script to patch realm for local dev
 ├── railway.toml                # Railway.app deployment config
 ├── themes/
 │   └── japan-trip/

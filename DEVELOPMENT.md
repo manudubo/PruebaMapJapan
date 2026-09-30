@@ -22,7 +22,7 @@ cd keycloak
 docker compose up -d
 ```
 
-Wait ~15 seconds for Keycloak to finish importing the realm. Check status:
+Wait ~15 seconds for Keycloak to start, then create/configure the realm with Terraform (`terraform/keycloak`, see SETUP.md Step 5 — Terraform is the only source of truth for the realm). Check status:
 ```bash
 docker compose ps
 # Both services should show "Up (healthy)"
@@ -304,7 +304,7 @@ PruebaMapJapan/
 │   └── wrangler.toml          # Cloudflare Workers config
 │
 ├── keycloak/                  # Auth server (Keycloak 25)
-│   ├── realm-export.json      # Realm config (passkeys, clients, flows)
+│   ├── themes/                # Login/email/account theme (japan-trip)
 │   ├── docker-compose.yml     # Local: Keycloak + PostgreSQL
 │   ├── Dockerfile             # Production image (Railway)
 │   └── railway.toml           # Railway deployment config

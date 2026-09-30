@@ -13,7 +13,8 @@ This directory contains everything needed to run Keycloak as the identity provid
 docker compose up -d
 ```
 
-Keycloak will start on http://localhost:8080 and automatically import the `realm-export.json` realm configuration.
+Keycloak will start on http://localhost:8080 with an empty `japan-trip` realm slot. The realm
+itself is created and configured by Terraform — see [Configuration source of truth](#3-configuration-source-of-truth).
 
 - **Admin console:** http://localhost:8080/admin
 - **Admin credentials:** `admin` / `admin`
@@ -59,7 +60,8 @@ Railway is the cheapest managed option at ~$5/month on the Hobby plan.
 | `KEYCLOAK_ADMIN_PASSWORD` | Admin password (use a strong password) | (generate a secret) |
 
 5. Railway will use the `Dockerfile` in this directory to build and the `railway.toml` for deployment config.
-6. The first startup imports `realm-export.json` automatically via the `--import-realm` flag baked into the image.
+6. Once Keycloak is up, apply `terraform/keycloak` against the public URL to create/configure the realm
+   (nothing is imported at startup — neither `railway.toml` nor `docker-compose.yml` passes `--import-realm`).
 
 ### Connecting backend/frontend to production Keycloak
 
@@ -81,47 +83,59 @@ VITE_KEYCLOAK_CLIENT_ID=japan-trip-frontend
 
 ---
 
-## 3. Exporting Realm Config After Changes
+## 3. Configuration source of truth
 
-After making changes in the Keycloak admin console, export the updated realm config so it can be committed to the repo.
+**Terraform (`terraform/keycloak/`) is the only source of truth for the `japan-trip` realm**
+(SEC-13 / ARCH-08): realm settings, clients, protocol mappers, required actions, test users,
+the `browser-passkey` authentication flow, and which flow the realm uses
+(`keycloak_authentication_bindings.browser_flow` in `flows.tf`).
 
-### From local Docker
+- Do not change realm settings in the admin console or with ad-hoc Admin REST calls — the next
+  `terraform apply` reverts them, and until then the live realm silently diverges from the repo.
+  Change the `.tf` files and apply instead.
+- There is no realm export in this directory. The former `realm-export.json` was never imported
+  (no `--import-realm` anywhere) and had drifted from the live config; it was removed in Phase 26.
+- The former `apply-local-settings.sh` was removed in Phase 26. It reset `browserFlow` to the
+  stock `browser` flow after every `docker compose up`, which contradicted Terraform and hid the
+  `browser-passkey` flow locally. Everything else it set is already in `main.tf`.
+- On an **empty** Keycloak, the first `terraform apply` creates the realm, but the four built-in
+  client-scope mappers managed in `mappers.tf` (`username`, `full name`, `email`,
+  `email verified`) already exist and must be imported first — see `terraform/keycloak/import.sh`.
+
+To inspect the live realm without changing it:
 
 ```bash
-# Replace <container_id> with the actual container ID from `docker ps`
-docker exec <container_id> /opt/keycloak/bin/kc.sh export \
-  --file /tmp/realm-export.json \
-  --realm japan-trip
-
-docker cp <container_id>:/tmp/realm-export.json ./realm-export.json
+docker compose exec keycloak /opt/keycloak/bin/kc.sh export --file /tmp/realm.json --realm japan-trip
 ```
-
-Or using docker compose:
-```bash
-docker compose exec keycloak /opt/keycloak/bin/kc.sh export \
-  --file /tmp/realm-export.json \
-  --realm japan-trip
-
-docker compose cp keycloak:/tmp/realm-export.json ./realm-export.json
-```
-
-### From Railway
-
-Use the Railway CLI or shell-in to the container:
-```bash
-railway run --service keycloak -- /opt/keycloak/bin/kc.sh export \
-  --file /tmp/realm-export.json \
-  --realm japan-trip
-```
-
-Then copy the file out via the Railway console file browser or `railway shell`.
-
-> **Note:** Always restart Keycloak after making changes locally and re-importing, or use the admin REST API for live changes without restart.
 
 ---
 
-## Passkey (WebAuthn) Notes
+## Browser flow (`browser-passkey`)
 
-The realm is configured with a custom browser flow (`browser-passkey`) that uses WebAuthn Passwordless as the primary authenticator. Users register their passkey on first login. The `webAuthnPolicyPasswordlessAuthenticatorAttachment` is set to `platform` to prefer built-in biometric authenticators (Touch ID, Windows Hello, Face ID).
+Defined in `terraform/keycloak/flows.tf` (KC-01 / SEC-12):
 
-To enable passkeys for a user in the admin console: Users > (select user) > Credentials > Set up WebAuthn Passwordless.
+```
+browser-passkey
+├── Cookie                                       ALTERNATIVE
+└── passkey-forms                                ALTERNATIVE
+    ├── Username Form                            REQUIRED
+    └── passkey-or-password                      REQUIRED
+        ├── passkey                              ALTERNATIVE
+        │   └── passkey-if-configured            CONDITIONAL
+        │       ├── Condition - user configured  REQUIRED
+        │       └── WebAuthn Passwordless        REQUIRED
+        └── Password Form                        ALTERNATIVE
+```
+
+- Users with a registered passkey get the WebAuthn prompt after entering their username.
+- Users without a passkey get the password form.
+- A user with neither credential, or anyone submitting only a username, is rejected.
+- Passkey users do not get a "Try another way → password" option in this flow; a user who lost
+  their passkey recovers through "Forgot password" (Keycloak's email reset-credentials flow, which
+  signs the user in on completion — not covered by E2E yet) or an admin removing the credential.
+
+`tests/e2e/idp-flow.spec.ts` covers these cases against a running Keycloak.
+
+The passwordless policy uses `authenticatorAttachment = platform` to prefer built-in
+authenticators (Touch ID, Windows Hello, Face ID) and `rpId = localhost` (changing it requires
+every user to re-register their passkey).
