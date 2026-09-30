@@ -1,6 +1,7 @@
 import type { NewsItem, WeatherData } from '@/types';
 import { ITINERARY } from '@/data/itinerary';
 import { getCache, setCache, createElement, cleanTitle, formatDate, isValidItem, createCalendarUrl } from './utils';
+import { formatIsoDate } from './dates';
 
 const MAX_ITEMS = 4;
 
@@ -90,7 +91,7 @@ function renderWeather(container: HTMLElement, data: WeatherData): void {
   
   const forecastDays = daily.time.slice(1, 5).map((time, i) => {
     const idx = i + 1;
-    const date = new Date(time).toLocaleDateString('en-US', { weekday: 'short' });
+    const date = formatIsoDate(time, { weekday: 'short' });
     const min = Math.round(daily.temperature_2m_min[idx]);
     const max = Math.round(daily.temperature_2m_max[idx]);
     const icon = getWeatherIcon(daily.weather_code[idx]);

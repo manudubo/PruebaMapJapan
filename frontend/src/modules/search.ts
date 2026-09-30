@@ -1,5 +1,6 @@
 import { ITINERARY } from '@/data/itinerary';
 import type { ApiTrip } from '@/types';
+import { formatIsoDate } from './dates';
 
 // ============================================
 // Types
@@ -103,7 +104,7 @@ export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
     searchIndex.push({
       type: 'city',
       title: dest.city_name,
-      subtitle: `${trip.name}${dest.start_date ? ' · ' + new Date(dest.start_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : ''}`,
+      subtitle: `${trip.name}${dest.start_date ? ' · ' + formatIsoDate(dest.start_date, { day: 'numeric', month: 'short' }) : ''}`,
       city: dest.city_name,
       cityKey,
       url: tripUrl,
@@ -154,12 +155,8 @@ export function extendSearchIndexWithApiTrip(trip: ApiTrip): void {
  * Format date key to readable label
  */
 function formatDateLabel(dateKey: string): string {
-  const date = new Date(dateKey);
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long'
-  });
+  // Local calendar day (BIZ-11); fall back to the raw key if it isn't a date.
+  return formatIsoDate(dateKey, { weekday: 'long', day: 'numeric', month: 'long' }) || dateKey;
 }
 
 // ============================================

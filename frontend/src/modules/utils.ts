@@ -1,4 +1,5 @@
 import type { CacheEntry, NewsItem } from '@/types';
+import { parseLocalDate } from './dates';
 
 export const CACHE_DURATION = 15 * 60 * 1000;
 
@@ -64,7 +65,8 @@ export function cleanTitle(title: string): string {
 
 export function formatDate(dateString: string): string {
   if (!dateString) return '';
-  const date = new Date(dateString);
+  // Date-only strings are calendar days, not UTC instants (BIZ-11).
+  const date = parseLocalDate(dateString) ?? new Date(dateString);
   if (isNaN(date.getTime())) return '';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }

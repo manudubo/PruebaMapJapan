@@ -16,6 +16,7 @@ import type {
   Activity,
   Hotel,
 } from '@/types';
+import { formatIsoDate } from './dates';
 
 // ---------------------------------------------------------------------------
 // Activity adapter
@@ -153,10 +154,8 @@ export function apiTripToItinerary(trip: ApiTrip): Record<string, CityData> {
 function buildDateRange(start: string | null, end: string | null): string {
   if (!start && !end) return '';
 
-  const fmt = (iso: string): string => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
+  const fmt = (iso: string): string =>
+    formatIsoDate(iso, { day: 'numeric', month: 'short', year: 'numeric' });
 
   if (start && end) return `${fmt(start)} – ${fmt(end)}`;
   if (start) return `Desde ${fmt(start)}`;
