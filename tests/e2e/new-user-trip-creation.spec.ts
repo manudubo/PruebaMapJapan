@@ -53,7 +53,7 @@ async function getToken(page: Page): Promise<string> {
 }
 
 test.describe('New user trip creation flow', () => {
-  test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
+  test.fixme(!!process.env.SKIP_REAL_AUTH, 'requires a live Keycloak + backend (SKIP_REAL_AUTH is set, as in CI); the mocked-Keycloak specs cover the CI-safe paths — run this locally per SETUP.md');
 
   test.beforeEach(async ({ context }) => {
     // CRITICAL: addInitScript must run before any page.goto() (Playwright bug #31108)

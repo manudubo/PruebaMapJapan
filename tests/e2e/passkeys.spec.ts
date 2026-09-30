@@ -30,7 +30,7 @@ async function waitForProfileReady(page: Page): Promise<void> {
 
 test.describe('Passkey flows', () => {
   // Guard — skip all tests in this describe when KC is not available (D-03)
-  test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
+  test.fixme(!!process.env.SKIP_REAL_AUTH, 'requires a live Keycloak + backend (SKIP_REAL_AUTH is set, as in CI); the mocked-Keycloak specs cover the CI-safe paths — run this locally per SETUP.md');
 
   // Cleanup registry — afterEach drains unconditionally so a mid-test failure cannot leave
   // a stale virtual authenticator for subsequent tests (PASS-01)

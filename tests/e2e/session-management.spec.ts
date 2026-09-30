@@ -73,7 +73,7 @@ async function login(page: Page): Promise<void> {
 }
 
 // All tests require a live KC + backend.
-base.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
+base.fixme(!!process.env.SKIP_REAL_AUTH, 'requires a live Keycloak + backend (SKIP_REAL_AUTH is set, as in CI); the mocked-Keycloak specs cover the CI-safe paths — run this locally per SETUP.md');
 // Serial: tests mutate KC session state; running them in parallel would cause interference.
 base.describe.configure({ mode: 'serial' });
 

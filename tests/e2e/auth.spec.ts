@@ -197,7 +197,7 @@ test.describe('Auth flow — mocked Keycloak', () => {
 });
 
 test.describe('Auth flow — real session', () => {
-  test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
+  test.fixme(!!process.env.SKIP_REAL_AUTH, 'requires a live Keycloak + backend (SKIP_REAL_AUTH is set, as in CI); the mocked-Keycloak specs cover the CI-safe paths — run this locally per SETUP.md');
   // webkit environment constraint: this describe relies on restoring an authenticated
   // session purely from a persisted storageState (.auth/user.json) + injected
   // sessionStorage, with no fresh login flow in the test itself. On webkit this

@@ -29,7 +29,7 @@ test.describe('Keycloak theme', () => {
       timeout: 5000,
     }).catch(() => null);
 
-    test.skip(!response?.ok(), 'Keycloak is not running locally');
+    test.fixme(!response?.ok(), 'requires Keycloak on :8080 (not started in CI); run locally per SETUP.md');
   });
 
   test('login theme hides default header and renders app exit action', async ({ page }) => {
