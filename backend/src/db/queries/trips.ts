@@ -38,22 +38,14 @@ export async function getTripsByUser(db: Db, userId: number): Promise<Trip[]> {
  * Return a single trip with its full nested structure:
  * destinations → hotels + days → activities.
  * Enforces ownership by requiring `userId`.
+ * Returns undefined when the trip does not exist or is not owned by `userId`
+ * (findFirst already does this — no separate existence pre-check needed).
  */
 export async function getTripById(
   db: Db,
   tripId: number,
   userId: number,
 ) {
-  // Fetch the trip row first so we can return undefined when not found.
-  const [trip] = await db
-    .select()
-    .from(trips)
-    .where(and(eq(trips.id, tripId), eq(trips.user_id, userId)))
-    .limit(1);
-
-  if (!trip) return undefined;
-
-  // Fetch the full nested tree using Drizzle's relational query API.
   const result = await db.query.trips.findFirst({
     where: and(eq(trips.id, tripId), eq(trips.user_id, userId)),
     with: {
