@@ -217,3 +217,76 @@ describe('coordinates over HTTP (BIZ-08)', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// BIZ-01..05 — every editor field reaches the query layer
+// ---------------------------------------------------------------------------
+
+describe('activity editor fields over HTTP (BIZ-01..04)', () => {
+  const full = {
+    name: 'Shibuya area',
+    lat: 35.6595,
+    lng: 139.7005,
+    notes: 'Walk around',
+    is_optional: true,
+    is_generic: true,
+    maps_url: 'https://maps.google.com/?q=Shibuya',
+    time: '09:30',
+  };
+
+  it('POST passes is_optional/is_generic/maps_url/time through (is_generic was dropped)', async () => {
+    const res = await send('POST', `${DAY}/activities`, full);
+    expect(res.status).toBe(201);
+    expect(db.createActivity).toHaveBeenCalledWith(expect.anything(), 3, {
+      ...full,
+      lat: '35.6595',
+      lng: '139.7005',
+    });
+  });
+
+  it('PATCH can flip is_generic alone', async () => {
+    const res = await send('PATCH', ACT, { is_generic: false });
+    expect(res.status).toBe(200);
+    expect(db.updateActivity).toHaveBeenCalledWith(expect.anything(), 4, { is_generic: false });
+  });
+
+  it('PATCH can clear time and maps_url with null', async () => {
+    const res = await send('PATCH', ACT, { time: null, maps_url: null });
+    expect(res.status).toBe(200);
+    expect(db.updateActivity).toHaveBeenCalledWith(expect.anything(), 4, { time: null, maps_url: null });
+  });
+
+  it.each([
+    ['javascript: maps_url', { maps_url: 'javascript:alert(1)' }, 'maps_url'],
+    ['free-text time', { time: 'morning' }, 'time'],
+  ])('POST rejects %s → 422', async (_label, extra, path) => {
+    const res = await send('POST', `${DAY}/activities`, { name: 'x', ...extra });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as ErrorBody;
+    expect(body.issues[0].path).toBe(path);
+  });
+
+  it('POST reports every invalid field at once', async () => {
+    const res = await send('POST', `${DAY}/activities`, {
+      name: '',
+      lat: 'NaN',
+      lng: 999,
+      time: '25:00',
+      maps_url: 'data:text/html,x',
+      is_generic: 'yes',
+    });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as ErrorBody;
+    expect(body.issues.map((i) => i.path).sort()).toEqual(
+      ['is_generic', 'lat', 'lng', 'maps_url', 'name', 'time'].sort(),
+    );
+  });
+
+  it('PATCH destination zoom_level round-trips; out of range → 422 (BIZ-05)', async () => {
+    expect((await send('PATCH', DEST, { zoom_level: 15 })).status).toBe(200);
+    expect(db.updateDestination).toHaveBeenCalledWith(expect.anything(), 2, { zoom_level: 15 });
+    for (const zoom_level of [0, 21, 12.5, '12']) {
+      expect((await send('PATCH', DEST, { zoom_level })).status).toBe(422);
+    }
+  });
+});

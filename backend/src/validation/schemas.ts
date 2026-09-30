@@ -34,6 +34,29 @@ function coordinate(axis: 'lat' | 'lng') {
 }
 
 /**
+ * An absolute http(s) URL. z.string().url() alone also accepts
+ * `javascript:`/`data:` URLs, and these values end up as link hrefs.
+ */
+const httpUrl = z
+  .string()
+  .url()
+  .refine(
+    (value) => {
+      try {
+        return /^https?:$/i.test(new URL(value).protocol);
+      } catch {
+        return true; // not a URL at all — already reported by .url()
+      }
+    },
+    { message: 'URL must start with http:// or https://' },
+  );
+
+/** 24-hour clock time as produced by <input type="time">: HH:MM or HH:MM:SS. */
+const clockTime = z
+  .string()
+  .regex(/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/, 'time must be HH:MM (24-hour)');
+
+/**
  * PATCH bodies must change something (BIZ-09). Unknown keys are already
  * stripped by z.object, so `{}` and `{ unknown: 1 }` both fail here instead of
  * returning 200 having only bumped `updated_at`.
@@ -76,7 +99,7 @@ const TripFields = z.object({
   description: z.string().nullable().optional(),
   start_date: z.string().date().nullable().optional(),
   end_date: z.string().date().nullable().optional(),
-  cover_image_url: z.string().url().nullable().optional(),
+  cover_image_url: httpUrl.nullable().optional(),
   is_public: z.boolean().optional().default(false),
 });
 
@@ -138,9 +161,10 @@ export const CreateActivitySchema = z.object({
   lng: coordinate('lng').nullable().optional(),
   notes: z.string().nullable().optional(),
   is_optional: z.boolean().optional(),
-  maps_url: z.string().url().nullable().optional(),
+  is_generic: z.boolean().optional(),
+  maps_url: httpUrl.nullable().optional(),
   order_index: z.number().int().min(0).optional(),
-  time: z.string().nullable().optional(),
+  time: clockTime.nullable().optional(),
 });
 
 export const UpdateActivitySchema = CreateActivitySchema.partial().superRefine(atLeastOneField);
@@ -160,7 +184,7 @@ export const UpsertHotelSchema = z
     lng: coordinate('lng').nullable().optional(),
     check_in_date: z.string().date().nullable().optional(),
     check_out_date: z.string().date().nullable().optional(),
-    url: z.string().url().nullable().optional(),
+    url: httpUrl.nullable().optional(),
   })
   .superRefine(dateOrder('check_in_date', 'check_out_date'));
 
@@ -171,7 +195,7 @@ export const UpsertHotelSchema = z
 export const UpdateUserSchema = z
   .object({
     name: z.string().min(1).max(255).optional(),
-    avatar_url: z.string().url().nullable().optional(),
+    avatar_url: httpUrl.nullable().optional(),
     preferences: z.record(z.unknown()).optional(),
   })
   .superRefine(atLeastOneField);

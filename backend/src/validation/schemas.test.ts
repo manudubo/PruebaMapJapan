@@ -243,3 +243,89 @@ describe('BIZ-09 edge cases', () => {
     if (!result.success) expect(result.error.issues[0].path).toEqual(['start_date']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// BIZ-01/02/03/04 — activity fields round-trip through the schema
+// ---------------------------------------------------------------------------
+
+describe('activity fields (BIZ-01..04)', () => {
+  const full = {
+    name: 'Shibuya area',
+    lat: '35.6595',
+    lng: '139.7005',
+    notes: 'Walk around',
+    is_optional: true,
+    is_generic: true,
+    maps_url: 'https://maps.google.com/?q=Shibuya',
+    time: '09:30',
+    order_index: 2,
+  };
+
+  it('keeps every editor field on create (is_generic no longer stripped)', () => {
+    const result = CreateActivitySchema.safeParse(full);
+    expect(result.success && result.data).toEqual(full);
+  });
+
+  it('keeps is_generic on its own in a PATCH', () => {
+    const result = UpdateActivitySchema.safeParse({ is_generic: true });
+    expect(result.success && result.data).toEqual({ is_generic: true });
+  });
+
+  it.each([true, false])('is_optional=%s and is_generic combine freely', (flag) => {
+    const result = CreateActivitySchema.safeParse({ name: 'x', is_optional: flag, is_generic: !flag });
+    expect(result.success).toBe(true);
+  });
+
+  it.each(['yes', 1, 'true', null])('rejects non-boolean is_generic %j', (value) => {
+    expect(CreateActivitySchema.safeParse({ name: 'x', is_generic: value }).success).toBe(false);
+  });
+
+  it.each(['00:00', '09:05', '23:59', '12:30:15'])('accepts time %j', (time) => {
+    expect(CreateActivitySchema.safeParse({ name: 'x', time }).success).toBe(true);
+  });
+
+  it.each(['24:00', '9:05', '09:60', '9am', 'morning', '', '09:30:60', '09:30 '])('rejects time %j', (time) => {
+    expect(CreateActivitySchema.safeParse({ name: 'x', time }).success).toBe(false);
+  });
+
+  it('accepts null time (cleared)', () => {
+    expect(UpdateActivitySchema.safeParse({ time: null }).success).toBe(true);
+  });
+});
+
+describe('URL fields accept only http(s)', () => {
+  const urlCases = [
+    ['activity maps_url', (url: unknown) => CreateActivitySchema.safeParse({ name: 'x', maps_url: url })],
+    ['hotel url', (url: unknown) => UpsertHotelSchema.safeParse({ name: 'x', url })],
+    ['trip cover_image_url', (url: unknown) => CreateTripSchema.safeParse({ name: 'x', cover_image_url: url })],
+    ['user avatar_url', (url: unknown) => UpdateUserSchema.safeParse({ avatar_url: url })],
+  ] as const;
+
+  describe.each(urlCases)('%s', (_label, parse) => {
+    it.each([
+      'https://www.google.com/maps/place/Senso-ji/@35.7148,139.7967,17z',
+      'http://example.com',
+      'HTTPS://EXAMPLE.COM/x',
+    ])('accepts %s', (url) => {
+      expect(parse(url).success).toBe(true);
+    });
+
+    it.each([
+      'javascript:alert(1)',
+      'JavaScript:alert(document.cookie)',
+      'data:text/html,<script>alert(1)</script>',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'ftp://example.com',
+      'www.google.com/maps',
+      'not a url',
+      '',
+    ])('rejects %j', (url) => {
+      expect(parse(url).success).toBe(false);
+    });
+
+    it('accepts null (cleared)', () => {
+      expect(parse(null).success).toBe(true);
+    });
+  });
+});
