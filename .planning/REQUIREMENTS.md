@@ -49,16 +49,16 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 
 ### Supply Chain, Secrets & Accessibility — Phase 23
 
-- [ ] **SEC-15**: CDN `<script>`/`<link>` Leaflet tags removed from all 9 HTML pages; `leaflet/dist/leaflet.css` imported via Vite (same-origin, build-hashed — pairs with INFRA-06)
-- [ ] **SEC-16**: Service worker `CACHE_NAME` derived from build hash/version; HTML/navigation requests switch to network-first or stale-while-revalidate (not cache-first with a hardcoded, never-rotating key)
-- [ ] **INFRA-06**: Dead `EXTERNAL_ASSETS` array removed from `sw.js` (or wired into the fetch handler if offline map support is intended — currently unreachable code)
-- [ ] **DEP-02**: Gitleaks full-history re-scan completed against HEAD; all 14 `generic-api-key` findings triaged (confirmed false-positives documented; any live keys rotated)
-- [ ] **DEP-03**: CI pipeline includes Gitleaks/TruffleHog secret scanning and axe/Lighthouse accessibility scanning so regressions are caught automatically
-- [ ] **A11Y-01**: `aria-expanded` attribute removed from `<input>` elements across all 12 affected pages (invalid ARIA role/attribute combo — highest-leverage a11y fix)
-- [ ] **A11Y-02**: Contrast violations fixed on landing page (`.demo-countdown-title`, loading span), dashboard `.nav-link`, and profile page (13 nodes)
-- [ ] **A11Y-03**: `tripDetail.ts`'s `showError()` error-render path includes a proper heading element (currently wipes `<main>` and rebuilds with no `<h1>`)
-- [ ] **A11Y-04**: `tokyo.html` heading-order and target-size violations resolved
-- [ ] **A11Y-05**: Mobile LCP improved for landing and Tokyo pages (Lighthouse mobile-throttled baseline: landing 5.856s, Tokyo 6.261s)
+- [x] **SEC-15**: CDN `<script>`/`<link>` Leaflet tags removed from all 9 HTML pages; `leaflet/dist/leaflet.css` imported via Vite (same-origin, build-hashed — pairs with INFRA-06)
+- [x] **SEC-16**: Service worker `CACHE_NAME` derived from build hash/version; HTML/navigation requests switch to network-first or stale-while-revalidate (not cache-first with a hardcoded, never-rotating key)
+- [x] **INFRA-06**: Dead `EXTERNAL_ASSETS` array removed from `sw.js` (or wired into the fetch handler if offline map support is intended — currently unreachable code)
+- [x] **DEP-02**: Gitleaks full-history re-scan completed against HEAD; all 14 `generic-api-key` findings triaged (confirmed false-positives documented; any live keys rotated)
+- [x] **DEP-03**: CI pipeline includes Gitleaks/TruffleHog secret scanning and axe/Lighthouse accessibility scanning so regressions are caught automatically
+- [x] **A11Y-01**: `aria-expanded` attribute removed from `<input>` elements across all 12 affected pages (invalid ARIA role/attribute combo — highest-leverage a11y fix)
+- [x] **A11Y-02**: Contrast violations fixed on landing page (`.demo-countdown-title`, loading span), dashboard `.nav-link`, and profile page (13 nodes)
+- [x] **A11Y-03**: `tripDetail.ts`'s `showError()` error-render path includes a proper heading element (currently wipes `<main>` and rebuilds with no `<h1>`)
+- [x] **A11Y-04**: `tokyo.html` heading-order and target-size violations resolved
+- [x] **A11Y-05**: Mobile LCP improved for landing and Tokyo pages (Lighthouse mobile-throttled baseline: landing 5.856s, Tokyo 6.261s)
 
 ### Architecture Debt & Test Coverage — Phase 24
 
@@ -182,16 +182,16 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | BUG-14 | Phase 22 | Pending |
 | BUG-15 | Phase 22 | Pending |
 | BUG-16 | Phase 22 | Pending |
-| SEC-15 | Phase 23 | Pending |
-| SEC-16 | Phase 23 | Pending |
-| INFRA-06 | Phase 23 | Pending |
-| DEP-02 | Phase 23 | Pending |
-| DEP-03 | Phase 23 | Pending |
-| A11Y-01 | Phase 23 | Pending |
-| A11Y-02 | Phase 23 | Pending |
-| A11Y-03 | Phase 23 | Pending |
-| A11Y-04 | Phase 23 | Pending |
-| A11Y-05 | Phase 23 | Pending |
+| SEC-15 | Phase 23 | Complete |
+| SEC-16 | Phase 23 | Complete |
+| INFRA-06 | Phase 23 | Complete |
+| DEP-02 | Phase 23 | Complete |
+| DEP-03 | Phase 23 | Complete |
+| A11Y-01 | Phase 23 | Complete |
+| A11Y-02 | Phase 23 | Complete |
+| A11Y-03 | Phase 23 | Complete |
+| A11Y-04 | Phase 23 | Complete |
+| A11Y-05 | Phase 23 | Complete |
 | ARCH-01 | Phase 24 | Pending |
 | ARCH-02 | Phase 24 | Pending |
 | ARCH-03 | Phase 24 | Pending |
