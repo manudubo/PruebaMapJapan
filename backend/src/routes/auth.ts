@@ -12,6 +12,7 @@ import {
   otpHourlyCapRetryAfter,
   OTP_CAP_WINDOW_MS,
   insertOtp,
+  deleteStaleOtps,
   incrementOtpAttempts,
   markOtpUsed,
 } from '../db/queries/otp';
@@ -105,6 +106,12 @@ authRoute.post('/otp-request', async (c) => {
 
   const db = c.get('db');
   const userId = c.get('dbUserId');
+
+  // DATA-01: opportunistic purge of dead codes. Best-effort housekeeping —
+  // a failure here must not block sign-in, so log and carry on.
+  await deleteStaleOtps(db).catch((err: unknown) => {
+    console.error('otp-request: stale OTP cleanup failed:', err);
+  });
 
   const existing = await getLatestUnexpiredOtp(db, userId);
   if (existing) {

@@ -29,6 +29,13 @@
       "when": 1779317228000,
       "tag": "0003_add_email_otp_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790784645898,
+      "tag": "0004_email_otp_codes_index",
+      "breakpoints": true
     }
   ]
 }

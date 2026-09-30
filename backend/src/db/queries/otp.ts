@@ -1,4 +1,4 @@
-import { eq, and, gt, isNull, sql } from 'drizzle-orm';
+import { eq, and, gt, lt, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../index';
 import { emailOtpCodes } from '../schema';
 
@@ -93,4 +93,24 @@ export async function markOtpUsed(db: Db, otpId: number): Promise<void> {
     .update(emailOtpCodes)
     .set({ used_at: new Date() })
     .where(eq(emailOtpCodes.id, otpId));
+}
+
+// ---------------------------------------------------------------------------
+// Opportunistic cleanup (DATA-01)
+//
+// Nothing ever purged used/expired codes, so the table grew monotonically.
+// Each otp-request now deletes codes that can no longer matter: already
+// expired AND issued before the hourly-cap window. Codes inside the window
+// must survive — even used/burned ones — or deleting them would reset the
+// BUG-16 cap and reopen the request/burn/re-request cycle.
+// ---------------------------------------------------------------------------
+
+/** Delete every user's codes that are expired and older than the cap window. Returns rows deleted. */
+export async function deleteStaleOtps(db: Db, now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - OTP_CAP_WINDOW_MS);
+  const deleted = await db
+    .delete(emailOtpCodes)
+    .where(and(lt(emailOtpCodes.expires_at, cutoff), lt(emailOtpCodes.created_at, cutoff)))
+    .returning();
+  return deleted.length;
 }
