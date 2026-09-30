@@ -65,7 +65,7 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 - [ ] **ARCH-01**: `createDb` returns a typed union (`NeonDb | PgDb`) instead of `any` (cascades into `trips.ts:132` type recovery)
 - [ ] **ARCH-02**: Dual DB driver selection uses an explicit env var (not a `localhost` substring match on the connection string)
 - [ ] **ARCH-03**: `trips.ts` authorization cascade has unit test coverage (unblocked by ARCH-06)
-- [ ] **ARCH-05**: Zod schemas include null-safe `.refine()` guards for `start_date ≤ end_date` (trip/destination/hotel) and lat/lng numeric range; `.partial()` PATCH schemas require at least one field
+- [x] **ARCH-05**: Zod schemas include null-safe `.refine()` guards for `start_date ≤ end_date` (trip/destination/hotel) and lat/lng numeric range; `.partial()` PATCH schemas require at least one field
 - [ ] **ARCH-06**: Backend unit tests point `DATABASE_URL` at a real ephemeral Postgres DB (migrations + minimal seed); vacuous `toContain([200, 500])` assertions replaced with real assertions
 - [x] **ARCH-07**: E2E suite `waitForTimeout` hard sleeps replaced with web-first `expect(locator)` assertions (31 instances); conditional `test.skip()` calls converted to documented `test.fixme(condition, reason)` or removed (35 instances)
 - [x] **ARCH-08**: Terraform documented as sole source of truth for KC realm config; `apply-local-settings.sh` browserFlow override documented or removed; vestigial `realm-export.json` deleted or regenerated (tracked as SEC-13)
@@ -80,17 +80,17 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 
 ### Business Logic & Demo Parity — Phase 25
 
-- [ ] **BIZ-01**: Optional/alternative activities can be created from the editor UI (`is_optional` checkbox; `optional_label` phantom-field cleaned up or removed from `ApiActivity` type)
-- [ ] **BIZ-02**: Generic/area markers (`is_generic`) can be set from the editor UI; `CreateActivitySchema`/`UpdateActivitySchema` accept it; backend no longer silently drops the field
-- [ ] **BIZ-03**: `activities.maps_url` field propagates through the adapter into the view type; editor exposes an input for it (or auto-derives from lat/lng); static `getMapsUrl(name)` table kept as demo-data fallback only
-- [ ] **BIZ-04**: Activity `time` field mapped through the adapter to the shared/public view (no longer silently dropped after being stored)
-- [ ] **BIZ-05**: Per-destination map zoom adjustable from the editor (`zoom_level` form control — currently defaults to 12 for all user-created destinations)
-- [ ] **BIZ-06**: `start_date ≤ end_date` validated for trip, destination, and hotel records (null-safe — only when both dates are present; partial-date trips are valid)
+- [x] **BIZ-01**: Optional/alternative activities can be created from the editor UI (`is_optional` checkbox; `optional_label` phantom-field cleaned up or removed from `ApiActivity` type)
+- [x] **BIZ-02**: Generic/area markers (`is_generic`) can be set from the editor UI; `CreateActivitySchema`/`UpdateActivitySchema` accept it; backend no longer silently drops the field
+- [x] **BIZ-03**: `activities.maps_url` field propagates through the adapter into the view type; editor exposes an input for it (or auto-derives from lat/lng); static `getMapsUrl(name)` table kept as demo-data fallback only
+- [x] **BIZ-04**: Activity `time` field mapped through the adapter to the shared/public view (no longer silently dropped after being stored)
+- [x] **BIZ-05**: Per-destination map zoom adjustable from the editor (`zoom_level` form control — currently defaults to 12 for all user-created destinations)
+- [x] **BIZ-06**: `start_date ≤ end_date` validated for trip, destination, and hotel records (null-safe — only when both dates are present; partial-date trips are valid)
 - [ ] **BIZ-07**: Cross-level date coherence validated in route handlers: day date within parent destination range, destination range within parent trip range, no overlapping destination ranges within a trip
-- [ ] **BIZ-08**: Activity lat/lng validated for numeric range in Zod schemas (`-90 ≤ lat ≤ 90`, `-180 ≤ lng ≤ 180`; reconsidering string-typed coordinates to prevent `"null"`/`"NaN"` strings)
-- [ ] **BIZ-09**: PATCH schemas require at least one field (currently `.partial()` accepts `{}` and returns 200 with only `updated_at` changed)
-- [ ] **BIZ-10**: Residual Spanish strings (`"Desde"`, `"Hasta"`) in `tripAdapter.ts` replaced with English (`"From"`, `"Until"`)
-- [ ] **BIZ-11**: Date-only ISO strings parsed as local date (not UTC midnight) throughout the frontend — `new Date('YYYY-MM-DD')` replaced with `new Date(y, m-1, d)`; fixes confirmed day-shift bug in negative-UTC-offset timezones (live-reproduced in `America/Argentina/Buenos_Aires`)
+- [x] **BIZ-08**: Activity lat/lng validated for numeric range in Zod schemas (`-90 ≤ lat ≤ 90`, `-180 ≤ lng ≤ 180`; reconsidering string-typed coordinates to prevent `"null"`/`"NaN"` strings)
+- [x] **BIZ-09**: PATCH schemas require at least one field (currently `.partial()` accepts `{}` and returns 200 with only `updated_at` changed)
+- [x] **BIZ-10**: Residual Spanish strings (`"Desde"`, `"Hasta"`) in `tripAdapter.ts` replaced with English (`"From"`, `"Until"`)
+- [x] **BIZ-11**: Date-only ISO strings parsed as local date (not UTC midnight) throughout the frontend — `new Date('YYYY-MM-DD')` replaced with `new Date(y, m-1, d)`; fixes confirmed day-shift bug in negative-UTC-offset timezones (live-reproduced in `America/Argentina/Buenos_Aires`)
 
 ### Remaining Security Hardening & IdP Flow — Phase 26
 
@@ -195,7 +195,7 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | ARCH-01 | Phase 24 | Pending |
 | ARCH-02 | Phase 24 | Pending |
 | ARCH-03 | Phase 24 | Pending |
-| ARCH-05 | Phase 24 | Pending |
+| ARCH-05 | Phase 24 | Complete |
 | ARCH-06 | Phase 24 | Pending |
 | ARCH-07 | Phase 24 | Complete |
 | ARCH-08 | Phase 24 | Complete (done with SEC-13 in Phase 26) |
@@ -207,17 +207,17 @@ Which phases cover which requirements. Populated from candidate requirements pha
 | DATA-01 | Phase 24 | Pending |
 | DATA-02 | Phase 24 | Pending |
 | DATA-03 | Phase 24 | Pending |
-| BIZ-01 | Phase 25 | Pending |
-| BIZ-02 | Phase 25 | Pending |
-| BIZ-03 | Phase 25 | Pending |
-| BIZ-04 | Phase 25 | Pending |
-| BIZ-05 | Phase 25 | Pending |
-| BIZ-06 | Phase 25 | Pending |
+| BIZ-01 | Phase 25 | Complete |
+| BIZ-02 | Phase 25 | Complete |
+| BIZ-03 | Phase 25 | Complete |
+| BIZ-04 | Phase 25 | Complete |
+| BIZ-05 | Phase 25 | Complete |
+| BIZ-06 | Phase 25 | Complete |
 | BIZ-07 | Phase 25 | Pending |
-| BIZ-08 | Phase 25 | Pending |
-| BIZ-09 | Phase 25 | Pending |
-| BIZ-10 | Phase 25 | Pending |
-| BIZ-11 | Phase 25 | Pending |
+| BIZ-08 | Phase 25 | Complete |
+| BIZ-09 | Phase 25 | Complete |
+| BIZ-10 | Phase 25 | Complete |
+| BIZ-11 | Phase 25 | Complete |
 | SEC-05 | Phase 26 | Complete |
 | SEC-06 | Phase 26 | Complete |
 | SEC-07 | Phase 26 | Complete |

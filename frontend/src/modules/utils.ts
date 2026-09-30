@@ -1,4 +1,5 @@
 import type { CacheEntry, NewsItem } from '@/types';
+import { parseLocalDate } from './dates';
 
 export const CACHE_DURATION = 15 * 60 * 1000;
 
@@ -74,7 +75,8 @@ export function cleanTitle(title: string): string {
 
 export function formatDate(dateString: string): string {
   if (!dateString) return '';
-  const date = new Date(dateString);
+  // Date-only strings are calendar days, not UTC instants (BIZ-11).
+  const date = parseLocalDate(dateString) ?? new Date(dateString);
   if (isNaN(date.getTime())) return '';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
@@ -123,6 +125,11 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
 export function createCalendarUrl(title: string, link: string, location: string): string {
   const params = new URLSearchParams({ action: 'TEMPLATE', text: title, details: link, location });
   return `https://www.google.com/calendar/render?${params}`;
+}
+
+/** Google Maps pin for a coordinate pair (used when no named link exists). */
+export function createPlaceUrl(coords: [number, number]): string {
+  return `https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}`;
 }
 
 export function createDirectionsUrl(coords: [number, number]): string {

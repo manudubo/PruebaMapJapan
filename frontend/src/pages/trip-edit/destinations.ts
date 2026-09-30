@@ -8,6 +8,12 @@ import {
 import { renderHotelSection } from './hotels';
 import { renderDaysSection } from './days';
 import type { ApiTrip, ApiDestination } from '@/types';
+import { DEFAULT_ZOOM } from '@/modules/tripAdapter';
+import { dateOrderError, linkDateBounds, saveErrorMessage, syncDateBounds } from './formHelpers';
+
+/** Zoom range offered in the editor: API allows 1–20, map tiles stop at 19. */
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 19;
 
 // Module-scoped state
 let currentTrip: ApiTrip;
@@ -26,6 +32,8 @@ let geocoderBtn: HTMLButtonElement;
 let geocoderResults: HTMLElement;
 let latInput: HTMLInputElement;
 let lngInput: HTMLInputElement;
+let zoomInput: HTMLInputElement;
+let zoomOutput: HTMLOutputElement;
 let formError: HTMLElement;
 
 function buildModal(): void {
@@ -101,6 +109,37 @@ function buildModal(): void {
 
   form.appendChild(geocoderGroup);
 
+  // Map zoom (BIZ-05) — how close the trip view starts for this destination.
+  const zoomGroup = document.createElement('div');
+  zoomGroup.className = 'form-group';
+  const zoomLabel = document.createElement('label');
+  zoomLabel.setAttribute('for', 'dest-zoom');
+  zoomLabel.textContent = 'Map zoom';
+  zoomGroup.appendChild(zoomLabel);
+  const zoomRow = document.createElement('div');
+  zoomRow.className = 'range-row';
+  const zInput = document.createElement('input');
+  zInput.type = 'range';
+  zInput.id = 'dest-zoom';
+  zInput.name = 'zoom_level';
+  zInput.min = String(MIN_ZOOM);
+  zInput.max = String(MAX_ZOOM);
+  zInput.step = '1';
+  zInput.setAttribute('aria-describedby', 'dest-zoom-hint');
+  zoomRow.appendChild(zInput);
+  const zOutput = document.createElement('output');
+  zOutput.id = 'dest-zoom-value';
+  zOutput.htmlFor.add('dest-zoom');
+  zoomRow.appendChild(zOutput);
+  zoomGroup.appendChild(zoomRow);
+  const zoomHint = document.createElement('p');
+  zoomHint.className = 'form-hint';
+  zoomHint.id = 'dest-zoom-hint';
+  zoomHint.textContent = 'Lower shows a wider region, higher shows streets. Big cities: 11–12; small towns: 13–14.';
+  zoomGroup.appendChild(zoomHint);
+  form.appendChild(zoomGroup);
+  zInput.addEventListener('input', () => { zOutput.value = zInput.value; });
+
   const errorP = document.createElement('p');
   errorP.className = 'error-msg';
   errorP.id = 'dest-form-error';
@@ -141,7 +180,10 @@ function buildModal(): void {
   geocoderResults = gResults;
   latInput = latHidden;
   lngInput = lngHidden;
+  zoomInput = zInput;
+  zoomOutput = zOutput;
   formError = errorP;
+  linkDateBounds(startInput, endInput);
 
   // Events
   cancelBtn.addEventListener('click', closeModal);
@@ -187,8 +229,13 @@ function openModal(dest: ApiDestination | null): void {
   startInput.value = dest?.start_date ?? '';
   endInput.value = dest?.end_date ?? '';
   geocoderInput.value = '';
-  latInput.value = dest ? String(dest.lat) : '';
-  lngInput.value = dest ? String(dest.lng) : '';
+  // `?? ''`: coordinates are null for destinations saved without them, and
+  // String(null) would put "null" into the form (and the next PATCH).
+  latInput.value = String(dest?.lat ?? '');
+  lngInput.value = String(dest?.lng ?? '');
+  zoomInput.value = String(dest?.zoom_level ?? DEFAULT_ZOOM);
+  zoomOutput.value = zoomInput.value;
+  syncDateBounds(startInput, endInput);
 
   geocoderResults.setAttribute('hidden', '');
   geocoderResults.replaceChildren();
@@ -285,6 +332,15 @@ async function handleFormSubmit(e: Event): Promise<void> {
   e.preventDefault();
 
   formError.setAttribute('hidden', '');
+
+  const orderError = dateOrderError(startInput.value, endInput.value, 'Arrival', 'Departure');
+  if (orderError) {
+    setText(formError, orderError);
+    formError.removeAttribute('hidden');
+    endInput.focus();
+    return;
+  }
+
   const saveBtn = document.getElementById('dest-save-btn') as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
@@ -301,6 +357,7 @@ async function handleFormSubmit(e: Event): Promise<void> {
     country: countryInput.value.trim(),
     start_date: startInput.value || null,
     end_date: endInput.value || null,
+    zoom_level: Number(zoomInput.value),
     ...(lat !== undefined && !isNaN(lat) ? { lat } : {}),
     ...(lng !== undefined && !isNaN(lng) ? { lng } : {}),
   };
@@ -317,8 +374,8 @@ async function handleFormSubmit(e: Event): Promise<void> {
     }
     closeModal();
     renderList();
-  } catch {
-    setText(formError, 'Could not save. Check your connection and try again.');
+  } catch (err) {
+    setText(formError, saveErrorMessage(err));
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
