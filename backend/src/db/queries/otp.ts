@@ -1,4 +1,4 @@
-import { eq, and, gt, isNull, sql } from 'drizzle-orm';
+import { eq, and, gt, lt, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../index';
 import { emailOtpCodes } from '../schema';
 
@@ -81,11 +81,37 @@ export function otpHourlyCapRetryAfter(issuedAt: Date[], now: Date): number | nu
   return Math.max(1, Math.ceil((oldest + OTP_CAP_WINDOW_MS - now.getTime()) / 1000));
 }
 
-export async function incrementOtpAttempts(db: Db, otpId: number): Promise<void> {
-  await db
+// ---------------------------------------------------------------------------
+// Verification attempts (SEC-07)
+//
+// The old flow read `attempts`, checked `< 5` in JS, compared, then
+// incremented — N parallel requests all read the same count and all got to
+// guess. The check and the increment are now one statement; the route only
+// compares the code if this returns a slot.
+// ---------------------------------------------------------------------------
+
+export const OTP_MAX_ATTEMPTS = 5;
+
+/**
+ * Atomically reserve one verification attempt:
+ * `UPDATE ... SET attempts = attempts + 1 WHERE id = $1 AND attempts < 5
+ *  AND used_at IS NULL RETURNING attempts`.
+ * Returns the new count (1..OTP_MAX_ATTEMPTS), or null when the code is
+ * exhausted, already used, or gone — in which case no guess is allowed.
+ */
+export async function consumeOtpAttempt(db: Db, otpId: number): Promise<number | null> {
+  const rows: { attempts: number }[] = await db
     .update(emailOtpCodes)
     .set({ attempts: sql`${emailOtpCodes.attempts} + 1` })
-    .where(eq(emailOtpCodes.id, otpId));
+    .where(
+      and(
+        eq(emailOtpCodes.id, otpId),
+        lt(emailOtpCodes.attempts, OTP_MAX_ATTEMPTS),
+        isNull(emailOtpCodes.used_at),
+      ),
+    )
+    .returning({ attempts: emailOtpCodes.attempts });
+  return rows[0]?.attempts ?? null;
 }
 
 export async function markOtpUsed(db: Db, otpId: number): Promise<void> {
@@ -93,4 +119,17 @@ export async function markOtpUsed(db: Db, otpId: number): Promise<void> {
     .update(emailOtpCodes)
     .set({ used_at: new Date() })
     .where(eq(emailOtpCodes.id, otpId));
+}
+
+/**
+ * Mark the code used only if nothing else did first. Returns false when a
+ * concurrent request already consumed it, so one code verifies exactly once.
+ */
+export async function markOtpUsedIfUnused(db: Db, otpId: number): Promise<boolean> {
+  const rows: { id: number }[] = await db
+    .update(emailOtpCodes)
+    .set({ used_at: new Date() })
+    .where(and(eq(emailOtpCodes.id, otpId), isNull(emailOtpCodes.used_at)))
+    .returning({ id: emailOtpCodes.id });
+  return rows.length > 0;
 }

@@ -217,8 +217,8 @@ describeDb('flows', () => {
       expect((await req('GET', `/api/public/trips/${slug}`)).status).toBe(200);
     });
 
-    // SEC-21 (Phase 26): public payload still carries internal user_id and row ids.
-    it.fails('SEC-21: public payload does not expose the owner\'s internal user_id', async () => {
+    // SEC-21 (fixed in Phase 26): the public payload used to carry the owner's user_id.
+    it('SEC-21: public payload does not expose the owner\'s internal user_id', async () => {
       const res = await req('GET', `/api/public/trips/${slug}`);
       expect(res.body.data).not.toHaveProperty('user_id');
     });
@@ -254,7 +254,7 @@ describeDb('flows', () => {
       expect(res.body.data.id).toBe(me.body.data.id);
     });
 
-    it('preferences accepts nested JSON and round-trips; non-object preferences → 400', async () => {
+    it('preferences accepts nested JSON and round-trips; non-object preferences → 422', async () => {
       const u = await makeUser(signer);
       await req('GET', '/api/users/me', { token: u.token });
       const prefs = { theme: 'dark', langs: ['ja', 'en'], nested: { a: { b: 1 } } };
@@ -263,22 +263,22 @@ describeDb('flows', () => {
       expect(ok.body.data.preferences).toEqual(prefs);
       for (const bad of [[1, 2], 'dark', 42, null]) {
         const res = await req('PATCH', '/api/users/me', { token: u.token, body: { preferences: bad } });
-        expect.soft(res.status, JSON.stringify(bad)).toBe(400);
+        expect.soft(res.status, JSON.stringify(bad)).toBe(422);
       }
     });
 
-    it('users/me with a NUL byte in the PATCHed name or preferences → 400, never 500', async () => {
+    it('users/me with a NUL byte in the PATCHed name or preferences → 422, never 500', async () => {
       const u = await makeUser(signer);
       await req('GET', '/api/users/me', { token: u.token });
       const name = await req('PATCH', '/api/users/me', { token: u.token, body: { name: 'a\u0000b' } });
-      expect.soft(name.status).toBe(400);
+      expect.soft(name.status).toBe(422);
       const prefs = await req('PATCH', '/api/users/me', { token: u.token, body: { preferences: { k: 'a\u0000b' } } });
-      expect.soft(prefs.status).toBe(400);
+      expect.soft(prefs.status).toBe(422);
       const nestedKey = await req('PATCH', '/api/users/me', {
         token: u.token,
         body: { preferences: { deep: [{ ['k\u0000']: 1 }] } },
       });
-      expect.soft(nestedKey.status).toBe(400);
+      expect.soft(nestedKey.status).toBe(422);
       // A literal backslash-u sequence is ordinary text and must still be accepted.
       const literal = await req('PATCH', '/api/users/me', { token: u.token, body: { preferences: { k: '\\u0000' } } });
       expect.soft(literal.status).toBe(200);

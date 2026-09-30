@@ -10,6 +10,7 @@ import '@/components/Navbar';
 import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
+import { formatIsoDate } from '@/modules/dates';
 import { initKeycloak, getUserInfo, login, getToken, keycloak } from '@/auth/keycloak';
 import { checkPasskeyCampaign } from '@/modules/passkeyCampaign';
 import { getMyTrips, getMe } from '@/api/client';
@@ -25,7 +26,7 @@ import { showToast, installGlobalErrorHandler } from '@/modules/toast';
 function formatDateRange(start: string | null, end: string | null): string {
   if (!start) return '';
   const fmt = (iso: string): string =>
-    new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    formatIsoDate(iso, { day: 'numeric', month: 'short', year: 'numeric' });
   return end ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
 }
 

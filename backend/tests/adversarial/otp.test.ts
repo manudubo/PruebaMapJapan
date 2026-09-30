@@ -75,7 +75,7 @@ describeDb('OTP', () => {
     signer = await createSigner();
     net = installFakeNetwork([signer]);
     dbUrl = await createTestDatabase('otp');
-    req = client(makeEnv(dbUrl));
+    req = client(makeEnv(dbUrl, { ENVIRONMENT: 'development' })); // Mailpit transport (SEC-08 gate)
   }, 60_000);
 
   afterAll(async () => {
@@ -135,9 +135,10 @@ describeDb('OTP', () => {
       expect((await verify(code)).status).toBe(400); // burned → otp_not_found
     });
 
-    // SEC-07 (Phase 26): attempts check + increment is read-then-write, so
-    // parallel guesses all see attempts < 5 and all get evaluated.
-    it.fails('SEC-07: 30 parallel wrong guesses are capped at 5 evaluated attempts', async () => {
+    // SEC-07 (fixed in Phase 26 by the atomic attempts UPDATE): the check +
+    // increment used to be read-then-write, so parallel guesses were all
+    // evaluated (30/30) and one code could be redeemed 5 times.
+    it('SEC-07: 30 parallel wrong guesses are capped at 5 evaluated attempts', async () => {
       await request();
       const code = net.lastCodeFor(user.email)!;
       const results = await underRowLock(LOCK_OTP, [user.sub], 30, () =>
@@ -147,7 +148,7 @@ describeDb('OTP', () => {
       expect(evaluated).toBeLessThanOrEqual(5);
     });
 
-    it.fails('SEC-07: parallel verifies of the correct code succeed at most once', async () => {
+    it('SEC-07: parallel verifies of the correct code succeed at most once', async () => {
       await request();
       const code = net.lastCodeFor(user.email)!;
       const results = await underRowLock(LOCK_OTP, [user.sub], 5, () =>
@@ -219,10 +220,12 @@ describeDb('OTP', () => {
       expect((await request(other)).status).toBe(201);
     });
 
-    // SEC-07 (Phase 26, OTP atomicity): the pending check, the hourly cap and
-    // the insert are separate statements, so a burst of parallel requests
-    // passes every check and issues (and emails) many codes at once.
-    it.fails('SEC-07: 20 parallel otp-requests issue at most one code', async () => {
+    // STILL OPEN — SEC-07 follow-up (Phase 26 OTP atomicity). Phase 26 made the
+    // attempts counter atomic, but issuance is still check-then-insert: the
+    // pending check, the hourly cap (BUG-16) and the INSERT are separate
+    // statements, so a burst of parallel requests passes every check and
+    // issues (and emails) 20 codes, bypassing both otp_pending and the cap.
+    it.fails('SEC-07 (issuance): 20 parallel otp-requests issue at most one code', async () => {
       await req('GET', '/api/users/me', { token: user.token }); // provision the user row first
       // The OTP INSERT's FK check needs a KEY SHARE lock on the user row.
       const results = await underRowLock(LOCK_USER, [user.sub], 20, () =>
@@ -263,15 +266,25 @@ describeDb('OTP', () => {
       expect(await otpRows(noMail)).toHaveLength(0);
     });
 
+    it('SEC-08: production without RESEND_API_KEY fails loudly and issues no code', async () => {
+      const prod = client(makeEnv(dbUrl)); // no ENVIRONMENT → production, no RESEND_API_KEY
+      const before = net.mails.length;
+      const res = await prod('POST', '/api/auth/otp-request', { token: user.token });
+      expect(res.status).toBe(500);
+      expect(net.mails.length).toBe(before); // never fell back to Mailpit
+      const pending = (await otpRows(user)).filter((r) => r.used_at === null);
+      expect(pending).toHaveLength(0);
+      expect((await request()).status).toBe(201); // user not locked out afterwards
+    });
+
     it('otp routes require auth', async () => {
       expect((await req('POST', '/api/auth/otp-request')).status).toBe(401);
       expect((await req('POST', '/api/auth/otp-verify', { body: { code: '123456' } })).status).toBe(401);
     });
 
-    // SEC-08 (Phase 26, email delivery): the code row is inserted before the
-    // email is sent; if delivery fails the user gets 500 and is then locked
-    // out by otp_pending for 10 minutes with a code they never received.
-    it.fails('SEC-08: a failed email send does not leave the user locked out by otp_pending', async () => {
+    // SEC-08 (fixed in Phase 26): a failed send used to leave the undelivered
+    // code pending, locking the user out by otp_pending for 10 minutes.
+    it('SEC-08: a failed email send does not leave the user locked out by otp_pending', async () => {
       net.failMail = true;
       const first = await request();
       expect(first.status).toBe(500);

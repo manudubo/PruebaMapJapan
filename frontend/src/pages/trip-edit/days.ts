@@ -2,6 +2,10 @@ import { createDay, updateDay, deleteDay } from '@/api/client';
 import { setText, setStyle } from '@/modules/dom';
 import type { ApiDay, ApiDestination } from '@/types';
 import { renderActivitiesSection } from './activities';
+import { eachDateInRange } from '@/modules/dates';
+
+/** Upper bound for "Generate all days" — one request per day. */
+const MAX_GENERATED_DAYS = 120;
 
 const COLOR_MAP: Record<string, string> = {
   '--jp-marker-1': '#ff3b30',
@@ -338,17 +342,26 @@ async function generateDays(
 
   const existingDates = new Set(dest.days.map((d) => d.date));
 
-  const current = new Date(dest.start_date);
-  const end = new Date(dest.end_date);
-  const promises: Promise<ApiDay>[] = [];
-
-  while (current <= end) {
-    const iso = current.toISOString().slice(0, 10);
-    if (!existingDates.has(iso)) {
-      promises.push(createDay(tripId, dest.id, { date: iso }));
-    }
-    current.setDate(current.getDate() + 1);
+  // Calendar arithmetic on the date strings (BIZ-11): the old
+  // new Date(iso) + setDate + toISOString loop mixed UTC and local time and
+  // produced a duplicate / missing day across a DST change in the Americas.
+  let range: string[];
+  try {
+    range = eachDateInRange(dest.start_date, dest.end_date, MAX_GENERATED_DAYS);
+  } catch {
+    setText(genError, `The destination spans more than ${MAX_GENERATED_DAYS} days. Check its dates.`);
+    genError.removeAttribute('hidden');
+    return;
   }
+  if (range.length === 0) {
+    setText(genError, 'The destination departure is before its arrival. Edit the destination dates.');
+    genError.removeAttribute('hidden');
+    return;
+  }
+
+  const promises: Promise<ApiDay>[] = range
+    .filter((iso) => !existingDates.has(iso))
+    .map((iso) => createDay(tripId, dest.id, { date: iso }));
 
   if (promises.length === 0) {
     setText(genError, 'All days in this period already exist.');

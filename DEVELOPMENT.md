@@ -22,7 +22,7 @@ cd keycloak
 docker compose up -d
 ```
 
-Wait ~15 seconds for Keycloak to finish importing the realm. Check status:
+Wait ~15 seconds for Keycloak to start, then create/configure the realm with Terraform (`terraform/keycloak`, see SETUP.md Step 5 — Terraform is the only source of truth for the realm). Check status:
 ```bash
 docker compose ps
 # Both services should show "Up (healthy)"
@@ -208,10 +208,14 @@ npm run test:all
    KC_DB_URL=jdbc:postgresql://<railway-pg-host>/<db>
    KC_DB_USERNAME=<user>
    KC_DB_PASSWORD=<password>
-   KC_HOSTNAME=<your-railway-domain>.up.railway.app
-   KEYCLOAK_ADMIN=admin
-   KEYCLOAK_ADMIN_PASSWORD=<strong-password>
+   KC_HOSTNAME=https://<your-railway-domain>.up.railway.app
+   KC_HTTP_ENABLED=true
+   KC_PROXY_HEADERS=xforwarded
+   KC_BOOTSTRAP_ADMIN_USERNAME=admin
+   KC_BOOTSTRAP_ADMIN_PASSWORD=<strong-password>
    ```
+   Then configure the realm with Terraform and, once the proxy headers are verified, set
+   `ssl_required = "all"` (see `keycloak/README.md` → "TLS behind the Railway proxy").
 7. Note the public URL (e.g., `https://japan-keycloak.up.railway.app`)
 
 ### Step 3 — Backend on Cloudflare Workers (free tier)
@@ -304,7 +308,7 @@ PruebaMapJapan/
 │   └── wrangler.toml          # Cloudflare Workers config
 │
 ├── keycloak/                  # Auth server (Keycloak 25)
-│   ├── realm-export.json      # Realm config (passkeys, clients, flows)
+│   ├── themes/                # Login/email/account theme (japan-trip)
 │   ├── docker-compose.yml     # Local: Keycloak + PostgreSQL
 │   ├── Dockerfile             # Production image (Railway)
 │   └── railway.toml           # Railway deployment config

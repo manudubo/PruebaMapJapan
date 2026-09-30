@@ -69,8 +69,8 @@ describe('CORS preflight', () => {
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
-  // SEC-23 (Phase 26): localhost dev origins are allowed in every environment.
-  it.fails('SEC-23: localhost origins are not allowed when ENVIRONMENT=production', async () => {
+  // SEC-23 (fixed in Phase 26): localhost dev origins used to be allowed in every environment.
+  it('SEC-23: localhost origins are not allowed when ENVIRONMENT=production', async () => {
     const prod = makeEnv('postgresql://unused@127.0.0.1:1/none', { ENVIRONMENT: 'production' });
     const res = await app.request(
       '/api/trips',
@@ -102,7 +102,7 @@ describe('security headers', () => {
     expect(res.headers.get('Content-Type')).toMatch(/^application\/json/);
   });
 
-  it.fails('SEC-20: X-Content-Type-Options: nosniff and Permissions-Policy are set', async () => {
+  it('SEC-20: X-Content-Type-Options: nosniff and Permissions-Policy are set', async () => {
     const res = await app.request('/api/health', {}, env);
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.headers.get('Permissions-Policy')).not.toBeNull();

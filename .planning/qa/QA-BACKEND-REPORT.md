@@ -5,7 +5,47 @@
 **Scope:** Hono API on Workers (`backend/src`), Drizzle/Postgres, Keycloak JWT auth. Frontend, terraform/keycloak and workflows untouched.
 **Suite:** `backend/tests/adversarial/` — 8 test files, **269 test cases** (28 of them documented `it.fails` known bugs owned by Phases 24–26).
 
-## Result
+## Current status — after merging `claude/focused-lovelace-cryssy` (Phases 23, 25, 26 app-security, e2e/frontend QA)
+
+Merge conflicts resolved in `backend/src/index.ts` (kept `bodyLimit` 413 + a single HTTPException→4xx handler) and `backend/src/validation/schemas.ts` (both protection sets combined: this branch's `text()` NUL guard, `isoDate()` year-0000 guard, `orderIndex()` int4 cap, preferences depth/size/NUL guard, **plus** Phase 25's `coordinate()`, `dateOrder`, `atLeastOneField`, `clockTime`, `is_generic`; one `httpUrl` const = Phase 25 protocol check built on `text()`). Also: JWT missing/non-numeric exp message now reads "JWT treated as expired: …" so Phase 26's SEC-06 test (`/expired/` in the server log) and this branch's fix agree; adversarial `tsconfig.json` excludes `src/**/*.test.ts` (DOM lib clashed with a Phase 26 test's `fetch` typing).
+
+Schema-validation failures are now **422** (Phase 25 `validator.ts`); path-id, malformed/empty JSON and reorder-permutation errors remain **400**. Adversarial expectations were updated accordingly. The OTP suite now opts into `ENVIRONMENT=development` (Mailpit), required by the SEC-08 gate.
+
+| Run (post-merge) | Files | Tests |
+|-----|-------|-------|
+| `npm test --workspace=backend` (no DB) | 23 passed, 6 skipped | 696 passed, 217 skipped |
+| `ADV_DATABASE_URL=… npm test --workspace=backend` | 29 passed | 904 passed, 9 skipped |
+| `npm run test:run --workspace=frontend` | 30 passed | 671 passed |
+| backend `typecheck` + `tsc -p tests/adversarial` | clean | — |
+| `wrangler deploy --dry-run` | OK | — |
+
+Adversarial suite: **270 cases, all passing; 6 remain `it.fails`** (still-open bugs).
+
+### Current open / fixed table
+
+| Finding | Status | By |
+|---|---|---|
+| F1–F11 (malformed-JSON 500, no body cap, path ids, JWT exp type, long/NUL name lockout, UTF-8 mojibake, URL schemes, NUL text, year 0000, int4 order_index, deep preferences) | **Fixed** (re-verified post-merge; statuses now 422 where schema-level) | this branch |
+| BIZ-06 reversed trip / hotel date ranges | **Fixed** → 422 | Phase 25 |
+| BIZ-08 coordinates (`"NaN"`, 91/181, `"null"`, `""`, bool, `{}`, `[]`, `1e400`, 1000, `"Infinity"`) | **Fixed** → 422 | Phase 25 |
+| BIZ-09 `PATCH {}` / unknown-only keys / `text/plain` PATCH silent 200 | **Fixed** → 422, nothing updated | Phase 25 |
+| SEC-05 JWKS refetch amplification (20 forged kids → ≤1 fetch) | **Fixed** | Phase 26 |
+| SEC-06 generic `invalid_token` body | **Fixed** | Phase 26 |
+| SEC-07 parallel wrong guesses (30→≤5) and double redemption (5→1) | **Fixed** | Phase 26 |
+| SEC-08 failed send leaves user locked out; prod without RESEND fails loudly and issues no code (new regression test) | **Fixed** | Phase 26 |
+| SEC-20 nosniff / Permissions-Policy | **Fixed** | Phase 26 |
+| SEC-21 public payload `user_id` | **Fixed** | Phase 26 |
+| SEC-23 localhost origins in production | **Fixed** | Phase 26 |
+| **SEC-07 (issuance)** 20 parallel `otp-request` → 20 codes/emails, bypassing `otp_pending` and the BUG-16 5/h cap (forced with a user-row lock) | **OPEN** `it.fails` | Phase 26 SEC-07 follow-up |
+| **SEC-22** nested routes 403 (foreign) vs 404 (missing) existence oracle | **OPEN** `it.fails` | Phase 26 |
+| **BIZ-07** day outside destination date range accepted | **OPEN** `it.fails` (deferred by Phase 25) | Phase 25 follow-up |
+| **M-09** parent deleted mid-request → FK 23503 → 500 instead of 404 | **OPEN** `it.fails` | Phase 24 |
+| **Hotel uniqueness** concurrent `PUT …/hotel` → 2 rows per destination | **OPEN** `it.fails` | Phase 24 DB constraints (proposed DATA-04) |
+| **M-01** per-request `pg.Pool` leak (40 requests → 80 idle connections, no `'error'` listener) | **OPEN** `it.fails` | Phase 24 M-01/ARCH-01 |
+
+The sections below are the original (pre-merge) findings, kept for history.
+
+## Result (pre-merge, base `1e48552`)
 
 | Run | Files | Tests |
 |-----|-------|-------|

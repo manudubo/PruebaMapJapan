@@ -168,8 +168,8 @@ describe('JWT claim/algorithm attacks (no DB needed)', () => {
     }
   });
 
-  // SEC-06 (Phase 26): verification errors must not echo issuer/realm/audience config.
-  it.fails('SEC-06: 401 body is a generic invalid_token (no issuer/realm detail)', async () => {
+  // SEC-06 (fixed in Phase 26): verification errors must not echo issuer/realm/audience config.
+  it('SEC-06: 401 body is a generic invalid_token (no issuer/realm detail)', async () => {
     const token = await signer.sign(claims({ iss: 'http://evil.test/realms/x' }));
     const res = await get(`Bearer ${token}`);
     expect(res.status).toBe(401);
@@ -177,9 +177,9 @@ describe('JWT claim/algorithm attacks (no DB needed)', () => {
     expect(res.text).not.toContain('realms');
   });
 
-  // SEC-05 (Phase 26): every unknown kid / bad signature forces a JWKS refetch
-  // — an unauthenticated caller can make the Worker hammer Keycloak.
-  it.fails('SEC-05: 20 forged tokens with random kids cause at most 1 extra JWKS fetch', async () => {
+  // SEC-05 (fixed in Phase 26 by the JWKS refresh cooldown): every unknown kid
+  // used to force a JWKS refetch — an unauthenticated Keycloak amplifier.
+  it('SEC-05: 20 forged tokens with random kids cause at most 1 extra JWKS fetch', async () => {
     const before = net.jwksFetches;
     for (let i = 0; i < 20; i++) {
       const token = await signer.sign(claims(), { kid: `random-${i}` });

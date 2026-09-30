@@ -111,10 +111,10 @@ it('malformed JSON with application/json → 400 (not 500)', async () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('JSON array / scalar / null body → 400', async () => {
+    it('JSON array / scalar / null body → 422', async () => {
       for (const body of ['[]', '"trip"', '42', 'null', 'true']) {
         const res = await req('POST', '/api/trips', { token: user.token, body });
-        expect.soft(res.status, body).toBe(400);
+        expect.soft(res.status, body).toBe(422);
       }
     });
 
@@ -123,14 +123,14 @@ it('empty body with application/json → 400', async () => {
       expect(res.status).toBe(400);
     });
 
-    it('text/plain body on a create → 400, nothing created', async () => {
+    it('text/plain body on a create → 422, nothing created', async () => {
       const before = (await req('GET', '/api/trips', { token: user.token })).body.data.length;
       const res = await req('POST', '/api/trips', {
         token: user.token,
         body: JSON.stringify({ name: 'sneaky' }),
         contentType: 'text/plain',
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
       expect((await req('GET', '/api/trips', { token: user.token })).body.data.length).toBe(before);
     });
 
@@ -141,21 +141,25 @@ it('empty body with application/json → 400', async () => {
       }
     });
 
-    // BIZ-09 (Phase 25): PATCH schemas are .partial(), so a body the JSON
-    // validator ignores (wrong content type) or an empty object is a silent
-    // 200 no-op instead of a client error.
-    it.fails('BIZ-09: PATCH with text/plain body is rejected instead of a silent 200 no-op', async () => {
+    // BIZ-09 (fixed in Phase 25 by atLeastOneField): a body the JSON validator
+    // ignores (wrong content type) or an empty object used to be a silent
+    // 200 no-op. Regression guard.
+    it('BIZ-09: PATCH with text/plain body is rejected instead of a silent 200 no-op', async () => {
       const res = await req('PATCH', `/api/trips/${tree.tripId}`, {
         token: user.token,
         body: JSON.stringify({ name: 'renamed' }),
         contentType: 'text/plain',
       });
-      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBe(422);
+      const after = await req('GET', `/api/trips/${tree.tripId}`, { token: user.token });
+      expect(after.body.data.name).not.toBe('renamed');
     });
 
-    it.fails('BIZ-09: PATCH {} is rejected (422/400), not 200', async () => {
-      const res = await req('PATCH', `/api/trips/${tree.tripId}`, { token: user.token, body: {} });
-      expect(res.status).toBeGreaterThanOrEqual(400);
+    it('BIZ-09: PATCH {} (or only unknown keys) is rejected with 422, not 200', async () => {
+      for (const body of [{}, { unknown: 1 }]) {
+        const res = await req('PATCH', `/api/trips/${tree.tripId}`, { token: user.token, body });
+        expect.soft(res.status, JSON.stringify(body)).toBe(422);
+      }
     });
 
 it('oversized body (2 MB) is rejected with 413 before touching the DB', async () => {
@@ -188,14 +192,14 @@ it('deeply nested JSON (depth 20k) → 4xx, never 500', async () => {
       expect(is4xx(res.status), `status ${res.status}`).toBe(true);
     });
 
-    it('preferences: 32 levels and ~15 KB are accepted, 33 levels or >16 KB are 400', async () => {
+    it('preferences: 32 levels and ~15 KB are accepted, 33 levels or >16 KB are 422', async () => {
       const nest = (d: number): unknown => (d === 1 ? { leaf: true } : { n: nest(d - 1) });
       expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(32) } })).status).toBe(200);
-      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(33) } })).status).toBe(400);
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(33) } })).status).toBe(422);
       const ok = { blob: 'x'.repeat(15 * 1024) };
       expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: ok } })).status).toBe(200);
       const big = { blob: 'x'.repeat(17 * 1024) };
-      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: big } })).status).toBe(400);
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: big } })).status).toBe(422);
     });
 
     it('unknown fields are stripped, not stored or echoed', async () => {
@@ -225,17 +229,17 @@ it('deeply nested JSON (depth 20k) → 4xx, never 500', async () => {
       const res = await req('POST', '/api/trips', { token: user.token, body: { name: '🗾'.repeat(127) } });
       expect(res.status).toBe(201);
       const over = await req('POST', '/api/trips', { token: user.token, body: { name: '🗾'.repeat(128) } });
-      expect(over.status).toBe(400);
+      expect(over.status).toBe(422);
     });
 
-    it('name of 256 chars → 400', async () => {
+    it('name of 256 chars → 422', async () => {
       const res = await req('POST', '/api/trips', { token: user.token, body: { name: 'a'.repeat(256) } });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
-    it('whitespace-only / empty name → 400', async () => {
+    it('whitespace-only / empty name → 422', async () => {
       const res = await req('POST', '/api/trips', { token: user.token, body: { name: '' } });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
 it.each([
@@ -249,9 +253,9 @@ it.each([
       ['activity time', 'POST', () => `${tree.base}/activities`, (v: string) => ({ name: 'n', time: v })],
       ['hotel name', 'PUT', () => `/api/trips/${tree.tripId}/destinations/${tree.destId}/hotel`, (v: string) => ({ name: v })],
       ['maps_url', 'POST', () => `${tree.base}/activities`, (v: string) => ({ name: 'n', maps_url: `https://x.test/${v}` })],
-    ])('NUL byte in %s → 400 (Postgres text cannot store \\u0000)', async (_l, method, path, body) => {
+    ])('NUL byte in %s → 422 (Postgres text cannot store \\u0000)', async (_l, method, path, body) => {
       const res = await req(method, path(), { token: user.token, body: body('bad\u0000value') });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
     it('lone UTF-16 surrogate in a string is handled (stored as U+FFFD or rejected, never 500)', async () => {
@@ -286,13 +290,13 @@ it.each([
         req('PATCH', '/api/users/me', { token: user.token, body: { avatar_url: url } }),
       ];
       const results = await Promise.all(attempts);
-      for (const r of results) expect.soft(r.status, r.text).toBe(400);
+      for (const r of results) expect.soft(r.status, r.text).toBe(422);
     });
 
     it('rejects scheme-relative and scheme-less URLs', async () => {
       for (const url of ['//evil.test/x', 'evil.test/x', 'javascript://%0aalert(1)']) {
         const res = await req('POST', '/api/trips', { token: user.token, body: { name: 'u', cover_image_url: url } });
-        expect.soft(res.status, url).toBe(400);
+        expect.soft(res.status, url).toBe(422);
       }
     });
 
@@ -324,9 +328,10 @@ it.each([
       expect(res.body.data.lat).toBeNull();
     });
 
-    // BIZ-08 (Phase 25): lat/lng are z.coerce.string(), so anything that
-    // stringifies reaches the NUMERIC(10,7) column and Postgres rejects it → 500.
-    it.fails.each([
+    // BIZ-08 (fixed in Phase 25 by coordinate()): lat/lng used to be
+    // z.coerce.string(), so anything that stringified reached NUMERIC(10,7) and
+    // Postgres answered 500 or stored NaN / out-of-range degrees. Regression guard.
+    it.each([
       ['"null" string', 'null'],
       ['empty string', ''],
       ['boolean', true],
@@ -334,25 +339,23 @@ it.each([
       ['array', []],
       ['1e400 (Infinity after parse)', '1e400'],
       ['too many integer digits (1000)', 1000],
-    ])('BIZ-08: lat = %s → 400, never 500', async (_l, lat) => {
+    ])('BIZ-08: lat = %s → 422, never 500', async (_l, lat) => {
       const res = await post(lat);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
-    // BIZ-08 (Phase 25) + DATA-03 (Phase 24): Postgres NUMERIC accepts 'NaN'
-    // and out-of-range degrees; the map then breaks on render.
-    it.fails('BIZ-08: lat = "NaN" is rejected instead of stored as NaN', async () => {
+    it('BIZ-08: lat = "NaN" is rejected instead of stored as NaN', async () => {
       const res = await post('NaN');
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
-    it.fails('BIZ-08: lat = 91 / lng = 181 are rejected', async () => {
-      expect((await post(91)).status).toBe(400);
-      expect((await post(0, 181)).status).toBe(400);
+    it('BIZ-08: lat = 91 / lng = 181 are rejected', async () => {
+      expect((await post(91)).status).toBe(422);
+      expect((await post(0, 181)).status).toBe(422);
     });
 
-    it.fails('BIZ-08: lat = "Infinity" is rejected with 400 (not 500)', async () => {
-      expect((await post('Infinity')).status).toBe(400);
+    it('BIZ-08: lat = "Infinity" is rejected with 422 (not 500)', async () => {
+      expect((await post('Infinity')).status).toBe(422);
     });
   });
 
@@ -362,9 +365,9 @@ it.each([
       req('POST', '/api/trips', { token: user.token, body: { name: 'dates', start_date, end_date } });
 
     it.each(['0000-00-00', '2026-02-30', '2025-02-29', '2026-13-01', '2026-1-1', '26-01-01', '2026/01/01', '2026-01-01T00:00:00Z', ''])(
-      'rejects %s with 400',
+      'rejects %s with 422',
       async (d) => {
-        expect((await tripWith(d)).status).toBe(400);
+        expect((await tripWith(d)).status).toBe(422);
       },
     );
 
@@ -378,55 +381,56 @@ it.each([
       expect((await tripWith('0001-01-01')).status).toBe(201);
     });
 
-    it('hotel/destination dates with year 0000 → 400, never 500', async () => {
+    it('hotel/destination dates with year 0000 → 422, never 500', async () => {
       const hotel = await req('PUT', `/api/trips/${tree.tripId}/destinations/${tree.destId}/hotel`, {
         token: user.token,
         body: { name: 'h', check_in_date: '0000-01-01' },
       });
-      expect(hotel.status).toBe(400);
+      expect(hotel.status).toBe(422);
       const dest = await req('PATCH', `/api/trips/${tree.tripId}/destinations/${tree.destId}`, {
         token: user.token,
         body: { end_date: '0000-12-31' },
       });
-      expect(dest.status).toBe(400);
+      expect(dest.status).toBe(422);
     });
 
     it('accepts far-future 9999-12-31', async () => {
       expect((await tripWith('9999-12-31')).status).toBe(201);
     });
 
-it('year 0000 (valid leap-day shape, invalid in Postgres) → 400, never 500', async () => {
-      expect((await tripWith('0000-02-29')).status).toBe(400);
-      expect((await tripWith('0000-01-01')).status).toBe(400);
+it('year 0000 (valid leap-day shape, invalid in Postgres) → 422, never 500', async () => {
+      expect((await tripWith('0000-02-29')).status).toBe(422);
+      expect((await tripWith('0000-01-01')).status).toBe(422);
     });
 
-it('day date 0000-01-01 → 400, never 500', async () => {
+it('day date 0000-01-01 → 422, never 500', async () => {
       const res = await req('POST', `/api/trips/${tree.tripId}/destinations/${tree.destId}/days`, {
         token: user.token,
         body: { date: '0000-01-01' },
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
-    it.fails('BIZ-06: trip with end_date before start_date is rejected', async () => {
-      expect((await tripWith('2026-03-10', '2026-03-01')).status).toBe(400);
+    it('BIZ-06: trip with end_date before start_date is rejected', async () => {
+      expect((await tripWith('2026-03-10', '2026-03-01')).status).toBe(422);
     });
 
-    it.fails('BIZ-06: hotel check-out before check-in is rejected', async () => {
+    it('BIZ-06: hotel check-out before check-in is rejected', async () => {
       const res = await req('PUT', `/api/trips/${tree.tripId}/destinations/${tree.destId}/hotel`, {
         token: user.token,
         body: { name: 'h', check_in_date: '2026-03-05', check_out_date: '2026-03-01' },
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
+    // STILL OPEN — BIZ-07 was deferred by Phase 25 (cross-level date coherence).
     it.fails('BIZ-07: day outside its destination date range is rejected', async () => {
       // buildTree's destination runs 2026-03-01..2026-03-05.
       const res = await req('POST', `/api/trips/${tree.tripId}/destinations/${tree.destId}/days`, {
         token: user.token,
         body: { date: '1999-01-01' },
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
   });
 
@@ -436,29 +440,29 @@ it('day date 0000-01-01 → 400, never 500', async () => {
       ['negative order_index', { name: 'n', order_index: -1 }],
       ['float order_index', { name: 'n', order_index: 1.5 }],
       ['string order_index', { name: 'n', order_index: '1' }],
-    ])('activity with %s → 400, never 500', async (_l, body) => {
+    ])('activity with %s → 422, never 500', async (_l, body) => {
       const res = await req('POST', `${tree.base}/activities`, { token: user.token, body });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
-    it('order_index beyond int4 → 400, never 500', async () => {
+    it('order_index beyond int4 → 422, never 500', async () => {
       for (const [path, body] of [
         [`${tree.base}/activities`, { name: 'n', order_index: 2 ** 31 }],
         [`/api/trips/${tree.tripId}/destinations`, { city_name: 'c', country: 'JP', order_index: 2 ** 31 }],
         [`/api/trips/${tree.tripId}/destinations/${tree.destId}/days`, { date: '2026-03-03', order_index: 2 ** 31 }],
       ] as const) {
         const res = await req('POST', path, { token: user.token, body });
-        expect.soft(res.status, path).toBe(400);
+        expect.soft(res.status, path).toBe(422);
       }
     });
 
-    it('zoom_level outside 1..20 → 400', async () => {
+    it('zoom_level outside 1..20 → 422', async () => {
       for (const zoom_level of [0, 21, 12.5, -3]) {
         const res = await req('POST', `/api/trips/${tree.tripId}/destinations`, {
           token: user.token,
           body: { city_name: 'z', country: 'JP', zoom_level },
         });
-        expect.soft(res.status, String(zoom_level)).toBe(400);
+        expect.soft(res.status, String(zoom_level)).toBe(422);
       }
     });
 
@@ -468,7 +472,7 @@ it('day date 0000-01-01 → 400, never 500', async () => {
           token: user.token,
           body: { date: '2026-03-03', color_hex },
         });
-        expect.soft(res.status, color_hex).toBe(400);
+        expect.soft(res.status, color_hex).toBe(422);
       }
     });
   });

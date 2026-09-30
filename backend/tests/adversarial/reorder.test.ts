@@ -64,6 +64,7 @@ describeDb('activity reorder', () => {
     ['extra id appended', () => [...tree.actIds, 999_999]],
     ['foreign id from another day of the same user', () => [...tree.actIds.slice(1), otherDay.actIds[0]]],
     ['10k ids', () => Array.from({ length: 10_000 }, (_, i) => i + 1)],
+    ['id beyond int4 (passes the schema, fails the permutation check)', () => [...tree.actIds.slice(1), 2 ** 31]],
   ])('%s → 400 and nothing written', async (_l, ids) => {
     const before = await order(tree.dayId);
     const res = await reorder(ids());
@@ -80,15 +81,14 @@ describeDb('activity reorder', () => {
     ['nested arrays', [[1]]],
     ['not an array', 'all'],
     ['null', null],
-    ['id beyond int4', [2 ** 31]],
-  ])('ordered_ids = %s → 400 (validation), never 500', async (_l, ids) => {
+  ])('ordered_ids = %s → 422 (validation), never 500', async (_l, ids) => {
     const res = await reorder(ids);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
   });
 
-  it('missing ordered_ids key → 400', async () => {
+  it('missing ordered_ids key → 422', async () => {
     const res = await req('POST', `${tree.base}/activities/reorder`, { token: user.token, body: {} });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
   });
 
   it('empty list on an empty day → 200 []', async () => {

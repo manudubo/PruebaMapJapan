@@ -4,6 +4,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { corsMiddleware } from './middleware/cors';
 import { securityMiddleware } from './middleware/security';
 import routes from './routes';
+import { healthResponse } from './routes/health';
 import type { Env } from './types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -11,8 +12,9 @@ const app = new Hono<{ Bindings: Env }>();
 // ---------------------------------------------------------------------------
 // Global middleware
 // ---------------------------------------------------------------------------
-app.use('*', corsMiddleware);
+// Security headers first so they also wrap CORS preflight responses.
 app.use('*', securityMiddleware);
+app.use('*', corsMiddleware);
 
 // Refuse oversized bodies before any auth or DB work. Real payloads (an
 // activity with long notes) are a few KB; without a cap one request could
@@ -29,14 +31,7 @@ app.use(
 // ---------------------------------------------------------------------------
 // Root health check (unauthenticated)
 // ---------------------------------------------------------------------------
-app.get('/', (c) => {
-  return c.json({
-    success: true,
-    message: 'PruebaMapJapan API is running',
-    version: '0.1.0',
-    timestamp: new Date().toISOString(),
-  });
-});
+app.get('/', healthResponse);
 
 // ---------------------------------------------------------------------------
 // API routes — all business logic lives under /api
@@ -54,8 +49,9 @@ app.notFound((c) => {
 // Error handler
 // ---------------------------------------------------------------------------
 app.onError((err, c) => {
-  // Client errors raised by Hono itself (e.g. the JSON validator's
-  // "Malformed JSON in request body") carry their own 4xx status.
+  // Deliberate HTTP errors (e.g. Hono's validator rejecting malformed JSON
+  // with 400, bodyLimit's 413) keep their status instead of being reported
+  // as a server fault.
   if (err instanceof HTTPException && err.status < 500) {
     return c.json({ success: false, error: err.message }, err.status);
   }
