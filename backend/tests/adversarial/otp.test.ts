@@ -3,6 +3,7 @@
  * against a real DB. The Mailpit call is captured so tests can read the
  * issued code, which lets us exercise the success path too.
  */
+import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   client,
@@ -14,6 +15,7 @@ import {
   makeEnv,
   makeUser,
   sql,
+  waitForLockWaiters,
   type FakeNetwork,
   type Req,
   type Signer,
@@ -38,6 +40,31 @@ async function otpRows(u: TestUser) {
     [u.sub],
   );
 }
+
+/**
+ * Force an interleaving: a side transaction locks the row(s) selected by
+ * `lockSql`, `fire()` starts `n` requests that read first and then queue on
+ * that lock when they write, and the lock is released only once all `n` are
+ * waiting — so every request has passed its read-side checks.
+ */
+async function underRowLock<T>(lockSql: string, params: unknown[], n: number, fire: () => Promise<T>[]): Promise<T[]> {
+  const locker = new pg.Client({ connectionString: dbUrl });
+  await locker.connect();
+  try {
+    await locker.query('BEGIN');
+    await locker.query(lockSql, params);
+    const pending = fire();
+    await waitForLockWaiters(dbUrl, n);
+    await locker.query('COMMIT');
+    return await Promise.all(pending);
+  } finally {
+    await locker.end();
+  }
+}
+
+const LOCK_OTP = `select o.id from email_otp_codes o join users u on u.id = o.user_id
+                    where u.keycloak_id = $1 for update of o`;
+const LOCK_USER = 'select id from users where keycloak_id = $1 for update';
 
 function wrong(code: string): string {
   return String((Number(code) + 1) % 1_000_000).padStart(6, '0');
@@ -113,15 +140,19 @@ describeDb('OTP', () => {
     it.fails('SEC-07: 30 parallel wrong guesses are capped at 5 evaluated attempts', async () => {
       await request();
       const code = net.lastCodeFor(user.email)!;
-      const results = await Promise.all(Array.from({ length: 30 }, () => verify(wrong(code))));
+      const results = await underRowLock(LOCK_OTP, [user.sub], 30, () =>
+        Array.from({ length: 30 }, () => verify(wrong(code))),
+      );
       const evaluated = results.filter((r) => r.body.error === 'invalid_code').length;
       expect(evaluated).toBeLessThanOrEqual(5);
     });
 
-    it.fails('SEC-07: two parallel verifies of the correct code succeed at most once', async () => {
+    it.fails('SEC-07: parallel verifies of the correct code succeed at most once', async () => {
       await request();
       const code = net.lastCodeFor(user.email)!;
-      const results = await Promise.all(Array.from({ length: 5 }, () => verify(code)));
+      const results = await underRowLock(LOCK_OTP, [user.sub], 5, () =>
+        Array.from({ length: 5 }, () => verify(code)),
+      );
       expect(results.filter((r) => r.status === 200)).toHaveLength(1);
     });
   });
@@ -192,7 +223,11 @@ describeDb('OTP', () => {
     // the insert are separate statements, so a burst of parallel requests
     // passes every check and issues (and emails) many codes at once.
     it.fails('SEC-07: 20 parallel otp-requests issue at most one code', async () => {
-      const results = await Promise.all(Array.from({ length: 20 }, () => request()));
+      await req('GET', '/api/users/me', { token: user.token }); // provision the user row first
+      // The OTP INSERT's FK check needs a KEY SHARE lock on the user row.
+      const results = await underRowLock(LOCK_USER, [user.sub], 20, () =>
+        Array.from({ length: 20 }, () => request()),
+      );
       expect(results.filter((r) => r.status === 201)).toHaveLength(1);
       expect(await otpRows(user)).toHaveLength(1);
     });
