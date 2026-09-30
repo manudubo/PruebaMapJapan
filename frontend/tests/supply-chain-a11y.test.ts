@@ -118,3 +118,10 @@ describe('A11Y-03: tripDetail showError renders a heading', () => {
     expect(fn).toContain("document.createElement('h1')");
   });
 });
+
+describe('A11Y-05: web font is not a render-blocking CSS @import', () => {
+  it('main.css has no @import of Google Fonts and pages load it non-blocking', () => {
+    expect(read('src/styles/main.css')).not.toMatch(/@import\s+url\(['"]?https:\/\/fonts\.googleapis/);
+    expect(read('index.html')).toContain('media="print" onload="this.media=\'all\'"');
+  });
+});
