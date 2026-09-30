@@ -44,8 +44,6 @@ const mockTripTwoDestinations = {
 // whether the project injected a real-auth storageState.
 test.use({ storageState: { cookies: [], origins: [] } });
 
-// The preview build's CSP omits the API origin from connect-src (see
-// 24-E2E-SUMMARY.md); authenticated specs bypass it so the page logic is testable.
 async function signedInDashboard(page: Page, options: Parameters<typeof mockApi>[1] = {}) {
   await mockKeycloakLoggedIn(page);
   const calls = await mockApi(page, options);
@@ -68,8 +66,6 @@ test.describe('Dashboard access', () => {
 });
 
 test.describe('Trip detail page', () => {
-  test.use({ bypassCSP: true });
-
   test('renders title, destination subtitle, active tab and a Leaflet map', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page);
@@ -189,8 +185,6 @@ test.describe('Trip detail page', () => {
 });
 
 test.describe('Create trip form', () => {
-  test.use({ bypassCSP: true });
-
   test('opens from the New Trip button and closes via Cancel and via the backdrop', async ({ page }) => {
     await signedInDashboard(page);
     const overlay = page.locator('#create-trip-overlay');

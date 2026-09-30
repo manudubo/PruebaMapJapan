@@ -81,11 +81,6 @@ test.describe('Auth flow — mocked Keycloak', () => {
   });
 
   test.describe('authenticated', () => {
-    // The preview build ships a CSP whose connect-src omits the API origin
-    // (tracked in 24-E2E-SUMMARY.md); bypass it here so these specs exercise the
-    // dashboard logic, and keep CSP coverage in its own spec.
-    test.use({ bypassCSP: true });
-
     test('dashboard renders the greeting, new-trip button and one card per trip', async ({ page }) => {
       await mockKeycloakLoggedIn(page);
       await mockApi(page, {
