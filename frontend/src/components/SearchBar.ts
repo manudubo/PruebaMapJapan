@@ -1,6 +1,13 @@
 import { search, buildSearchIndex, getTypeIcon, getSuggestions } from '@/modules/search';
 import type { SearchResult } from '@/modules/search';
 import { debounce } from '@/modules/utils';
+import { highlightMatch } from '@/modules/highlight';
+
+const KEYBOARD_HINT_HTML = `
+  <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+  <span><kbd>↵</kbd> select</span>
+  <span><kbd>esc</kbd> close</span>
+`;
 
 /**
  * Global Search Bar Component
@@ -448,56 +455,70 @@ class SearchBar extends HTMLElement {
       return;
     }
     
-    let html = '';
-    
+    // SEC-10: build result items with DOM APIs — titles, subtitles and the
+    // query-highlight are text nodes, never parsed HTML.
+    const frag = document.createDocumentFragment();
+
     if (isSuggestions) {
-      html += '<li class="section-header">Cities</li>';
+      const header = document.createElement('li');
+      header.className = 'section-header';
+      header.textContent = 'Cities';
+      frag.appendChild(header);
     }
-    
-    html += this.results.map((result, index) => {
-      const iconHtml = getTypeIcon(result.type);
-      const iconStyle = result.color ? `background:${result.color}` : '';
-      const iconClass = result.color ? 'result-icon has-color' : 'result-icon';
-      
-      return `
-        <li>
-          <a href="#" 
-             class="search-result${index === this.selectedIndex ? ' selected' : ''}"
-             role="option"
-             aria-selected="${index === this.selectedIndex}"
-             data-index="${index}">
-            <div class="${iconClass}" style="${iconStyle}">${iconHtml}</div>
-            <div class="result-content">
-              <div class="result-title">${this.highlightMatch(result.title)}</div>
-              <div class="result-subtitle">${result.subtitle}</div>
-            </div>
-            <span class="result-badge">${result.type === 'activity' ? 'place' : result.type === 'day' ? 'day' : result.type}</span>
-          </a>
-        </li>
-      `;
-    }).join('');
-    
-    if (!isSuggestions) {
-      html += `
-        <li class="keyboard-hint">
-          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span><kbd>↵</kbd> select</span>
-          <span><kbd>esc</kbd> close</span>
-        </li>
-      `;
-    }
-    
-    list.innerHTML = html;
-    
-    // Add click handlers to results
-    list.querySelectorAll('.search-result').forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.preventDefault();
-        const index = parseInt((item as HTMLElement).dataset.index || '0');
-        this.handleResultClick(this.results[index]);
-        this.closeDropdown();
-      });
+
+    this.results.forEach((result, index) => {
+      frag.appendChild(this.buildResultItem(result, index));
     });
+
+    if (!isSuggestions) {
+      const hint = document.createElement('li');
+      hint.className = 'keyboard-hint';
+      // Static markup only — no data interpolated.
+      hint.innerHTML = KEYBOARD_HINT_HTML;
+      frag.appendChild(hint);
+    }
+
+    list.replaceChildren(frag);
+  }
+
+  private buildResultItem(result: SearchResult, index: number): HTMLLIElement {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#';
+    a.className = `search-result${index === this.selectedIndex ? ' selected' : ''}`;
+    a.setAttribute('role', 'option');
+    a.setAttribute('aria-selected', String(index === this.selectedIndex));
+    a.dataset.index = String(index);
+
+    const icon = document.createElement('div');
+    icon.className = result.color ? 'result-icon has-color' : 'result-icon';
+    // CSSOM assignment: an invalid/hostile value is simply dropped.
+    if (result.color) icon.style.background = result.color;
+    icon.innerHTML = getTypeIcon(result.type); // static SVG from a fixed map
+
+    const content = document.createElement('div');
+    content.className = 'result-content';
+    const title = document.createElement('div');
+    title.className = 'result-title';
+    title.appendChild(highlightMatch(result.title, this.input?.value ?? ''));
+    const subtitle = document.createElement('div');
+    subtitle.className = 'result-subtitle';
+    subtitle.textContent = result.subtitle;
+    content.append(title, subtitle);
+
+    const badge = document.createElement('span');
+    badge.className = 'result-badge';
+    badge.textContent =
+      result.type === 'activity' ? 'place' : result.type === 'day' ? 'day' : result.type;
+
+    a.append(icon, content, badge);
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.handleResultClick(result);
+      this.closeDropdown();
+    });
+    li.appendChild(a);
+    return li;
   }
 
   private handleResultClick(result: SearchResult): void {
@@ -514,21 +535,6 @@ class SearchBar extends HTMLElement {
     }
     
     window.location.href = url;
-  }
-
-  private highlightMatch(text: string): string {
-    if (!this.input?.value) return text;
-    
-    const query = this.input.value.toLowerCase();
-    const index = text.toLowerCase().indexOf(query);
-    
-    if (index === -1) return text;
-    
-    return text.substring(0, index) +
-           '<mark style="background:var(--jp-accent);color:var(--jp-white);padding:0 2px;">' +
-           text.substring(index, index + query.length) +
-           '</mark>' +
-           text.substring(index + query.length);
   }
 
   private handleKeydown(e: KeyboardEvent): void {
