@@ -328,7 +328,6 @@ class SearchBar extends HTMLElement {
             class="search-input" 
             placeholder="Search..."
             aria-label="Search activities, places, days"
-            aria-expanded="false"
             aria-controls="search-dropdown"
             aria-autocomplete="list"
             autocomplete="off"
@@ -579,14 +578,12 @@ class SearchBar extends HTMLElement {
     if (!this.dropdown || !this.input) return;
     this.isOpen = true;
     this.dropdown.classList.add('open');
-    this.input.setAttribute('aria-expanded', 'true');
   }
 
   private closeDropdown(): void {
     if (!this.dropdown || !this.input) return;
     this.isOpen = false;
     this.dropdown.classList.remove('open');
-    this.input.setAttribute('aria-expanded', 'false');
     this.selectedIndex = -1;
   }
 }
