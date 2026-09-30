@@ -27,6 +27,9 @@
   --jp-accent: #0071e3;
   --jp-accent-hover: #0077ed;
   --jp-accent-text: #0062c4;
+  /* Filled accent surfaces behind white text (buttons, active tabs): >= 4.5:1 */
+  --jp-accent-solid: #0071e3;
+  --jp-accent-solid-hover: #0066cc;
   --jp-accent-subtle: rgba(0, 113, 227, 0.08);
   --jp-success: #34c759;
   --jp-success-subtle: rgba(52, 199, 89, 0.1);
@@ -88,6 +91,9 @@
   --jp-accent: #0a84ff;
   --jp-accent-hover: #409cff;
   --jp-accent-text: #409cff;
+  /* Dark accent (#0a84ff) is too light behind white text (3.6:1) */
+  --jp-accent-solid: #0071e3;
+  --jp-accent-solid-hover: #0062c4;
   --jp-accent-subtle: rgba(10, 132, 255, 0.15);
   --jp-success: #30d158;
   --jp-success-subtle: rgba(48, 209, 88, 0.14);
@@ -324,25 +330,14 @@ body {
 }
 
 .btn-primary {
-  background: var(--jp-accent);
-  border-color: var(--jp-accent);
+  background: var(--jp-accent-solid);
+  border-color: var(--jp-accent-solid);
   color: var(--jp-white);
 }
 
 .btn-primary:hover {
-  background: var(--jp-accent-hover);
-  border-color: var(--jp-accent-hover);
-}
-
-/* Dark theme accent (#0a84ff) is too light behind white text (3.6:1) */
-[data-theme="dark"] .btn-primary {
-  background: #0071e3;
-  border-color: #0071e3;
-}
-
-[data-theme="dark"] .btn-primary:hover {
-  background: #0062c4;
-  border-color: #0062c4;
+  background: var(--jp-accent-solid-hover);
+  border-color: var(--jp-accent-solid-hover);
 }
 
 .btn-secondary {
