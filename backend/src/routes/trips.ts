@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from '../validation/validator';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db';
 import {
