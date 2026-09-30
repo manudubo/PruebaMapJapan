@@ -14,6 +14,7 @@ import '@/components/Navbar';
 import '@/components/SearchBar';
 
 import * as L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { initTheme, getThemeConfig } from '@/modules/theme';
 import { initKeycloak, isAuthenticated } from '@/auth/keycloak';
 import { getTrip, getPublicTrip } from '@/api/client';

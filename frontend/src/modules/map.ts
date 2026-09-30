@@ -1,4 +1,5 @@
 import * as L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import type { Activity, Day, Hotel, CityData, CityMarker } from '@/types';
 import { ITINERARY } from '@/data/itinerary';
 import { getMapsUrl } from '@/data/maps';
