@@ -250,12 +250,21 @@ export async function deleteDay(
 // Hotel endpoints
 // ---------------------------------------------------------------------------
 
-/** Get the hotel for a destination (null if none). */
-export async function getHotel(tripId: string, destId: string): Promise<ApiHotel> {
-  return request<ApiHotel>(
-    `/trips/${tripId}/destinations/${destId}/hotel`,
-    { auth: true }
-  );
+/**
+ * Get the hotel for a destination, or null if it has none.
+ * The backend answers 404 when there is no hotel, so 404 maps to null;
+ * any other error still throws.
+ */
+export async function getHotel(tripId: string, destId: string): Promise<ApiHotel | null> {
+  try {
+    return await request<ApiHotel>(
+      `/trips/${tripId}/destinations/${destId}/hotel`,
+      { auth: true }
+    );
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 /** Create or replace the hotel for a destination. */

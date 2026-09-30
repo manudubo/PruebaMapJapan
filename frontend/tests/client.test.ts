@@ -108,3 +108,40 @@ describe('request() non-401 error handling', () => {
     await expect(p).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
 });
+
+describe('getHotel() (BUG-04)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns null when the destination has no hotel (404)', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: false, error: 'Hotel not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const { getHotel } = await import('@/api/client');
+    await expect(getHotel('1', '2')).resolves.toBeNull();
+  });
+
+  it('returns the hotel on 200', async () => {
+    const hotel = { id: '9', name: 'Hotel X', lat: 1, lng: 2, check_in_date: null, check_out_date: null };
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: hotel }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const { getHotel } = await import('@/api/client');
+    await expect(getHotel('1', '2')).resolves.toMatchObject({ id: '9', name: 'Hotel X' });
+  });
+
+  it('still throws on other errors (e.g. 500)', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: false }), { status: 500 }),
+    );
+    const { getHotel } = await import('@/api/client');
+    await expect(getHotel('1', '2')).rejects.toMatchObject({ name: 'ApiError', status: 500 });
+  });
+});
