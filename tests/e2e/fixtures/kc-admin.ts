@@ -61,6 +61,25 @@ export async function resetCredentials(username: string): Promise<void> {
   await client.users.update({ id: user.id }, { requiredActions: filteredActions });
 }
 
+/** Delete every credential of the given types (e.g. ['password']) — IdP negative tests. */
+export async function removeCredentials(username: string, types: string[]): Promise<void> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) throw new Error(`User not found: ${username}`);
+  for (const cred of await client.users.getCredentials({ id: user.id })) {
+    if (cred.type && types.includes(cred.type)) {
+      await client.users.deleteCredential({ id: user.id, credentialId: cred.id! });
+    }
+  }
+}
+
+export async function setUserEnabled(username: string, enabled: boolean): Promise<void> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) throw new Error(`User not found: ${username}`);
+  await client.users.update({ id: user.id }, { enabled });
+}
+
 export async function clearRequiredActions(username: string): Promise<void> {
   const client = await buildAdminClient();
   const [user] = await client.users.find({ username, exact: true });
@@ -129,10 +148,12 @@ export const test = base.extend<{
     deleteUser: typeof deleteUser;
     getUserSessions: typeof getUserSessions;
     logoutUser: typeof logoutUser;
+    removeCredentials: typeof removeCredentials;
+    setUserEnabled: typeof setUserEnabled;
   };
 }>({
   kcAdmin: async ({}, use) => {
-    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, clearRequiredActions, createUser, deleteUser, getUserSessions, logoutUser });
+    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, clearRequiredActions, createUser, deleteUser, getUserSessions, logoutUser, removeCredentials, setUserEnabled });
   },
 });
 
