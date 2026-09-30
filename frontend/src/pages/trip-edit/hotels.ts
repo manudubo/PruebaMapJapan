@@ -6,6 +6,7 @@ import {
   extractCoordsFromGoogleMapsUrl,
 } from '@/modules/geocoder';
 import type { ApiDestination, ApiHotel } from '@/types';
+import { dateOrderError, isHttpUrl, linkDateBounds, saveErrorMessage, syncDateBounds } from './formHelpers';
 
 // Module-scoped modal state (singleton — built once, reused per destination)
 let modalOverlay: HTMLElement | null = null;
@@ -143,6 +144,7 @@ function buildModal(): void {
   latInput = latHidden;
   lngInput = lngHidden;
   formError = errorP;
+  linkDateBounds(checkInInput, checkOutInput);
 
   cancelBtn.addEventListener('click', closeModal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
@@ -188,8 +190,10 @@ function openModal(hotel: ApiHotel | undefined): void {
   checkInInput.value = hotel?.check_in_date ?? '';
   checkOutInput.value = hotel?.check_out_date ?? '';
   geocoderInput.value = '';
-  latInput.value = hotel ? String(hotel.lat) : '';
-  lngInput.value = hotel ? String(hotel.lng) : '';
+  // `?? ''`: null coordinates must not become the string "null".
+  latInput.value = String(hotel?.lat ?? '');
+  lngInput.value = String(hotel?.lng ?? '');
+  syncDateBounds(checkInInput, checkOutInput);
 
   geocoderResults.setAttribute('hidden', '');
   geocoderResults.replaceChildren();
@@ -285,6 +289,18 @@ async function handleFormSubmit(e: Event): Promise<void> {
   e.preventDefault();
 
   formError.setAttribute('hidden', '');
+
+  const clientError =
+    dateOrderError(checkInInput.value, checkOutInput.value, 'Check-in', 'Check-out') ??
+    (urlInput.value.trim() && !isHttpUrl(urlInput.value.trim())
+      ? 'The hotel URL must start with http:// or https://.'
+      : null);
+  if (clientError) {
+    setText(formError, clientError);
+    formError.removeAttribute('hidden');
+    return;
+  }
+
   const saveBtn = document.getElementById('hotel-save-btn') as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
@@ -306,8 +322,8 @@ async function handleFormSubmit(e: Event): Promise<void> {
     currentDest.hotel = updated;
     closeModal();
     renderHotelDisplay(currentContainer, currentDest, currentTripId);
-  } catch {
-    setText(formError, 'Could not save. Check your connection and try again.');
+  } catch (err) {
+    setText(formError, saveErrorMessage(err));
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
