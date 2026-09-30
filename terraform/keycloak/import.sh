@@ -61,7 +61,21 @@ WEBAUTHN_ID=$(echo "$SUBFLOW_EXECUTIONS" | jq -r '.[] | select(.providerId=="web
 echo "=== Importing executions ==="
 terraform import keycloak_authentication_execution.cookie "${KC_REALM}/browser-passkey/${COOKIE_ID}"
 terraform import keycloak_authentication_execution.username_form "${KC_REALM}/passkey-forms/${USERNAME_ID}"
-terraform import keycloak_authentication_execution.webauthn_passwordless "${KC_REALM}/passkey-forms/${WEBAUTHN_ID}"
+# Pre-KC-01 realms have webauthn directly under passkey-forms. Importing it lets the next
+# apply replace it (parent_flow_alias changed) instead of leaving a stray ALTERNATIVE
+# next to the REQUIRED username form — that stray is what made username-only login work.
+if [ -n "$WEBAUTHN_ID" ]; then
+  terraform import keycloak_authentication_execution.webauthn_passwordless "${KC_REALM}/passkey-forms/${WEBAUTHN_ID}"
+fi
+
+# The pre-KC-01 top-level "password-forms" subflow is no longer in flows.tf (password is
+# now an ALTERNATIVE inside passkey-or-password). If the live realm still has it, it is
+# not tracked by state; delete it so the realm matches Terraform.
+if echo "$EXECUTIONS" | jq -e '.[] | select(.displayName=="password-forms")' > /dev/null; then
+  echo "WARNING: stale 'password-forms' subflow found in browser-passkey. Remove it with:"
+  echo "  curl -X DELETE -H \"Authorization: Bearer \$TOKEN\" \\"
+  echo "    ${KC_URL}/admin/realms/${KC_REALM}/authentication/executions/$(echo "$EXECUTIONS" | jq -r '.[] | select(.displayName=="password-forms") | .id')"
+fi
 
 echo "=== Importing required action ==="
 terraform import keycloak_required_action.webauthn_register_passwordless \

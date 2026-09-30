@@ -61,10 +61,14 @@ Wait for Keycloak to be ready (check http://localhost:8080 in your browser — l
 
 ```bash
 cd terraform/keycloak
+cp local.tfvars.example local.tfvars   # then set kc_admin_pass and the test-user passwords
 terraform init
-terraform apply
+terraform apply -var-file=local.tfvars
 cd ../..
 ```
+
+The test-user password variables have no defaults (SEC-19), so `terraform apply` without
+`-var-file=local.tfvars` stops and asks for them. `local.tfvars` is gitignored.
 
 This creates the Keycloak realm, clients (japan-trip-frontend, japan-trip-worker), PKCE S256 enforcement, redirect URIs, audience mappers, and test users.
 
@@ -109,6 +113,7 @@ Terminal output shows color-labeled prefixes for each process.
 
 Open http://localhost:5173/PruebaMapJapan/ — you should see the app. Click "Login" — Keycloak login page should appear.
 
-Test users (created by Terraform):
-- `testuser` / `E2e-Test-Password-1!`
-- `otp-test@local` / `Otp-Test-Password-1!`
+Test users (created by Terraform, passwords from your `local.tfvars`):
+- `e2e-test@local` (`e2e_test_password`), `testuser` (`testuser_password`)
+- `otp-test@local` (`e2e_otp_password`), `session-test@local` (`e2e_session_password`)
+- `new_user_test` (`new_user_test_password`), `trip_edit_test_user` (`trip_edit_test_user_password`)

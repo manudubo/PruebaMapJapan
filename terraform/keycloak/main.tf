@@ -10,7 +10,7 @@ resource "keycloak_realm" "japan_trip" {
   reset_password_allowed   = true
   edit_username_allowed    = false
 
-  ssl_required = "external"
+  ssl_required = var.ssl_required # SEC-17: "all" in prod once proxy headers are verified
 
   access_token_lifespan            = "5m"
   sso_session_idle_timeout         = "30m"
@@ -22,10 +22,10 @@ resource "keycloak_realm" "japan_trip" {
 
   password_policy = "length(8) and upperCase(1) and digits(1) and specialChars(1)"
 
-  # KC-02: switched to browser-passkey flow (password-forms ALTERNATIVE pre-declared in flows.tf)
-  browser_flow = "browser-passkey"
+  # browserFlow is bound by keycloak_authentication_bindings.browser_flow in flows.tf
+  # (SEC-13: Terraform is the only thing that sets it; see keycloak/README.md).
 
-  # Standard (non-passwordless) WebAuthn — rpId is empty per realm-export.json line 32
+  # Standard (non-passwordless) WebAuthn — empty rpId (defaults to the request hostname)
   web_authn_policy {
     relying_party_entity_name = "japan-trip"
     relying_party_id          = ""
@@ -80,7 +80,7 @@ resource "keycloak_openid_client" "japan_trip_frontend" {
     "https://manud.github.io/PruebaMapJapan/index.html",
     "https://manud.github.io/",
   ]
-  web_origins                     = ["+"]
+  web_origins = ["+"]
 
   full_scope_allowed = true
 }
