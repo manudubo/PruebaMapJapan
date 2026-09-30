@@ -555,7 +555,7 @@ async function seed() {
         name: 'Demo User',
         preferences: {},
       })
-      .returning({ id: schema.users.id });
+      .returning();
 
     if (!newUser) throw new Error('Failed to insert demo user');
     userId = newUser.id;
@@ -589,7 +589,7 @@ async function seed() {
       end_date: '2026-03-23',
       is_public: false,
     })
-    .returning({ id: schema.trips.id });
+    .returning();
 
   if (!trip) throw new Error('Failed to insert trip');
   console.log(`Created trip "Japan 2026" (id=${trip.id})`);
@@ -613,7 +613,7 @@ async function seed() {
         zoom_level: dest.zoom,
         order_index: destIndex,
       })
-      .returning({ id: schema.destinations.id });
+      .returning();
 
     if (!destination) throw new Error(`Failed to insert destination ${dest.name}`);
     console.log(`  Destination: ${dest.name} (id=${destination.id})`);
@@ -643,7 +643,7 @@ async function seed() {
           color_hex: dayData.color,
           order_index: dayIndex,
         })
-        .returning({ id: schema.days.id });
+        .returning();
 
       if (!day) throw new Error(`Failed to insert day ${dateStr}`);
 

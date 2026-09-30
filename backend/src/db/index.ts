@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
-import { drizzle as drizzleNeon } from 'drizzle-orm/neon-http';
-import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
+import { drizzle as drizzleNeon, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { drizzle as drizzlePg, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import * as schema from './schema';
 
@@ -12,14 +12,36 @@ const { Pool } = pg;
 // - Production (Neon URL):           uses @neondatabase/serverless (HTTP)
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createDb(databaseUrl: string): any {
+export type Schema = typeof schema;
+/** node-postgres (TCP) handle — local dev and tests. */
+export type PgDb = NodePgDatabase<Schema>;
+/** Neon serverless (HTTP) handle — production Workers. */
+export type NeonDb = NeonHttpDatabase<Schema>;
+/**
+ * Either driver. Both share Drizzle's PgDatabase query-builder API, so query
+ * helpers accept this union and keep full column/row typing (ARCH-01).
+ */
+export type Db = PgDb | NeonDb;
+
+// One pool per connection string: a Pool per request would leak TCP
+// connections (each keeps idle clients open), exhausting the server.
+const pgPools = new Map<string, pg.Pool>();
+
+function pgPool(databaseUrl: string): pg.Pool {
+  let pool = pgPools.get(databaseUrl);
+  if (!pool) {
+    pool = new Pool({ connectionString: databaseUrl });
+    pgPools.set(databaseUrl, pool);
+  }
+  return pool;
+}
+
+export function createDb(databaseUrl: string): Db {
   const isLocal =
     databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
 
   if (isLocal) {
-    const pool = new Pool({ connectionString: databaseUrl });
-    return drizzlePg(pool, { schema });
+    return drizzlePg(pgPool(databaseUrl), { schema });
   }
 
   const sql = neon(databaseUrl);
@@ -28,7 +50,12 @@ export function createDb(databaseUrl: string): any {
 
 export const getDb = createDb;
 
-export type Db = ReturnType<typeof createDb>;
+/** Close every cached node-postgres pool (tests / graceful shutdown). */
+export async function closeDbPools(): Promise<void> {
+  const pools = [...pgPools.values()];
+  pgPools.clear();
+  await Promise.all(pools.map((p) => p.end()));
+}
 
 export { schema };
 
