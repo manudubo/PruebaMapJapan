@@ -31,29 +31,61 @@ class SearchBar extends HTMLElement {
   private render(): void {
     this.shadow.innerHTML = `
       <style>
+        /*
+         * In-flow by default: a row between the navbar and the page, aligned to the
+         * inline end (right in LTR, left in RTL). A fixed overlay covered page
+         * content (headers, activity action buttons) on every viewport narrower than
+         * the 1200px container plus its gutter.
+         */
         :host {
-          position: fixed;
-          top: 68px;
-          right: 16px;
+          display: block;
+          position: relative;
           z-index: 1000;
           font-family: var(--jp-font, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
         }
         
+        /* Box styles live here, not on :host: the page's universal reset overrides :host padding. */
+        .search-strip {
+          display: flex;
+          justify-content: flex-end;
+          padding: 4px 16px;
+          /* Reads as a toolbar strip attached under the navbar */
+          background: var(--jp-surface, #fff);
+          border-bottom: 1px solid var(--jp-border, rgba(0,0,0,0.06));
+        }
+        
         .search-container {
           position: relative;
-          width: 44px;
+          /* 44px input + 2px border: the tap target itself stays >= 44x44 */
+          width: 46px;
+          max-width: 100%;
           transition: width 0.2s ease;
         }
         
         .search-container.expanded {
-          width: 320px;
+          width: min(100%, 420px);
         }
         
-        @media (max-width: 480px) {
-          .search-container.expanded {
-            width: calc(100vw - 32px);
+        /*
+         * Wide screens only: float in the empty gutter beside the 1200px container.
+         * 1320px leaves room for the 44px button, its offset and a scrollbar
+         * without touching the page card (needs viewport >= ~1290px).
+         */
+        @media (min-width: 1320px) {
+          :host {
             position: fixed;
-            right: 16px;
+            top: 68px;
+            inset-inline-end: max(16px, env(safe-area-inset-right, 0px));
+          }
+        
+          .search-strip {
+            padding: 0;
+            background: none;
+            border: 0;
+          }
+        
+          .search-container.expanded {
+            width: 320px;
           }
         }
         
@@ -73,7 +105,7 @@ class SearchBar extends HTMLElement {
         
         .search-icon {
           position: absolute;
-          left: 12px;
+          inset-inline-start: 12px;
           width: 18px;
           height: 18px;
           color: var(--jp-text-tertiary, #86868b);
@@ -84,7 +116,8 @@ class SearchBar extends HTMLElement {
         .search-input {
           width: 100%;
           height: 44px;
-          padding: 0 12px 0 42px;
+          padding-block: 0;
+          padding-inline: 42px 12px;
           border: none;
           background: transparent;
           font-size: 16px;
@@ -102,7 +135,7 @@ class SearchBar extends HTMLElement {
         
         .clear-btn {
           position: absolute;
-          right: 8px;
+          inset-inline-end: 8px;
           width: 28px;
           height: 28px;
           padding: 0;
@@ -134,8 +167,7 @@ class SearchBar extends HTMLElement {
         .search-dropdown {
           position: absolute;
           top: calc(100% + 4px);
-          left: 0;
-          right: 0;
+          inset-inline: 0;
           background: var(--jp-surface, #fff);
           border: 1px solid var(--jp-border-strong, #d1d1d6);
           box-shadow: none;
@@ -296,14 +328,6 @@ class SearchBar extends HTMLElement {
           margin-right: 4px;
         }
         
-        /* Responsive */
-        @media (max-width: 768px) {
-          :host {
-            top: 64px;
-            right: 12px;
-          }
-        }
-        
         /* Screen reader only */
         .sr-only {
           position: absolute;
@@ -317,6 +341,7 @@ class SearchBar extends HTMLElement {
         }
       </style>
       
+      <div class="search-strip">
       <div class="search-container" role="search">
         <div class="search-input-wrapper">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -343,6 +368,7 @@ class SearchBar extends HTMLElement {
         <div class="search-dropdown" id="search-dropdown" role="listbox" aria-label="Search results">
           <ul class="search-results"></ul>
         </div>
+      </div>
       </div>
     `;
   }
