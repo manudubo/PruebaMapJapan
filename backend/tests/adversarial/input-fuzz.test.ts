@@ -179,14 +179,23 @@ it('oversized body (2 MB) is rejected with 413 before touching the DB', async ()
       expect([401, 413]).toContain(res.status);
     });
 
-// QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-    it.fails('deeply nested JSON (depth 20k) → 4xx, never 500', async () => {
+it('deeply nested JSON (depth 20k) → 4xx, never 500', async () => {
       const deep = '['.repeat(20_000) + ']'.repeat(20_000);
       const res = await req('PATCH', '/api/users/me', {
         token: user.token,
         body: `{"preferences":{"x":${deep}}}`,
       });
       expect(is4xx(res.status), `status ${res.status}`).toBe(true);
+    });
+
+    it('preferences: 32 levels and ~15 KB are accepted, 33 levels or >16 KB are 400', async () => {
+      const nest = (d: number): unknown => (d === 1 ? { leaf: true } : { n: nest(d - 1) });
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(32) } })).status).toBe(200);
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: nest(33) } })).status).toBe(400);
+      const ok = { blob: 'x'.repeat(15 * 1024) };
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: ok } })).status).toBe(200);
+      const big = { blob: 'x'.repeat(17 * 1024) };
+      expect((await req('PATCH', '/api/users/me', { token: user.token, body: { preferences: big } })).status).toBe(400);
     });
 
     it('unknown fields are stripped, not stored or echoed', async () => {

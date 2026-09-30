@@ -41,6 +41,39 @@ const isoDate = () =>
 const orderIndex = () => z.number().int().min(0).max(2_147_483_647);
 
 /**
+ * preferences is free-form JSON stored in JSONB. Unbounded nesting blew the
+ * stack in JSON.stringify (500), and size was bounded only by the body cap.
+ */
+const PREFERENCES_MAX_DEPTH = 32;
+const PREFERENCES_MAX_CHARS = 16 * 1024;
+
+/** Nesting depth of a parsed JSON value, computed without recursion. */
+function jsonDepth(value: unknown): number {
+  let max = 0;
+  const stack: [unknown, number][] = [[value, 1]];
+  while (stack.length > 0) {
+    const [v, depth] = stack.pop()!;
+    if (v === null || typeof v !== 'object') continue;
+    max = Math.max(max, depth);
+    if (max > PREFERENCES_MAX_DEPTH) return max;
+    for (const child of Object.values(v)) stack.push([child, depth + 1]);
+  }
+  return max;
+}
+
+/**
+ * Why `preferences` cannot be stored, or null. Checks run in order and stop
+ * at the first failure: depth first, so JSON.stringify never sees a value
+ * deep enough to overflow the stack.
+ */
+function preferencesProblem(p: unknown): string | null {
+  if (jsonDepth(p) > PREFERENCES_MAX_DEPTH) return `must be nested at most ${PREFERENCES_MAX_DEPTH} levels`;
+  if (JSON.stringify(p).length > PREFERENCES_MAX_CHARS) return `must serialise to at most ${PREFERENCES_MAX_CHARS} characters`;
+  if (containsNul(p)) return 'must not contain NUL characters';
+  return null;
+}
+
+/**
  * Absolute http(s) URL. z.string().url() alone also accepts javascript:,
  * data:, vbscript: and file: URLs, which become stored XSS once a view
  * renders the value as a link or image (public trips are shared).
@@ -142,7 +175,10 @@ export const UpdateUserSchema = z.object({
   avatar_url: httpUrl().nullable().optional(),
   preferences: z
     .record(z.unknown())
-    .refine((p) => !containsNul(p), 'must not contain NUL characters')
+    .superRefine((p, ctx) => {
+      const problem = preferencesProblem(p);
+      if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem });
+    })
     .optional(),
 });
 
