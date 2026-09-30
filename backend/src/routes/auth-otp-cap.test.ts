@@ -43,6 +43,7 @@ const mockEnv: Env = {
   KC_ADMIN_CLIENT_ID: 'japan-trip-worker',
   KC_ADMIN_CLIENT_SECRET: 'mock-secret',
   OTP_SECRET: 'aaaabbbbccccddddeeeeffffaaaabbbbccccddddeeeeffffaaaabbbbccccddd0',
+  ENVIRONMENT: 'development', // Mailpit fallback is dev-only (SEC-08)
 };
 
 const HOUR = 60 * 60 * 1000;
