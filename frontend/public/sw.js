@@ -1,4 +1,6 @@
-const CACHE_NAME = 'japan-trip-v3';
+// __BUILD_VERSION__ is replaced at build time by the swVersion Vite plugin
+// (hash of the emitted bundle), so every deploy rotates the cache.
+const CACHE_NAME = 'japan-trip-__BUILD_VERSION__';
 
 const PRECACHE_ASSETS = [
   './',
@@ -12,11 +14,6 @@ const PRECACHE_ASSETS = [
   './hakone.html',
   './tokyo2.html',
   './manifest.json'
-];
-
-const EXTERNAL_ASSETS = [
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
 
 const NETWORK_ONLY_DOMAINS = [
@@ -49,22 +46,39 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (isNetworkOnly(event.request.url)) return;
-  
+  const { request } = event;
+  if (request.method !== 'GET' || isNetworkOnly(request.url)) return;
+
+  // HTML / navigations: network-first so a redeploy is picked up on the next
+  // load; fall back to cache (then the index page) when offline.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok && response.type === 'basic') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(request).then(cached => cached || caches.match('./index.html'))
+        )
+    );
+    return;
+  }
+
+  // Everything else (hashed, immutable assets): cache-first.
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(request).then(cached => {
       if (cached) return cached;
-      return fetch(event.request).then(response => {
+      return fetch(request).then(response => {
         if (response.ok && response.type === 'basic') {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
         return response;
       });
-    }).catch(() => {
-      if (event.request.mode === 'navigate') {
-        return caches.match('./index.html');
-      }
     })
   );
 });
