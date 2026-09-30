@@ -3,13 +3,23 @@ import type { Env, ContextVariables, KeycloakJwtPayload } from '../types';
 import { getDb, upsertUser, type UserClaims } from '../db';
 
 /**
+ * Fit a claim into a varchar(255) column. Keycloak builds `name` from first +
+ * last name (up to 255 chars each) and does not forbid NUL, while Postgres
+ * rejects NUL and over-long values — which failed provisioning on every
+ * request, locking the user out.
+ */
+function toVarchar255(value: string): string {
+  return Array.from(value.replace(/\u0000/g, '')).slice(0, 255).join('');
+}
+
+/**
  * Map verified Keycloak JWT claims to the fields stored on the app user row.
  */
 export function userClaimsFromJwt(jwtUser: KeycloakJwtPayload): UserClaims {
   return {
     keycloak_id: jwtUser.sub,
-    email: jwtUser.email ?? '',
-    name: jwtUser.name ?? jwtUser.preferred_username ?? jwtUser.sub,
+    email: toVarchar255(jwtUser.email ?? ''),
+    name: toVarchar255(jwtUser.name ?? jwtUser.preferred_username ?? jwtUser.sub),
   };
 }
 

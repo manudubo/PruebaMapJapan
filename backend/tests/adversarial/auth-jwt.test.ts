@@ -220,18 +220,21 @@ describeDb('JWT success paths (real DB)', () => {
     }
   });
 
-  // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-  it.fails('display name longer than the 255-char column does not lock the user out', async () => {
+  it('display name longer than the 255-char column does not lock the user out', async () => {
     // Keycloak builds `name` from first + last name (each up to 255 chars).
     const user = await makeUser(signer, { name: `${'Ｎ'.repeat(200)} ${'名'.repeat(200)}` });
     const res = await req('GET', '/api/trips', { token: user.token });
     expect(res.status).toBe(200);
+    const me = await req('GET', '/api/users/me', { token: user.token });
+    expect(me.status).toBe(200);
+    expect(Array.from(me.body.data.name as string)).toHaveLength(255);
   });
 
-  // QA-FIX: known bug, flipped to `it` by the commit that fixes it.
-  it.fails('display name containing a NUL byte does not lock the user out', async () => {
+  it('display name containing a NUL byte does not lock the user out', async () => {
     const user = await makeUser(signer, { name: 'Evil\u0000Name' });
     const res = await req('GET', '/api/trips', { token: user.token });
     expect(res.status).toBe(200);
+    const me = await req('GET', '/api/users/me', { token: user.token });
+    expect(me.body.data.name).toBe('EvilName');
   });
 });
