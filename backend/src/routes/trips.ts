@@ -42,6 +42,7 @@ import {
   ReorderActivitiesSchema,
   UpsertHotelSchema,
 } from '../validation/schemas';
+import { parseId } from '../validation/ids';
 
 const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
@@ -89,7 +90,7 @@ tripsRoute.post('/', zValidator('json', CreateTripSchema), async (c) => {
 tripsRoute.get('/:tripId', async (c) => {
   const db = c.get('db');
   const userId = c.get('dbUserId');
-  const tripId = Number(c.req.param('tripId'));
+  const tripId = parseId(c.req.param('tripId'));
 
   if (isNaN(tripId)) {
     const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
@@ -115,7 +116,7 @@ tripsRoute.patch(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
+    const tripId = parseId(c.req.param('tripId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId)) {
@@ -140,7 +141,7 @@ tripsRoute.patch(
 tripsRoute.delete('/:tripId', async (c) => {
   const db = c.get('db');
   const userId = c.get('dbUserId');
-  const tripId = Number(c.req.param('tripId'));
+  const tripId = parseId(c.req.param('tripId'));
 
   if (isNaN(tripId)) {
     const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
@@ -170,7 +171,7 @@ tripsRoute.delete('/:tripId', async (c) => {
 tripsRoute.get('/:tripId/destinations', async (c) => {
   const db = c.get('db');
   const userId = c.get('dbUserId');
-  const tripId = Number(c.req.param('tripId'));
+  const tripId = parseId(c.req.param('tripId'));
 
   if (isNaN(tripId)) {
     const response: ApiResponse<never> = { success: false, error: 'Invalid trip id' };
@@ -208,7 +209,7 @@ tripsRoute.post(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
+    const tripId = parseId(c.req.param('tripId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId)) {
@@ -250,8 +251,8 @@ tripsRoute.patch(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId)) {
@@ -284,8 +285,8 @@ tripsRoute.delete(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
 
     if (isNaN(tripId) || isNaN(destId)) {
       const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
@@ -321,8 +322,8 @@ tripsRoute.get(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
 
     if (isNaN(tripId) || isNaN(destId)) {
       const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
@@ -355,8 +356,8 @@ tripsRoute.post(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId)) {
@@ -390,9 +391,9 @@ tripsRoute.patch(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
-    const dayId = Number(c.req.param('dayId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
+    const dayId = parseId(c.req.param('dayId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
@@ -425,9 +426,9 @@ tripsRoute.delete(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
-    const dayId = Number(c.req.param('dayId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
+    const dayId = parseId(c.req.param('dayId'));
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
       const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
@@ -463,9 +464,9 @@ tripsRoute.get(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
-    const dayId = Number(c.req.param('dayId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
+    const dayId = parseId(c.req.param('dayId'));
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
       const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
@@ -498,9 +499,9 @@ tripsRoute.post(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
-    const dayId = Number(c.req.param('dayId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
+    const dayId = parseId(c.req.param('dayId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
@@ -534,10 +535,10 @@ tripsRoute.patch(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
-    const dayId = Number(c.req.param('dayId'));
-    const actId = Number(c.req.param('actId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
+    const dayId = parseId(c.req.param('dayId'));
+    const actId = parseId(c.req.param('actId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId) || isNaN(actId)) {
@@ -570,10 +571,10 @@ tripsRoute.delete(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
-    const dayId = Number(c.req.param('dayId'));
-    const actId = Number(c.req.param('actId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
+    const dayId = parseId(c.req.param('dayId'));
+    const actId = parseId(c.req.param('actId'));
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId) || isNaN(actId)) {
       const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
@@ -606,9 +607,9 @@ tripsRoute.post(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
-    const dayId = Number(c.req.param('dayId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
+    const dayId = parseId(c.req.param('dayId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId) || isNaN(dayId)) {
@@ -653,8 +654,8 @@ tripsRoute.get(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
 
     if (isNaN(tripId) || isNaN(destId)) {
       const response: ApiResponse<never> = { success: false, error: 'Invalid id' };
@@ -697,8 +698,8 @@ tripsRoute.put(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
     const body = c.req.valid('json');
 
     if (isNaN(tripId) || isNaN(destId)) {
@@ -731,8 +732,8 @@ tripsRoute.delete(
   async (c) => {
     const db = c.get('db');
     const userId = c.get('dbUserId');
-    const tripId = Number(c.req.param('tripId'));
-    const destId = Number(c.req.param('destId'));
+    const tripId = parseId(c.req.param('tripId'));
+    const destId = parseId(c.req.param('destId'));
 
     if (isNaN(tripId) || isNaN(destId)) {
       const response: ApiResponse<never> = { success: false, error: 'Invalid id' };

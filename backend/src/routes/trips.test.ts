@@ -534,12 +534,12 @@ describe('unusual values and races', () => {
     expect((res.body['data'] as { name: string }).name).toBe(name);
   });
 
-  it('a NUL byte in a string → 400 (Postgres rejects it), nothing written', async () => {
+  it('a NUL byte in a string → 422 (rejected by validation before Postgres), nothing written', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { A } = await world();
     const before = await snapshotDb();
     const res = await call('PATCH', T(A as Ids), { sub: 'owner', body: { name: 'bad\u0000name' } });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     expect(await snapshotDb()).toBe(before);
     warn.mockRestore();
   });

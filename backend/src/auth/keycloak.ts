@@ -69,10 +69,11 @@ function base64urlToArrayBuffer(base64url: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+/** Decode a base64url JWT segment to text. JWT JSON is UTF-8 (RFC 7519). */
 function base64urlDecode(base64url: string): string {
-  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-  return atob(padded);
+  // atob() yields one char per byte; decoding that directly as text turned
+  // non-ASCII claims ("José") into mojibake ("JosÃ©").
+  return new TextDecoder().decode(base64urlToArrayBuffer(base64url));
 }
 
 // ---------------------------------------------------------------------------
@@ -222,13 +223,18 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   }
 
   // Validate expiry
+  // exp/nbf must be numbers: a string such as "tomorrow" compares false
+  // against `now` and would make the token never expire.
   const now = Math.floor(Date.now() / 1000);
-  if (!payload.exp || payload.exp < now) {
+  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+    throw new Error('JWT treated as expired: exp claim missing or not a number');
+  }
+  if (payload.exp < now) {
     throw new Error('JWT has expired');
   }
 
   // Validate not-before (nbf) if present
-  if (payload.nbf !== undefined && payload.nbf > now) {
+  if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || payload.nbf > now)) {
     throw new Error('JWT is not yet valid (nbf)');
   }
 

@@ -130,13 +130,13 @@ describe('PATCH /api/users/me', () => {
     expect(await userRow('kc-ghost')).toHaveLength(0);
   });
 
-  it('a \\u0000 inside preferences (rejected by jsonb) → 400, nothing written', async () => {
+  it('a \\u0000 inside preferences → 422 (rejected by validation before jsonb), nothing written', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await call('GET', '/api/users/me', { sub: 'kc-a' });
     const before = await snapshotDb();
     const res = await call('PATCH', '/api/users/me', { sub: 'kc-a', body: { preferences: { note: 'a\u0000b' } } });
-    expect(res.status).toBe(400);
-    expect(res.body['code']).toBe('invalid_input');
+    expect(res.status).toBe(422);
+    expect(res.body['code']).toBe('validation_error');
     expect(await snapshotDb()).toBe(before);
   });
 
