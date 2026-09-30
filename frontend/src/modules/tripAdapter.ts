@@ -158,6 +158,6 @@ function buildDateRange(start: string | null, end: string | null): string {
     formatIsoDate(iso, { day: 'numeric', month: 'short', year: 'numeric' });
 
   if (start && end) return `${fmt(start)} – ${fmt(end)}`;
-  if (start) return `Desde ${fmt(start)}`;
-  return `Hasta ${fmt(end!)}`;
+  if (start) return `From ${fmt(start)}`;
+  return `Until ${fmt(end!)}`;
 }

@@ -47,7 +47,7 @@ function buildModal(): void {
   const form = document.createElement('form');
   form.id = 'hotel-form';
 
-  form.appendChild(buildFormGroup('Nombre', 'hotel-name', 'name', 'text', true, 255));
+  form.appendChild(buildFormGroup('Name', 'hotel-name', 'name', 'text', true, 255));
   form.appendChild(buildFormGroup('URL', 'hotel-url', 'url', 'url', false));
   (form.querySelector('#hotel-url') as HTMLInputElement).placeholder = 'https://…';
 
