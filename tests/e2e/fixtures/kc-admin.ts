@@ -15,9 +15,10 @@ async function buildAdminClient(): Promise<KcAdminClient> {
   return client;
 }
 
+/** Pass `password: null` to create a user with no credentials at all (IdP negative tests). */
 export async function createUser(
   username: string,
-  password: string,
+  password: string | null,
   email?: string,
 ): Promise<void> {
   const client = await buildAdminClient();
@@ -26,7 +27,10 @@ export async function createUser(
     email: email ?? username,
     emailVerified: true,
     enabled: true,
-    credentials: [{ type: 'password', value: password, temporary: false }],
+    // KC 26 user profile requires first/last name; without them login stops at VERIFY_PROFILE.
+    firstName: 'E2E',
+    lastName: 'Throwaway',
+    credentials: password === null ? [] : [{ type: 'password', value: password, temporary: false }],
   });
 }
 
