@@ -117,6 +117,11 @@ export function createCalendarUrl(title: string, link: string, location: string)
   return `https://www.google.com/calendar/render?${params}`;
 }
 
+/** Google Maps pin for a coordinate pair (used when no named link exists). */
+export function createPlaceUrl(coords: [number, number]): string {
+  return `https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}`;
+}
+
 export function createDirectionsUrl(coords: [number, number]): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${coords[0]},${coords[1]}&travelmode=transit`;
 }

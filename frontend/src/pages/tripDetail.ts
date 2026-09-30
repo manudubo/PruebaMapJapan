@@ -20,7 +20,7 @@ import { initKeycloak, isAuthenticated } from '@/auth/keycloak';
 import { getTrip, getPublicTrip } from '@/api/client';
 import { apiTripToCityData } from '@/modules/tripAdapter';
 import { getMapsUrl } from '@/data/maps';
-import { createDirectionsUrl, announceToScreenReader } from '@/modules/utils';
+import { createDirectionsUrl, createPlaceUrl, announceToScreenReader } from '@/modules/utils';
 import type { ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
@@ -112,9 +112,23 @@ function createHotelIcon(): L.DivIcon {
   });
 }
 
+/**
+ * "View on Maps" target for an activity (BIZ-03): the link saved in the
+ * editor, else the demo's static per-name table, else a pin search on the
+ * activity's coordinates. Null when there is nothing to link to.
+ */
+export function resolveActivityMapsUrl(activity: Activity): string | null {
+  return (
+    activity.mapsUrl ??
+    getMapsUrl(activity.name) ??
+    (activity.coords ? createPlaceUrl(activity.coords) : null)
+  );
+}
+
 export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): string {
   const badge = activity.optional ? `<span class="optional-badge">Option ${activity.optional}</span>` : '';
-  let html = `<div class="day-label">${day.label}${badge}</div><h4>${activity.name}</h4>`;
+  const time = activity.time ? ` · <time class="popup-time">${activity.time}</time>` : '';
+  let html = `<div class="day-label">${day.label}${time}${badge}</div><h4>${activity.name}</h4>`;
   if (activity.notes) html += `<p>${activity.notes}</p>`;
   if (!activity.isGeneric && mapsUrl && activity.coords) {
     const dirUrl = createDirectionsUrl(activity.coords);
@@ -192,7 +206,7 @@ function initMap(data: CityData): void {
           icon: createMarkerIcon(markerLabel, markerColor, isOptional),
           alt: activity.name,
         });
-        marker.bindPopup(buildPopup(activity, day, getMapsUrl(activity.name)));
+        marker.bindPopup(buildPopup(activity, day, resolveActivityMapsUrl(activity)));
         markersByDay[dateKey].push(marker);
         allMarkers.push(marker);
       });
@@ -334,11 +348,11 @@ function generateLegend(data: CityData): void {
   updateHotelInfo(data.hotel);
 }
 
-function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement {
+export function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement {
   const isOptional = !!activity.optional;
   const markerLabel = isOptional ? activity.optional! : idx + 1;
   const markerColor = isOptional ? '#af52de' : day.color;
-  const mapsUrl = getMapsUrl(activity.name);
+  const mapsUrl = resolveActivityMapsUrl(activity);
   const item = document.createElement('li');
   item.className = 'legend-item' + (isOptional ? ' is-optional' : '');
   const noteText = activity.notes
@@ -355,7 +369,14 @@ function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement
   const contentDiv = document.createElement('div');
   contentDiv.className = 'legend-content';
   const nameEl = document.createElement('strong');
-  setText(nameEl, activity.name);
+  if (activity.time) {
+    const timeEl = document.createElement('time');
+    timeEl.className = 'legend-time';
+    timeEl.dateTime = activity.time;
+    setText(timeEl, activity.time);
+    nameEl.appendChild(timeEl);
+  }
+  nameEl.appendChild(document.createTextNode(activity.name));
   contentDiv.appendChild(nameEl);
   if (noteText) {
     const noteEl = document.createElement('small');
