@@ -75,8 +75,8 @@ test('UAT-2 & UAT-3: register passkey via virtual authenticator, verify list, ca
 
   // ── Step 1: Navigate to landing page and trigger login ─────────────────
   await page.goto(`${FRONTEND_BASE}/`, { waitUntil: 'domcontentloaded' });
-  // Wait for KC adapter to finish initialising before triggering login
-  await page.waitForTimeout(2000);
+  // The login button is revealed only after the KC adapter finished initialising
+  await expect(page.locator('#landing-login-btn')).toBeVisible({ timeout: 15000 });
   await page.click('#landing-login-btn');
 
   // ── Step 2: KC login form ──────────────────────────────────────────────
