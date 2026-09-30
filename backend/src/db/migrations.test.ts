@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { journalTags, scratchDbAt, type ScratchDb } from '../test-utils/migrations';
+import { pgErrorCode } from './pg-errors';
 
 // Migrations "up" on databases that already hold data (the production case),
 // using the real Drizzle migrator. Each test gets its own scratch database.
@@ -25,12 +26,13 @@ async function seedUser(email: string, kc = email) {
 describe('migration journal', () => {
   it('lists every SQL migration in order', () => {
     const tags = journalTags();
-    expect(tags.slice(0, 5)).toEqual([
+    expect(tags.slice(0, 6)).toEqual([
       '0000_initial',
       '0001_add_hotel_url_activity_time',
       '0002_add_public_slug',
       '0003_add_email_otp_codes',
       '0004_email_otp_codes_index',
+      '0005_users_email_unique',
     ]);
   });
 
@@ -60,5 +62,50 @@ describe('0004 email_otp_codes index (DATA-01)', () => {
       `SELECT indexdef FROM pg_indexes WHERE indexname = 'email_otp_codes_user_id_expires_at_idx'`,
     );
     expect(idx).toHaveLength(1);
+  });
+});
+
+describe('0005 users.email unique (DATA-02)', () => {
+  it('applies when emails are distinct, and tolerates many empty emails', async () => {
+    db = await scratchDbAt('0004_email_otp_codes_index');
+    await seedUser('a@example.com');
+    await seedUser('b@example.com');
+    await seedUser('', 'kc-empty-1');
+    await seedUser('', 'kc-empty-2');
+
+    await db.migrateToLatest();
+
+    expect(await q(`SELECT 1 FROM pg_indexes WHERE indexname = 'users_email_unique_idx'`)).toHaveLength(1);
+    expect(await q('SELECT count(*)::int AS n FROM users')).toEqual([{ n: 4 }]);
+  });
+
+  it.each([
+    ['exact duplicates', 'dup@example.com', 'dup@example.com'],
+    ['case-only duplicates', 'Dup@Example.com', 'dup@example.com'],
+  ])('refuses to apply over %s, naming the key, and rolls back the whole run', async (_l, e1, e2) => {
+    db = await scratchDbAt('0003_add_email_otp_codes');
+    const keep = await seedUser(e1, 'kc-1');
+    await seedUser(e2, 'kc-2');
+
+    await expect(db.migrateToLatest()).rejects.toThrow();
+    // Nothing from this run survived — not even 0004, applied in the same transaction.
+    expect(await q(`SELECT indexname FROM pg_indexes WHERE indexname IN ('users_email_unique_idx', 'email_otp_codes_user_id_expires_at_idx')`)).toEqual([]);
+    expect(await q('SELECT count(*)::int AS n FROM users')).toEqual([{ n: 2 }]);
+
+    // Documented remedy: resolve the duplicate by hand, then re-run.
+    await q(`DELETE FROM users WHERE id <> $1`, [keep]);
+    await db.migrateToLatest();
+    expect(await q(`SELECT 1 FROM pg_indexes WHERE indexname = 'users_email_unique_idx'`)).toHaveLength(1);
+  });
+
+  it('reports the offending key in the error', async () => {
+    db = await scratchDbAt('0004_email_otp_codes_index');
+    await seedUser('dup@example.com', 'kc-1');
+    await seedUser('dup@example.com', 'kc-2');
+    const err = (await db.migrateToLatest().then(() => null, (e: unknown) => e)) as Error;
+    expect(pgErrorCode(err)).toBe('23505');
+    const pgErr = (err.cause ?? err) as { detail?: string; message: string };
+    expect(pgErr.message).toContain('users_email_unique_idx');
+    expect(pgErr.detail).toContain('dup@example.com');
   });
 });

@@ -5,7 +5,8 @@ import { HTTPException } from 'hono/http-exception';
 vi.mock('./auth', () => import('../test-utils/fake-auth'));
 
 import { closeDbPools } from '../db';
-import { errorHandler, pgConstraint, pgErrorCode } from './errors';
+import { errorHandler } from './errors';
+import { isUniqueViolation, pgConstraint, pgErrorCode } from '../db/pg-errors';
 import { call, snapshotDb } from '../test-utils/app';
 import { closeTestPool, insertTrip, insertUser, resetDb, testPool } from '../test-utils/db';
 
@@ -34,6 +35,13 @@ describe('pgErrorCode / pgConstraint', () => {
     ['string', 'boom'],
   ])('ignores %s', (_l, err) => {
     expect(pgErrorCode(err)).toBeUndefined();
+  });
+
+  it('isUniqueViolation needs both SQLSTATE 23505 and the named constraint', () => {
+    expect(isUniqueViolation({ code: '23505', constraint: 'a' }, 'a')).toBe(true);
+    expect(isUniqueViolation({ code: '23505', constraint: 'b' }, 'a')).toBe(false);
+    expect(isUniqueViolation({ code: '23514', constraint: 'a' }, 'a')).toBe(false);
+    expect(isUniqueViolation(new Error('x', { cause: { code: '23505', constraint: 'a' } }), 'a')).toBe(true);
   });
 
   it('terminates on a cyclic cause chain', () => {

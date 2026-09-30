@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { createUser, getUserByKeycloakId, updateUser, upsertUser } from './users';
+import { createUser, EmailConflictError, getUserByKeycloakId, updateUser, upsertUser } from './users';
 import { users } from '../schema';
 import { closeTestPool, insertUser, resetDb, testDb, testPool } from '../../test-utils/db';
 
@@ -9,6 +9,7 @@ import { closeTestPool, insertUser, resetDb, testDb, testPool } from '../../test
 const claims = { keycloak_id: 'kc-1', email: 'old@example.com', name: 'Old Name' };
 
 beforeEach(resetDb);
+afterEach(() => vi.restoreAllMocks());
 afterAll(closeTestPool);
 
 async function userRows() {
@@ -136,5 +137,76 @@ describe('user query helpers', () => {
   it('updateUser throws for an unknown subject and writes nothing', async () => {
     await expect(updateUser(testDb(), 'missing', { name: 'x' })).rejects.toThrow(/no user found/);
     expect((await testPool().query('SELECT count(*)::int AS n FROM users')).rows[0].n).toBe(0);
+  });
+});
+
+describe('users.email uniqueness (DATA-02)', () => {
+  it('a new subject whose email another account owns → EmailConflictError, no row', async () => {
+    await insertUser({ keycloak_id: 'kc-old', email: 'ana@example.com' });
+
+    await expect(
+      upsertUser(testDb(), { keycloak_id: 'kc-new', email: 'ana@example.com', name: 'Ana' }),
+    ).rejects.toBeInstanceOf(EmailConflictError);
+    expect(await getUserByKeycloakId(testDb(), 'kc-new')).toBeUndefined();
+  });
+
+  it('is case-insensitive', async () => {
+    await insertUser({ email: 'Ana@Example.com' });
+    await expect(
+      upsertUser(testDb(), { keycloak_id: 'kc-new', email: 'ana@EXAMPLE.COM', name: 'Ana' }),
+    ).rejects.toBeInstanceOf(EmailConflictError);
+  });
+
+  it('allows any number of users without an email claim (empty string)', async () => {
+    for (const kc of ['kc-1', 'kc-2', 'kc-3']) {
+      await expect(upsertUser(testDb(), { keycloak_id: kc, email: '', name: kc })).resolves.toMatchObject({ created: true });
+    }
+    expect(await userRows()).toHaveLength(3);
+  });
+
+  it('the same subject logging in again with its own email is not a conflict', async () => {
+    await upsertUser(testDb(), claims);
+    await expect(upsertUser(testDb(), claims)).resolves.toMatchObject({ created: false });
+  });
+
+  it("an email refresh into another account's email keeps the stored email but still refreshes the name", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await insertUser({ keycloak_id: 'kc-b', email: 'bob@example.com' });
+    await insertUser({ ...claims });
+
+    const { user } = await upsertUser(testDb(), { keycloak_id: 'kc-1', email: 'BOB@example.com', name: 'Renamed' });
+
+    expect(user).toMatchObject({ keycloak_id: 'kc-1', email: 'old@example.com', name: 'Renamed' });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('kc-1'));
+  });
+
+  it('an email-only refresh conflict returns the stored row unchanged (user can still sign in)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await insertUser({ keycloak_id: 'kc-b', email: 'bob@example.com' });
+    const existing = await insertUser({ ...claims });
+
+    const { user } = await upsertUser(testDb(), { ...claims, email: 'bob@example.com' });
+
+    expect(user).toEqual(existing);
+  });
+
+  it('two new subjects racing for the same email → exactly one wins, the other gets EmailConflictError', async () => {
+    const results = await Promise.allSettled(
+      ['kc-x', 'kc-y', 'kc-z'].map((kc) =>
+        upsertUser(testDb(), { keycloak_id: kc, email: 'same@example.com', name: kc }),
+      ),
+    );
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(rejected).toHaveLength(2);
+    for (const r of rejected) expect(r.reason).toBeInstanceOf(EmailConflictError);
+    expect(await userRows()).toHaveLength(1);
+  });
+
+  it('a direct duplicate insert is rejected by the database itself', async () => {
+    await insertUser({ email: 'dup@example.com' });
+    await expect(
+      testPool().query(`INSERT INTO users (keycloak_id, email, name) VALUES ('kc-dup', 'DUP@example.com', 'x')`),
+    ).rejects.toMatchObject({ code: '23505', constraint: 'users_email_unique_idx' });
   });
 });

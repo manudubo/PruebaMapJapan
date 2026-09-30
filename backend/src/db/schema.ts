@@ -13,7 +13,7 @@ import {
   index,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // users
@@ -32,6 +32,12 @@ export const users = pgTable(
   },
   (table) => ({
     keycloakIdIdx: uniqueIndex('users_keycloak_id_idx').on(table.keycloak_id),
+    // DATA-02: one account per email (case-insensitive), enforced by the DB
+    // and not only upstream by Keycloak. '' (token without an email claim)
+    // is exempt so several such users can coexist.
+    emailUniqueIdx: uniqueIndex('users_email_unique_idx')
+      .on(sql`lower(${table.email})`)
+      .where(sql`${table.email} <> ''`),
   }),
 );
 

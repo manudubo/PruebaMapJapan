@@ -1,31 +1,8 @@
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ApiResponse } from '../types';
-
-/**
- * SQLSTATE of a Postgres error, looking through wrappers: Drizzle ≥0.44
- * wraps driver errors in DrizzleQueryError with the original as `cause`.
- */
-export function pgErrorCode(err: unknown): string | undefined {
-  let cur: unknown = err;
-  for (let depth = 0; depth < 5 && cur && typeof cur === 'object'; depth++) {
-    const code = (cur as { code?: unknown }).code;
-    if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) return code;
-    cur = (cur as { cause?: unknown }).cause;
-  }
-  return undefined;
-}
-
-/** Name of the constraint a Postgres error reports, if any. */
-export function pgConstraint(err: unknown): string | undefined {
-  let cur: unknown = err;
-  for (let depth = 0; depth < 5 && cur && typeof cur === 'object'; depth++) {
-    const constraint = (cur as { constraint?: unknown }).constraint;
-    if (typeof constraint === 'string') return constraint;
-    cur = (cur as { cause?: unknown }).cause;
-  }
-  return undefined;
-}
+import { pgErrorCode } from '../db/pg-errors';
+import { EmailConflictError } from '../db/queries/users';
 
 type Mapped = { status: 400 | 409; error: string; code: string };
 
@@ -53,6 +30,13 @@ export function errorHandler(err: Error, c: Context) {
     // e.g. malformed JSON body from the validator → 400, not 500.
     const response: ApiResponse<never> = { success: false, error: err.message || 'Bad request' };
     return c.json(response, err.status);
+  }
+
+  if (err instanceof EmailConflictError) {
+    // DATA-02: a different account already owns this email.
+    console.warn(`${c.req.method} ${c.req.path} → 409:`, err.message);
+    const response: ApiResponse<never> = { success: false, error: err.message, code: 'email_conflict' };
+    return c.json(response, 409);
   }
 
   const sqlstate = pgErrorCode(err);

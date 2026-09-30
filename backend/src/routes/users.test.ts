@@ -73,6 +73,38 @@ describe('GET /api/users/me', () => {
   });
 });
 
+describe('email conflicts (DATA-02)', () => {
+  it('GET /me for a new subject whose email another account owns → 409 email_conflict, no row', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await insertUser({ keycloak_id: 'kc-old', email: 'ana@example.com' });
+
+    const res = await call('GET', '/api/users/me', { sub: 'kc-new', headers: { 'x-test-email': 'ana@example.com' } });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: 'Email already belongs to another account', code: 'email_conflict' });
+    expect(await userRow('kc-new')).toHaveLength(0);
+  });
+
+  it('the same conflict through ensureUserProvisioned (e.g. GET /api/trips) → 409', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await insertUser({ keycloak_id: 'kc-old', email: 'ana@example.com' });
+    const res = await call('GET', '/api/trips', { sub: 'kc-new', headers: { 'x-test-email': 'ANA@example.com' } });
+    expect(res.status).toBe(409);
+    expect(res.body['code']).toBe('email_conflict');
+  });
+
+  it('an existing user whose Keycloak email now collides can still sign in (200, old email kept)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await insertUser({ keycloak_id: 'kc-b', email: 'bob@example.com' });
+    await call('GET', '/api/users/me', { sub: 'kc-a' });
+
+    const res = await call('GET', '/api/users/me', { sub: 'kc-a', headers: { 'x-test-email': 'bob@example.com' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body['data']).toMatchObject({ keycloak_id: 'kc-a', email: 'kc-a@example.com' });
+  });
+});
+
 describe('PATCH /api/users/me', () => {
   it('updates name / avatar / preferences of the caller only', async () => {
     const other = await insertUser({ keycloak_id: 'kc-b', name: 'Bob' });
