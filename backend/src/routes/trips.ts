@@ -24,11 +24,11 @@ import {
   reorderActivities,
   InvalidActivityOrderError,
 } from '../db';
-import { destinations, days, hotels, activities, trips } from '../db/schema';
+import { hotels, trips } from '../db/schema';
+import { resolveActivity, resolveDay, resolveDestination } from '../db/queries/ownership';
 import { authMiddleware } from '../middleware/auth';
 import { dbMiddleware } from '../middleware/db';
 import { ensureUserProvisioned } from '../middleware/user';
-import type { Db, Destination, Day } from '../db';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import {
   CreateTripSchema,
@@ -48,96 +48,8 @@ const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 // Apply auth + DB handle + user-provisioning to every route in this router.
 tripsRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 
-/** Failure result shared by the resolve* ownership helpers below. */
-type ResolveError = { error: 'not_found' | 'forbidden' };
-
-// ---------------------------------------------------------------------------
-// Helper — verify that a destination belongs to a trip (and the trip belongs
-// to the user). Returns the destination row or an error code.
-// ---------------------------------------------------------------------------
-async function resolveDestination(
-  db: Db,
-  tripId: number,
-  destId: number,
-  userId: number,
-): Promise<ResolveError | { dest: Destination }> {
-  // Verify trip ownership first
-  const tripRows = await db
-    .select({ id: trips.id, user_id: trips.user_id })
-    .from(trips)
-    .where(eq(trips.id, tripId))
-    .limit(1);
-
-  const trip = tripRows[0];
-  if (!trip) return { error: 'not_found' as const };
-  if (trip.user_id !== userId) return { error: 'forbidden' as const };
-
-  const destRows = await db
-    .select()
-    .from(destinations)
-    .where(eq(destinations.id, destId))
-    .limit(1);
-
-  const dest = destRows[0];
-  if (!dest || dest.trip_id !== tripId) return { error: 'not_found' as const };
-
-  return { dest };
-}
-
-// ---------------------------------------------------------------------------
-// Helper — verify that a day belongs to a destination (and the destination to
-// the right trip / user). Returns the day row or an error code.
-// ---------------------------------------------------------------------------
-async function resolveDay(
-  db: Db,
-  tripId: number,
-  destId: number,
-  dayId: number,
-  userId: number,
-): Promise<ResolveError | { dest: Destination; day: Day }> {
-  const destResult = await resolveDestination(db, tripId, destId, userId);
-  if ('error' in destResult) return destResult;
-
-  const dayRows = await db
-    .select()
-    .from(days)
-    .where(eq(days.id, dayId))
-    .limit(1);
-
-  const day = dayRows[0];
-  if (!day || day.destination_id !== destId) return { error: 'not_found' as const };
-
-  return { dest: destResult.dest, day };
-}
-
-// ---------------------------------------------------------------------------
-// Helper — verify that an activity belongs to a day (which belongs to the
-// right destination / trip / user).
-// ---------------------------------------------------------------------------
-async function resolveActivity(
-  db: Db,
-  tripId: number,
-  destId: number,
-  dayId: number,
-  actId: number,
-  userId: number,
-) {
-  const dayResult = await resolveDay(db, tripId, destId, dayId, userId);
-  if ('error' in dayResult) return dayResult;
-
-  const actRows = await db
-    .select()
-    .from(activities)
-    .where(eq(activities.id, actId))
-    .limit(1);
-
-  const act = actRows[0];
-  if (!act || act.day_id !== dayId) return { error: 'not_found' as const };
-
-  // Narrowed by the `'error' in dayResult` guard above — no cast needed.
-  const { dest, day } = dayResult;
-  return { dest, day, act };
-}
+// Ownership checks (trip → destination → day → activity) are single-JOIN
+// queries in db/queries/ownership.ts (M-02).
 
 // ===========================================================================
 // TRIPS
