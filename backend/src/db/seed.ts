@@ -11,7 +11,7 @@
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import * as schema from './schema';
-import { createDb } from './index';
+import { createDb, parseDbDriver } from './index';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -526,7 +526,8 @@ async function seed() {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  const db = createDb(databaseUrl);
+  // Node process: node-postgres works for local Postgres and Neon's TCP endpoint.
+  const db = createDb(databaseUrl, parseDbDriver(process.env['DB_DRIVER'], 'pg'));
 
   console.log('Seeding database...');
 

@@ -4,7 +4,7 @@ vi.mock('./auth', () => import('../test-utils/fake-auth'));
 
 import { closeDbPools } from '../db';
 import { call } from '../test-utils/app';
-import { closeTestPool, testEnv } from '../test-utils/db';
+import { closeTestPool, resetDb, testEnv } from '../test-utils/db';
 
 afterAll(async () => {
   await closeDbPools();
@@ -40,6 +40,21 @@ describe('dbMiddleware (M-01)', () => {
       expect(res.status).toBe(401);
     },
   );
+
+  it.each(['mysql', 'PG', 'neon-http'])('invalid DB_DRIVER %j → 500 config error, logged, no guessing (ARCH-02)', async (driver) => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await call('GET', '/api/users/me', { sub: 'someone', env: testEnv({ DB_DRIVER: driver }) });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ success: false, error: 'Server configuration error' });
+    expect(String(log.mock.calls[0]?.[1])).toContain('Invalid DB_DRIVER');
+  });
+
+  it('DB_DRIVER=pg against the test database serves real data', async () => {
+    await resetDb();
+    const res = await call('GET', '/api/users/me', { sub: 'someone', env: testEnv({ DB_DRIVER: 'pg' }) });
+    expect(res.status).toBe(201);
+    expect(res.body['data']).toMatchObject({ keycloak_id: 'someone' });
+  });
 
   it('health endpoints do not require a database', async () => {
     const res = await call('GET', '/api/health', { env: testEnv({ DATABASE_URL: '' }) });

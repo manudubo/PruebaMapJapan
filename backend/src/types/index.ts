@@ -28,6 +28,8 @@ export type NewActivity = InferInsertModel<typeof activities>;
 // ---------------------------------------------------------------------------
 export interface Env {
   DATABASE_URL: string;
+  /** "neon" (HTTP, default on Workers) | "pg" (TCP, Node dev/seed/tests) — ARCH-02 */
+  DB_DRIVER?: string;
   KEYCLOAK_URL: string;
   KEYCLOAK_REALM: string;
   VALID_AUDIENCES: string;        // comma-separated, e.g. "japan-trip-frontend"

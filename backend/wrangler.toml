@@ -5,3 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Neon database connection string is provided via secret:
 # wrangler secret put DATABASE_URL
+
+[vars]
+# Explicit DB driver (ARCH-02): Neon serverless over HTTP on Workers.
+DB_DRIVER = "neon"

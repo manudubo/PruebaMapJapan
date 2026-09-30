@@ -7,10 +7,31 @@ import * as schema from './schema';
 const { Pool } = pg;
 
 // ---------------------------------------------------------------------------
-// Dual-driver database factory
-// - Local dev (localhost/127.0.0.1): uses node-postgres (TCP)
-// - Production (Neon URL):           uses @neondatabase/serverless (HTTP)
+// Dual-driver database factory, selected explicitly by DB_DRIVER (ARCH-02):
+// - "neon": @neondatabase/serverless over HTTP — Cloudflare Workers (default
+//           there; wrangler.toml sets it)
+// - "pg":   node-postgres over TCP — Node processes (dev server, seed, tests);
+//           works for local Postgres and for Neon's TCP endpoint alike
+// It used to be guessed from a "localhost" substring in the URL, which picks
+// the wrong driver for a tunnel or any Neon URL mentioning localhost.
 // ---------------------------------------------------------------------------
+
+export type DbDriver = 'pg' | 'neon';
+
+/** Thrown for a DB_DRIVER value other than "pg" / "neon". */
+export class InvalidDbDriverError extends Error {
+  constructor(value: string) {
+    super(`Invalid DB_DRIVER "${value}": expected "pg" or "neon"`);
+    this.name = 'InvalidDbDriverError';
+  }
+}
+
+/** Parse DB_DRIVER; unset/empty → `fallback` (the runtime's natural driver). */
+export function parseDbDriver(value: string | undefined, fallback: DbDriver): DbDriver {
+  if (value === undefined || value === '') return fallback;
+  if (value === 'pg' || value === 'neon') return value;
+  throw new InvalidDbDriverError(value);
+}
 
 export type Schema = typeof schema;
 /** node-postgres (TCP) handle — local dev and tests. */
@@ -36,11 +57,8 @@ function pgPool(databaseUrl: string): pg.Pool {
   return pool;
 }
 
-export function createDb(databaseUrl: string): Db {
-  const isLocal =
-    databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-
-  if (isLocal) {
+export function createDb(databaseUrl: string, driver: DbDriver): Db {
+  if (driver === 'pg') {
     return drizzlePg(pgPool(databaseUrl), { schema });
   }
 

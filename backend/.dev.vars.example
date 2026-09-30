@@ -1,3 +1,5 @@
+# DB driver (ARCH-02): "pg" = node-postgres/TCP (local Postgres), "neon" = Neon HTTP.
+DB_DRIVER=pg
 KEYCLOAK_URL=http://localhost:8080
 KEYCLOAK_REALM=japan-trip
 VALID_AUDIENCES=japan-trip-frontend

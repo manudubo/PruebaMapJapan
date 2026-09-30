@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import { getDb } from '../db';
+import { getDb, parseDbDriver, type DbDriver } from '../db';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 
 /**
@@ -20,6 +20,16 @@ export async function dbMiddleware(
     return c.json(response, 500);
   }
 
-  c.set('db', getDb(c.env.DATABASE_URL));
+  let driver: DbDriver;
+  try {
+    // Workers default to the Neon HTTP driver; Node entry points pass "pg".
+    driver = parseDbDriver(c.env.DB_DRIVER, 'neon');
+  } catch (err) {
+    console.error('dbMiddleware:', err);
+    const response: ApiResponse<never> = { success: false, error: 'Server configuration error' };
+    return c.json(response, 500);
+  }
+
+  c.set('db', getDb(c.env.DATABASE_URL, driver));
   await next();
 }

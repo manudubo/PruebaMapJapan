@@ -19,6 +19,7 @@ export function testDatabaseUrl(): string {
 export function testEnv(overrides: Partial<Env> = {}): Env {
   return {
     DATABASE_URL: testDatabaseUrl(),
+    DB_DRIVER: 'pg',
     KEYCLOAK_URL: 'http://localhost:8080',
     KEYCLOAK_REALM: 'japan-trip',
     VALID_AUDIENCES: 'japan-trip-frontend',
