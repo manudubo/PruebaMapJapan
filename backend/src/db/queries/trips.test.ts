@@ -110,9 +110,14 @@ describe('updateTrip / deleteTrip ownership', () => {
     const intruder = await insertUser();
     const trip = await insertTrip(owner.id, { name: 'Original' });
 
-    await expect(updateTrip(testDb(), trip.id, intruder.id, { name: 'Hacked' })).rejects.toThrow();
+    await expect(updateTrip(testDb(), trip.id, intruder.id, { name: 'Hacked' })).resolves.toBeUndefined();
     const { rows } = await testPool().query('SELECT name FROM trips WHERE id = $1', [trip.id]);
     expect(rows[0].name).toBe('Original');
+  });
+
+  it('returns undefined for a missing trip', async () => {
+    const user = await insertUser();
+    await expect(updateTrip(testDb(), 999_999, user.id, { name: 'x' })).resolves.toBeUndefined();
   });
 
   it("deleteTrip by a non-owner is a no-op", async () => {

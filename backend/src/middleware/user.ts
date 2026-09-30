@@ -27,13 +27,10 @@ export async function ensureUserProvisioned(
 ) {
   const db = c.get('db');
 
-  try {
-    const { user } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
-    c.set('dbUserId', user.id);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to provision user';
-    return c.json({ success: false, error: message }, 500);
-  }
+  // Failures propagate to the global onError handler, which logs them and
+  // answers a generic 500 — the raw DB message is never sent to the client.
+  const { user } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
+  c.set('dbUserId', user.id);
 
   await next();
 }

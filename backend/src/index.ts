@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { corsMiddleware } from './middleware/cors';
 import { securityMiddleware } from './middleware/security';
+import { errorHandler } from './middleware/errors';
 import routes from './routes';
 import type { Env } from './types';
 
@@ -39,10 +40,7 @@ app.notFound((c) => {
 // ---------------------------------------------------------------------------
 // Error handler
 // ---------------------------------------------------------------------------
-app.onError((err, c) => {
-  console.error('Unhandled error:', err);
-  return c.json({ success: false, error: 'Internal server error', code: 'internal_error' }, 500);
-});
+app.onError(errorHandler);
 
 // ---------------------------------------------------------------------------
 // Cloudflare Workers entry point

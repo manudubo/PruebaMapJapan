@@ -151,14 +151,9 @@ tripsRoute.get('/', async (c) => {
   const db = c.get('db');
   const userId = c.get('dbUserId');
 
-  try {
-    const userTrips = await getTripsByUser(db, userId);
-    const response: ApiResponse<typeof userTrips> = { success: true, data: userTrips };
-    return c.json(response);
-  } catch {
-    const response: ApiResponse<never> = { success: false, error: 'Failed to fetch trips' };
-    return c.json(response, 500);
-  }
+  const userTrips = await getTripsByUser(db, userId);
+  const response: ApiResponse<typeof userTrips> = { success: true, data: userTrips };
+  return c.json(response);
 });
 
 /**
@@ -170,14 +165,9 @@ tripsRoute.post('/', zValidator('json', CreateTripSchema), async (c) => {
   const userId = c.get('dbUserId');
   const body = c.req.valid('json');
 
-  try {
-    const trip = await createTrip(db, userId, body);
-    const response: ApiResponse<typeof trip> = { success: true, data: trip };
-    return c.json(response, 201);
-  } catch {
-    const response: ApiResponse<never> = { success: false, error: 'Failed to create trip' };
-    return c.json(response, 500);
-  }
+  const trip = await createTrip(db, userId, body);
+  const response: ApiResponse<typeof trip> = { success: true, data: trip };
+  return c.json(response, 201);
 });
 
 /**
@@ -194,18 +184,13 @@ tripsRoute.get('/:tripId', async (c) => {
     return c.json(response, 400);
   }
 
-  try {
-    const trip = await getTripById(db, tripId, userId);
-    if (!trip) {
-      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
-      return c.json(response, 404);
-    }
-    const response: ApiResponse<typeof trip> = { success: true, data: trip };
-    return c.json(response);
-  } catch {
-    const response: ApiResponse<never> = { success: false, error: 'Failed to fetch trip' };
-    return c.json(response, 500);
+  const trip = await getTripById(db, tripId, userId);
+  if (!trip) {
+    const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+    return c.json(response, 404);
   }
+  const response: ApiResponse<typeof trip> = { success: true, data: trip };
+  return c.json(response);
 });
 
 /**
@@ -226,14 +211,13 @@ tripsRoute.patch(
       return c.json(response, 400);
     }
 
-    try {
-      const updated = await updateTrip(db, tripId, userId, body);
-      const response: ApiResponse<typeof updated> = { success: true, data: updated };
-      return c.json(response);
-    } catch {
+    const updated = await updateTrip(db, tripId, userId, body);
+    if (!updated) {
       const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
       return c.json(response, 404);
     }
+    const response: ApiResponse<typeof updated> = { success: true, data: updated };
+    return c.json(response);
   },
 );
 
@@ -251,21 +235,16 @@ tripsRoute.delete('/:tripId', async (c) => {
     return c.json(response, 400);
   }
 
-  try {
-    // Verify the trip exists and belongs to this user before deleting.
-    const trip = await getTripById(db, tripId, userId);
-    if (!trip) {
-      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
-      return c.json(response, 404);
-    }
-
-    await deleteTrip(db, tripId, userId);
-    const response: ApiResponse<never> = { success: true, message: 'Trip deleted' };
-    return c.json(response);
-  } catch {
-    const response: ApiResponse<never> = { success: false, error: 'Failed to delete trip' };
-    return c.json(response, 500);
+  // Verify the trip exists and belongs to this user before deleting.
+  const trip = await getTripById(db, tripId, userId);
+  if (!trip) {
+    const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+    return c.json(response, 404);
   }
+
+  await deleteTrip(db, tripId, userId);
+  const response: ApiResponse<never> = { success: true, message: 'Trip deleted' };
+  return c.json(response);
 });
 
 // ===========================================================================
@@ -286,30 +265,25 @@ tripsRoute.get('/:tripId/destinations', async (c) => {
     return c.json(response, 400);
   }
 
-  try {
-    // Verify trip ownership.
-    const tripRows = await db
-      .select({ id: trips.id, user_id: trips.user_id })
-      .from(trips)
-      .where(eq(trips.id, tripId))
-      .limit(1);
+  // Verify trip ownership.
+  const tripRows = await db
+    .select({ id: trips.id, user_id: trips.user_id })
+    .from(trips)
+    .where(eq(trips.id, tripId))
+    .limit(1);
 
-    if (!tripRows[0]) {
-      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
-      return c.json(response, 404);
-    }
-    if (tripRows[0].user_id !== userId) {
-      const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-      return c.json(response, 403);
-    }
-
-    const dests = await getDestinationsByTrip(db, tripId);
-    const response: ApiResponse<typeof dests> = { success: true, data: dests };
-    return c.json(response);
-  } catch {
-    const response: ApiResponse<never> = { success: false, error: 'Failed to fetch destinations' };
-    return c.json(response, 500);
+  if (!tripRows[0]) {
+    const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+    return c.json(response, 404);
   }
+  if (tripRows[0].user_id !== userId) {
+    const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+    return c.json(response, 403);
+  }
+
+  const dests = await getDestinationsByTrip(db, tripId);
+  const response: ApiResponse<typeof dests> = { success: true, data: dests };
+  return c.json(response);
 });
 
 /**
@@ -330,32 +304,27 @@ tripsRoute.post(
       return c.json(response, 400);
     }
 
-    try {
-      const tripRows = await db
-        .select({ id: trips.id, user_id: trips.user_id })
-        .from(trips)
-        .where(eq(trips.id, tripId))
-        .limit(1);
+    const tripRows = await db
+      .select({ id: trips.id, user_id: trips.user_id })
+      .from(trips)
+      .where(eq(trips.id, tripId))
+      .limit(1);
 
-      if (!tripRows[0]) {
-        const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
-        return c.json(response, 404);
-      }
-      if (tripRows[0].user_id !== userId) {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
-
-      const dest = await createDestination(db, tripId, {
-        ...body,
-        zoom_level: body.zoom_level ?? undefined,
-      });
-      const response: ApiResponse<typeof dest> = { success: true, data: dest };
-      return c.json(response, 201);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to create destination' };
-      return c.json(response, 500);
+    if (!tripRows[0]) {
+      const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
+      return c.json(response, 404);
     }
+    if (tripRows[0].user_id !== userId) {
+      const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+      return c.json(response, 403);
+    }
+
+    const dest = await createDestination(db, tripId, {
+      ...body,
+      zoom_level: body.zoom_level ?? undefined,
+    });
+    const response: ApiResponse<typeof dest> = { success: true, data: dest };
+    return c.json(response, 201);
   },
 );
 
@@ -378,24 +347,19 @@ tripsRoute.patch(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDestination(db, tripId, destId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
-        return c.json(response, 404);
+    const result = await resolveDestination(db, tripId, destId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const updated = await updateDestination(db, destId, body);
-      const response: ApiResponse<typeof updated> = { success: true, data: updated };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to update destination' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
     }
+
+    const updated = await updateDestination(db, destId, body);
+    const response: ApiResponse<typeof updated> = { success: true, data: updated };
+    return c.json(response);
   },
 );
 
@@ -416,24 +380,19 @@ tripsRoute.delete(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDestination(db, tripId, destId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
-        return c.json(response, 404);
+    const result = await resolveDestination(db, tripId, destId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      await deleteDestination(db, destId);
-      const response: ApiResponse<never> = { success: true, message: 'Destination deleted' };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to delete destination' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
     }
+
+    await deleteDestination(db, destId);
+    const response: ApiResponse<never> = { success: true, message: 'Destination deleted' };
+    return c.json(response);
   },
 );
 
@@ -458,24 +417,19 @@ tripsRoute.get(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDestination(db, tripId, destId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
-        return c.json(response, 404);
+    const result = await resolveDestination(db, tripId, destId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const dayList = await getDaysByDestination(db, destId);
-      const response: ApiResponse<typeof dayList> = { success: true, data: dayList };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to fetch days' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
     }
+
+    const dayList = await getDaysByDestination(db, destId);
+    const response: ApiResponse<typeof dayList> = { success: true, data: dayList };
+    return c.json(response);
   },
 );
 
@@ -498,24 +452,19 @@ tripsRoute.post(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDestination(db, tripId, destId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
-        return c.json(response, 404);
+    const result = await resolveDestination(db, tripId, destId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const day = await createDay(db, destId, body);
-      const response: ApiResponse<typeof day> = { success: true, data: day };
-      return c.json(response, 201);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to create day' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
     }
+
+    const day = await createDay(db, destId, body);
+    const response: ApiResponse<typeof day> = { success: true, data: day };
+    return c.json(response, 201);
   },
 );
 
@@ -539,24 +488,19 @@ tripsRoute.patch(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDay(db, tripId, destId, dayId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
-        return c.json(response, 404);
+    const result = await resolveDay(db, tripId, destId, dayId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const updated = await updateDay(db, dayId, body);
-      const response: ApiResponse<typeof updated> = { success: true, data: updated };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to update day' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+      return c.json(response, 404);
     }
+
+    const updated = await updateDay(db, dayId, body);
+    const response: ApiResponse<typeof updated> = { success: true, data: updated };
+    return c.json(response);
   },
 );
 
@@ -578,24 +522,19 @@ tripsRoute.delete(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDay(db, tripId, destId, dayId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
-        return c.json(response, 404);
+    const result = await resolveDay(db, tripId, destId, dayId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      await deleteDay(db, dayId);
-      const response: ApiResponse<never> = { success: true, message: 'Day deleted' };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to delete day' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+      return c.json(response, 404);
     }
+
+    await deleteDay(db, dayId);
+    const response: ApiResponse<never> = { success: true, message: 'Day deleted' };
+    return c.json(response);
   },
 );
 
@@ -621,24 +560,19 @@ tripsRoute.get(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDay(db, tripId, destId, dayId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
-        return c.json(response, 404);
+    const result = await resolveDay(db, tripId, destId, dayId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const acts = await getActivitiesByDay(db, dayId);
-      const response: ApiResponse<typeof acts> = { success: true, data: acts };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to fetch activities' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+      return c.json(response, 404);
     }
+
+    const acts = await getActivitiesByDay(db, dayId);
+    const response: ApiResponse<typeof acts> = { success: true, data: acts };
+    return c.json(response);
   },
 );
 
@@ -662,24 +596,19 @@ tripsRoute.post(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDay(db, tripId, destId, dayId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Day not found' };
-        return c.json(response, 404);
+    const result = await resolveDay(db, tripId, destId, dayId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const act = await createActivity(db, dayId, body);
-      const response: ApiResponse<typeof act> = { success: true, data: act };
-      return c.json(response, 201);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to create activity' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+      return c.json(response, 404);
     }
+
+    const act = await createActivity(db, dayId, body);
+    const response: ApiResponse<typeof act> = { success: true, data: act };
+    return c.json(response, 201);
   },
 );
 
@@ -704,24 +633,19 @@ tripsRoute.patch(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
-        return c.json(response, 404);
+    const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const updated = await updateActivity(db, actId, body);
-      const response: ApiResponse<typeof updated> = { success: true, data: updated };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to update activity' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
+      return c.json(response, 404);
     }
+
+    const updated = await updateActivity(db, actId, body);
+    const response: ApiResponse<typeof updated> = { success: true, data: updated };
+    return c.json(response);
   },
 );
 
@@ -744,24 +668,19 @@ tripsRoute.delete(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
-        return c.json(response, 404);
+    const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      await deleteActivity(db, actId);
-      const response: ApiResponse<never> = { success: true, message: 'Activity deleted' };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to delete activity' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
+      return c.json(response, 404);
     }
+
+    await deleteActivity(db, actId);
+    const response: ApiResponse<never> = { success: true, message: 'Activity deleted' };
+    return c.json(response);
   },
 );
 
@@ -804,8 +723,7 @@ tripsRoute.post(
         const response: ApiResponse<never> = { success: false, error: err.message };
         return c.json(response, 400);
       }
-      const response: ApiResponse<never> = { success: false, error: 'Failed to reorder activities' };
-      return c.json(response, 500);
+      throw err; // M-09: logged by the global onError handler
     }
   },
 );
@@ -831,34 +749,29 @@ tripsRoute.get(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDestination(db, tripId, destId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
-        return c.json(response, 404);
+    const result = await resolveDestination(db, tripId, destId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const hotelRows = await db
-        .select()
-        .from(hotels)
-        .where(eq(hotels.destination_id, destId))
-        .limit(1);
-
-      if (!hotelRows[0]) {
-        const response: ApiResponse<never> = { success: false, error: 'Hotel not found' };
-        return c.json(response, 404);
-      }
-
-      const response: ApiResponse<typeof hotelRows[0]> = { success: true, data: hotelRows[0] };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to fetch hotel' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
     }
+
+    const hotelRows = await db
+      .select()
+      .from(hotels)
+      .where(eq(hotels.destination_id, destId))
+      .limit(1);
+
+    if (!hotelRows[0]) {
+      const response: ApiResponse<never> = { success: false, error: 'Hotel not found' };
+      return c.json(response, 404);
+    }
+
+    const response: ApiResponse<typeof hotelRows[0]> = { success: true, data: hotelRows[0] };
+    return c.json(response);
   },
 );
 
@@ -881,24 +794,19 @@ tripsRoute.put(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDestination(db, tripId, destId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
-        return c.json(response, 404);
+    const result = await resolveDestination(db, tripId, destId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      const hotel = await upsertHotel(db, destId, body);
-      const response: ApiResponse<typeof hotel> = { success: true, data: hotel };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to upsert hotel' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
     }
+
+    const hotel = await upsertHotel(db, destId, body);
+    const response: ApiResponse<typeof hotel> = { success: true, data: hotel };
+    return c.json(response);
   },
 );
 
@@ -919,24 +827,19 @@ tripsRoute.delete(
       return c.json(response, 400);
     }
 
-    try {
-      const result = await resolveDestination(db, tripId, destId, userId);
-      if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
-        const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
-        return c.json(response, 404);
+    const result = await resolveDestination(db, tripId, destId, userId);
+    if ('error' in result) {
+      if (result.error === 'forbidden') {
+        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
+        return c.json(response, 403);
       }
-
-      await deleteHotel(db, destId);
-      const response: ApiResponse<never> = { success: true, message: 'Hotel deleted' };
-      return c.json(response);
-    } catch {
-      const response: ApiResponse<never> = { success: false, error: 'Failed to delete hotel' };
-      return c.json(response, 500);
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
     }
+
+    await deleteHotel(db, destId);
+    const response: ApiResponse<never> = { success: true, message: 'Hotel deleted' };
+    return c.json(response);
   },
 );
 

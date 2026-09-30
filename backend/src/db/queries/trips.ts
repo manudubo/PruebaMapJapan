@@ -96,21 +96,21 @@ export async function createTrip(
 
 /**
  * Update fields on a trip. Ownership is verified via `userId`.
- * Returns the updated row.
+ * Returns the updated row, or undefined when the trip does not exist or is
+ * not owned by `userId` (a normal 404, not an exception — M-09).
  */
 export async function updateTrip(
   db: Db,
   tripId: number,
   userId: number,
   data: UpdateTripData,
-): Promise<Trip> {
+): Promise<Trip | undefined> {
   const [updated] = await db
     .update(trips)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(trips.id, tripId), eq(trips.user_id, userId)))
     .returning();
 
-  if (!updated) throw new Error(`updateTrip: no trip found for id=${tripId}, userId=${userId}`);
   return updated;
 }
 

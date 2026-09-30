@@ -106,45 +106,40 @@ authRoute.post('/otp-request', async (c) => {
   const db = c.get('db');
   const userId = c.get('dbUserId');
 
-  try {
-    const existing = await getLatestUnexpiredOtp(db, userId);
-    if (existing) {
-      const retryAfter = Math.ceil(
-        (existing.expires_at.getTime() - Date.now()) / 1000,
-      );
-      return c.json(
-        { success: false as const, error: 'otp_pending', retryAfter },
-        429,
-      );
-    }
-
-    // BUG-16: per-user hourly cap — stops the request/burn/re-request cycle.
-    const now = new Date();
-    const capRetryAfter = otpHourlyCapRetryAfter(
-      await getOtpCreatedAtsSince(db, userId, new Date(now.getTime() - OTP_CAP_WINDOW_MS)),
-      now,
+  const existing = await getLatestUnexpiredOtp(db, userId);
+  if (existing) {
+    const retryAfter = Math.ceil(
+      (existing.expires_at.getTime() - Date.now()) / 1000,
     );
-    if (capRetryAfter !== null) {
-      return c.json(
-        { success: false as const, error: 'otp_rate_limited', retryAfter: capRetryAfter },
-        429,
-      );
-    }
-
-    // bias < 0.023% across Uint32 range — negligible for 6-digit OTP
-    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
-    const codeHash = await hashOtp(code, c.env.OTP_SECRET);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    await insertOtp(db, userId, codeHash, expiresAt);
-    await sendOtpEmail(c.env, email, code);
-
-    const response: ApiResponse<never> = { success: true };
-    return c.json(response, 201);
-  } catch {
-    const response: ApiResponse<never> = { success: false, error: 'Failed to send OTP' };
-    return c.json(response, 500);
+    return c.json(
+      { success: false as const, error: 'otp_pending', retryAfter },
+      429,
+    );
   }
+
+  // BUG-16: per-user hourly cap — stops the request/burn/re-request cycle.
+  const now = new Date();
+  const capRetryAfter = otpHourlyCapRetryAfter(
+    await getOtpCreatedAtsSince(db, userId, new Date(now.getTime() - OTP_CAP_WINDOW_MS)),
+    now,
+  );
+  if (capRetryAfter !== null) {
+    return c.json(
+      { success: false as const, error: 'otp_rate_limited', retryAfter: capRetryAfter },
+      429,
+    );
+  }
+
+  // bias < 0.023% across Uint32 range — negligible for 6-digit OTP
+  const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+  const codeHash = await hashOtp(code, c.env.OTP_SECRET);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await insertOtp(db, userId, codeHash, expiresAt);
+  await sendOtpEmail(c.env, email, code);
+
+  const response: ApiResponse<never> = { success: true };
+  return c.json(response, 201);
 });
 
 // POST /api/auth/otp-verify
@@ -154,36 +149,31 @@ authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => 
   const userId = c.get('dbUserId');
   const { code } = c.req.valid('json');
 
-  try {
-    const otp = await getLatestUnexpiredOtp(db, userId);
-    if (!otp) {
-      const response: ApiResponse<never> = { success: false, error: 'otp_not_found' };
-      return c.json(response, 400);
-    }
-
-    if (otp.attempts >= 5) {
-      await markOtpUsed(db, otp.id);
-      const response: ApiResponse<never> = { success: false, error: 'max_attempts' };
-      return c.json(response, 429);
-    }
-
-    // CRITICAL: call hashOtp on the submitted code only.
-    // otp.code_hash is the stored base64 HMAC — do NOT re-hash it.
-    const match = await timingSafeCompare(code, otp.code_hash, c.env.OTP_SECRET);
-
-    if (!match) {
-      await incrementOtpAttempts(db, otp.id);
-      const response: ApiResponse<never> = { success: false, error: 'invalid_code' };
-      return c.json(response, 400);
-    }
-
-    await markOtpUsed(db, otp.id);
-    const response: ApiResponse<never> = { success: true };
-    return c.json(response, 200);
-  } catch {
-    const response: ApiResponse<never> = { success: false, error: 'Failed to verify OTP' };
-    return c.json(response, 500);
+  const otp = await getLatestUnexpiredOtp(db, userId);
+  if (!otp) {
+    const response: ApiResponse<never> = { success: false, error: 'otp_not_found' };
+    return c.json(response, 400);
   }
+
+  if (otp.attempts >= 5) {
+    await markOtpUsed(db, otp.id);
+    const response: ApiResponse<never> = { success: false, error: 'max_attempts' };
+    return c.json(response, 429);
+  }
+
+  // CRITICAL: call hashOtp on the submitted code only.
+  // otp.code_hash is the stored base64 HMAC — do NOT re-hash it.
+  const match = await timingSafeCompare(code, otp.code_hash, c.env.OTP_SECRET);
+
+  if (!match) {
+    await incrementOtpAttempts(db, otp.id);
+    const response: ApiResponse<never> = { success: false, error: 'invalid_code' };
+    return c.json(response, 400);
+  }
+
+  await markOtpUsed(db, otp.id);
+  const response: ApiResponse<never> = { success: true };
+  return c.json(response, 200);
 });
 
 export default authRoute;
