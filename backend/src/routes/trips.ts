@@ -23,6 +23,7 @@ import {
   updateActivity,
   deleteActivity,
   reorderActivities,
+  InvalidActivityOrderError,
 } from '../db';
 import { destinations, days, hotels, activities, trips } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
@@ -865,7 +866,11 @@ tripsRoute.post(
       const reordered = await reorderActivities(db, dayId, body.ordered_ids);
       const response: ApiResponse<typeof reordered> = { success: true, data: reordered };
       return c.json(response);
-    } catch {
+    } catch (err) {
+      if (err instanceof InvalidActivityOrderError) {
+        const response: ApiResponse<never> = { success: false, error: err.message };
+        return c.json(response, 400);
+      }
       const response: ApiResponse<never> = { success: false, error: 'Failed to reorder activities' };
       return c.json(response, 500);
     }
