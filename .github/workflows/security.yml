@@ -1,0 +1,57 @@
+name: Security & Accessibility Scans
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Free CLI instead of gitleaks-action (which needs a licence for orgs).
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz gitleaks
+      - name: Scan full history (honours .gitleaksignore)
+        run: ./gitleaks detect --source . --redact --no-banner --verbose
+
+  accessibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm i --no-save axe-core@4
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build --workspace=frontend
+        env:
+          VITE_API_URL: http://localhost:8787
+          VITE_KEYCLOAK_URL: http://localhost:8080
+          VITE_KEYCLOAK_REALM: japan-trip
+          VITE_KEYCLOAK_CLIENT_ID: japan-trip-frontend
+      - name: Serve production build
+        run: |
+          npm run preview --workspace=frontend -- --port 4173 &
+          npx --yes wait-on http://localhost:4173/PruebaMapJapan/index.html
+      - name: axe-core scan (fails on serious/critical, light + dark)
+        run: node scripts/a11y-axe.mjs
+      # Lighthouse: accessibility must stay >= 0.95; performance is reported, not gated (A11Y-05)
+      - name: Lighthouse
+        run: |
+          npx --yes @lhci/cli@0.14.0 autorun \
+            --collect.url=http://localhost:4173/PruebaMapJapan/index.html \
+            --collect.url=http://localhost:4173/PruebaMapJapan/tokyo.html \
+            --collect.numberOfRuns=1 \
+            --assert.assertions.categories:accessibility="error;minScore=0.95" \
+            --upload.target=temporary-public-storage
