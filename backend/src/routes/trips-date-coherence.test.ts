@@ -559,6 +559,48 @@ describe('BIZ-07 under concurrency', () => {
     }
   });
 
+  it('trip delete racing destination date edits: no deadlock, no 500', async () => {
+    for (let round = 0; round < 5; round++) {
+      const t = await trip({ start_date: '2026-03-01', end_date: '2026-03-20' });
+      const ids = [];
+      for (let i = 0; i < 4; i++) {
+        ids.push(await dest(t, { start_date: `2026-03-0${1 + 2 * i}`, end_date: `2026-03-0${2 + 2 * i}` }, `D${i}`));
+      }
+      const results = await Promise.all([
+        ...ids.map((d) => patchDest(t, d, { order_index: 1, city_name: 'x' })),
+        ...ids.map((d, i) => patchDest(t, d, { end_date: `2026-03-0${2 + 2 * i}` })),
+        call('DELETE', `/api/trips/${t}`, { sub: OWNER }),
+      ]);
+      for (const r of results) expect([200, 404, 409], JSON.stringify(r.body)).toContain(r.status);
+    }
+  });
+
+  it.each([
+    ['destination', (t: number, d: number) => patchDest(t, d, { end_date: '2026-03-04' })],
+    ['day', (t: number, d: number, y: number) => patchDay(t, d, y, { label: 'x' })],
+    ['activity', (t: number, d: number, y: number, a: number) =>
+      call('PATCH', `/api/trips/${t}/destinations/${d}/days/${y}/activities/${a}`, { sub: OWNER, body: { name: 'x' } })],
+  ] as const)('forced: PATCH %s whose trip is deleted mid-request → 404, not 500', async (_l, patch) => {
+    const t = await trip({ start_date: '2026-03-01', end_date: '2026-03-10' });
+    const d = await dest(t, { start_date: '2026-03-01', end_date: '2026-03-05' });
+    const y = await day(t, d, '2026-03-02');
+    const act = await call('POST', `/api/trips/${t}/destinations/${d}/days/${y}/activities`, { sub: OWNER, body: { name: 'a' } });
+    const a = (act.body['data'] as { id: number }).id;
+    const side = await sideTx();
+    try {
+      // The delete holds the rows; the PATCH passes its ownership check
+      // (snapshot still has the trip) and then waits on the row lock.
+      await side.query('DELETE FROM trips WHERE id = $1', [t]);
+      const pending = patch(t, d, y, a);
+      await waitForLockWaiters(1);
+      await side.query('COMMIT');
+      const res = await pending;
+      expect(res.status, JSON.stringify(res.body)).toBe(404);
+    } finally {
+      side.release();
+    }
+  });
+
   it('a rolled-back conflicting write does not block the real one', async () => {
     const t = await trip();
     const side = await sideTx();

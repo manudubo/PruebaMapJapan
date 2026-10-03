@@ -249,6 +249,11 @@ tripsRoute.patch(
     }
 
     const updated = await updateDestination(db, destId, body);
+    if (!updated) {
+      // Deleted (e.g. with its trip) between the ownership check and the write.
+      const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
+      return c.json(response, 404);
+    }
     const response: ApiResponse<typeof updated> = { success: true, data: updated };
     return c.json(response);
   },
@@ -374,6 +379,11 @@ tripsRoute.patch(
     }
 
     const updated = await updateDay(db, dayId, body);
+    if (!updated) {
+      // Deleted (e.g. with its trip) between the ownership check and the write.
+      const response: ApiResponse<never> = { success: false, error: 'Day not found' };
+      return c.json(response, 404);
+    }
     const response: ApiResponse<typeof updated> = { success: true, data: updated };
     return c.json(response);
   },
@@ -503,6 +513,11 @@ tripsRoute.patch(
     }
 
     const updated = await updateActivity(db, actId, body);
+    if (!updated) {
+      // Deleted (e.g. with its trip) between the ownership check and the write.
+      const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
+      return c.json(response, 404);
+    }
     const response: ApiResponse<typeof updated> = { success: true, data: updated };
     return c.json(response);
   },
