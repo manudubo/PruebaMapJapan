@@ -181,47 +181,6 @@
       }
     }
 
-    /* Loading state */
-    .landing-loading {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: calc(100vh - 56px);
-      gap: 12px;
-      color: var(--jp-text-secondary);
-      font-size: 14px;
-    }
-
-    .landing-loading.is-visible {
-      display: flex;
-    }
-
-    .landing-hero.is-hidden {
-      display: none;
-    }
-
-    .loading-spinner {
-      width: 96px;
-      height: 2px;
-      background: var(--jp-border-strong);
-      overflow: hidden;
-    }
-
-    .loading-spinner::before {
-      content: '';
-      display: block;
-      width: 40%;
-      height: 100%;
-      background: var(--jp-accent);
-      animation: loading-bar 0.9s ease-in-out infinite;
-    }
-
-    @keyframes loading-bar {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(250%); }
-    }
-
     /* Demo section */
     .demo-section {
       padding: 40px 24px 60px;
@@ -324,13 +283,7 @@
     <search-bar></search-bar>
 
     <main id="main-content">
-      <!-- Loading state while auth check runs -->
-      <div class="landing-loading" id="landing-loading" aria-live="polite">
-        <div class="loading-spinner" aria-hidden="true"></div>
-        <span>Loading...</span>
-      </div>
-
-      <!-- Hero — shown to unauthenticated users -->
+      <!-- Hero: rendered immediately; the auth check never gates it (src/pages/landing.ts) -->
       <section class="landing-hero" id="landing-hero" aria-label="Welcome">
         <p class="landing-eyebrow">Travel Planner</p>
         <h1 class="landing-title">Your next trip,<br>perfectly planned.</h1>
@@ -373,11 +326,9 @@
   </div>
 
   <script type="module" src="/src/main.ts"></script>
+  <script type="module" src="/src/pages/landing.ts"></script>
   <script type="module">
-    import { initKeycloak, isAuthenticated, login } from '/src/auth/keycloak.ts';
-
     const hero = document.getElementById('landing-hero');
-    const loading = document.getElementById('landing-loading');
 
     if (hero) {
       hero.style.setProperty('--landing-hero-image', "url('/PruebaMapJapan/demo-hero.jpg')");
@@ -405,29 +356,6 @@
       }
     }
 
-    // Show loading while auth check runs
-    if (loading) loading.classList.add('is-visible');
-    if (hero) hero.classList.add('is-hidden');
-
-    try {
-      await initKeycloak();
-    } catch {
-      // Keycloak not available — show landing to everyone
-    }
-
-    if (isAuthenticated()) {
-      // Authenticated: redirect to dashboard
-      window.location.replace('dashboard.html');
-    } else {
-      // Unauthenticated: reveal the landing hero
-      if (loading) loading.classList.remove('is-visible');
-      if (hero) hero.classList.remove('is-hidden');
-
-      const loginBtn = document.getElementById('landing-login-btn');
-      if (loginBtn) {
-        loginBtn.addEventListener('click', () => login(new URL('dashboard.html', window.location.href).href));
-      }
-    }
   </script>
   <script>
     // Demo countdown — target: Feb 22 2027 (next Japan trip)

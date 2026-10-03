@@ -1,5 +1,5 @@
 import { toggleTheme, getTheme } from '@/modules/theme';
-import { initKeycloak, isAuthenticated, getUserInfo, login, logout } from '@/auth/keycloak';
+import { initKeycloak, isAuthenticated, getUserInfo, login, logout, onAuthStatusChange } from '@/auth/keycloak';
 
 export interface NavDestination {
   id: string | number;
@@ -11,6 +11,7 @@ export interface NavDestination {
 class TravelNav extends HTMLElement {
   private shadow: ShadowRoot;
   private destinations: NavDestination[] = [];
+  private offAuth: (() => void) | null = null;
 
   constructor() {
     super();
@@ -31,7 +32,9 @@ class TravelNav extends HTMLElement {
     this.render();
     this.setupEventListeners();
 
-    // Silently check auth state and update nav auth UI
+    // Silently check auth state and update nav auth UI; also on late answers / retries.
+    this.offAuth?.();
+    this.offAuth = onAuthStatusChange(() => this.updateAuthUI());
     initKeycloak()
       .then(() => {
         this.updateAuthUI();
@@ -39,6 +42,11 @@ class TravelNav extends HTMLElement {
       .catch(() => {
         this.updateAuthUI();
       });
+  }
+
+  disconnectedCallback(): void {
+    this.offAuth?.();
+    this.offAuth = null;
   }
 
   /**

@@ -1,6 +1,6 @@
 // QA follow-up (finding 2): the search button was a fixed overlay (top:64px; right:12px) that
 // covered page content on phones. Layout is only measurable in a real browser (see
-// tests/e2e/qa-auth-resilience.spec.ts); these checks pin the CSS contract in jsdom.
+// tests/e2e/qa-followup.spec.ts); these checks pin the CSS contract in jsdom.
 import { describe, it, expect, beforeAll } from 'vitest';
 
 let css = '';
