@@ -168,17 +168,26 @@ function closeCreateForm(): void {
   overlay?.setAttribute('hidden', '');
 }
 
-async function handleCreateTrip(e: Event): Promise<void> {
+/** True from the first submit until it fails (on success we stay locked while navigating). */
+let creatingTrip = false;
+
+// Exported for dashboard-create-trip.test.ts.
+export async function handleCreateTrip(e: Event): Promise<void> {
   e.preventDefault();
+  // Guard synchronously, before any await: a double click / Enter repeat fires two submit
+  // events in the same tick, and the old code awaited a dynamic import before disabling the
+  // button, so both submits reached the API and created two trips.
+  if (creatingTrip) return;
+  creatingTrip = true;
+
   const form = e.target as HTMLFormElement;
   const data = Object.fromEntries(new FormData(form));
-
-  const { createTrip } = await import('@/api/client');
-
   const submitBtn = form.querySelector<HTMLButtonElement>('[type="submit"]');
   if (submitBtn) submitBtn.disabled = true;
+  form.setAttribute('aria-busy', 'true');
 
   try {
+    const { createTrip } = await import('@/api/client');
     const newTrip = await createTrip({
       name: data['name'] as string,
       description: (data['description'] as string) || null,
@@ -189,8 +198,9 @@ async function handleCreateTrip(e: Event): Promise<void> {
     window.location.href = `trip.html?tripId=${newTrip.id}`;
   } catch {
     showToast('Something went wrong. Please try again.', 'error');
-  } finally {
+    creatingTrip = false;
     if (submitBtn) submitBtn.disabled = false;
+    form.removeAttribute('aria-busy');
   }
 }
 
