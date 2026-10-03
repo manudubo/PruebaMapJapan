@@ -20,7 +20,7 @@ import {
   clearAuthUnavailableState,
 } from '@/auth/authStatusUI';
 import { checkPasskeyCampaign } from '@/modules/passkeyCampaign';
-import { getMyTrips, getMe } from '@/api/client';
+import { getMyTrips, getMe, apiUrl } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
 import { setText, setStyle } from '@/modules/dom';
@@ -311,7 +311,7 @@ async function handleSendOtp(): Promise<void> {
 
   try {
     const token = await getToken();
-    const res = await fetch('/api/auth/otp-request', {
+    const res = await fetch(apiUrl('/auth/otp-request'), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -349,7 +349,7 @@ export async function handleVerifyOtp(capable: boolean): Promise<void> {
 
   try {
     const token = await getToken();
-    const res = await fetch('/api/auth/otp-verify', {
+    const res = await fetch(apiUrl('/auth/otp-verify'), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),

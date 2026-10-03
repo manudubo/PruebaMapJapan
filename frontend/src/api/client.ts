@@ -23,6 +23,14 @@ import type {
 const API_URL: string =
   (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http://localhost:8787/api';
 
+/**
+ * Absolute URL of a backend endpoint (`path` relative to the API base, e.g. '/auth/otp-request').
+ * Never fetch a root-relative '/api/...' path: on GitHub Pages that hits Pages, not the backend.
+ */
+export function apiUrl(path: string): string {
+  return `${API_URL}${path}`;
+}
+
 // ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
@@ -110,7 +118,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const headers = await buildHeaders(auth);
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(apiUrl(path), {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,

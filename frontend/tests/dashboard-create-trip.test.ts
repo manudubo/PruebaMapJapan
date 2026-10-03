@@ -42,6 +42,7 @@ const api = vi.hoisted(() => ({
   getMe: vi.fn(),
   getMyTrips: vi.fn(),
   createTrip: vi.fn(),
+  apiUrl: (p: string) => `http://localhost:8787/api${p}`,
 }));
 vi.mock('@/api/client', () => api);
 
