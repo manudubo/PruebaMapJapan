@@ -244,14 +244,14 @@ class TravelNav extends HTMLElement {
         }
 
         .nav-auth-login {
-          background: var(--jp-accent, #0071e3);
-          color: var(--jp-white);
-          border: 1px solid var(--jp-accent, #0071e3);
+          background: var(--jp-accent-solid, #0071e3);
+          color: var(--jp-white, #fff);
+          border: 1px solid var(--jp-accent-solid, #0071e3);
         }
 
         .nav-auth-login:hover {
-          background: var(--jp-accent-hover, #0077ed);
-          border-color: var(--jp-accent-hover, #0077ed);
+          background: var(--jp-accent-solid-hover, #0066cc);
+          border-color: var(--jp-accent-solid-hover, #0066cc);
         }
 
         .nav-auth-logout {
