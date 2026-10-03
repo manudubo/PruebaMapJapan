@@ -16,7 +16,14 @@ import '@/components/SearchBar';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { initTheme, getThemeConfig } from '@/modules/theme';
-import { initKeycloak, isAuthenticated } from '@/auth/keycloak';
+import { isAuthenticated } from '@/auth/keycloak';
+import {
+  watchAuth,
+  showAuthPending,
+  hideAuthPending,
+  showAuthUnavailableState,
+  clearAuthUnavailableState,
+} from '@/auth/authStatusUI';
 import { getTrip, getPublicTrip } from '@/api/client';
 import { apiTripToCityData } from '@/modules/tripAdapter';
 import { getMapsUrl } from '@/data/maps';
@@ -527,28 +534,44 @@ async function init(): Promise<void> {
     return;
   }
 
-  // Try to auth silently
-  let authenticated = false;
-  try {
-    authenticated = await initKeycloak();
-  } catch {
-    // Continue unauthenticated
-  }
+  // Owner view needs auth. Bounded: 'unavailable' after a few seconds at most, and a late
+  // answer (or Retry) still lands here exactly once.
+  showAuthPending();
+  let handled = false;
+  watchAuth({
+    authenticated: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (handled) return;
+      handled = true;
+      void loadOwnedTrip(tripId, destIndex);
+    },
+    anonymous: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (handled) return;
+      handled = true;
+      showError("You don't have access to this trip. Ask the owner for the public link.");
+    },
+    unavailable: () => {
+      if (!handled) showAuthUnavailableState();
+    },
+  });
+  document.body.classList.add('ready');
+}
 
+async function loadOwnedTrip(tripId: string, destIndex: number): Promise<void> {
   let trip: ApiTrip | null = null;
-
-  // First try authenticated fetch, then fall back to public
-  if (authenticated && isAuthenticated()) {
+  if (isAuthenticated()) {
     try {
       trip = await getTrip(tripId);
     } catch {
-      // Fall through to public
+      // Shown as "no access" below
     }
   }
 
   if (!trip) {
     showError("You don't have access to this trip. Ask the owner for the public link.");
-    document.body.classList.add('ready');
     return;
   }
 
@@ -557,7 +580,7 @@ async function init(): Promise<void> {
 
   // Reveal the edit link for authenticated owners
   const editLink = document.getElementById('trip-edit-link') as HTMLAnchorElement | null;
-  if (editLink && authenticated) {
+  if (editLink) {
     editLink.href = `trip-edit.html?tripId=${trip.id}`;
     editLink.removeAttribute('hidden');
   }
@@ -590,8 +613,6 @@ async function init(): Promise<void> {
         }))
     );
   }
-
-  document.body.classList.add('ready');
 }
 
 if (document.readyState === 'loading') {

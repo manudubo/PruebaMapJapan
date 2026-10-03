@@ -10,7 +10,14 @@ import '@/components/Navbar';
 import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
-import { initKeycloak, getUserInfo, login, getToken, keycloak } from '@/auth/keycloak';
+import { getUserInfo, login, getToken, keycloak } from '@/auth/keycloak';
+import {
+  watchAuth,
+  showAuthPending,
+  hideAuthPending,
+  showAuthUnavailableState,
+  clearAuthUnavailableState,
+} from '@/auth/authStatusUI';
 import { checkPasskeyCampaign } from '@/modules/passkeyCampaign';
 import { getMyTrips, getMe } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
@@ -191,20 +198,22 @@ async function handleCreateTrip(e: Event): Promise<void> {
 // Auth buttons
 // ---------------------------------------------------------------------------
 
-function setupAuthButtons(authenticated: boolean): void {
+/** Signed out (Keycloak answered): show the "please sign in" prompt. */
+function showLoginPrompt(): void {
   const loginPrompt = document.getElementById('dashboard-login-prompt');
   const tripsGrid = document.getElementById('trips-grid');
   const newTripBtn = document.getElementById('new-trip-btn');
   const promptLoginBtn = document.getElementById('auth-login-prompt-btn');
 
-  if (!authenticated && loginPrompt && tripsGrid) {
-    loginPrompt.removeAttribute('hidden');
+  loginPrompt?.removeAttribute('hidden');
+  if (tripsGrid) {
     tripsGrid.innerHTML = '';
     tripsGrid.setAttribute('hidden', '');
-    newTripBtn?.setAttribute('hidden', '');
-    if (promptLoginBtn) {
-      promptLoginBtn.addEventListener('click', () => login(window.location.href));
-    }
+  }
+  newTripBtn?.setAttribute('hidden', '');
+  if (promptLoginBtn && !promptLoginBtn.dataset['wired']) {
+    promptLoginBtn.dataset['wired'] = '1';
+    promptLoginBtn.addEventListener('click', () => login(window.location.href));
   }
 }
 
@@ -386,29 +395,53 @@ function buildOtpBanner(): void {
 // Main init
 // ---------------------------------------------------------------------------
 
-async function init(): Promise<void> {
-  initTheme();
-  installGlobalErrorHandler();
-
-  // Attempt silent SSO — never redirect the user
-  let authenticated = false;
-  try {
-    authenticated = await initKeycloak();
-  } catch {
-    // Keycloak may not be running in dev/demo mode — continue as guest
-  }
-
-  setupAuthButtons(authenticated);
-
+/** Signed in: load the user's profile and trips (runs once, even if auth resolves late). */
+async function loadAuthenticated(): Promise<void> {
+  document.getElementById('dashboard-login-prompt')?.setAttribute('hidden', '');
   const newTripBtn = document.getElementById('new-trip-btn');
   if (newTripBtn) {
-    if (authenticated) {
-      newTripBtn.removeAttribute('hidden');
-      newTripBtn.addEventListener('click', openCreateForm);
+    newTripBtn.removeAttribute('hidden');
+    newTripBtn.addEventListener('click', openCreateForm);
+  }
+
+  webauthnCapable = typeof PublicKeyCredential !== 'undefined';
+  const info = getUserInfo();
+  if (info) {
+    if (webauthnCapable) {
+      checkPasskeyCampaign(info.id);
     } else {
-      newTripBtn.setAttribute('hidden', '');
+      buildOtpBanner();
     }
   }
+
+  // Load real user profile and trips
+  const grid = document.getElementById('trips-grid');
+  if (grid) {
+    grid.removeAttribute('hidden');
+    grid.innerHTML = '<div class="trips-empty">Loading trips...</div>';
+  }
+
+  let user: ApiUser | null = null;
+  try {
+    user = await getMe();
+  } catch {
+    // Non-critical — greeting will fall back to token data
+  }
+  renderUserGreeting(user);
+
+  try {
+    const trips = await getMyTrips();
+    renderGrid(trips);
+    // Extend search index with the user's trips
+    trips.forEach((t) => extendSearchIndexWithApiTrip(t));
+  } catch {
+    showToast('Something went wrong. Please try again.', 'error');
+  }
+}
+
+function init(): void {
+  initTheme();
+  installGlobalErrorHandler();
 
   // Create-trip form listeners
   const createForm = document.getElementById('create-trip-form');
@@ -418,44 +451,28 @@ async function init(): Promise<void> {
     if (e.target === e.currentTarget) closeCreateForm();
   });
 
-  if (authenticated) {
-    webauthnCapable = typeof PublicKeyCredential !== 'undefined';
-    const info = getUserInfo();
-    if (info) {
-      if (webauthnCapable) {
-        checkPasskeyCampaign(info.id);
-      } else {
-        buildOtpBanner();
-      }
-    }
-
-    // Load real user profile and trips
-    const grid = document.getElementById('trips-grid');
-    if (grid) {
-      grid.removeAttribute('hidden');
-      grid.innerHTML = '<div class="trips-empty">Loading trips...</div>';
-    }
-
-    let user: ApiUser | null = null;
-    try {
-      user = await getMe();
-    } catch {
-      // Non-critical — greeting will fall back to token data
-    }
-    renderUserGreeting(user);
-
-    try {
-      const trips = await getMyTrips();
-      renderGrid(trips);
-      // Extend search index with the user's trips
-      trips.forEach((t) => extendSearchIndexWithApiTrip(t));
-    } catch {
-      showToast('Something went wrong. Please try again.', 'error');
-    }
-  } else {
-    // Guest mode — show login prompt (grid is hidden by setupAuthButtons)
-    renderUserGreeting(null);
-  }
+  // Silent SSO only — never redirect. Bounded: 'unavailable' after a few seconds at most.
+  showAuthPending();
+  let loaded = false;
+  watchAuth({
+    authenticated: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (loaded) return;
+      loaded = true;
+      void loadAuthenticated();
+    },
+    anonymous: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      showLoginPrompt();
+      renderUserGreeting(null);
+    },
+    // Distinct from "please sign in": we don't know yet whether the user is signed in.
+    unavailable: () => {
+      showAuthUnavailableState();
+    },
+  });
 
   document.body.classList.add('ready');
 }
