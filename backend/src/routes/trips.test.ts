@@ -110,13 +110,33 @@ describe('authorization cascade (ARCH-03)', () => {
       expect(await snapshotDb()).toBe(before);
     });
 
-    it("403 for another user's resources, no write", async () => {
+    // SEC-22: "exists but not yours" must be indistinguishable from "does
+    // not exist" — same status and byte-identical body — or any user can
+    // enumerate which ids exist.
+    it("404 for another user's resources, identical to a missing trip, no write", async () => {
       const { A } = await world();
       const before = await snapshotDb();
       const res = await call(ep.method, ep.path(A), { sub: 'intruder', body: ep.body?.(A) });
-      expect(res.status).toBe(403);
-      expect(res.body).toEqual({ success: false, error: 'Forbidden' });
+      const missing = await call(ep.method, ep.path({ ...A, trip: 999_999 }), { sub: 'intruder', body: ep.body?.(A) });
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual(missing.body);
       expect(await snapshotDb()).toBe(before);
+    });
+
+    it("404 for another user's trip even with child ids that do not exist", async () => {
+      const { A } = await world();
+      const res = await call(
+        ep.method,
+        ep.path({ ...A, dest: 999_991, day: 999_992, act: 999_993, act2: 999_994 }),
+        { sub: 'intruder', body: ep.body?.(A) },
+      );
+      const owned = await call(
+        ep.method,
+        ep.path({ ...A, trip: 999_999, dest: 999_991, day: 999_992, act: 999_993, act2: 999_994 }),
+        { sub: 'intruder', body: ep.body?.(A) },
+      );
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual(owned.body);
     });
 
     it('404 for a trip that does not exist', async () => {
@@ -583,7 +603,7 @@ describe('unusual values and races', () => {
         }),
       ),
     );
-    results.forEach((r, i) => expect(r.status).toBe(i % 2 ? 403 : 200));
+    results.forEach((r, i) => expect(r.status).toBe(i % 2 ? 404 : 200)); // SEC-22: never 403
     const { rows } = await testPool().query('SELECT name FROM activities WHERE id = $1', [A.act]);
     expect(rows[0].name).toMatch(/^good-\d$/);
   });

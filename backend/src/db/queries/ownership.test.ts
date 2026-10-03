@@ -63,10 +63,14 @@ describe('single-query ownership cascade (M-02)', () => {
       expect(await resolveActivity(testDb(), 999_999, a.dest.id, a.day.id, a.act.id, a.user.id)).toEqual({ error: 'not_found' });
     });
 
-    it("someone else's trip → forbidden, even when the child ids are bogus", async () => {
+    // SEC-22: a foreign trip is reported exactly like a missing one.
+    it("someone else's trip → not_found (never 'forbidden'), with bogus or real child ids", async () => {
       const { a, b } = await world();
-      expect(await resolveActivity(testDb(), a.trip.id, 1_000, 2_000, 3_000, b.user.id)).toEqual({ error: 'forbidden' });
-      expect(await resolveTrip(testDb(), a.trip.id, b.user.id)).toEqual({ error: 'forbidden' });
+      expect(await resolveActivity(testDb(), a.trip.id, 1_000, 2_000, 3_000, b.user.id)).toEqual({ error: 'not_found' });
+      expect(await resolveActivity(testDb(), a.trip.id, a.dest.id, a.day.id, a.act.id, b.user.id)).toEqual({ error: 'not_found' });
+      expect(await resolveDay(testDb(), a.trip.id, a.dest.id, a.day.id, b.user.id)).toEqual({ error: 'not_found' });
+      expect(await resolveDestination(testDb(), a.trip.id, a.dest.id, b.user.id)).toEqual({ error: 'not_found' });
+      expect(await resolveTrip(testDb(), a.trip.id, b.user.id)).toEqual({ error: 'not_found' });
     });
 
     it('destination of another trip → not_found', async () => {

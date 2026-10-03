@@ -11,13 +11,19 @@ import type { Activity } from './activities';
 // Previously each level was a separate SELECT, so resolving an activity cost
 // four sequential round trips — real network latency on Workers + Neon HTTP.
 // Now the trip row is LEFT JOINed to each child *constrained to its parent*,
-// which preserves the exact semantics of the old cascade:
+// and the trip is matched on (id, owner) together:
 //   - trip missing                          → not_found
-//   - trip owned by someone else            → forbidden (before child checks)
+//   - trip owned by someone else            → not_found (SEC-22)
 //   - child missing or under another parent → not_found
+//
+// SEC-22: there is deliberately no "forbidden" outcome. A 403 for "exists but
+// not yours" next to a 404 for "does not exist" let any signed-in user
+// enumerate which ids exist. Filtering on the owner inside the query means a
+// foreign trip is, to the caller, indistinguishable from a missing one — the
+// route cannot leak the difference even by accident.
 // ---------------------------------------------------------------------------
 
-export type OwnershipError = { error: 'not_found' | 'forbidden' };
+export type OwnershipError = { error: 'not_found' };
 
 // Never matches a serial id; lets every level be joined unconditionally.
 const NO_ID = -1;
@@ -31,7 +37,7 @@ async function resolveChain(
   actId?: number,
 ) {
   const rows = await db
-    .select({ tripUserId: trips.user_id, dest: destinations, day: days, act: activities })
+    .select({ tripId: trips.id, dest: destinations, day: days, act: activities })
     .from(trips)
     .leftJoin(
       destinations,
@@ -39,12 +45,11 @@ async function resolveChain(
     )
     .leftJoin(days, and(eq(days.id, dayId ?? NO_ID), eq(days.destination_id, destinations.id)))
     .leftJoin(activities, and(eq(activities.id, actId ?? NO_ID), eq(activities.day_id, days.id)))
-    .where(eq(trips.id, tripId))
+    .where(and(eq(trips.id, tripId), eq(trips.user_id, userId)))
     .limit(1);
 
   const row = rows[0];
   if (!row) return { error: 'not_found' as const };
-  if (row.tripUserId !== userId) return { error: 'forbidden' as const };
   return row;
 }
 

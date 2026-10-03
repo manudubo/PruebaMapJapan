@@ -24,8 +24,8 @@ import {
   reorderActivities,
   InvalidActivityOrderError,
 } from '../db';
-import { hotels, trips } from '../db/schema';
-import { resolveActivity, resolveDay, resolveDestination } from '../db/queries/ownership';
+import { hotels } from '../db/schema';
+import { resolveActivity, resolveDay, resolveDestination, resolveTrip } from '../db/queries/ownership';
 import { authMiddleware } from '../middleware/auth';
 import { dbMiddleware } from '../middleware/db';
 import { ensureUserProvisioned } from '../middleware/user';
@@ -50,7 +50,9 @@ const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 tripsRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 
 // Ownership checks (trip → destination → day → activity) are single-JOIN
-// queries in db/queries/ownership.ts (M-02).
+// queries in db/queries/ownership.ts (M-02). A resource that exists but
+// belongs to someone else answers the same 404 as one that does not exist
+// (SEC-22); 401 (no/invalid token) is decided earlier by authMiddleware.
 
 // ===========================================================================
 // TRIPS
@@ -178,20 +180,10 @@ tripsRoute.get('/:tripId/destinations', async (c) => {
     return c.json(response, 400);
   }
 
-  // Verify trip ownership.
-  const tripRows = await db
-    .select({ id: trips.id, user_id: trips.user_id })
-    .from(trips)
-    .where(eq(trips.id, tripId))
-    .limit(1);
-
-  if (!tripRows[0]) {
+  // SEC-22: a foreign trip is reported exactly like a missing one.
+  if ('error' in (await resolveTrip(db, tripId, userId))) {
     const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
     return c.json(response, 404);
-  }
-  if (tripRows[0].user_id !== userId) {
-    const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-    return c.json(response, 403);
   }
 
   const dests = await getDestinationsByTrip(db, tripId);
@@ -217,19 +209,9 @@ tripsRoute.post(
       return c.json(response, 400);
     }
 
-    const tripRows = await db
-      .select({ id: trips.id, user_id: trips.user_id })
-      .from(trips)
-      .where(eq(trips.id, tripId))
-      .limit(1);
-
-    if (!tripRows[0]) {
+    if ('error' in (await resolveTrip(db, tripId, userId))) {
       const response: ApiResponse<never> = { success: false, error: 'Trip not found' };
       return c.json(response, 404);
-    }
-    if (tripRows[0].user_id !== userId) {
-      const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-      return c.json(response, 403);
     }
 
     const dest = await createDestination(db, tripId, {
@@ -262,10 +244,6 @@ tripsRoute.patch(
 
     const result = await resolveDestination(db, tripId, destId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
       return c.json(response, 404);
     }
@@ -295,10 +273,6 @@ tripsRoute.delete(
 
     const result = await resolveDestination(db, tripId, destId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
       return c.json(response, 404);
     }
@@ -332,10 +306,6 @@ tripsRoute.get(
 
     const result = await resolveDestination(db, tripId, destId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
       return c.json(response, 404);
     }
@@ -367,10 +337,6 @@ tripsRoute.post(
 
     const result = await resolveDestination(db, tripId, destId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
       return c.json(response, 404);
     }
@@ -403,10 +369,6 @@ tripsRoute.patch(
 
     const result = await resolveDay(db, tripId, destId, dayId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Day not found' };
       return c.json(response, 404);
     }
@@ -437,10 +399,6 @@ tripsRoute.delete(
 
     const result = await resolveDay(db, tripId, destId, dayId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Day not found' };
       return c.json(response, 404);
     }
@@ -475,10 +433,6 @@ tripsRoute.get(
 
     const result = await resolveDay(db, tripId, destId, dayId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Day not found' };
       return c.json(response, 404);
     }
@@ -511,10 +465,6 @@ tripsRoute.post(
 
     const result = await resolveDay(db, tripId, destId, dayId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Day not found' };
       return c.json(response, 404);
     }
@@ -548,10 +498,6 @@ tripsRoute.patch(
 
     const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
       return c.json(response, 404);
     }
@@ -583,10 +529,6 @@ tripsRoute.delete(
 
     const result = await resolveActivity(db, tripId, destId, dayId, actId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Activity not found' };
       return c.json(response, 404);
     }
@@ -620,10 +562,6 @@ tripsRoute.post(
     try {
       const result = await resolveDay(db, tripId, destId, dayId, userId);
       if ('error' in result) {
-        if (result.error === 'forbidden') {
-          const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-          return c.json(response, 403);
-        }
         const response: ApiResponse<never> = { success: false, error: 'Day not found' };
         return c.json(response, 404);
       }
@@ -664,10 +602,6 @@ tripsRoute.get(
 
     const result = await resolveDestination(db, tripId, destId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
       return c.json(response, 404);
     }
@@ -709,10 +643,6 @@ tripsRoute.put(
 
     const result = await resolveDestination(db, tripId, destId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
       return c.json(response, 404);
     }
@@ -742,10 +672,6 @@ tripsRoute.delete(
 
     const result = await resolveDestination(db, tripId, destId, userId);
     if ('error' in result) {
-      if (result.error === 'forbidden') {
-        const response: ApiResponse<never> = { success: false, error: 'Forbidden' };
-        return c.json(response, 403);
-      }
       const response: ApiResponse<never> = { success: false, error: 'Destination not found' };
       return c.json(response, 404);
     }

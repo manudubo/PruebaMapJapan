@@ -4,8 +4,9 @@
  *
  * Invariant under test: Bob can never read, modify, reorder or delete
  * anything under Alice's trip, whatever id combination he sends, and Alice's
- * data is byte-for-byte unchanged afterwards. Status-code shape (403 vs 404)
- * is asserted separately because SEC-22 (Phase 26) owns it.
+ * data is byte-for-byte unchanged afterwards. Since SEC-22 every such
+ * request is a 404 that is byte-identical to the one for an id that does not
+ * exist (no existence oracle).
  */
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
@@ -85,12 +86,12 @@ describeDb('IDOR — Bob vs Alice', () => {
     ['reorder activities', 'POST', () => `${a().base}/activities/reorder`, () => ({ ordered_ids: [...aTree.actIds].reverse() })],
   ];
 
-  it.each(attacks)('Bob cannot %s on Alice\'s trip (403/404, never 2xx)', async (_l, method, path, body) => {
+  it.each(attacks)('Bob cannot %s on Alice\'s trip (404, never 2xx/403)', async (_l, method, path, body) => {
     const res = await req(method, path(), {
       token: bob.token,
       body: typeof body === 'function' ? (body as () => unknown)() : body,
     });
-    expect([403, 404]).toContain(res.status);
+    expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
     expect(res.text).not.toContain('Alice Hotel');
     expect(res.text).not.toContain('Act 0');
@@ -171,13 +172,49 @@ describeDb('IDOR — Bob vs Alice', () => {
     }
   });
 
-  // SEC-22 (Phase 26): a 403 for "exists but not yours" vs 404 for "does not
-  // exist" lets any user enumerate which trip ids exist.
-  it.fails('SEC-22: foreign trip and non-existent trip are indistinguishable on nested routes', async () => {
+  // SEC-22: a 403 for "exists but not yours" vs 404 for "does not exist"
+  // let any user enumerate which trip ids exist.
+  it('SEC-22: foreign trip and non-existent trip are indistinguishable on nested routes', async () => {
     const foreign = await req('GET', `/api/trips/${aTree.tripId}/destinations`, { token: bob.token });
     const missing = await req('GET', '/api/trips/999999/destinations', { token: bob.token });
+    expect(foreign.status).toBe(404);
     expect(foreign.status).toBe(missing.status);
-    expect(foreign.body).toEqual(missing.body);
+    expect(foreign.text).toBe(missing.text);
+  });
+
+  it.each(attacks)('SEC-22: %s on Alice\'s ids answers exactly like the same route on ids that do not exist', async (_l, method, path, body) => {
+    const realPath = path();
+    // Same route shape, every numeric id replaced by one that does not exist.
+    const ghostPath = realPath.replace(/\/(\d+)/g, (_m, id: string) => `/${900_000 + Number(id)}`);
+    const payload = typeof body === 'function' ? (body as () => unknown)() : body;
+    const foreign = await req(method, realPath, { token: bob.token, body: payload });
+    const ghost = await req(method, ghostPath, { token: bob.token, body: payload });
+    expect(foreign.status).toBe(404);
+    expect(foreign.status).toBe(ghost.status);
+    expect(foreign.text).toBe(ghost.text);
+    expect(foreign.headers.get('content-length')).toBe(ghost.headers.get('content-length'));
+  });
+
+  it('SEC-22: Bob\'s own trip with Alice\'s child ids answers like missing child ids', async () => {
+    const b = bTree;
+    const pairs: [string, string, string][] = [
+      ['GET', `/api/trips/${b.tripId}/destinations/${aTree.destId}/days`, `/api/trips/${b.tripId}/destinations/999999/days`],
+      ['GET', `/api/trips/${b.tripId}/destinations/${b.destId}/days/${aTree.dayId}/activities`, `/api/trips/${b.tripId}/destinations/${b.destId}/days/999999/activities`],
+      ['DELETE', `${b.base}/activities/${aTree.actIds[0]}`, `${b.base}/activities/999999`],
+    ];
+    for (const [method, real, ghost] of pairs) {
+      const r = await req(method, real, { token: bob.token });
+      const g = await req(method, ghost, { token: bob.token });
+      expect(r.status, real).toBe(404);
+      expect(r.text, real).toBe(g.text);
+    }
+  });
+
+  it('SEC-22: unauthenticated requests still get 401 (not 404) on every nested route', async () => {
+    for (const [, method, path, body] of attacks) {
+      const res = await req(method, path(), { body: typeof body === 'function' ? (body as () => unknown)() : body });
+      expect(res.status, `${method} ${path()}`).toBe(401);
+    }
   });
 
   it('GET /api/trips/:id already returns 404 (not 403) for a foreign trip', async () => {
