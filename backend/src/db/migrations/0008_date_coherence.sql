@@ -18,13 +18,17 @@
 -- Why triggers rather than route-level checks: production runs on the Neon
 -- HTTP driver, which has no interactive transactions, so a route cannot hold
 -- a lock between "check" and "write". Each trigger runs inside the writing
--- statement and takes a row lock on the parent first:
---   * day write          → FOR SHARE on its destination (conflicts with a
---                          concurrent UPDATE of that destination)
---   * destination write  → FOR NO KEY UPDATE on its trip (serializes sibling
---                          destination writes of one trip and trip updates)
---   * trip/destination UPDATE → the row itself is already locked by the
---                          UPDATE before BEFORE-row triggers run
+-- statement and takes a lock first:
+--   * day write          → FOR SHARE on its destination row (conflicts with a
+--                          concurrent UPDATE of that destination, whose row
+--                          the UPDATE locks before BEFORE-row triggers run)
+--   * destination write and trip date write → pg_advisory_xact_lock(7002,
+--                          trip_id): serializes sibling destination writes of
+--                          one trip and trip date edits.
+--   The per-trip lock is advisory, not a row lock on the trip: a destination
+--   UPDATE already holds its own row, and a trip DELETE holds the trip row
+--   while cascading into destinations, so waiting on the trip row there
+--   deadlocked (40P01 → 500) — reproduced by a test.
 -- After a lock wait, the next query in the function takes a fresh snapshot
 -- (READ COMMITTED, VOLATILE plpgsql), so it sees the rows the other
 -- transaction committed. Two parallel edits therefore cannot jointly
@@ -73,8 +77,9 @@ BEGIN
   END IF;
 
   IF is_upd THEN
-    -- This row is locked by the UPDATE; destination writes of this trip
-    -- lock it too, so none can slip in between this check and commit.
+    -- Same per-trip lock as destination writes: none can slip in between
+    -- this check and commit.
+    PERFORM pg_advisory_xact_lock(7002, NEW.id);
     SELECT x.city_name, x.start_date, x.end_date INTO d
       FROM destinations x
      WHERE x.trip_id = NEW.id
@@ -114,8 +119,15 @@ BEGIN
       USING ERRCODE = 'DC001', COLUMN = col, TABLE = 'destinations';
   END IF;
 
-  -- Serialize with sibling destination writes and with trip updates.
-  SELECT x.start_date, x.end_date INTO t FROM trips x WHERE x.id = NEW.trip_id FOR NO KEY UPDATE;
+  -- Serialize with sibling destination writes and trip date edits (per-trip
+  -- advisory lock; both trips, in id order, if trip_id itself changes).
+  IF is_upd AND OLD.trip_id <> NEW.trip_id THEN
+    PERFORM pg_advisory_xact_lock(7002, least(OLD.trip_id, NEW.trip_id));
+    PERFORM pg_advisory_xact_lock(7002, greatest(OLD.trip_id, NEW.trip_id));
+  ELSE
+    PERFORM pg_advisory_xact_lock(7002, NEW.trip_id);
+  END IF;
+  SELECT x.start_date, x.end_date INTO t FROM trips x WHERE x.id = NEW.trip_id;
   IF NOT FOUND THEN
     RETURN NEW; -- the foreign key reports the missing trip
   END IF;

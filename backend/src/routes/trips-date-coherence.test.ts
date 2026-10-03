@@ -537,6 +537,28 @@ describe('BIZ-07 under concurrency', () => {
     expect(await violations()).toEqual([]);
   });
 
+  // Deadlock guard: a destination UPDATE already holds its own row when its
+  // trigger runs. If the trigger then waited on the trip ROW, a concurrent
+  // trip DELETE (trip row locked, cascading into that destination) would
+  // deadlock with it. The per-trip lock is therefore an advisory lock that
+  // a trip delete never takes; a row lock on the trip must not block it.
+  it('a destination date edit does not wait on a lock held on the trip row (no deadlock with trip delete)', async () => {
+    const t = await trip({ start_date: '2026-03-01', end_date: '2026-03-10' });
+    const d = await dest(t, { start_date: '2026-03-01', end_date: '2026-03-05' });
+    const side = await sideTx();
+    try {
+      await side.query('SELECT id FROM trips WHERE id = $1 FOR UPDATE', [t]);
+      const res = await Promise.race([
+        patchDest(t, d, { end_date: '2026-03-06' }),
+        new Promise<'blocked'>((r) => setTimeout(() => r('blocked'), 2_000)),
+      ]);
+      expect(res === 'blocked' ? res : res.status).toBe(200);
+    } finally {
+      await side.query('ROLLBACK');
+      side.release();
+    }
+  });
+
   it('a rolled-back conflicting write does not block the real one', async () => {
     const t = await trip();
     const side = await sideTx();
