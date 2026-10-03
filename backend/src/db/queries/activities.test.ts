@@ -1,9 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { asc, eq } from 'drizzle-orm';
 import {
   isCompleteOrdering,
   reorderActivities,
   InvalidActivityOrderError,
 } from './activities';
+import { activities } from '../schema';
+import {
+  closeTestPool,
+  insertActivity,
+  insertDay,
+  insertTripTree,
+  resetDb,
+  testDb,
+} from '../../test-utils/db';
 
 describe('isCompleteOrdering (BUG-05)', () => {
   it('accepts a permutation of the full id set', () => {
@@ -31,46 +41,92 @@ describe('isCompleteOrdering (BUG-05)', () => {
   });
 });
 
-// Scripted stand-in for the Drizzle chains used by reorderActivities
-// (no real test DB in the unit suite yet — ARCH-06, Phase 24).
-function fakeDb(dayActivityIds: number[]) {
-  const calls = { update: 0 };
-  const db = {
-    select: () => ({
-      from: () => ({ where: async () => dayActivityIds.map((id) => ({ id })) }),
-    }),
-    update: () => {
-      calls.update++;
-      return {
-        set: () => ({
-          where: () => ({
-            returning: async () =>
-              dayActivityIds.map((id, i) => ({ id, day_id: 1, order_index: i })),
-          }),
-        }),
-      };
-    },
-  };
-  return { db, calls };
-}
-
+// Real Postgres (ARCH-06) — asserts what is actually persisted.
 describe('reorderActivities (BUG-05)', () => {
-  it('throws InvalidActivityOrderError and writes nothing for a partial set', async () => {
-    const { db, calls } = fakeDb([1, 2, 3]);
-    await expect(reorderActivities(db, 1, [2, 1])).rejects.toBeInstanceOf(InvalidActivityOrderError);
-    expect(calls.update).toBe(0);
+  beforeEach(resetDb);
+  afterAll(closeTestPool);
+
+  async function dayWith(n: number) {
+    const tree = await insertTripTree();
+    const ids = [tree.act.id];
+    for (let i = 1; i < n; i++) ids.push((await insertActivity(tree.day.id, { order_index: i })).id);
+    return { ...tree, ids };
+  }
+
+  async function storedOrder(dayId: number) {
+    const rows = await testDb()
+      .select({ id: activities.id, order_index: activities.order_index })
+      .from(activities)
+      .where(eq(activities.day_id, dayId))
+      .orderBy(asc(activities.id));
+    return rows;
+  }
+
+  it('persists order_index = position for a full permutation and returns rows in that order', async () => {
+    const { day, ids } = await dayWith(3);
+    const [a, b, c] = ids as [number, number, number];
+
+    const result = await reorderActivities(testDb(), day.id, [c, a, b]);
+
+    expect(result.map((r) => r.id)).toEqual([c, a, b]);
+    expect(result.map((r) => r.order_index)).toEqual([0, 1, 2]);
+    const stored = new Map((await storedOrder(day.id)).map((r) => [r.id, r.order_index]));
+    expect([stored.get(c), stored.get(a), stored.get(b)]).toEqual([0, 1, 2]);
   });
 
-  it('throws for an empty list when the day has activities', async () => {
-    const { db, calls } = fakeDb([1, 2]);
-    await expect(reorderActivities(db, 1, [])).rejects.toBeInstanceOf(InvalidActivityOrderError);
-    expect(calls.update).toBe(0);
+  it('rejects a partial set and writes nothing', async () => {
+    const { day, ids } = await dayWith(3);
+    const before = await storedOrder(day.id);
+
+    await expect(reorderActivities(testDb(), day.id, [ids[1]!, ids[0]!])).rejects.toBeInstanceOf(
+      InvalidActivityOrderError,
+    );
+    expect(await storedOrder(day.id)).toEqual(before);
   });
 
-  it('updates when the full set is given', async () => {
-    const { db, calls } = fakeDb([1, 2, 3]);
-    const result = await reorderActivities(db, 1, [3, 2, 1]);
-    expect(calls.update).toBe(1);
-    expect(result.map((a) => a.id)).toEqual([3, 2, 1]);
+  it('rejects duplicate ids of the right length', async () => {
+    const { day, ids } = await dayWith(3);
+    await expect(
+      reorderActivities(testDb(), day.id, [ids[0]!, ids[0]!, ids[1]!]),
+    ).rejects.toBeInstanceOf(InvalidActivityOrderError);
+  });
+
+  it('rejects an empty list when the day has activities', async () => {
+    const { day } = await dayWith(2);
+    await expect(reorderActivities(testDb(), day.id, [])).rejects.toBeInstanceOf(
+      InvalidActivityOrderError,
+    );
+  });
+
+  it('accepts an empty list for an empty day', async () => {
+    const { dest } = await insertTripTree();
+    const emptyDay = await insertDay(dest.id);
+    await expect(reorderActivities(testDb(), emptyDay.id, [])).resolves.toEqual([]);
+  });
+
+  it("rejects smuggling another day's activity id and leaves both days untouched", async () => {
+    const mine = await dayWith(2);
+    const other = await dayWith(1);
+    const beforeMine = await storedOrder(mine.day.id);
+    const beforeOther = await storedOrder(other.day.id);
+
+    await expect(
+      reorderActivities(testDb(), mine.day.id, [mine.ids[0]!, other.ids[0]!]),
+    ).rejects.toBeInstanceOf(InvalidActivityOrderError);
+    expect(await storedOrder(mine.day.id)).toEqual(beforeMine);
+    expect(await storedOrder(other.day.id)).toEqual(beforeOther);
+  });
+
+  it('two concurrent full reorders leave a consistent permutation (last writer wins)', async () => {
+    const { day, ids } = await dayWith(4);
+    const reversed = [...ids].reverse();
+
+    await Promise.all([
+      reorderActivities(testDb(), day.id, ids),
+      reorderActivities(testDb(), day.id, reversed),
+    ]);
+
+    const indices = (await storedOrder(day.id)).map((r) => r.order_index).sort();
+    expect(indices).toEqual([0, 1, 2, 3]);
   });
 });

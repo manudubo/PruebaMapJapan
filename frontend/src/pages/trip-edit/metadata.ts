@@ -2,6 +2,7 @@ import { updateTrip } from '@/api/client';
 import { showToast } from '@/modules/toast';
 import { setText } from '@/modules/dom';
 import type { ApiTrip } from '@/types';
+import { dateOrderError, linkDateBounds, saveErrorMessage } from './formHelpers';
 
 export function initMetadataSection(trip: ApiTrip): void {
   const section = document.getElementById('metadata-section');
@@ -22,6 +23,7 @@ export function initMetadataSection(trip: ApiTrip): void {
   if (startInput) startInput.value = trip.start_date ?? '';
   if (endInput) endInput.value = trip.end_date ?? '';
   if (publicInput) publicInput.checked = trip.is_public;
+  if (startInput && endInput) linkDateBounds(startInput, endInput);
 
   const heading = document.getElementById('trip-name-heading');
   if (heading) setText(heading, trip.name);
@@ -31,6 +33,16 @@ export function initMetadataSection(trip: ApiTrip): void {
     if (!saveBtn) return;
 
     if (errorEl) errorEl.setAttribute('hidden', '');
+
+    const orderError = dateOrderError(startInput?.value ?? '', endInput?.value ?? '', 'Start date', 'End date');
+    if (orderError) {
+      if (errorEl) {
+        errorEl.textContent = orderError;
+        errorEl.removeAttribute('hidden');
+      }
+      return;
+    }
+
     saveBtn.disabled = true;
     setText(saveBtn, 'Saving…');
 
@@ -46,9 +58,9 @@ export function initMetadataSection(trip: ApiTrip): void {
       setText(saveBtn, 'Saved');
       showToast('Trip saved', 'success');
       setTimeout(() => { if (saveBtn) setText(saveBtn, 'Save changes'); }, 1500);
-    } catch {
+    } catch (err) {
       if (errorEl) {
-        errorEl.textContent = 'Could not save. Check your connection and try again.';
+        errorEl.textContent = saveErrorMessage(err);
         errorEl.removeAttribute('hidden');
       }
     } finally {

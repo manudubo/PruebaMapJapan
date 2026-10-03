@@ -186,7 +186,7 @@ Plans:
 | 22. Reliability Bugs | v3.2 | 1/1 | Complete    | 2026-09-30 |
 | 23. Supply Chain, Secrets & Accessibility | v3.2 | 1/1 | Complete (A11Y-04/05 partial) | 2026-09-30 |
 | 24. Architecture Debt & Test Coverage | v3.2 | 0/0 | Not started | — |
-| 25. Business Logic & Demo Parity | v3.2 | 0/0 | Not started | — |
+| 25. Business Logic & Demo Parity | v3.2 | 1/1 | Complete except BIZ-07 (deferred) | 2026-09-30 |
 | 26. Remaining Security Hardening & IdP Flow | v3.2 | 0/0 | Not started | — |
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*

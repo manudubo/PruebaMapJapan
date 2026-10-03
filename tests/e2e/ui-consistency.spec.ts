@@ -1,18 +1,6 @@
 import { expect, test } from '@playwright/test';
-
-async function mockAuthAndApi(page: import('@playwright/test').Page): Promise<void> {
-  await page.route('**/realms/**', (route) => {
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-  });
-
-  await page.route('http://localhost:8787/api/**', (route) => {
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: [] }),
-    });
-  });
-}
+import { mockApi } from './fixtures/mockApi';
+import { mockKeycloakLoggedIn, mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
 
 async function waitForAppStyles(page: import('@playwright/test').Page): Promise<void> {
   await expect.poll(
@@ -22,8 +10,12 @@ async function waitForAppStyles(page: import('@playwright/test').Page): Promise<
 }
 
 test.describe('Flat demo style consistency', () => {
+  // Start from a guest browser; specs that need a session sign in explicitly.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.beforeEach(async ({ page }) => {
-    await mockAuthAndApi(page);
+    await mockKeycloakLoggedOut(page);
+    await mockApi(page, { trips: [] });
   });
 
   test('dashboard uses shared flat controls without rounded corners, gradients, or heavy shadows', async ({ page }) => {
@@ -72,24 +64,6 @@ test.describe('Flat demo style consistency', () => {
   });
 
   test('home hero uses the demo screenshot background and unauthenticated nav hides session actions', async ({ page }) => {
-    await page.route('**/src/auth/keycloak.ts*', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body: `
-          export const keycloak = { authenticated: false, token: null, tokenParsed: undefined };
-          export async function initKeycloak() { return false; }
-          export async function login() {}
-          export async function logout() {}
-          export async function getToken() { throw new Error('User is not authenticated'); }
-          export async function refreshToken() { return false; }
-          export function isAuthenticated() { return false; }
-          export function getTokenParsed() { return undefined; }
-          export function getUserInfo() { return null; }
-        `,
-      });
-    });
-
     await page.goto('index.html');
     await page.waitForLoadState('domcontentloaded');
     await waitForAppStyles(page);
@@ -117,24 +91,6 @@ test.describe('Flat demo style consistency', () => {
   });
 
   test('unauthenticated dashboard only exposes the sign-in prompt', async ({ page }) => {
-    await page.route('**/src/auth/keycloak.ts*', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body: `
-          export const keycloak = { authenticated: false, token: null, tokenParsed: undefined };
-          export async function initKeycloak() { return false; }
-          export async function login() {}
-          export async function logout() {}
-          export async function getToken() { throw new Error('User is not authenticated'); }
-          export async function refreshToken() { return false; }
-          export function isAuthenticated() { return false; }
-          export function getTokenParsed() { return undefined; }
-          export function getUserInfo() { return null; }
-        `,
-      });
-    });
-
     await page.goto('dashboard.html');
     await page.waitForLoadState('domcontentloaded');
     await waitForAppStyles(page);
@@ -146,37 +102,30 @@ test.describe('Flat demo style consistency', () => {
     await expect(page.getByText('Loading trips')).toHaveCount(0);
   });
 
-  test('profile password control stays inside the app and uses a button', async ({ page, request }) => {
-    await page.route('**/src/pages/profile.ts', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body: 'document.body.classList.add("ready");',
-      });
-    });
+  test('profile password control is an in-app button that starts Keycloak UPDATE_PASSWORD', async ({ page }) => {
+    await mockKeycloakLoggedIn(page);
+    await mockApi(page);
 
     await page.goto('profile.html');
-    await page.waitForLoadState('domcontentloaded');
 
     const passwordControl = page.locator('#btn-change-password');
     await expect(passwordControl).toHaveJSProperty('tagName', 'BUTTON');
-    await expect(passwordControl).not.toHaveAttribute('href', /account\/password/);
+    await expect(passwordControl).not.toHaveAttribute('href', /.*/);
 
-    const profileSource = await request.get('src/pages/profile.ts');
-    const sourceText = await profileSource.text();
-    expect(sourceText).toMatch(/action:\s*['"]UPDATE_PASSWORD['"]/);
-    expect(sourceText).not.toContain('/account/password');
+    await passwordControl.click();
+
+    await page.waitForURL(/\/protocol\/openid-connect\/auth\?/);
+    const url = new URL(page.url());
+    expect(url.searchParams.get('kc_action')).toBe('UPDATE_PASSWORD');
+    expect(url.pathname).not.toContain('/account/password');
+  });
+
+  test('profile redirects a guest to the home page', async ({ page }) => {
+    await page.goto('profile.html');
+    await page.waitForURL(/index\.html$/);
   });
 
   test('trip destination tabs use the same square geometry as the demo style', async ({ page }) => {
-    await page.route('**/src/pages/tripDetail.ts', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body: 'import "/PruebaMapJapan/src/styles/main.css"; document.body.classList.add("ready");',
-      });
-    });
-
     await page.goto('trip.html');
     await page.waitForLoadState('domcontentloaded');
     await waitForAppStyles(page);

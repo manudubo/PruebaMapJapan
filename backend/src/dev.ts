@@ -16,6 +16,8 @@ const PORT = Number(process.env.PORT) || 8787;
 // Inject process.env as Hono bindings (equivalent to c.env in Workers)
 const env = {
   DATABASE_URL: process.env.DATABASE_URL ?? '',
+  // Node dev server → TCP driver unless overridden (ARCH-02).
+  DB_DRIVER: process.env.DB_DRIVER ?? 'pg',
   KEYCLOAK_URL: process.env.KEYCLOAK_URL ?? '',
   KEYCLOAK_REALM: process.env.KEYCLOAK_REALM ?? '',
   VALID_AUDIENCES: process.env.VALID_AUDIENCES ?? '',
@@ -23,6 +25,8 @@ const env = {
   KC_ADMIN_CLIENT_SECRET: process.env.KC_ADMIN_CLIENT_SECRET ?? '',
   OTP_SECRET: process.env.OTP_SECRET ?? '',
   RESEND_API_KEY: process.env.RESEND_API_KEY,
+  // This entry point only ever runs locally, so default to development.
+  ENVIRONMENT: process.env.ENVIRONMENT ?? 'development',
 };
 
 serve(

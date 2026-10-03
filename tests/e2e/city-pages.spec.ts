@@ -1,99 +1,124 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
+import { stubMapThirdParty } from './fixtures/mockThirdParty';
 
-// Data-driven city page tests
 const cityPages = [
-  { city: 'Tokyo', path: 'tokyo.html' },
-  { city: 'Kyoto', path: 'kyoto.html' },
-  { city: 'Osaka', path: 'osaka.html' },
+  { city: 'Tokyo', path: 'tokyo.html', key: 'tokyo' },
+  { city: 'Nagoya', path: 'nagoya.html', key: 'nagoya' },
+  { city: 'Takayama', path: 'takayama.html', key: 'takayama' },
+  { city: 'Kyoto', path: 'kyoto.html', key: 'kyoto' },
+  { city: 'Osaka', path: 'osaka.html', key: 'osaka' },
+  { city: 'Naoshima', path: 'naoshima.html', key: 'naoshima' },
+  { city: 'Hakone', path: 'hakone.html', key: 'hakone' },
+  { city: 'Tokyo (return)', path: 'tokyo2.html', key: 'tokyo2' },
 ];
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
+test.beforeEach(async ({ page }) => {
+  await mockKeycloakLoggedOut(page);
+  await stubMapThirdParty(page);
+});
+
+async function openCity(page: Page, path: string): Promise<void> {
+  await page.goto(path);
+  await expect(page.locator('#map.leaflet-container')).toBeVisible();
+}
+
 test.describe('City pages – static itinerary pages', () => {
-  for (const { city, path } of cityPages) {
+  for (const { city, path, key } of cityPages) {
     test.describe(`${city} page`, () => {
       test.beforeEach(async ({ page }) => {
-        // Mock Keycloak to avoid external requests hanging
-        await page.route('**/realms/**', (route) => {
-          route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({}),
-          });
-        });
-        await page.goto(path);
-        await page.waitForLoadState('domcontentloaded');
+        await openCity(page, path);
       });
 
-      test(`${city} page loads with a title`, async ({ page }) => {
-        // Page should have a heading with the city name or related content
-        const heading = page.locator('h1, h2').first();
-        await expect(heading).toBeVisible({ timeout: 10000 });
-        const titleText = await heading.textContent();
-        expect(titleText?.length).toBeGreaterThan(0);
+      test('has a heading and the right city key', async ({ page }) => {
+        await expect(page.locator('h1, h2').first()).toBeVisible();
+        await expect(page.locator('h1, h2').first()).not.toBeEmpty();
+        await expect(page.locator('#map')).toHaveAttribute('data-city', key);
       });
 
-      test(`${city} page has a map container`, async ({ page }) => {
-        const mapContainer = page.locator('#map, .map-container, [role="application"]').first();
-        await expect(mapContainer).toBeVisible({ timeout: 10000 });
+      test('map has an aria-label naming the city', async ({ page }) => {
+        const heading = (await page.locator('h1').first().textContent())?.trim() ?? '';
+        await expect(page.locator('#map')).toHaveAttribute('aria-label', `Map of ${heading}`);
+        await expect(page.getByRole('application', { name: `Map of ${heading}` })).toBeVisible();
       });
 
-      test(`${city} page has day selector or legend`, async ({ page }) => {
-        // Day selector buttons or legend should be present
-        const daySelector = page.locator('#day-selector, .day-selector, .legend, #legend-grid');
-        const count = await daySelector.count();
+      test('renders one day button per legend group and markers on the map', async ({ page }) => {
+        const dayButtons = page.locator('#day-selector .day-btn');
+        await expect(dayButtons.first()).toBeVisible();
+        const count = await dayButtons.count();
         expect(count).toBeGreaterThan(0);
+
+        await expect(page.locator('#legend-grid .day-group')).toHaveCount(count);
+        await expect(page.locator('#map .leaflet-marker-icon').first()).toBeVisible();
+        // Every day button starts unselected and has a non-empty name.
+        for (const btn of await dayButtons.all()) {
+          await expect(btn).toHaveAttribute('aria-selected', 'false');
+          await expect(btn).not.toBeEmpty();
+        }
+      });
+
+      test('has a skip link targeting the main content', async ({ page }) => {
+        await expect(page.locator('.skip-link[href="#main-content"]')).toHaveCount(1);
+        await expect(page.locator('#main-content')).toHaveCount(1);
       });
     });
   }
 
-  test.describe('Tokyo page – detailed interactions', () => {
+  test.describe('Tokyo page – day filtering', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/realms/**', (route) => {
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({}),
-        });
-      });
-      await page.goto('tokyo.html');
-      await page.waitForLoadState('domcontentloaded');
+      await openCity(page, 'tokyo.html');
+      await expect(page.locator('#day-selector .day-btn').first()).toBeVisible();
     });
 
-    test('day selector buttons are present and clickable', async ({ page }) => {
-      // Wait for the page to be fully initialised
-      await page.waitForTimeout(1000);
-      const daySelector = page.locator('#day-selector, .day-selector');
-      const buttonCount = await daySelector.locator('button, [role="tab"]').count();
+    test('selecting a day marks it active and shows only that day in the legend', async ({ page }) => {
+      const buttons = page.locator('#day-selector .day-btn');
+      const total = await buttons.count();
+      expect(total).toBeGreaterThan(1);
+      const allMarkers = await page.locator('#map .leaflet-marker-icon').count();
 
-      if (buttonCount > 0) {
-        const firstBtn = daySelector.locator('button, [role="tab"]').first();
-        await expect(firstBtn).toBeVisible();
-        await firstBtn.click();
-        // After click, the button should become active
-        await page.waitForTimeout(300);
-        const isActive =
-          (await firstBtn.getAttribute('class'))?.includes('active') ||
-          (await firstBtn.getAttribute('class'))?.includes('is-active') ||
-          (await firstBtn.getAttribute('aria-selected')) === 'true';
-        // If neither active state found, just verify click didn't crash
-        expect(typeof isActive).not.toBe('undefined');
-      } else {
-        // Page might render day buttons differently — verify the page loaded
-        const main = page.locator('#main-content, main');
-        await expect(main).toBeVisible();
-      }
+      await buttons.nth(1).click();
+
+      await expect(buttons.nth(1)).toHaveClass(/active/);
+      await expect(buttons.nth(1)).toHaveAttribute('aria-selected', 'true');
+      await expect(buttons.nth(0)).toHaveAttribute('aria-selected', 'false');
+      await expect(page.locator('#legend-grid .day-group:visible')).toHaveCount(1);
+      await expect(page.locator('#legend-grid .day-group:visible')).toHaveAttribute(
+        'data-day',
+        (await buttons.nth(1).getAttribute('data-day')) ?? '',
+      );
+      await expect.poll(() => page.locator('#map .leaflet-marker-icon').count()).toBeLessThan(allMarkers);
     });
 
-    test('legend section is present', async ({ page }) => {
-      await page.waitForTimeout(1000);
-      const legend = page.locator('.legend, [aria-label*="leyenda"], [aria-label*="Leyenda"]');
-      const legendCount = await legend.count();
-      // Legend may or may not be rendered depending on data — just check no crash
-      expect(typeof legendCount).toBe('number');
+    test('clicking the active day again restores every day and marker', async ({ page }) => {
+      const buttons = page.locator('#day-selector .day-btn');
+      const total = await buttons.count();
+      const allMarkers = await page.locator('#map .leaflet-marker-icon').count();
+
+      await buttons.first().click();
+      await expect(buttons.first()).toHaveClass(/active/);
+      await buttons.first().click();
+
+      await expect(page.locator('#day-selector .day-btn.active')).toHaveCount(0);
+      await expect(page.locator('#legend-grid .day-group:visible')).toHaveCount(total);
+      await expect.poll(() => page.locator('#map .leaflet-marker-icon').count()).toBe(allMarkers);
     });
 
-    test('page has skip link for accessibility', async ({ page }) => {
-      const skipLink = page.locator('.skip-link, [href="#main-content"]');
-      await expect(skipLink).toHaveCount(1);
+    test('rapidly clicking every day button leaves exactly one (or zero) selected', async ({ page }) => {
+      const buttons = page.locator('#day-selector .day-btn');
+      const total = await buttons.count();
+      for (let i = 0; i < total; i++) await buttons.nth(i).click();
+      for (let i = total - 1; i >= 0; i--) await buttons.nth(i).click();
+
+      const selected = await page.locator('#day-selector .day-btn[aria-selected="true"]').count();
+      expect(selected).toBeLessThanOrEqual(1);
+      await expect(page.locator('#day-selector .day-btn.active')).toHaveCount(selected);
+    });
+
+    test('legend lists activities with map/directions links', async ({ page }) => {
+      await expect(page.locator('#legend-grid .legend-item').first()).toBeVisible();
+      await expect(page.locator('#legend-grid .legend-action-btn').first()).toHaveAttribute('href', /^https?:\/\//);
     });
   });
 });

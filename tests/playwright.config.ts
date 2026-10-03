@@ -49,5 +49,17 @@ export default defineConfig({
       fullyParallel: false,
     },
   ],
+  // CI serves the production build via `vite preview`. Letting Playwright own the server
+  // guarantees it is listening before the first test (a backgrounded shell step raced the
+  // test run) and is torn down afterwards. Locally, dev servers are started by hand.
+  webServer: process.env.CI
+    ? {
+        command: 'npm run preview:frontend',
+        cwd: '..',
+        url: 'http://localhost:5173/PruebaMapJapan/',
+        reuseExistingServer: true,
+        timeout: 60_000,
+      }
+    : undefined,
   globalSetup: './global-setup.ts',
 });

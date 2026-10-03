@@ -126,31 +126,33 @@ export async function getFullDestination(db: Db, destId: number) {
 // ---------------------------------------------------------------------------
 
 /**
- * Create or replace the hotel for a destination.
+ * Create or replace the hotel for a destination — one atomic statement.
+ * Every field is replaced (omitted ones become null), as before; the row id
+ * is now stable across replacements. The unique index on destination_id
+ * makes concurrent calls converge on a single row (previously delete-then-
+ * insert let parallel PUTs leave several hotels).
  */
 export async function upsertHotel(
   db: Db,
   destinationId: number,
   data: CreateHotelData,
 ): Promise<Hotel> {
-  // Delete any existing hotel first (one-to-one relationship enforced by app)
-  await db.delete(hotels).where(eq(hotels.destination_id, destinationId));
-
-  const [created] = await db
+  const fields = {
+    name: data.name,
+    lat: data.lat ?? null,
+    lng: data.lng ?? null,
+    check_in_date: data.check_in_date ?? null,
+    check_out_date: data.check_out_date ?? null,
+    url: data.url ?? null,
+  };
+  const [row] = await db
     .insert(hotels)
-    .values({
-      destination_id: destinationId,
-      name: data.name,
-      lat: data.lat ?? null,
-      lng: data.lng ?? null,
-      check_in_date: data.check_in_date ?? null,
-      check_out_date: data.check_out_date ?? null,
-      url: data.url ?? null,
-    })
+    .values({ destination_id: destinationId, ...fields })
+    .onConflictDoUpdate({ target: hotels.destination_id, set: fields })
     .returning();
 
-  if (!created) throw new Error('upsertHotel: insert returned no rows');
-  return created;
+  if (!row) throw new Error('upsertHotel: upsert returned no rows');
+  return row;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/kc-admin';
-import type { BrowserContext } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -21,9 +21,16 @@ test.use({
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 const E2E_USERNAME = process.env.E2E_TEST_USERNAME ?? 'e2e-test@local';
 
+// profile.ts wires its buttons only after auth + loadPasskeys() finish, and builds the
+// delete overlay immediately before wiring them — so the overlay existing means the
+// Add-passkey handler is attached. Replaces fixed sleeps that guessed at that moment.
+async function waitForProfileReady(page: Page): Promise<void> {
+  await expect(page.locator('#passkey-delete-overlay')).toBeAttached({ timeout: 15000 });
+}
+
 test.describe('Passkey flows', () => {
   // Guard — skip all tests in this describe when KC is not available (D-03)
-  test.skip(!!process.env.SKIP_REAL_AUTH, 'KC not available in this environment');
+  test.fixme(!!process.env.SKIP_REAL_AUTH, 'requires a live Keycloak + backend (SKIP_REAL_AUTH is set, as in CI); the mocked-Keycloak specs cover the CI-safe paths — run this locally per SETUP.md');
 
   // Cleanup registry — afterEach drains unconditionally so a mid-test failure cannot leave
   // a stale virtual authenticator for subsequent tests (PASS-01)
@@ -58,8 +65,7 @@ test.describe('Passkey flows', () => {
 
   test('register passkey via CDP Virtual Authenticator', async ({ page }) => {
     await page.goto(`${FRONTEND_URL}/PruebaMapJapan/profile.html`);
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
+    await waitForProfileReady(page);
 
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('WebAuthn.enable', { enableUI: false });
@@ -97,8 +103,7 @@ test.describe('Passkey flows', () => {
   test('login with passkey via KC login form', async ({ page, browser }) => {
     // Step 1: Register a passkey in the authenticated session
     await page.goto(`${FRONTEND_URL}/PruebaMapJapan/profile.html`);
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(500);
+    await waitForProfileReady(page);
 
     const cdpAuth = await page.context().newCDPSession(page);
     await cdpAuth.send('WebAuthn.enable', { enableUI: false });
@@ -195,8 +200,7 @@ test.describe('Passkey flows', () => {
 
   test('delete passkey is blocked when it is the last credential', async ({ page }) => {
     await page.goto(`${FRONTEND_URL}/PruebaMapJapan/profile.html`);
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(500);
+    await waitForProfileReady(page);
 
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('WebAuthn.enable', { enableUI: false });

@@ -40,6 +40,20 @@ export interface UserInfo {
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 let jwksCache: CachedJwks | null = null;
 
+/**
+ * Minimum gap between *forced* JWKS refreshes (unknown kid / bad signature).
+ * Without it, every request carrying a bogus kid or signature made the isolate
+ * drop its cache and hit Keycloak — DoS amplification (SEC-05). Trade-off: a
+ * genuinely rotated key can be rejected for up to this long if an attacker
+ * burned the refresh just before; Keycloak serves the new key in JWKS before
+ * using it, so the next TTL/forced refresh picks it up.
+ */
+export const JWKS_FORCED_REFRESH_COOLDOWN_MS = 60 * 1000;
+let lastForcedRefreshAt = Number.NEGATIVE_INFINITY;
+
+/** Shared in-flight fetch so concurrent cache misses hit Keycloak once. */
+let jwksInFlight: Promise<Map<string, CryptoKey>> | null = null;
+
 // ---------------------------------------------------------------------------
 // Base64url helpers (Web Crypto API only — no Node.js)
 // ---------------------------------------------------------------------------
@@ -55,10 +69,11 @@ function base64urlToArrayBuffer(base64url: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+/** Decode a base64url JWT segment to text. JWT JSON is UTF-8 (RFC 7519). */
 function base64urlDecode(base64url: string): string {
-  const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-  return atob(padded);
+  // atob() yields one char per byte; decoding that directly as text turned
+  // non-ASCII claims ("José") into mojibake ("JosÃ©").
+  return new TextDecoder().decode(base64urlToArrayBuffer(base64url));
 }
 
 // ---------------------------------------------------------------------------
@@ -97,12 +112,41 @@ export function validateAudience(aud: string | string[] | undefined, valid: stri
 // ---------------------------------------------------------------------------
 
 export async function getKeycloakJwks(env: Env): Promise<Map<string, CryptoKey>> {
-  const now = Date.now();
-
-  if (jwksCache && now - jwksCache.fetchedAt < JWKS_CACHE_TTL_MS) {
+  if (jwksCache && Date.now() - jwksCache.fetchedAt < JWKS_CACHE_TTL_MS) {
     return jwksCache.keys;
   }
+  if (!jwksInFlight) {
+    jwksInFlight = fetchJwks(env).finally(() => {
+      jwksInFlight = null;
+    });
+  }
+  return jwksInFlight;
+}
 
+/**
+ * Refetch JWKS ignoring the TTL, at most once per cooldown window.
+ * Returns null (no fetch) while cooling down. On fetch failure the previous
+ * keys are kept so a Keycloak blip does not lock out valid tokens.
+ */
+async function forceRefreshJwks(env: Env): Promise<Map<string, CryptoKey> | null> {
+  const now = Date.now();
+  if (now - lastForcedRefreshAt < JWKS_FORCED_REFRESH_COOLDOWN_MS) {
+    return null;
+  }
+  // Claim the window before awaiting so concurrent callers see the cooldown.
+  lastForcedRefreshAt = now;
+  const previous = jwksCache;
+  jwksCache = null;
+  try {
+    return await getKeycloakJwks(env);
+  } catch (err) {
+    jwksCache ??= previous;
+    throw err;
+  }
+}
+
+async function fetchJwks(env: Env): Promise<Map<string, CryptoKey>> {
+  const now = Date.now();
   const jwksUrl = `${env.KEYCLOAK_URL}/realms/${env.KEYCLOAK_REALM}/protocol/openid-connect/certs`;
 
   const response = await fetch(jwksUrl, {
@@ -179,13 +223,18 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   }
 
   // Validate expiry
+  // exp/nbf must be numbers: a string such as "tomorrow" compares false
+  // against `now` and would make the token never expire.
   const now = Math.floor(Date.now() / 1000);
-  if (!payload.exp || payload.exp < now) {
+  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+    throw new Error('JWT treated as expired: exp claim missing or not a number');
+  }
+  if (payload.exp < now) {
     throw new Error('JWT has expired');
   }
 
   // Validate not-before (nbf) if present
-  if (payload.nbf !== undefined && payload.nbf > now) {
+  if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || payload.nbf > now)) {
     throw new Error('JWT is not yet valid (nbf)');
   }
 
@@ -210,11 +259,13 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   const keyMap = await getKeycloakJwks(env);
   let publicKey = keyMap.get(header.kid);
 
+  let jwksRefreshed = false;
+
   if (!publicKey) {
-    // Force a refresh in case the key was rotated
-    jwksCache = null;
-    const refreshedKeyMap = await getKeycloakJwks(env);
-    publicKey = refreshedKeyMap.get(header.kid);
+    // Refresh in case the key was rotated (rate-limited — SEC-05)
+    const refreshedKeyMap = await forceRefreshJwks(env);
+    jwksRefreshed = refreshedKeyMap !== null;
+    publicKey = refreshedKeyMap?.get(header.kid);
     if (!publicKey) {
       throw new Error(`JWT signing key not found: kid=${header.kid}`);
     }
@@ -223,9 +274,12 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   // Verify RS256 signature using Web Crypto API
   const signingInput = `${encodedHeader}.${encodedPayload}`;
   const signingInputBytes = new TextEncoder().encode(signingInput);
-  const signatureBytes = base64urlToArrayBuffer(encodedSignature);
-
-  let jwksRefreshed = false;
+  let signatureBytes: ArrayBuffer;
+  try {
+    signatureBytes = base64urlToArrayBuffer(encodedSignature);
+  } catch {
+    throw new Error('Malformed JWT signature encoding');
+  }
 
   let isValid = await crypto.subtle.verify(
     { name: 'RSASSA-PKCS1-v1_5' },
@@ -235,11 +289,10 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   );
 
   if (!isValid && !jwksRefreshed) {
-    // Retry once: invalidate cache and refetch JWKS (handles stale key after rotation)
-    jwksRefreshed = true;
-    jwksCache = null;
-    const retryKeyMap = await getKeycloakJwks(env);
-    const retryKey = retryKeyMap.get(header.kid);
+    // Retry once with fresh JWKS (stale key after rotation) — rate-limited
+    // so garbage signatures cannot force a Keycloak fetch per request (SEC-05).
+    const retryKeyMap = await forceRefreshJwks(env);
+    const retryKey = retryKeyMap?.get(header.kid);
     if (retryKey) {
       isValid = await crypto.subtle.verify(
         { name: 'RSASSA-PKCS1-v1_5' },
@@ -263,6 +316,8 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
 
 export function __resetJwksCacheForTests(): void {
   jwksCache = null;
+  jwksInFlight = null;
+  lastForcedRefreshAt = Number.NEGATIVE_INFINITY;
 }
 
 export function extractUserInfo(payload: KeycloakJwtPayload): UserInfo {

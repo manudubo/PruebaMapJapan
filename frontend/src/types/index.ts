@@ -2,10 +2,14 @@ import type { Map, TileLayer, LatLngExpression } from 'leaflet';
 
 export interface Activity {
   name: string;
-  coords: [number, number];
+  coords?: [number, number];
   notes: string | null;
   optional?: string;
   isGeneric?: boolean;
+  /** "HH:MM" start time, when the activity has one. */
+  time?: string;
+  /** Stored "open in Maps" link (http/https only). */
+  mapsUrl?: string;
 }
 
 export interface Day {
@@ -17,7 +21,7 @@ export interface Day {
 
 export interface Hotel {
   name: string;
-  coords: [number, number];
+  coords?: [number, number];
 }
 
 export interface CityData {
@@ -75,14 +79,20 @@ export interface ThemeConfig {
 // API Response Types (mirrors backend schema)
 // ============================================
 
+/**
+ * A coordinate as the API returns it: Postgres NUMERIC columns serialise as
+ * strings ("35.6762000"), and unset coordinates are null. Requests may send
+ * numbers. Convert with toCoords() in tripAdapter before handing to Leaflet.
+ */
+export type ApiCoordinate = number | string | null;
+
 export interface ApiActivity {
   id: string;
   name: string;
-  lat: number;
-  lng: number;
+  lat: ApiCoordinate;
+  lng: ApiCoordinate;
   notes: string | null;
   is_optional: boolean;
-  optional_label?: string;
   is_generic: boolean;
   maps_url: string | null;
   order_index: number;
@@ -92,8 +102,8 @@ export interface ApiActivity {
 export interface ApiDay {
   id: string;
   date: string;
-  label: string;
-  color_hex: string;
+  label: string | null;
+  color_hex: string | null;
   order_index: number;
   activities: ApiActivity[];
 }
@@ -101,8 +111,8 @@ export interface ApiDay {
 export interface ApiHotel {
   id: string;
   name: string;
-  lat: number;
-  lng: number;
+  lat: ApiCoordinate;
+  lng: ApiCoordinate;
   check_in_date: string | null;
   check_out_date: string | null;
   url: string | null;
@@ -115,9 +125,10 @@ export interface ApiDestination {
   country: string;
   start_date: string | null;
   end_date: string | null;
-  lat: number;
-  lng: number;
-  zoom_level: number;
+  lat: ApiCoordinate;
+  lng: ApiCoordinate;
+  /** Nullable in the DB (defaults to 12 on insert). */
+  zoom_level: number | null;
   order_index: number;
   hotel?: ApiHotel;
   days: ApiDay[];

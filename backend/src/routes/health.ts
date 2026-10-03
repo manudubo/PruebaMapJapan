@@ -1,19 +1,22 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Env } from '../types';
 
 const health = new Hono<{ Bindings: Env }>();
 
 /**
- * GET /api/health
- * Returns a simple liveness check with the current UTC timestamp.
+ * Minimal liveness body (SEC-24). It deliberately carries no service name,
+ * version, message or server clock: an unauthenticated probe learns only that
+ * the Worker answers. Nothing here touches the DB or Keycloak, so the endpoint
+ * is as cheap as a 404 and is not worth an in-isolate rate limiter (which would
+ * be per-isolate and trivially bypassed anyway); edge-level abuse protection
+ * belongs to Cloudflare.
  */
-health.get('/', (c) => {
-  return c.json({
-    success: true,
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    service: 'prueba-map-japan-api',
-  });
-});
+export function healthResponse(c: Context) {
+  c.header('Cache-Control', 'no-store');
+  return c.json({ status: 'ok' as const });
+}
+
+/** GET /api/health */
+health.get('/', healthResponse);
 
 export default health;

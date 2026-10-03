@@ -110,7 +110,7 @@ test.describe('Public sharing', () => {
   test.describe('Public sharing — backend route', () => {
     test('public trip returns 200 with trip data', async () => {
       const backendUp = await isBackendRunning();
-      test.skip(!backendUp, 'Backend not running');
+      test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
       const ctx = await request.newContext({ baseURL: BACKEND_URL });
       const res = await ctx.get(`/api/public/trips/${publicSlug}`);
@@ -123,7 +123,7 @@ test.describe('Public sharing', () => {
 
     test('private trip returns 404 even with valid slug', async () => {
       const backendUp = await isBackendRunning();
-      test.skip(!backendUp, 'Backend not running');
+      test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
       const ctx = await request.newContext({ baseURL: BACKEND_URL });
       const res = await ctx.get(`/api/public/trips/${privateSlug}`);
@@ -135,7 +135,7 @@ test.describe('Public sharing', () => {
 
     test('invalid slug returns 400 with "Invalid slug"', async () => {
       const backendUp = await isBackendRunning();
-      test.skip(!backendUp, 'Backend not running');
+      test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
       const ctx = await request.newContext({ baseURL: BACKEND_URL });
       const res = await ctx.get('/api/public/trips/not-a-uuid');
@@ -152,7 +152,7 @@ test.describe('Public sharing', () => {
   test.describe('Public sharing — guest view (?slug=)', () => {
     test('public trip loads without auth — title shown, owner controls hidden', async ({ page }) => {
       const backendUp = await isBackendRunning();
-      test.skip(!backendUp, 'Backend not running');
+      test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
       await page.goto(`trip.html?slug=${publicSlug}`);
 
@@ -184,7 +184,7 @@ test.describe('Public sharing', () => {
 
     test('unauthenticated ?tripId= shows access-denied message', async ({ page }) => {
       const backendUp = await isBackendRunning();
-      test.skip(!backendUp, 'Backend not running');
+      test.fixme(!backendUp, 'requires the Worker backend on :8787 (not started in CI); run locally with `npm run dev` per DEVELOPMENT.md');
 
       await page.goto(`trip.html?tripId=${publicTripId}`);
 
