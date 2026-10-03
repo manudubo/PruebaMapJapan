@@ -19,7 +19,7 @@ Also: navbar Sign in used `--jp-accent` in dark (3.6:1, axe serious on every pag
 `scripts/a11y-axe.mjs` now waits `AXE_SETTLE_MS` (5 s) so it audits the settled auth state, and covers `trip.html?tripId=1`.
 
 ## Test harness notes
-- `tests/e2e/qa-followup.spec.ts` (`@qa-noauth`, 50 tests) includes a small fake IdP (3p-cookie iframe, `prompt=none`
+- `tests/e2e/qa-followup.spec.ts` (`@qa-noauth`, 53 tests) includes a small fake IdP (3p-cookie iframe, `prompt=none`
   authorize redirect, token endpoint; modes abort / hang / 500 / slow / anonymous / authenticated, switchable mid-test)
   and a fake API, so signed-in paths run without Keycloak. They run under the real CSP (after the merge it lists the
   API and Keycloak origins), which also proves the bounded timeout works with frame-src/connect-src enforced.
