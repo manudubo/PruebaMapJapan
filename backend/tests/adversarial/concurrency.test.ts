@@ -170,4 +170,78 @@ describeDb('concurrency', () => {
     const final = await sql<{ name: string }>(dbUrl, 'select name from trips where id=$1', [t.tripId]);
     expect(names).toContain(final[0]!.name);
   });
+
+  // -------------------------------------------------------------------------
+  // BIZ-07 under load: every response is 2xx or 422, never 500/409, and the
+  // database never ends up with an incoherent tree.
+  // -------------------------------------------------------------------------
+
+  const BIZ07_VIOLATIONS = `
+    SELECT 'day' AS kind, y.id FROM days y JOIN destinations d ON d.id = y.destination_id
+      WHERE y.date < d.start_date OR y.date > d.end_date
+    UNION ALL
+    SELECT 'dest', d.id FROM destinations d JOIN trips t ON t.id = d.trip_id
+      WHERE d.start_date < t.start_date OR d.end_date < t.start_date
+         OR d.start_date > t.end_date OR d.end_date > t.end_date
+    UNION ALL
+    SELECT 'overlap', a.id FROM destinations a JOIN destinations b ON a.trip_id = b.trip_id AND a.id < b.id
+      WHERE a.start_date < b.end_date AND b.start_date < a.end_date`;
+
+  const iso = (day: number) => `2026-03-${String(day).padStart(2, '0')}`;
+
+  it('BIZ-07: 100 parallel day creates interleaved with destination shrinks/extends stay coherent', async () => {
+    const t = await buildTree(req, user.token, 0); // destination 03-01..03-05, day 03-02
+    const dest = `/api/trips/${t.tripId}/destinations/${t.destId}`;
+    const ops = Array.from({ length: 100 }, (_, i) => {
+      if (i % 10 === 0) return req('PATCH', dest, { token: user.token, body: { end_date: iso(2 + (i % 4)) } });
+      if (i % 10 === 5) return req('PATCH', dest, { token: user.token, body: { end_date: iso(9) } });
+      return req('POST', `${dest}/days`, { token: user.token, body: { date: iso(1 + (i % 9)) } });
+    });
+    const results = await Promise.all(ops);
+    for (const r of results) expect([200, 201, 422], r.text).toContain(r.status);
+    expect(results.some((r) => r.status === 201)).toBe(true);
+    expect(await sql(dbUrl, BIZ07_VIOLATIONS)).toEqual([]);
+  });
+
+  it('BIZ-07: mixed users racing overlapping destinations each get exactly one per range in their own trip', async () => {
+    const users = [user, await makeUser(signer), await makeUser(signer), await makeUser(signer)];
+    const trips: number[] = [];
+    for (const u of users) {
+      const r = await req('POST', '/api/trips', { token: u.token, body: { name: 'race', start_date: iso(1), end_date: iso(20) } });
+      trips.push(r.body.data.id);
+    }
+    // 25 identical-range creates per user, all fired at once and interleaved.
+    const ops = Array.from({ length: 100 }, (_, i) => {
+      const k = i % users.length;
+      return req('POST', `/api/trips/${trips[k]}/destinations`, {
+        token: users[k]!.token,
+        body: { city_name: `C${i}`, country: 'J', start_date: iso(3), end_date: iso(7) },
+      });
+    });
+    const results = await Promise.all(ops);
+    for (const r of results) expect([201, 422], r.text).toContain(r.status);
+    for (const id of trips) {
+      const rows = await sql(dbUrl, 'select id from destinations where trip_id=$1', [id]);
+      expect(rows).toHaveLength(1);
+    }
+    expect(await sql(dbUrl, BIZ07_VIOLATIONS)).toEqual([]);
+  });
+
+  it('BIZ-07: trip shrink racing destination creates never leaves a destination outside the trip', async () => {
+    const r = await req('POST', '/api/trips', { token: user.token, body: { name: 'shrink', start_date: iso(1), end_date: iso(28) } });
+    const tripId = r.body.data.id as number;
+    const ops = [
+      ...Array.from({ length: 20 }, (_, i) =>
+        req('POST', `/api/trips/${tripId}/destinations`, {
+          token: user.token,
+          body: { city_name: `D${i}`, country: 'J', start_date: iso(1 + i), end_date: iso(1 + i) },
+        }),
+      ),
+      req('PATCH', `/api/trips/${tripId}`, { token: user.token, body: { end_date: iso(10) } }),
+      req('PATCH', `/api/trips/${tripId}`, { token: user.token, body: { start_date: iso(5) } }),
+    ];
+    const results = await Promise.all(ops);
+    for (const x of results) expect([200, 201, 422], x.text).toContain(x.status);
+    expect(await sql(dbUrl, BIZ07_VIOLATIONS)).toEqual([]);
+  });
 });

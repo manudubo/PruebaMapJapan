@@ -190,3 +190,48 @@ describe('0007 one hotel per destination', () => {
     });
   });
 });
+
+describe('0008 date coherence triggers (BIZ-07)', () => {
+  it('applies over existing incoherent rows without touching them, then enforces the rules on new writes', async () => {
+    db = await scratchDbAt('0007_hotels_one_per_destination');
+    const u = await seedUser('a@example.com');
+    const [trip] = await q(
+      `INSERT INTO trips (user_id, name, start_date, end_date) VALUES ($1, 't', '2026-03-01', '2026-03-05') RETURNING id`,
+      [u],
+    );
+    // Legacy data breaking every rule: outside the trip, overlapping, day outside.
+    const [d1] = await q(
+      `INSERT INTO destinations (trip_id, city_name, country, start_date, end_date)
+       VALUES ($1, 'd1', 'j', '2026-02-01', '2026-03-03') RETURNING id`,
+      [trip.id],
+    );
+    await q(
+      `INSERT INTO destinations (trip_id, city_name, country, start_date, end_date) VALUES ($1, 'd2', 'j', '2026-03-02', '2026-03-04')`,
+      [trip.id],
+    );
+    await q(`INSERT INTO days (destination_id, date) VALUES ($1, '1999-01-01')`, [d1.id]);
+
+    await db.migrateToLatest();
+
+    expect(await q(`SELECT count(*)::int AS n FROM destinations`)).toEqual([{ n: 2 }]);
+    expect(await q(`SELECT count(*)::int AS n FROM days`)).toEqual([{ n: 1 }]);
+    // Writes that do not touch dates still work on legacy rows...
+    await q(`UPDATE destinations SET city_name = 'renamed', order_index = 3 WHERE id = $1`, [d1.id]);
+    await q(`UPDATE days SET label = 'x' WHERE destination_id = $1`, [d1.id]);
+    // ...date writes are checked, by direct SQL too (not only via the API).
+    await expect(q(`INSERT INTO days (destination_id, date) VALUES ($1, '2026-03-04')`, [d1.id])).rejects.toMatchObject({
+      code: 'DC001',
+      column: 'date',
+    });
+    await expect(q(`UPDATE trips SET end_date = '2026-02-01' WHERE id = $1`, [trip.id])).rejects.toMatchObject({
+      code: 'DC001',
+      column: 'end_date',
+    });
+    const triggers = await q(`SELECT tgname FROM pg_trigger WHERE tgname LIKE '%biz07%' AND NOT tgisinternal ORDER BY tgname`);
+    expect(triggers.map((t: { tgname: string }) => t.tgname)).toEqual([
+      'days_biz07_date_coherence',
+      'destinations_biz07_date_coherence',
+      'trips_biz07_date_coherence',
+    ]);
+  });
+});

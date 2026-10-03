@@ -1,10 +1,18 @@
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ApiResponse } from '../types';
-import { pgErrorCode } from '../db/pg-errors';
+import { dateConflict, pgErrorCode } from '../db/pg-errors';
 import { EmailConflictError } from '../db/queries/users';
 
 type Mapped = { status: 400 | 409; error: string; code: string };
+
+/** 422 body for a BIZ-07 date-coherence violation (same shape as validation errors). */
+export interface DateConflictResponse {
+  success: false;
+  error: string;
+  code: 'date_conflict';
+  issues: { path: string; message: string }[];
+}
 
 // Input the database itself rejected: the client sent something invalid that
 // validation let through (bad numeric/date text, out-of-range value, CHECK).
@@ -40,6 +48,22 @@ export function errorHandler(err: Error, c: Context) {
     console.warn(`${c.req.method} ${c.req.path} → 409:`, err.message);
     const response: ApiResponse<never> = { success: false, error: err.message, code: 'email_conflict' };
     return c.json(response, 409);
+  }
+
+  const conflict = dateConflict(err);
+  if (conflict) {
+    // BIZ-07: a date-coherence trigger rejected the write. Its message was
+    // written for the user (dates and the user's own destination name only),
+    // so it is returned as-is, shaped like a validation error so editor forms
+    // show it next to the field.
+    console.warn(`${c.req.method} ${c.req.path} → 422 date_conflict:`, conflict.message);
+    const body: DateConflictResponse = {
+      success: false,
+      error: conflict.message,
+      code: 'date_conflict',
+      issues: [{ path: conflict.column, message: conflict.message }],
+    };
+    return c.json(body, 422);
   }
 
   const sqlstate = pgErrorCode(err);

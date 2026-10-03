@@ -423,14 +423,36 @@ it('day date 0000-01-01 → 422, never 500', async () => {
       expect(res.status).toBe(422);
     });
 
-    // STILL OPEN — BIZ-07 was deferred by Phase 25 (cross-level date coherence).
-    it.fails('BIZ-07: day outside its destination date range is rejected', async () => {
+    // BIZ-07 (migration 0008 triggers): cross-level date coherence.
+    it('BIZ-07: day outside its destination date range is rejected', async () => {
       // buildTree's destination runs 2026-03-01..2026-03-05.
+      const before = await sql(dbUrl, 'select count(*)::int as n from days where destination_id=$1', [tree.destId]);
       const res = await req('POST', `/api/trips/${tree.tripId}/destinations/${tree.destId}/days`, {
         token: user.token,
         body: { date: '1999-01-01' },
       });
       expect(res.status).toBe(422);
+      expect(res.body.code).toBe('date_conflict');
+      expect(res.body.issues).toEqual([{ path: 'date', message: expect.stringContaining('2026-03-01 to 2026-03-05') }]);
+      expect(await sql(dbUrl, 'select count(*)::int as n from days where destination_id=$1', [tree.destId])).toEqual(before);
+    });
+
+    it.each([
+      ['day on the leap day of a non-leap year', { date: '2026-02-29' }],
+      ['day with a far-future year', { date: '9999-12-31' }],
+      ['day at year 0001', { date: '0001-01-01' }],
+    ])('BIZ-07: %s → 422 (schema or date_conflict), never 500', async (_l, body) => {
+      const res = await req('POST', `/api/trips/${tree.tripId}/destinations/${tree.destId}/days`, { token: user.token, body });
+      expect(res.status).toBe(422);
+    });
+
+    it('BIZ-07: PATCH with only end_date before the stored start_date is rejected (Phase 25 gap)', async () => {
+      const res = await req('PATCH', `/api/trips/${tree.tripId}/destinations/${tree.destId}`, {
+        token: user.token,
+        body: { end_date: '2026-02-01' },
+      });
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('date_conflict');
     });
   });
 
