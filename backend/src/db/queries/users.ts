@@ -135,9 +135,12 @@ export async function upsertUser(
       .onConflictDoNothing({ target: users.keycloak_id })
       .returning();
   } catch (err) {
-    // New subject, but its email is taken by another row (DATA-02).
-    if (isUniqueViolation(err, USERS_EMAIL_UNIQUE_IDX)) throw new EmailConflictError();
-    throw err;
+    if (!isUniqueViolation(err, USERS_EMAIL_UNIQUE_IDX)) throw err;
+    // The email index is not the ON CONFLICT arbiter, so a concurrent first
+    // request of THIS subject can win between our keycloak_id pre-check and
+    // our insert and surface here as an email violation. Only if no row has
+    // our keycloak_id is the email really another account's (DATA-02).
+    if (!(await getUserByKeycloakId(db, claims.keycloak_id))) throw new EmailConflictError();
   }
 
   if (inserted) return { user: inserted, created: true };
