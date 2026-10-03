@@ -109,3 +109,87 @@ describe('Generate all days (BIZ-11)', () => {
     expect(container.querySelector('.error-msg')?.textContent).toMatch(/already exist/);
   });
 });
+
+// BIZ-07: the API rejects a day outside the destination's (server-side)
+// dates with 422 date_conflict. The editor must say why, and keep the days
+// that were created.
+function dateConflict(date: string) {
+  const message = `The day date (${date}) must be within the destination dates (2026-03-06 to 2026-03-08).`;
+  return Object.assign(new Error(message), {
+    status: 422,
+    code: 'date_conflict',
+    issues: [{ path: 'date', message }],
+  });
+}
+
+describe('Generate all days — server rejections (BIZ-07)', () => {
+  it('keeps the created days and shows the API message for the rejected ones', async () => {
+    vi.mocked(createDay).mockImplementation(async (_t, _d, data) => {
+      const { date } = data as { date: string };
+      if (date > '2026-03-08') throw dateConflict(date);
+      return { id: `n-${date}`, date, label: '', color_hex: null, order_index: 0, activities: [] } as ApiDay;
+    });
+    const dest = makeDest('2026-03-06', '2026-03-10'); // stale copy: server says 03-06..03-08
+    const container = await clickGenerate(dest);
+
+    expect(dest.days.map((d) => d.date).sort()).toEqual(['2026-03-06', '2026-03-07', '2026-03-08']);
+    expect(container.querySelectorAll('.day-row')).toHaveLength(3);
+    const err = container.querySelector<HTMLElement>('[data-role="generate-error"]')!;
+    expect(err.hidden).toBe(false);
+    expect(err.textContent).toContain('Could not generate 2 of 5 days.');
+    expect(err.textContent).toContain('must be within the destination dates (2026-03-06 to 2026-03-08)');
+  });
+
+  it('when every request is rejected, nothing is added and the 422 reason is shown', async () => {
+    vi.mocked(createDay).mockImplementation(async (_t, _d, data) => {
+      throw dateConflict((data as { date: string }).date);
+    });
+    const dest = makeDest('2026-03-06', '2026-03-07');
+    const container = await clickGenerate(dest);
+    expect(dest.days).toHaveLength(0);
+    const err = container.querySelector<HTMLElement>('[data-role="generate-error"]')!;
+    expect(err.textContent).toMatch(/^Could not generate 2 of 2 days\. Please check the form: The day date/);
+    const btn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Generate all days')!;
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('a network failure keeps the generic retry message (no API text to show)', async () => {
+    vi.mocked(createDay).mockRejectedValue(new TypeError('Failed to fetch'));
+    const container = await clickGenerate(makeDest('2026-03-06', '2026-03-06'));
+    expect(container.querySelector('[data-role="generate-error"]')?.textContent).toBe(
+      'Could not generate 1 of 1 days. Please try again.',
+    );
+  });
+});
+
+describe('Day modal — server rejections (BIZ-07)', () => {
+  async function submitDay(date: string): Promise<HTMLElement> {
+    // The day modal is a module singleton appended to <body> once: keep it.
+    document.querySelectorAll('[data-test="days-host"]').forEach((el) => el.remove());
+    const container = document.createElement('div');
+    container.dataset['test'] = 'days-host';
+    document.body.appendChild(container);
+    renderDaysSection(container, makeDest('2026-03-06', '2026-03-08'), '1');
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Add day')!.click();
+    (document.getElementById('day-date') as HTMLInputElement).value = date;
+    (document.getElementById('day-form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    return document.getElementById('day-form-error')!;
+  }
+
+  it('shows the API explanation for a 422 date_conflict instead of "check your connection"', async () => {
+    vi.mocked(createDay).mockRejectedValue(dateConflict('2026-03-12'));
+    const err = await submitDay('2026-03-12');
+    expect(err.hidden).toBe(false);
+    expect(err.textContent).toContain('2026-03-12');
+    expect(err.textContent).toContain('2026-03-06 to 2026-03-08');
+    expect(err.textContent).not.toMatch(/connection/);
+  });
+
+  it('still blames the connection for a network error', async () => {
+    vi.mocked(createDay).mockRejectedValue(new TypeError('Failed to fetch'));
+    const err = await submitDay('2026-03-07');
+    expect(err.textContent).toMatch(/Check your connection/);
+  });
+});
