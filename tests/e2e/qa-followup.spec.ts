@@ -241,7 +241,7 @@ async function fakeIdp(target: Page | BrowserContext, init: Partial<FakeIdp> = {
 
 interface FakeApi { tripPosts: number; unauthorized: number }
 
-/** Fake backend at the default VITE_API_URL. Needs bypassCSP (see note in the describe). */
+/** Fake backend at the default VITE_API_URL (http://localhost:8787/api). */
 async function fakeApi(page: Page, opts: { postDelayMs?: number } = {}): Promise<FakeApi> {
   const api: FakeApi = { tripPosts: 0, unauthorized: 0 };
   await page.route(/:8787\/api\//, async (route) => {
@@ -460,15 +460,11 @@ test.describe('@qa-noauth auth-gated pages when Keycloak is unreachable', () => 
 });
 
 // ---------------------------------------------------------------------------
-// Signed-in flows against the fake IdP + fake API
-//
-// bypassCSP: the build's CSP connect-src does not list VITE_API_URL (default
-// http://localhost:8787), so the browser would block the fake API before routing.
+// Signed-in flows against the fake IdP + fake API (no bypassCSP: the build's CSP
+// lists the Keycloak and API origins, so these also prove the policy allows them)
 // ---------------------------------------------------------------------------
 
 test.describe('@qa-noauth signed-in dashboard (fake IdP + API)', () => {
-  test.use({ bypassCSP: true });
-
   test.beforeEach(async ({ context }) => {
     await skipPasskeyCampaign(context);
   });
