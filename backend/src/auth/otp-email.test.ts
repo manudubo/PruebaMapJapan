@@ -27,9 +27,7 @@ vi.mock('../db/queries/otp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../db/queries/otp')>();
   return {
     ...actual,
-    getLatestUnexpiredOtp: vi.fn(async () => undefined),
-    getOtpCreatedAtsSince: vi.fn(async () => []),
-    insertOtp: vi.fn(async () => ({ id: 77 })),
+    issueOtp: vi.fn(async () => ({ status: 'issued', otpId: 77 })),
     markOtpUsed: vi.fn(async () => {}),
     deleteStaleOtps: vi.fn(async () => 0),
   };
@@ -38,7 +36,7 @@ vi.mock('../db/queries/otp', async (importOriginal) => {
 import app from '../index';
 import type { Env } from '../types';
 import { otpEmailTransport, sendOtpEmail, OtpEmailConfigError, MAILPIT_SEND_URL } from './otp-email';
-import { insertOtp, markOtpUsed } from '../db/queries/otp';
+import { issueOtp, markOtpUsed } from '../db/queries/otp';
 
 const base: Env = {
   DATABASE_URL: 'postgresql://mock:mock@localhost/mockdb',
@@ -57,7 +55,7 @@ beforeEach(() => {
   resendSend.mockReset().mockResolvedValue({ data: { id: 'em_1' }, error: null, headers: null });
   fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-  vi.mocked(insertOtp).mockClear();
+  vi.mocked(issueOtp).mockClear();
   vi.mocked(markOtpUsed).mockClear();
 });
 
@@ -140,7 +138,7 @@ describe('POST /api/auth/otp-request — email gating (SEC-08)', () => {
     // Generic body from the global error handler (M-09).
     expect(JSON.parse(text)).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
     expect(text).not.toMatch(/RESEND|Mailpit|localhost/); // config detail stays server-side
-    expect(insertOtp).not.toHaveBeenCalled();
+    expect(issueOtp).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
     expect(String(errorSpy.mock.calls[0]?.[1])).toMatch(/RESEND_API_KEY/);
@@ -163,7 +161,7 @@ describe('POST /api/auth/otp-request — email gating (SEC-08)', () => {
     resendSend.mockResolvedValue({ data: null, error: { name: 'rate_limit_exceeded', message: 'slow down', statusCode: 429 }, headers: null });
     const res = await post({ ...base, ENVIRONMENT: 'production', RESEND_API_KEY: 're_x' });
     expect(res.status).toBe(500);
-    expect(insertOtp).toHaveBeenCalledTimes(1);
+    expect(issueOtp).toHaveBeenCalledTimes(1);
     expect(markOtpUsed).toHaveBeenCalledWith(expect.anything(), 77);
   });
 

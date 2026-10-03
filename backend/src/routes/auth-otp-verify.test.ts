@@ -65,14 +65,27 @@ vi.mock('../db/queries/otp', async (importOriginal) => {
       row.used_at = new Date();
       return true;
     }),
-    insertOtp: vi.fn(async (_db: unknown, userId: number, code_hash: string, expires_at: Date) => {
-      const row: Row = { id: store.nextId++, user_id: userId, code_hash, expires_at, used_at: null, attempts: 0, created_at: new Date() };
+    // Mirrors otp_issue() (migration 0009): one atomic step — no tick
+    // between the checks and the insert, as the advisory lock guarantees.
+    issueOtp: vi.fn(async (_db: unknown, userId: number, code_hash: string) => {
+      await tick();
+      const now = Date.now();
+      const mine = store.rows.filter((r) => r.user_id === userId);
+      const pending = mine
+        .filter((r) => r.expires_at.getTime() > now && r.used_at === null)
+        .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())[0];
+      if (pending) {
+        return { status: 'otp_pending' as const, retryAfter: Math.max(1, Math.ceil((pending.expires_at.getTime() - now) / 1000)) };
+      }
+      const inWindow = mine.filter((r) => r.created_at.getTime() > now - actual.OTP_CAP_WINDOW_MS);
+      if (inWindow.length >= actual.OTP_MAX_PER_HOUR) {
+        const oldest = Math.min(...inWindow.map((r) => r.created_at.getTime()));
+        return { status: 'otp_rate_limited' as const, retryAfter: Math.max(1, Math.ceil((oldest + actual.OTP_CAP_WINDOW_MS - now) / 1000)) };
+      }
+      const row: Row = { id: store.nextId++, user_id: userId, code_hash, expires_at: new Date(now + actual.OTP_TTL_MS), used_at: null, attempts: 0, created_at: new Date(now) };
       store.rows.push(row);
-      return row;
+      return { status: 'issued' as const, otpId: row.id };
     }),
-    getOtpCreatedAtsSince: vi.fn(async (_db: unknown, userId: number, since: Date) =>
-      store.rows.filter((r) => r.user_id === userId && r.created_at > since).map((r) => r.created_at),
-    ),
   };
 });
 

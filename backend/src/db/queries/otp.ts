@@ -25,60 +25,48 @@ export async function getLatestUnexpiredOtp(
   return results[0];
 }
 
-export async function insertOtp(
-  db: Db,
-  userId: number,
-  codeHash: string,
-  expiresAt: Date,
-): Promise<OtpRow> {
-  const [created] = await db
-    .insert(emailOtpCodes)
-    .values({ user_id: userId, code_hash: codeHash, expires_at: expiresAt })
-    .returning();
-
-  if (!created) throw new Error('insertOtp: insert returned no rows');
-  return created;
-}
-
 // ---------------------------------------------------------------------------
-// Per-user hourly issuance cap (BUG-16)
+// Issuance: otp_pending + per-user hourly cap (BUG-16) + INSERT, atomically
 //
-// Without it, a caller can cycle: request code → burn 5 attempts → request a
-// fresh code immediately (burned codes no longer count as pending) → repeat,
-// throttled only by email send rate. Capping issuance bounds guesses to
-// OTP_MAX_PER_HOUR * 5 per user per hour.
+// The cap stops the request → burn 5 attempts → request again cycle: it
+// bounds guesses to OTP_MAX_PER_HOUR * 5 per user per hour.
+//
+// SEC-07 follow-up: the pending check, the cap and the INSERT used to be
+// three statements, so N parallel requests all passed both checks and N
+// codes were issued and emailed. They now run inside one call to the SQL
+// function otp_issue() (migration 0009), which takes a per-user advisory
+// lock first. One statement = one implicit transaction, so this also holds
+// on the Neon HTTP driver (no interactive transactions there).
 // ---------------------------------------------------------------------------
 
 export const OTP_MAX_PER_HOUR = 5;
 export const OTP_CAP_WINDOW_MS = 60 * 60 * 1000;
+export const OTP_TTL_MS = 10 * 60 * 1000;
+/** First key of the per-user pg_advisory_xact_lock(namespace, user_id) in otp_issue(). */
+export const OTP_ISSUE_LOCK_NAMESPACE = 7001;
 
-/** created_at of every code issued to `userId` since `since` (used or not). */
-export async function getOtpCreatedAtsSince(
-  db: Db,
-  userId: number,
-  since: Date,
-): Promise<Date[]> {
-  const rows: { created_at: Date }[] = await db
-    .select({ created_at: emailOtpCodes.created_at })
-    .from(emailOtpCodes)
-    .where(and(eq(emailOtpCodes.user_id, userId), gt(emailOtpCodes.created_at, since)));
-  return rows.map((r) => r.created_at);
-}
+export type OtpIssueResult =
+  | { status: 'issued'; otpId: number }
+  /** retryAfter: seconds until the pending code expires / the cap window frees a slot (≥ 1). */
+  | { status: 'otp_pending' | 'otp_rate_limited'; retryAfter: number };
 
 /**
- * Seconds until another code may be issued, or null if under the cap.
- * Once the cap is hit, the wait lasts until the oldest code in the window
- * ages out of it.
+ * Issue a code for `userId` unless one is pending or the hourly cap is
+ * reached — atomically, so concurrent calls for one user issue at most one
+ * code and never exceed the cap. Timestamps come from the DB clock.
  */
-export function otpHourlyCapRetryAfter(issuedAt: Date[], now: Date): number | null {
-  const windowStart = now.getTime() - OTP_CAP_WINDOW_MS;
-  const inWindow = issuedAt
-    .map((d) => d.getTime())
-    .filter((t) => t > windowStart)
-    .sort((a, b) => a - b);
-  if (inWindow.length < OTP_MAX_PER_HOUR) return null;
-  const oldest = inWindow[0]!;
-  return Math.max(1, Math.ceil((oldest + OTP_CAP_WINDOW_MS - now.getTime()) / 1000));
+export async function issueOtp(db: Db, userId: number, codeHash: string): Promise<OtpIssueResult> {
+  const { rows } = await db.execute<{ status: string; otp_id: number | null; retry_after: number | null }>(
+    sql`SELECT status, otp_id, retry_after FROM otp_issue(
+          ${userId}::integer, ${codeHash}::text, ${OTP_TTL_MS / 1000}::integer,
+          ${OTP_MAX_PER_HOUR}::integer, ${OTP_CAP_WINDOW_MS / 1000}::integer)`,
+  );
+  const row = rows[0];
+  if (row?.status === 'issued' && row.otp_id !== null) return { status: 'issued', otpId: row.otp_id };
+  if ((row?.status === 'otp_pending' || row?.status === 'otp_rate_limited') && row.retry_after !== null) {
+    return { status: row.status, retryAfter: row.retry_after };
+  }
+  throw new Error(`issueOtp: unexpected result ${JSON.stringify(row)}`);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import {
-  deleteStaleOtps,
-  getLatestUnexpiredOtp,
-  getOtpCreatedAtsSince,
-  insertOtp,
-  OTP_CAP_WINDOW_MS,
-} from './otp';
+import { deleteStaleOtps, getLatestUnexpiredOtp, issueOtp, OTP_CAP_WINDOW_MS } from './otp';
 import { closeTestPool, insertUser, resetDb, testDb, testPool } from '../../test-utils/db';
 
 beforeEach(resetDb);
@@ -102,8 +96,8 @@ describe('deleteStaleOtps (DATA-01)', () => {
 
     await deleteStaleOtps(testDb(), now);
 
-    const counted = await getOtpCreatedAtsSince(testDb(), u.id, ago(OTP_CAP_WINDOW_MS));
-    expect(counted).toHaveLength(5);
+    expect(await ids()).toHaveLength(5);
+    expect((await issueOtp(testDb(), u.id, 'h')).status).toBe('otp_rate_limited');
   });
 
   it('concurrent cleanups do not error or double count', async () => {
@@ -119,14 +113,14 @@ describe('getLatestUnexpiredOtp', () => {
   it('returns the newest unused unexpired code of that user only', async () => {
     const a = await insertUser();
     const b = await insertUser();
-    await insertOtp(testDb(), a.id, 'old', new Date(Date.now() + 5 * MIN));
-    const newest = await insertOtp(testDb(), a.id, 'new', new Date(Date.now() + 9 * MIN));
-    await insertOtp(testDb(), b.id, 'other', new Date(Date.now() + 9 * MIN));
+    await otp(a.id, { createdAgo: 3 * MIN });
+    const newest = await otp(a.id, { createdAgo: 2 * MIN });
+    await otp(b.id, { createdAgo: 1 * MIN });
     await otp(a.id, { createdAgo: 0, used: true });
 
     const got = await getLatestUnexpiredOtp(testDb(), a.id);
-    expect(got?.id).toBe(newest.id);
-    expect(got?.code_hash).toBe('new');
+    expect(got?.id).toBe(newest);
+    expect(got?.user_id).toBe(a.id);
   });
 
   it('ignores expired and used codes', async () => {
