@@ -27,6 +27,9 @@
   --jp-accent: #0071e3;
   --jp-accent-hover: #0077ed;
   --jp-accent-text: #0062c4;
+  /* Filled accent surfaces behind white text (buttons, active tabs): >= 4.5:1 */
+  --jp-accent-solid: #0071e3;
+  --jp-accent-solid-hover: #0066cc;
   --jp-accent-subtle: rgba(0, 113, 227, 0.08);
   --jp-success: #34c759;
   --jp-success-subtle: rgba(52, 199, 89, 0.1);
@@ -88,6 +91,9 @@
   --jp-accent: #0a84ff;
   --jp-accent-hover: #409cff;
   --jp-accent-text: #409cff;
+  /* Dark accent (#0a84ff) is too light behind white text (3.6:1) */
+  --jp-accent-solid: #0071e3;
+  --jp-accent-solid-hover: #0062c4;
   --jp-accent-subtle: rgba(10, 132, 255, 0.15);
   --jp-success: #30d158;
   --jp-success-subtle: rgba(48, 209, 88, 0.14);
@@ -324,25 +330,14 @@ body {
 }
 
 .btn-primary {
-  background: var(--jp-accent);
-  border-color: var(--jp-accent);
+  background: var(--jp-accent-solid);
+  border-color: var(--jp-accent-solid);
   color: var(--jp-white);
 }
 
 .btn-primary:hover {
-  background: var(--jp-accent-hover);
-  border-color: var(--jp-accent-hover);
-}
-
-/* Dark theme accent (#0a84ff) is too light behind white text (3.6:1) */
-[data-theme="dark"] .btn-primary {
-  background: #0071e3;
-  border-color: #0071e3;
-}
-
-[data-theme="dark"] .btn-primary:hover {
-  background: #0062c4;
-  border-color: #0062c4;
+  background: var(--jp-accent-solid-hover);
+  border-color: var(--jp-accent-solid-hover);
 }
 
 .btn-secondary {
@@ -2117,4 +2112,98 @@ body {
   .toast--exiting {
     transition: opacity 0.15s ease;
   }
+}
+
+/* ============================================
+   Auth status (src/auth/authStatusUI.ts)
+   ============================================ */
+.auth-unavailable {
+  padding: 32px;
+  text-align: center;
+}
+
+.auth-unavailable h1 {
+  margin: 0 0 12px;
+  font-size: clamp(20px, 4vw, 26px);
+  font-weight: 700;
+  color: var(--jp-text);
+}
+
+.auth-unavailable h1:focus {
+  outline: none;
+}
+
+.auth-unavailable-body {
+  max-width: 520px;
+  margin: 0 auto 20px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.auth-unavailable-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.auth-unavailable-actions .btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.auth-unavailable-status {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  color: var(--jp-text-secondary);
+  font-size: 14px;
+}
+
+.auth-pending {
+  padding: 16px;
+  color: var(--jp-text-secondary);
+  font-size: 14px;
+  text-align: center;
+}
+
+.auth-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding-block: 6px;
+  padding-inline: 16px 6px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-strong);
+  border-inline-start: 3px solid var(--jp-hotel);
+  color: var(--jp-text);
+  font-size: 14px;
+}
+
+.auth-notice-text {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.auth-notice-status {
+  color: var(--jp-text-secondary);
+}
+
+.auth-notice .auth-notice-retry,
+.auth-notice-dismiss {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.auth-notice-dismiss {
+  background: none;
+  border: 0;
+  color: var(--jp-text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.auth-notice-dismiss:hover {
+  color: var(--jp-text);
 }

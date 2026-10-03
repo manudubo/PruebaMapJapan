@@ -11,9 +11,16 @@ import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
 import { formatIsoDate } from '@/modules/dates';
-import { initKeycloak, getUserInfo, login, getToken, keycloak } from '@/auth/keycloak';
+import { getUserInfo, login, getToken, keycloak } from '@/auth/keycloak';
+import {
+  watchAuth,
+  showAuthPending,
+  hideAuthPending,
+  showAuthUnavailableState,
+  clearAuthUnavailableState,
+} from '@/auth/authStatusUI';
 import { checkPasskeyCampaign } from '@/modules/passkeyCampaign';
-import { getMyTrips, getMe } from '@/api/client';
+import { getMyTrips, getMe, apiUrl } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
 import { setText, setStyle } from '@/modules/dom';
@@ -162,17 +169,26 @@ function closeCreateForm(): void {
   overlay?.setAttribute('hidden', '');
 }
 
-async function handleCreateTrip(e: Event): Promise<void> {
+/** True from the first submit until it fails (on success we stay locked while navigating). */
+let creatingTrip = false;
+
+// Exported for dashboard-create-trip.test.ts.
+export async function handleCreateTrip(e: Event): Promise<void> {
   e.preventDefault();
+  // Guard synchronously, before any await: a double click / Enter repeat fires two submit
+  // events in the same tick, and the old code awaited a dynamic import before disabling the
+  // button, so both submits reached the API and created two trips.
+  if (creatingTrip) return;
+  creatingTrip = true;
+
   const form = e.target as HTMLFormElement;
   const data = Object.fromEntries(new FormData(form));
-
-  const { createTrip } = await import('@/api/client');
-
   const submitBtn = form.querySelector<HTMLButtonElement>('[type="submit"]');
   if (submitBtn) submitBtn.disabled = true;
+  form.setAttribute('aria-busy', 'true');
 
   try {
+    const { createTrip } = await import('@/api/client');
     const newTrip = await createTrip({
       name: data['name'] as string,
       description: (data['description'] as string) || null,
@@ -183,8 +199,9 @@ async function handleCreateTrip(e: Event): Promise<void> {
     window.location.href = `trip.html?tripId=${newTrip.id}`;
   } catch {
     showToast('Something went wrong. Please try again.', 'error');
-  } finally {
+    creatingTrip = false;
     if (submitBtn) submitBtn.disabled = false;
+    form.removeAttribute('aria-busy');
   }
 }
 
@@ -192,20 +209,22 @@ async function handleCreateTrip(e: Event): Promise<void> {
 // Auth buttons
 // ---------------------------------------------------------------------------
 
-function setupAuthButtons(authenticated: boolean): void {
+/** Signed out (Keycloak answered): show the "please sign in" prompt. */
+function showLoginPrompt(): void {
   const loginPrompt = document.getElementById('dashboard-login-prompt');
   const tripsGrid = document.getElementById('trips-grid');
   const newTripBtn = document.getElementById('new-trip-btn');
   const promptLoginBtn = document.getElementById('auth-login-prompt-btn');
 
-  if (!authenticated && loginPrompt && tripsGrid) {
-    loginPrompt.removeAttribute('hidden');
+  loginPrompt?.removeAttribute('hidden');
+  if (tripsGrid) {
     tripsGrid.innerHTML = '';
     tripsGrid.setAttribute('hidden', '');
-    newTripBtn?.setAttribute('hidden', '');
-    if (promptLoginBtn) {
-      promptLoginBtn.addEventListener('click', () => login(window.location.href));
-    }
+  }
+  newTripBtn?.setAttribute('hidden', '');
+  if (promptLoginBtn && !promptLoginBtn.dataset['wired']) {
+    promptLoginBtn.dataset['wired'] = '1';
+    promptLoginBtn.addEventListener('click', () => login(window.location.href));
   }
 }
 
@@ -292,7 +311,7 @@ async function handleSendOtp(): Promise<void> {
 
   try {
     const token = await getToken();
-    const res = await fetch('/api/auth/otp-request', {
+    const res = await fetch(apiUrl('/auth/otp-request'), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -330,7 +349,7 @@ export async function handleVerifyOtp(capable: boolean): Promise<void> {
 
   try {
     const token = await getToken();
-    const res = await fetch('/api/auth/otp-verify', {
+    const res = await fetch(apiUrl('/auth/otp-verify'), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
@@ -387,29 +406,53 @@ function buildOtpBanner(): void {
 // Main init
 // ---------------------------------------------------------------------------
 
-async function init(): Promise<void> {
-  initTheme();
-  installGlobalErrorHandler();
-
-  // Attempt silent SSO — never redirect the user
-  let authenticated = false;
-  try {
-    authenticated = await initKeycloak();
-  } catch {
-    // Keycloak may not be running in dev/demo mode — continue as guest
-  }
-
-  setupAuthButtons(authenticated);
-
+/** Signed in: load the user's profile and trips (runs once, even if auth resolves late). */
+async function loadAuthenticated(): Promise<void> {
+  document.getElementById('dashboard-login-prompt')?.setAttribute('hidden', '');
   const newTripBtn = document.getElementById('new-trip-btn');
   if (newTripBtn) {
-    if (authenticated) {
-      newTripBtn.removeAttribute('hidden');
-      newTripBtn.addEventListener('click', openCreateForm);
+    newTripBtn.removeAttribute('hidden');
+    newTripBtn.addEventListener('click', openCreateForm);
+  }
+
+  webauthnCapable = typeof PublicKeyCredential !== 'undefined';
+  const info = getUserInfo();
+  if (info) {
+    if (webauthnCapable) {
+      checkPasskeyCampaign(info.id);
     } else {
-      newTripBtn.setAttribute('hidden', '');
+      buildOtpBanner();
     }
   }
+
+  // Load real user profile and trips
+  const grid = document.getElementById('trips-grid');
+  if (grid) {
+    grid.removeAttribute('hidden');
+    grid.innerHTML = '<div class="trips-empty">Loading trips...</div>';
+  }
+
+  let user: ApiUser | null = null;
+  try {
+    user = await getMe();
+  } catch {
+    // Non-critical — greeting will fall back to token data
+  }
+  renderUserGreeting(user);
+
+  try {
+    const trips = await getMyTrips();
+    renderGrid(trips);
+    // Extend search index with the user's trips
+    trips.forEach((t) => extendSearchIndexWithApiTrip(t));
+  } catch {
+    showToast('Something went wrong. Please try again.', 'error');
+  }
+}
+
+function init(): void {
+  initTheme();
+  installGlobalErrorHandler();
 
   // Create-trip form listeners
   const createForm = document.getElementById('create-trip-form');
@@ -419,44 +462,28 @@ async function init(): Promise<void> {
     if (e.target === e.currentTarget) closeCreateForm();
   });
 
-  if (authenticated) {
-    webauthnCapable = typeof PublicKeyCredential !== 'undefined';
-    const info = getUserInfo();
-    if (info) {
-      if (webauthnCapable) {
-        checkPasskeyCampaign(info.id);
-      } else {
-        buildOtpBanner();
-      }
-    }
-
-    // Load real user profile and trips
-    const grid = document.getElementById('trips-grid');
-    if (grid) {
-      grid.removeAttribute('hidden');
-      grid.innerHTML = '<div class="trips-empty">Loading trips...</div>';
-    }
-
-    let user: ApiUser | null = null;
-    try {
-      user = await getMe();
-    } catch {
-      // Non-critical — greeting will fall back to token data
-    }
-    renderUserGreeting(user);
-
-    try {
-      const trips = await getMyTrips();
-      renderGrid(trips);
-      // Extend search index with the user's trips
-      trips.forEach((t) => extendSearchIndexWithApiTrip(t));
-    } catch {
-      showToast('Something went wrong. Please try again.', 'error');
-    }
-  } else {
-    // Guest mode — show login prompt (grid is hidden by setupAuthButtons)
-    renderUserGreeting(null);
-  }
+  // Silent SSO only — never redirect. Bounded: 'unavailable' after a few seconds at most.
+  showAuthPending();
+  let loaded = false;
+  watchAuth({
+    authenticated: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (loaded) return;
+      loaded = true;
+      void loadAuthenticated();
+    },
+    anonymous: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      showLoginPrompt();
+      renderUserGreeting(null);
+    },
+    // Distinct from "please sign in": we don't know yet whether the user is signed in.
+    unavailable: () => {
+      showAuthUnavailableState();
+    },
+  });
 
   document.body.classList.add('ready');
 }

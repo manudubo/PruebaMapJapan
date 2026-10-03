@@ -52,7 +52,7 @@
       position: relative;
       isolation: isolate;
       overflow: hidden;
-      background: var(--bg-primary, #f5f5f7);
+      background: var(--jp-bg);
       color: var(--jp-text, #1d1d1f);
       --landing-image-opacity: 0.18;
       --landing-image-blur: 9px;
@@ -64,7 +64,6 @@
 
     html[data-theme="dark"] .landing-hero {
       --landing-image-opacity: 0.28;
-      background: var(--bg-primary, #000);
     }
 
     .landing-hero::before {
@@ -86,14 +85,14 @@
       inset: 0;
       z-index: -1;
       background:
-        linear-gradient(180deg, rgba(245, 245, 247, 0.78) 0%, rgba(245, 245, 247, 0.88) 58%, var(--bg-primary, #f5f5f7) 100%),
-        linear-gradient(90deg, var(--bg-primary, #f5f5f7) 0%, rgba(245, 245, 247, 0.72) 46%, var(--bg-primary, #f5f5f7) 100%);
+        linear-gradient(180deg, rgba(245, 245, 247, 0.78) 0%, rgba(245, 245, 247, 0.88) 58%, var(--jp-bg) 100%),
+        linear-gradient(90deg, var(--jp-bg) 0%, rgba(245, 245, 247, 0.72) 46%, var(--jp-bg) 100%);
     }
 
     html[data-theme="dark"] .landing-hero::after {
       background:
-        linear-gradient(180deg, rgba(0, 0, 0, 0.58) 0%, rgba(0, 0, 0, 0.72) 58%, var(--bg-primary, #000) 100%),
-        linear-gradient(90deg, var(--bg-primary, #000) 0%, rgba(0, 0, 0, 0.54) 46%, var(--bg-primary, #000) 100%);
+        linear-gradient(180deg, rgba(0, 0, 0, 0.58) 0%, rgba(0, 0, 0, 0.72) 58%, var(--jp-bg) 100%),
+        linear-gradient(90deg, var(--jp-bg) 0%, rgba(0, 0, 0, 0.54) 46%, var(--jp-bg) 100%);
     }
 
     .landing-hero > * {
@@ -109,7 +108,7 @@
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--text-secondary, #515154);
+      color: var(--jp-text-secondary);
       margin-bottom: 16px;
     }
 
@@ -124,7 +123,7 @@
 
     .landing-tagline {
       font-size: clamp(15px, 2.5vw, 18px);
-      color: var(--text-secondary, #515154);
+      color: var(--jp-text-secondary);
       max-width: 520px;
       line-height: 1.6;
       margin: 0 0 40px;
@@ -155,24 +154,24 @@
     }
 
     .landing-btn--primary {
-      background: var(--accent, #0071e3);
-      color: #fff;
-      border-color: var(--accent, #0071e3);
+      background: var(--jp-accent-solid);
+      color: var(--jp-white);
+      border-color: var(--jp-accent-solid);
     }
 
     .landing-btn--primary:hover {
-      background: var(--accent-hover, #0077ed);
-      border-color: var(--accent-hover, #0077ed);
+      background: var(--jp-accent-solid-hover);
+      border-color: var(--jp-accent-solid-hover);
     }
 
     .landing-btn--secondary {
       background: transparent;
       color: var(--jp-text, #1d1d1f);
-      border-color: var(--border-strong, rgba(0,0,0,0.1));
+      border-color: var(--jp-border-strong);
     }
 
     .landing-btn--secondary:hover {
-      border-color: var(--text-secondary, #515154);
+      border-color: var(--jp-text-secondary);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -180,47 +179,6 @@
       .landing-hero > * {
         transform: none;
       }
-    }
-
-    /* Loading state */
-    .landing-loading {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: calc(100vh - 56px);
-      gap: 12px;
-      color: var(--text-secondary, #515154);
-      font-size: 14px;
-    }
-
-    .landing-loading.is-visible {
-      display: flex;
-    }
-
-    .landing-hero.is-hidden {
-      display: none;
-    }
-
-    .loading-spinner {
-      width: 96px;
-      height: 2px;
-      background: var(--border-strong, rgba(0,0,0,0.1));
-      overflow: hidden;
-    }
-
-    .loading-spinner::before {
-      content: '';
-      display: block;
-      width: 40%;
-      height: 100%;
-      background: var(--accent, #0071e3);
-      animation: loading-bar 0.9s ease-in-out infinite;
-    }
-
-    @keyframes loading-bar {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(250%); }
     }
 
     /* Demo section */
@@ -235,7 +193,7 @@
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--text-tertiary, #6e6e73);
+      color: var(--jp-text-tertiary);
       margin-bottom: 24px;
       text-align: center;
     }
@@ -253,8 +211,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: var(--bg-secondary, #fff);
-      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      background: var(--jp-surface);
+      border: 1px solid var(--jp-border-strong);
       padding: 16px 20px;
       min-width: 72px;
     }
@@ -269,7 +227,7 @@
 
     .countdown-label {
       font-size: 11px;
-      color: var(--text-tertiary, #6e6e73);
+      color: var(--jp-text-tertiary);
       margin-top: 6px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -278,22 +236,8 @@
     .demo-countdown-title {
       text-align: center;
       font-size: 13px;
-      color: var(--text-secondary, #515154);
+      color: var(--jp-text-secondary);
       margin-bottom: 16px;
-    }
-
-    html[data-theme="dark"] .demo-countdown-title,
-    html[data-theme="dark"] .demo-section-title {
-      color: #a1a1a6;
-    }
-
-    /* Countdown cards stay light in dark mode; keep label text dark enough */
-    html[data-theme="dark"] .countdown-label {
-      color: #6e6e73;
-    }
-
-    html[data-theme="dark"] .landing-loading {
-      color: #a1a1a6;
     }
 
     /* City chips */
@@ -309,9 +253,9 @@
       align-items: center;
       gap: 6px;
       padding: 8px 14px;
-      background: var(--bg-secondary, #fff);
-      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
-      color: var(--text-secondary, #515154);
+      background: var(--jp-surface);
+      border: 1px solid var(--jp-border-strong);
+      color: var(--jp-text-secondary);
       text-decoration: none;
       font-size: 13px;
       font-weight: 500;
@@ -319,14 +263,14 @@
     }
 
     .city-chip:hover {
-      border-color: var(--accent, #0071e3);
-      color: var(--accent, #0071e3);
-      background: var(--accent-subtle, rgba(0,113,227,0.06));
+      border-color: var(--jp-accent);
+      color: var(--jp-accent-text);
+      background: var(--jp-accent-subtle);
     }
 
     .divider {
       border: none;
-      border-top: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      border-top: 1px solid var(--jp-border-strong);
       margin: 0 24px;
     }
   </style>
@@ -339,13 +283,7 @@
     <search-bar></search-bar>
 
     <main id="main-content">
-      <!-- Loading state while auth check runs -->
-      <div class="landing-loading" id="landing-loading" aria-live="polite">
-        <div class="loading-spinner" aria-hidden="true"></div>
-        <span>Loading...</span>
-      </div>
-
-      <!-- Hero — shown to unauthenticated users -->
+      <!-- Hero: rendered immediately; the auth check never gates it (src/pages/landing.ts) -->
       <section class="landing-hero" id="landing-hero" aria-label="Welcome">
         <p class="landing-eyebrow">Travel Planner</p>
         <h1 class="landing-title">Your next trip,<br>perfectly planned.</h1>
@@ -388,11 +326,9 @@
   </div>
 
   <script type="module" src="/src/main.ts"></script>
+  <script type="module" src="/src/pages/landing.ts"></script>
   <script type="module">
-    import { initKeycloak, isAuthenticated, login } from '/src/auth/keycloak.ts';
-
     const hero = document.getElementById('landing-hero');
-    const loading = document.getElementById('landing-loading');
 
     if (hero) {
       hero.style.setProperty('--landing-hero-image', "url('/PruebaMapJapan/demo-hero.jpg')");
@@ -420,29 +356,6 @@
       }
     }
 
-    // Show loading while auth check runs
-    if (loading) loading.classList.add('is-visible');
-    if (hero) hero.classList.add('is-hidden');
-
-    try {
-      await initKeycloak();
-    } catch {
-      // Keycloak not available — show landing to everyone
-    }
-
-    if (isAuthenticated()) {
-      // Authenticated: redirect to dashboard
-      window.location.replace('dashboard.html');
-    } else {
-      // Unauthenticated: reveal the landing hero
-      if (loading) loading.classList.remove('is-visible');
-      if (hero) hero.classList.remove('is-hidden');
-
-      const loginBtn = document.getElementById('landing-login-btn');
-      if (loginBtn) {
-        loginBtn.addEventListener('click', () => login(new URL('dashboard.html', window.location.href).href));
-      }
-    }
   </script>
   <script>
     // Demo countdown — target: Feb 22 2027 (next Japan trip)

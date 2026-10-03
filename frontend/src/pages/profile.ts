@@ -4,11 +4,11 @@ import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
 import {
-  initKeycloak,
   getUserInfo,
   logout,
   keycloak,
 } from '@/auth/keycloak';
+import { watchAuth, showAuthUnavailableState, clearAuthUnavailableState } from '@/auth/authStatusUI';
 import { getMe } from '@/api/client';
 import { installGlobalErrorHandler } from '@/modules/toast';
 import {
@@ -211,22 +211,30 @@ function openDeleteConfirm(credentialId: string): void {
 // Init
 // ---------------------------------------------------------------------------
 
-async function init(): Promise<void> {
+function init(): void {
   initTheme();
   installGlobalErrorHandler();
 
-  let authenticated = false;
-  try {
-    authenticated = await initKeycloak();
-  } catch {
-    // Keycloak unavailable
-  }
+  // Bounded auth check. Signed out -> landing; Keycloak unreachable -> retryable error state
+  // (it used to bounce to the landing as if signed out); late sign-in -> load once.
+  let loaded = false;
+  watchAuth({
+    authenticated: () => {
+      clearAuthUnavailableState();
+      if (loaded) return;
+      loaded = true;
+      void loadProfile();
+    },
+    anonymous: () => {
+      window.location.replace(new URL('index.html', window.location.href).href);
+    },
+    unavailable: () => {
+      if (!loaded) showAuthUnavailableState();
+    },
+  });
+}
 
-  if (!authenticated) {
-    window.location.replace(new URL('index.html', window.location.href).href);
-    return;
-  }
-
+async function loadProfile(): Promise<void> {
   // Fill header info from token (fast)
   const info = getUserInfo();
   if (info) {

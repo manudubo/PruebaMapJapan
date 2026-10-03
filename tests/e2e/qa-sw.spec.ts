@@ -97,7 +97,7 @@ test.describe('@qa-noauth service worker', () => {
     await context.setOffline(true);
     const res = await page.goto('does-not-exist-offline.html').catch(() => null);
     expect(res === null || res.ok()).toBe(true);
-    await expect(page.locator('#landing-hero, #landing-loading')).toHaveCount(2);
+    await expect(page.locator('#landing-hero')).toHaveCount(1);
     await context.setOffline(false);
   });
 

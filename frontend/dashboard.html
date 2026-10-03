@@ -51,8 +51,8 @@
     .trip-card {
       display: flex;
       flex-direction: column;
-      background: var(--bg-secondary, #fff);
-      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      background: var(--jp-surface);
+      border: 1px solid var(--jp-border-strong);
       overflow: hidden;
       text-decoration: none;
       color: inherit;
@@ -60,13 +60,13 @@
     }
 
     .trip-card:hover {
-      border-color: var(--accent, #0071e3);
+      border-color: var(--jp-accent);
     }
 
     .trip-card-cover {
       position: relative;
       height: 140px;
-      background: var(--accent-subtle, rgba(0,113,227,0.08));
+      background: var(--jp-accent-subtle);
       display: flex;
       align-items: flex-start;
       justify-content: flex-end;
@@ -128,7 +128,7 @@
 
     .trip-card-actions {
       padding: 8px 16px 12px;
-      border-top: 1px solid var(--border-color, rgba(0,0,0,0.08));
+      border-top: 1px solid var(--jp-border);
     }
 
     /* Empty / error states */

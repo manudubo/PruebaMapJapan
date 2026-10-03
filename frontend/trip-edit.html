@@ -40,7 +40,7 @@
     .color-swatch {
       width: 24px; height: 24px;
       border: 2px solid transparent;
-      border-radius: var(--radius);
+      border-radius: var(--jp-radius);
       cursor: pointer;
       padding: 0;
     }
@@ -51,15 +51,15 @@
     .geocoder-results button {
       display: block; width: 100%; text-align: left;
       padding: 8px 12px; font-size: 14px; font-family: inherit;
-      border: none; border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.1));
-      background: var(--bg-secondary, #fff); color: var(--jp-text, #1d1d1f);
+      border: none; border-bottom: 1px solid var(--jp-border-strong);
+      background: var(--jp-surface); color: var(--jp-text, #1d1d1f);
       cursor: pointer;
     }
-    .geocoder-results button:hover { background: var(--accent-subtle, #e8f0fe); }
+    .geocoder-results button:hover { background: var(--jp-accent-subtle); }
     .dest-section { margin-bottom: 16px; }
     .dest-section-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; }
     .dest-section-body { padding: 16px; }
-    .day-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.06)); flex-wrap: wrap; }
+    .day-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--jp-border); flex-wrap: wrap; }
     .activity-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
     .destinations-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
     .destinations-title-row h2 { margin: 0; font-size: 18px; font-weight: 600; }

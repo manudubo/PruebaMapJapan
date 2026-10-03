@@ -203,12 +203,13 @@ test.describe('@qa-noauth widgets', () => {
 });
 
 test.describe('@qa-noauth landing', () => {
-  test('landing hero is revealed when Keycloak is unreachable', async ({ page }) => {
+  test('landing hero is shown immediately when Keycloak is unreachable (no auth gate)', async ({ page }) => {
     await offlineIdp(page);
     await blockExternal(page);
-    await page.goto('index.html');
-    await expect(page.locator('#landing-hero')).not.toHaveClass(/is-hidden/, { timeout: 15000 });
-    await expect(page.locator('#landing-loading')).not.toHaveClass(/is-visible/);
+    await page.goto('index.html', { waitUntil: 'domcontentloaded' });
+    // The hero no longer waits for keycloak-js (was ~10 s); see qa-followup.spec.ts for the notice.
+    await expect(page.locator('#landing-hero h1')).toBeVisible({ timeout: 1500 });
+    await expect(page.locator('#landing-loading')).toHaveCount(0);
   });
 
   test('countdown ticks', async ({ page }) => {
