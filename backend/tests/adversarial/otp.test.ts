@@ -223,19 +223,97 @@ describeDb('OTP', () => {
       expect((await request(other)).status).toBe(201);
     });
 
-    // STILL OPEN — SEC-07 follow-up (Phase 26 OTP atomicity). Phase 26 made the
-    // attempts counter atomic, but issuance is still check-then-insert: the
-    // pending check, the hourly cap (BUG-16) and the INSERT are separate
-    // statements, so a burst of parallel requests passes every check and
-    // issues (and emails) 20 codes, bypassing both otp_pending and the cap.
-    it.fails('SEC-07 (issuance): 20 parallel otp-requests issue at most one code', async () => {
+    // SEC-07 follow-up (fixed): the pending check, the hourly cap (BUG-16)
+    // and the INSERT used to be separate statements, so this burst issued
+    // (and emailed) 20 codes. They now run in one statement under a per-user
+    // advisory lock (otp_issue(), migration 0009).
+    it('SEC-07 (issuance): 20 parallel otp-requests issue at most one code', async () => {
       await req('GET', '/api/users/me', { token: user.token }); // provision the user row first
-      // The OTP INSERT's FK check needs a KEY SHARE lock on the user row.
+      // The OTP INSERT's FK check needs a KEY SHARE lock on the user row, so
+      // every request is held at its write until all of them have started.
       const results = await underRowLock(LOCK_USER, [user.sub], 20, () =>
         Array.from({ length: 20 }, () => request()),
       );
       expect(results.filter((r) => r.status === 201)).toHaveLength(1);
+      expect(results.filter((r) => r.status === 429 && r.body.error === 'otp_pending')).toHaveLength(19);
       expect(await otpRows(user)).toHaveLength(1);
+      expect(net.mails.filter((m) => m.to === user.email)).toHaveLength(1);
+    });
+
+    it('SEC-07 (issuance): 100 parallel otp-requests for one user → one code, one email', async () => {
+      await req('GET', '/api/users/me', { token: user.token });
+      const results = await Promise.all(Array.from({ length: 100 }, () => request()));
+      expect(results.filter((r) => r.status === 201)).toHaveLength(1);
+      for (const r of results.filter((x) => x.status !== 201)) {
+        expect(r.status).toBe(429);
+        expect(r.body.error).toBe('otp_pending');
+        expect(r.body.retryAfter).toBeGreaterThan(0);
+        expect(r.body.retryAfter).toBeLessThanOrEqual(600);
+      }
+      expect(await otpRows(user)).toHaveLength(1);
+      expect(net.mails.filter((m) => m.to === user.email)).toHaveLength(1);
+    });
+
+    it('SEC-07 (issuance): 100 parallel requests across 5 users → exactly one code each', async () => {
+      const users = [user, ...(await Promise.all(Array.from({ length: 4 }, () => makeUser(signer))))];
+      for (const u of users) await req('GET', '/api/users/me', { token: u.token });
+      const results = await Promise.all(Array.from({ length: 100 }, (_, i) => request(users[i % users.length])));
+      expect(results.filter((r) => r.status === 201)).toHaveLength(users.length);
+      for (const u of users) {
+        expect(await otpRows(u)).toHaveLength(1);
+        expect(net.mails.filter((m) => m.to === u.email)).toHaveLength(1);
+      }
+    });
+
+    it('BUG-16 under concurrency: request/burn storms never issue more than 5 codes per hour', async () => {
+      await req('GET', '/api/users/me', { token: user.token });
+      for (let round = 0; round < 8; round++) {
+        await Promise.all(Array.from({ length: 15 }, () => request()));
+        // Burn whatever is pending with 5 wrong guesses (+1 to see max_attempts).
+        const code = net.lastCodeFor(user.email);
+        if (code) await Promise.all(Array.from({ length: 6 }, () => verify(wrong(code))));
+      }
+      const rows = await otpRows(user);
+      expect(rows.length).toBe(5);
+      expect(net.mails.filter((m) => m.to === user.email)).toHaveLength(5);
+      const capped = await request();
+      expect(capped.status).toBe(429);
+      expect(capped.body.error).toBe('otp_rate_limited');
+    });
+
+    it('interleaved verify + request storms: one code per cycle, the right code verifies once, no 500s', async () => {
+      await req('GET', '/api/users/me', { token: user.token });
+      expect((await request()).status).toBe(201);
+      const code = net.lastCodeFor(user.email)!;
+      // Correct verifies racing new requests: until the code is used,
+      // requests see otp_pending; after it, at most one new code is issued.
+      const ops = Array.from({ length: 40 }, (_, i) => (i % 2 === 0 ? verify(code) : request()));
+      const results = await Promise.all(ops);
+      for (const r of results) expect(r.status, r.text).toBeLessThan(500);
+      const verified = results.filter((r, i) => i % 2 === 0 && r.status === 200);
+      expect(verified.length).toBeLessThanOrEqual(1);
+      const issued = results.filter((r, i) => i % 2 === 1 && r.status === 201);
+      expect(issued.length).toBeLessThanOrEqual(1);
+      const rows = await otpRows(user);
+      expect(rows.filter((r) => r.used_at === null && r.expires_at > new Date()).length).toBeLessThanOrEqual(1);
+    });
+
+    it('a mail outage in the middle of a burst burns that code; the next burst issues exactly one', async () => {
+      await req('GET', '/api/users/me', { token: user.token });
+      net.failMail = true;
+      const failed = await Promise.all(Array.from({ length: 10 }, () => request()));
+      net.failMail = false;
+      // A request that runs after a failed code was burned may issue (and
+      // fail) again, so >= 1 failure; every other one saw otp_pending.
+      const failures = failed.filter((r) => r.status === 500).length;
+      expect(failures).toBeGreaterThanOrEqual(1);
+      expect(failed.filter((r) => r.status === 429)).toHaveLength(10 - failures);
+      const burned = await otpRows(user);
+      expect(burned).toHaveLength(failures);
+      expect(burned.every((r) => r.used_at !== null)).toBe(true); // undelivered codes never block
+      const ok = await Promise.all(Array.from({ length: 10 }, () => request()));
+      expect(ok.filter((r) => r.status === 201)).toHaveLength(1);
+      expect(await otpRows(user)).toHaveLength(failures + 1);
     });
   });
 

@@ -8,10 +8,7 @@ import { OtpVerifySchema } from '../validation/schemas';
 import { otpEmailTransport, sendOtpEmail } from '../auth/otp-email';
 import {
   getLatestUnexpiredOtp,
-  getOtpCreatedAtsSince,
-  otpHourlyCapRetryAfter,
-  OTP_CAP_WINDOW_MS,
-  insertOtp,
+  issueOtp,
   deleteStaleOtps,
   consumeOtpAttempt,
   markOtpUsed,
@@ -85,41 +82,25 @@ authRoute.post('/otp-request', async (c) => {
     console.error('otp-request: stale OTP cleanup failed:', err);
   });
 
-  const existing = await getLatestUnexpiredOtp(db, userId);
-  if (existing) {
-    const retryAfter = Math.ceil(
-      (existing.expires_at.getTime() - Date.now()) / 1000,
-    );
-    return c.json(
-      { success: false as const, error: 'otp_pending', retryAfter },
-      429,
-    );
-  }
-
-  // BUG-16: per-user hourly cap — stops the request/burn/re-request cycle.
-  const now = new Date();
-  const capRetryAfter = otpHourlyCapRetryAfter(
-    await getOtpCreatedAtsSince(db, userId, new Date(now.getTime() - OTP_CAP_WINDOW_MS)),
-    now,
-  );
-  if (capRetryAfter !== null) {
-    return c.json(
-      { success: false as const, error: 'otp_rate_limited', retryAfter: capRetryAfter },
-      429,
-    );
-  }
-
   // bias < 0.023% across Uint32 range — negligible for 6-digit OTP
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
   const codeHash = await hashOtp(code, c.env.OTP_SECRET);
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-  const otp = await insertOtp(db, userId, codeHash, expiresAt);
+  // otp_pending check, BUG-16 hourly cap and INSERT in one atomic statement
+  // (SEC-07): parallel requests for one user issue at most one code.
+  const issued = await issueOtp(db, userId, codeHash);
+  if (issued.status !== 'issued') {
+    return c.json(
+      { success: false as const, error: issued.status, retryAfter: issued.retryAfter },
+      429,
+    );
+  }
+
   try {
     await sendOtpEmail(c.env, email, code);
   } catch (err) {
     // Undelivered code must not block a retry as otp_pending for 10 min.
-    await markOtpUsed(db, otp.id).catch(() => {});
+    await markOtpUsed(db, issued.otpId).catch(() => {});
     throw err;
   }
 

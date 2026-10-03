@@ -78,19 +78,20 @@ export async function createDestination(
 
 /**
  * Update mutable fields on a destination.
+ * Returns undefined when the row is gone (e.g. its trip was deleted after
+ * the ownership check) — a normal 404, not an exception (M-09).
  */
 export async function updateDestination(
   db: Db,
   destId: number,
   data: UpdateDestinationData,
-): Promise<Destination> {
+): Promise<Destination | undefined> {
   const [updated] = await db
     .update(destinations)
     .set(data)
     .where(eq(destinations.id, destId))
     .returning();
 
-  if (!updated) throw new Error(`updateDestination: no destination found for id=${destId}`);
   return updated;
 }
 

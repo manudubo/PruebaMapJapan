@@ -57,6 +57,20 @@
       "when": 1790785600271,
       "tag": "0007_hotels_one_per_destination",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790786000000,
+      "tag": "0008_date_coherence",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790786100000,
+      "tag": "0009_otp_issue_atomic",
+      "breakpoints": true
     }
   ]
 }

@@ -75,19 +75,20 @@ export async function createDay(
 
 /**
  * Update mutable fields on a day.
+ * Returns undefined when the row is gone (e.g. its trip was deleted after
+ * the ownership check) — a normal 404, not an exception (M-09).
  */
 export async function updateDay(
   db: Db,
   dayId: number,
   data: UpdateDayData,
-): Promise<Day> {
+): Promise<Day | undefined> {
   const [updated] = await db
     .update(days)
     .set(data)
     .where(eq(days.id, dayId))
     .returning();
 
-  if (!updated) throw new Error(`updateDay: no day found for id=${dayId}`);
   return updated;
 }
 

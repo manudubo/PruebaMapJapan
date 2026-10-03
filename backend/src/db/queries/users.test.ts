@@ -46,6 +46,41 @@ describe('upsertUser — first login (BUG-03)', () => {
     expect(await userRows()).toHaveLength(1);
   });
 
+  // Concurrent first requests of ONE new user: the loser can pass the
+  // ON CONFLICT (keycloak_id) pre-check before the winner inserts and then
+  // hit the email unique index (not an arbiter) → 23505 on
+  // users_email_unique_idx. That is the same user, not an email conflict.
+  it('a racing first request that trips the email index resolves to the same user, not EmailConflictError', async () => {
+    const winner = await upsertUser(testDb(), claims);
+    const real = testDb();
+    const raceErr = Object.assign(new Error('duplicate key'), { code: '23505', constraint: 'users_email_unique_idx' });
+    const racing = new Proxy(real, {
+      get(target, prop, receiver) {
+        if (prop === 'insert') {
+          return () => ({ values: () => ({ onConflictDoNothing: () => ({ returning: async () => { throw raceErr; } }) }) });
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const res = await upsertUser(racing, claims);
+    expect(res.created).toBe(false);
+    expect(res.user.id).toBe(winner.user.id);
+    expect(await userRows()).toHaveLength(1);
+  });
+
+  it('stress: 20 new users × 10 concurrent first logins → no error, one row each', async () => {
+    const subjects = Array.from({ length: 20 }, (_, i) => ({
+      keycloak_id: `stress-${i}`,
+      email: `stress-${i}@example.com`,
+      name: `S${i}`,
+    }));
+    const results = await Promise.allSettled(
+      subjects.flatMap((s) => Array.from({ length: 10 }, () => upsertUser(testDb(), s))),
+    );
+    expect(results.filter((r) => r.status === 'rejected')).toEqual([]);
+    expect(await userRows()).toHaveLength(20);
+  });
+
   it('concurrent first logins of different users each get their own row', async () => {
     const results = await Promise.all(
       Array.from({ length: 6 }, (_, i) =>

@@ -70,19 +70,20 @@ export async function createActivity(
 
 /**
  * Update mutable fields on an activity.
+ * Returns undefined when the row is gone (e.g. its trip was deleted after
+ * the ownership check) — a normal 404, not an exception (M-09).
  */
 export async function updateActivity(
   db: Db,
   actId: number,
   data: UpdateActivityData,
-): Promise<Activity> {
+): Promise<Activity | undefined> {
   const [updated] = await db
     .update(activities)
     .set(data)
     .where(eq(activities.id, actId))
     .returning();
 
-  if (!updated) throw new Error(`updateActivity: no activity found for id=${actId}`);
   return updated;
 }
 
