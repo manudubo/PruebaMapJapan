@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/kc-admin';
+import { test, expect, resetCredentials } from './fixtures/kc-admin';
 import type { BrowserContext, Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -47,6 +47,13 @@ test.describe('Passkey flows', () => {
       }
     }
     cdpCleanups.length = 0;
+  });
+
+  // Every test leaves a passkey on the shared seeded user. browser-passkey gives passkey
+  // users no password fallback (Phase 26), so a leftover passkey breaks the next
+  // global-setup password login and the idp-flow seeded-user tests. Drop it afterwards.
+  test.afterAll(async () => {
+    await resetCredentials(E2E_USERNAME);
   });
 
   test.beforeEach(async ({ context, kcAdmin }) => {
