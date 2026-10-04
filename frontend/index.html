@@ -202,47 +202,52 @@
       text-align: center;
     }
 
-    /* Countdown */
+    /* Countdown: quiet type on the page background, no boxes (tokens only, both themes) */
+    .demo-countdown-wrap {
+      margin-bottom: 40px;
+    }
+
+    .demo-countdown-title {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--jp-text-secondary);
+      margin-bottom: 12px;
+    }
+
     .demo-countdown {
       display: flex;
-      gap: 12px;
       justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 40px;
+      align-items: baseline;
+      gap: clamp(20px, 7vw, 40px);
     }
 
     .countdown-unit {
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: var(--jp-surface);
-      border: 1px solid var(--jp-border-strong);
-      padding: 16px 20px;
-      min-width: 72px;
+      min-width: 3ch;
     }
 
     .countdown-value {
-      font-size: 32px;
-      font-weight: 700;
+      font-size: clamp(28px, 8vw, 36px);
+      font-weight: 500;
       font-variant-numeric: tabular-nums;
-      color: var(--jp-text, #1d1d1f);
+      letter-spacing: -0.02em;
+      color: var(--jp-text);
       line-height: 1;
     }
 
     .countdown-label {
       font-size: 11px;
-      color: var(--jp-text-tertiary);
+      font-variant-caps: all-small-caps;
+      letter-spacing: 0.08em;
+      color: var(--jp-text-secondary);
       margin-top: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
     }
 
-    .demo-countdown-title {
-      text-align: center;
-      font-size: 13px;
-      color: var(--jp-text-secondary);
-      margin-bottom: 16px;
-    }
 
     /* Trip overview (restored from ab6b603): map + "Cities" cards in a page card.
        .map-section, .quick-links, .cities-grid and .city-card come from main.css. */
@@ -286,14 +291,16 @@
         <div class="demo-intro">
         <p class="demo-section-title">Demo — Japan 2026</p>
 
-        <p class="demo-countdown-title">Days until the trip</p>
-        <div class="demo-countdown" id="demo-countdown" aria-live="polite" aria-label="Cuenta regresiva">
-          <div class="countdown-unit"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">days</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">hours</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">minutes</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-secs">--</span><span class="countdown-label">seconds</span></div>
+        <div class="demo-countdown-wrap" id="demo-countdown-wrap" data-trip-start="2027-02-22">
+          <p class="demo-countdown-title" id="demo-countdown-title">Until the trip</p>
+          <!-- role=timer is not live: updated once a minute by src/modules/countdown.ts, read on demand -->
+          <div class="demo-countdown" id="demo-countdown" role="timer" aria-live="off" aria-atomic="true" aria-labelledby="demo-countdown-title cd-sr">
+            <span class="sr-only" id="cd-sr"></span>
+            <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">days</span></div>
+            <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">hours</span></div>
+            <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">min</span></div>
+          </div>
         </div>
-
         </div>
 
         <!-- Trip overview: the map initialises lazily (src/modules/overviewMap.ts); the
@@ -382,31 +389,6 @@
 
   </script>
   <script>
-    // Demo countdown — target: Feb 22 2027 (next Japan trip)
-    (function() {
-      var target = new Date('2027-02-22T00:00:00').getTime();
-      function update() {
-        var now = Date.now();
-        var diff = target - now;
-        if (diff <= 0) { return; }
-        var days = Math.floor(diff / 86400000);
-        var hours = Math.floor((diff % 86400000) / 3600000);
-        var mins = Math.floor((diff % 3600000) / 60000);
-        var secs = Math.floor((diff % 60000) / 1000);
-        var pad = function(n) { return String(n).padStart(2, '0'); };
-        var d = document.getElementById('cd-days');
-        var h = document.getElementById('cd-hours');
-        var m = document.getElementById('cd-mins');
-        var s = document.getElementById('cd-secs');
-        if (d) d.textContent = String(days);
-        if (h) h.textContent = pad(hours);
-        if (m) m.textContent = pad(mins);
-        if (s) s.textContent = pad(secs);
-      }
-      update();
-      setInterval(update, 1000);
-    })();
-
     // Mark body as ready when styles are loaded
     document.fonts.ready.then(function() {
       document.body.classList.add('ready');

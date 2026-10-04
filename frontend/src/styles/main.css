@@ -209,46 +209,6 @@
 }
 
 /* ============================================
-   Countdown Section
-   ============================================ */
-.countdown-section {
-  padding: 40px;
-  background: var(--jp-surface);
-  border-bottom: 1px solid var(--jp-border);
-}
-
-.countdown-grid {
-  display: flex;
-  gap: 24px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.countdown-item {
-  text-align: center;
-  min-width: 80px;
-}
-
-.countdown-value {
-  display: block;
-  font-size: 48px;
-  font-weight: 700;
-  color: var(--jp-accent);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.countdown-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--jp-text-tertiary);
-  margin-top: 8px;
-}
-
-/* ============================================
    Map Section
    ============================================ */
 .map-section {
@@ -809,67 +769,6 @@ body {
   color: var(--jp-text-secondary);
   font-size: 15px;
   font-weight: 400;
-}
-
-/* ============================================
-   Countdown
-   ============================================ */
-.countdown-container {
-  margin-top: 32px;
-  padding: 24px;
-  background: var(--jp-surface-subtle);
-  border: 1px solid var(--jp-border-glass);
-  box-shadow: none;
-  position: relative;
-}
-
-.countdown-container::before {
-  content: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--jp-gradient-shine);
-  pointer-events: none;
-}
-
-.countdown-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--jp-text-tertiary);
-  margin-bottom: 16px;
-}
-
-.countdown {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.countdown-unit {
-  text-align: center;
-  min-width: 70px;
-}
-
-.countdown-value {
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--jp-accent);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.countdown-text {
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--jp-text-tertiary);
-  margin-top: 6px;
 }
 
 /* ============================================
@@ -1788,17 +1687,8 @@ html[data-theme="dark"] .leaflet-tile-pane {
     font-size: 14px;
   }
 
-  .countdown {
-    gap: 12px;
-  }
 
-  .countdown-unit {
-    min-width: 60px;
-  }
 
-  .countdown-value {
-    font-size: 28px;
-  }
 
   #map {
     height: 400px;
@@ -1875,17 +1765,8 @@ html[data-theme="dark"] .leaflet-tile-pane {
     font-size: 22px;
   }
 
-  .countdown-container {
-    padding: 16px;
-  }
 
-  .countdown-value {
-    font-size: 24px;
-  }
 
-  .countdown-unit {
-    min-width: 50px;
-  }
 
   #map {
     height: 350px;
@@ -1982,7 +1863,6 @@ html[data-theme="dark"] .leaflet-tile-pane {
   .theme-toggle,
   .day-selector,
   .hotel-btn,
-  .countdown-container,
   .legend-actions,
   .widgets-section {
     display: none;

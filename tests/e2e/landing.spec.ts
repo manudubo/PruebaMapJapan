@@ -22,17 +22,16 @@ test.describe('Landing page', () => {
     await expect(page.locator('#landing-hero')).toBeVisible();
   });
 
-  test('countdown shows numeric values and keeps ticking', async ({ page }) => {
+  test('countdown shows days, hours and minutes only (no seconds)', async ({ page }) => {
     await expect(page.locator('#demo-countdown')).toBeVisible();
 
     await expect(page.locator('#cd-days')).toHaveText(/^\d+$/);
     await expect(page.locator('#cd-hours')).toHaveText(/^\d{2}$/);
     await expect(page.locator('#cd-mins')).toHaveText(/^\d{2}$/);
-    await expect(page.locator('#cd-secs')).toHaveText(/^\d{2}$/);
-
-    const first = await page.locator('#cd-secs').textContent();
-    // Web-first: retries until the seconds digit changes (or fails at the timeout).
-    await expect(page.locator('#cd-secs')).not.toHaveText(first ?? '', { timeout: 3000 });
+    await expect(page.locator('#cd-secs')).toHaveCount(0);
+    await expect(page.locator('#demo-countdown .countdown-unit')).toHaveCount(3);
+    await expect(page.locator('#demo-countdown')).toHaveAttribute('aria-live', 'off');
+    await expect(page.locator('#cd-sr')).toHaveText(/^\d+ days?, \d+ hours? and \d+ minutes? until the trip$/);
   });
 
   test('the Cities list links all 8 destinations with the right targets', async ({ page }) => {
