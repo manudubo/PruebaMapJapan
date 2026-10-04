@@ -1,9 +1,9 @@
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Activity, Day, Hotel, CityData, CityMarker } from '@/types';
+import type { Activity, Day, Hotel, CityData } from '@/types';
 import { ITINERARY } from '@/data/itinerary';
 import { getMapsUrl } from '@/data/maps';
-import { getTheme, getThemeConfig } from './theme';
+import { createBaseMap, switchBaseMapTheme } from './baseMap';
 import { createDirectionsUrl, announceToScreenReader } from './utils';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
@@ -73,11 +73,8 @@ export function initCityMap(city: string): L.Map | null {
   const data = ITINERARY[city];
   if (!data) return null;
 
-  const themeConfig = getThemeConfig();
-  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true })
-    .setView(data.center, data.zoom);
-  
-  currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
+  const { map, tileLayer } = createBaseMap('map', data.center, data.zoom);
+  currentTileLayer = tileLayer;
   window.currentMap = map;
   window.currentTileLayer = currentTileLayer;
 
@@ -358,57 +355,7 @@ function updateHotelInfo(hotel: Hotel): void {
   }
 }
 
-export function initOverviewMap(): void {
-  const theme = getTheme();
-  const themeConfig = getThemeConfig(theme);
-  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true })
-    .setView([35.5, 137.0], 6);
-  
-  currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
-  window.currentMap = map;
-  window.currentTileLayer = currentTileLayer;
-
-  const cities: CityMarker[] = [
-    { name: 'Tokyo', coords: [35.6762, 139.7050], dates: '22 Feb – 1 Mar', color: '#ff3b30', link: 'tokyo.html' },
-    { name: 'Nagoya', coords: [35.1815, 136.9066], dates: '2–3 Mar', color: '#ff9500', link: 'nagoya.html' },
-    { name: 'Takayama', coords: [36.1400, 137.2500], dates: '4–7 Mar', color: '#ffcc00', link: 'takayama.html' },
-    { name: 'Kyoto', coords: [35.0116, 135.7681], dates: '8–13 Mar', color: '#34c759', link: 'kyoto.html' },
-    { name: 'Osaka', coords: [34.6937, 135.5023], dates: '14–17 Mar', color: '#5ac8fa', link: 'osaka.html' },
-    { name: 'Naoshima', coords: [34.4600, 133.9950], dates: '18–19 Mar', color: '#007aff', link: 'naoshima.html' },
-    { name: 'Hakone', coords: [35.2330, 139.1070], dates: '20–21 Mar', color: '#af52de', link: 'hakone.html' },
-    { name: 'Tokyo', coords: [35.6862, 139.7150], dates: '22–23 Mar', color: '#ff2d55', link: 'tokyo2.html' }
-  ];
-
-  cities.forEach((city, idx) => {
-    const markerDiv = document.createElement('div');
-    markerDiv.className = 'numbered-marker';
-    setStyle(markerDiv, 'background', city.color);
-    setStyle(markerDiv, 'width', '32px');
-    setStyle(markerDiv, 'height', '32px');
-    setStyle(markerDiv, 'font-size', '13px');
-    markerDiv.textContent = String(idx + 1);
-    const icon = L.divIcon({
-      className: 'custom-marker',
-      html: markerDiv,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
-    });
-    const popupHtml = `<h4>${city.name}</h4><p>${city.dates}</p><p><a href="${city.link}" style="color:var(--jp-accent);">View itinerary</a></p>`;
-    L.marker(city.coords as L.LatLngExpression, { icon, alt: city.name })
-      .bindPopup(DOMPurify.sanitize(popupHtml))
-      .addTo(map);
-  });
-
-  L.polyline(cities.map(c => c.coords as L.LatLngExpression), {
-    color: themeConfig.routeColor, weight: 2, opacity: 0.5, dashArray: '8, 8'
-  }).addTo(map);
-  
-  announceToScreenReader('Overview map loaded with 8 cities');
-}
-
 export function updateMapTheme(): void {
   if (!window.currentMap || !window.currentTileLayer) return;
-  const themeConfig = getThemeConfig();
-  window.currentMap.removeLayer(window.currentTileLayer);
-  window.currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(window.currentMap);
+  window.currentTileLayer = switchBaseMapTheme(window.currentTileLayer);
 }

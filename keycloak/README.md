@@ -132,6 +132,16 @@ the `browser-passkey` authentication flow, and which flow the realm uses
 - On an **empty** Keycloak, the first `terraform apply` creates the realm, but the four built-in
   client-scope mappers managed in `mappers.tf` (`username`, `full name`, `email`,
   `email verified`) already exist and must be imported first — see `terraform/keycloak/import.sh`.
+- `import.sh` takes the URL and admin password from the environment, never from argv:
+  ```bash
+  cd terraform/keycloak
+  KC_URL=https://<keycloak-host> bash import.sh            # prompts for the admin password
+  KC_URL=... KC_ADMIN_PASSWORD=... bash import.sh --remove-stale-flows
+  ```
+  A realm configured before KC-01 still has a top-level `password-forms` subflow that Terraform
+  no longer manages. Without `--remove-stale-flows` the script only reports it (dry run); with the
+  flag it deletes it and verifies it is gone. Run `terraform plan` afterwards. Tests:
+  `bash terraform/keycloak/tests/import.test.sh` (stub curl/terraform, no Keycloak needed).
 
 To inspect the live realm without changing it:
 

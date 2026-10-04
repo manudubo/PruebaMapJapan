@@ -9,13 +9,19 @@ const BLANK_TILE = Buffer.from(
   'base64',
 );
 
+/** Host of the map tile provider (frontend/src/data/tiles.ts). */
+export const TILE_HOST = 'tile.openstreetmap.org';
+/** Matches every tile request of the configured provider. */
+export const TILE_ROUTE = `https://${TILE_HOST}/**`;
+
 /**
- * Make map pages hermetic: Leaflet's CSS/JS come from unpkg and tiles from
- * CartoDB. Serving them locally keeps layout identical to production (tiles are
- * positioned by leaflet.css) without depending on the network.
+ * Make map pages hermetic: tiles come from the OpenStreetMap tile server (older
+ * builds pulled Leaflet from unpkg). Serving them locally keeps layout identical
+ * to production (tiles are positioned by leaflet.css) without depending on the
+ * network or loading the volunteer-run OSM servers from CI.
  */
 export async function stubMapThirdParty(page: Page): Promise<void> {
-  await page.route('**/*.basemaps.cartocdn.com/**', (route) =>
+  await page.route(TILE_ROUTE, (route) =>
     route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_TILE }),
   );
   await page.route('https://unpkg.com/leaflet@*/dist/leaflet.css', (route) =>

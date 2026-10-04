@@ -24,26 +24,49 @@ const PRECACHE_ASSETS = [
 // before its assets were ever fetched.
 const BUILD_ASSETS = [] /* __BUILD_ASSETS__ */;
 
+// Never intercepted or cached by the SW. Map tiles are included on purpose: the
+// OSM tile policy forbids bulk/offline caching beyond the browser's HTTP cache,
+// and opaque cross-origin tile responses would bloat the cache anyway.
 const NETWORK_ONLY_DOMAINS = [
   'api.allorigins.win',
   'corsproxy.io',
-  'api.open-meteo.com'
+  'api.open-meteo.com',
+  'tile.openstreetmap.org'
 ];
 
 function isNetworkOnly(url) {
   return NETWORK_ONLY_DOMAINS.some(domain => url.includes(domain));
 }
 
+// The offline shell: without these the app cannot open offline at all, so a
+// failure here fails the install (the previous worker stays in charge).
+const CORE_ASSETS = ['./', './index.html', './manifest.json'];
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll([...PRECACHE_ASSETS, ...BUILD_ASSETS]).catch(err => {
-        console.warn('Cache error:', err);
-      });
+    caches.open(CACHE_NAME).then(async cache => {
+      await cache.addAll(CORE_ASSETS);
+      // Everything else one by one: cache.addAll is atomic, so a single 404
+      // used to leave no offline cache at all (review N7).
+      const rest = [...PRECACHE_ASSETS, ...BUILD_ASSETS].filter(url => !CORE_ASSETS.includes(url));
+      const results = await Promise.allSettled(rest.map(url => cache.add(url)));
+      const failed = rest.filter((_, i) => results[i].status === 'rejected');
+      if (failed.length > 0) {
+        console.warn(`Precache: ${failed.length} of ${rest.length} optional files failed`, failed);
+      }
     })
   );
 });
+
+// One cache entry per page, not per query string: trip.html?tripId=1 and
+// ?tripId=2 are the same static HTML (review N7).
+function pageCacheKey(url) {
+  const u = new URL(url);
+  u.search = '';
+  u.hash = '';
+  return u.href;
+}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -65,12 +88,13 @@ self.addEventListener('fetch', (event) => {
         .then(response => {
           if (response.ok && response.type === 'basic') {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+            caches.open(CACHE_NAME).then(cache => cache.put(pageCacheKey(request.url), clone));
           }
           return response;
         })
         .catch(() =>
-          caches.match(request).then(cached => cached || caches.match('./index.html'))
+          caches.match(pageCacheKey(request.url))
+            .then(cached => cached || caches.match('./index.html'))
         )
     );
     return;

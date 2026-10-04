@@ -29,15 +29,22 @@ function stamp(out: string): string {
 }
 
 async function installedUrls(sw: string): Promise<string[]> {
-  let added: string[] = [];
+  const added: string[] = [];
   const listeners: Record<string, (e: unknown) => void> = {};
   vm.runInNewContext(sw, {
     self: { addEventListener: (t: string, f: (e: unknown) => void) => void (listeners[t] = f), skipWaiting() {}, clients: { claim() {} } },
-    caches: { open: async () => ({ addAll: async (urls: string[]) => void (added = urls) }) },
+    caches: {
+      open: async () => ({
+        addAll: async (urls: string[]) => void added.push(...urls),
+        add: async (url: string) => void added.push(url),
+      }),
+    },
     fetch: async () => undefined,
     console,
   });
-  await listeners['install']!({ waitUntil: (p: Promise<unknown>) => p });
+  let installed: Promise<unknown> = Promise.resolve();
+  listeners['install']!({ waitUntil: (p: Promise<unknown>) => (installed = p) });
+  await installed;
   return added;
 }
 

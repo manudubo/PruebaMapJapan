@@ -114,15 +114,29 @@ describe('getHotel() (BUG-04)', () => {
     vi.restoreAllMocks();
   });
 
-  it('returns null when the destination has no hotel (404)', async () => {
+  it('returns null when the destination has no hotel (404 hotel_not_found)', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ success: false, error: 'Hotel not found' }), {
+      new Response(JSON.stringify({ success: false, error: 'Hotel not found', code: 'hotel_not_found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       }),
     );
     const { getHotel } = await import('@/api/client');
     await expect(getHotel('1', '2')).resolves.toBeNull();
+  });
+
+  // Review N1: after SEC-22 a 404 also means the destination/trip is gone or
+  // not the user's. The editor must show an error, not an empty hotel form.
+  it.each([
+    ['destination gone or foreign', { success: false, error: 'Destination not found' }],
+    ['generic 404', { success: false, error: 'Not found' }],
+    ['non-JSON 404', null],
+  ])('throws ApiError(404) for %s', async (_label, body) => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(body === null ? '<html>404</html>' : JSON.stringify(body), { status: 404 }),
+    );
+    const { getHotel } = await import('@/api/client');
+    await expect(getHotel('1', '2')).rejects.toMatchObject({ name: 'ApiError', status: 404 });
   });
 
   it('returns the hotel on 200', async () => {

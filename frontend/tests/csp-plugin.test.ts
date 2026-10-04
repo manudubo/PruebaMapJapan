@@ -37,12 +37,14 @@ describe('buildCsp', () => {
         "default-src 'none'",
         "script-src 'self' 'unsafe-inline'",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "img-src 'self' data: https://*.basemaps.cartocdn.com",
+        "img-src 'self' data: https://tile.openstreetmap.org",
         `connect-src 'self' https://api.example.com https://auth.example.com ${STATIC_CONNECT}`,
         "font-src 'self' https://fonts.gstatic.com",
         "frame-src 'self' https://auth.example.com",
         "manifest-src 'self'",
         "worker-src 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
       ].join('; '),
     );
   });
@@ -158,11 +160,51 @@ describe('cspPlugin', () => {
     expect(directives(String(tags[0]!.attrs!['content']))['connect-src']).toContain('https://api.example.com');
   });
 
-  it('warns on a production build with missing or empty env', () => {
-    const { warn } = runPlugin({ VITE_API_URL: '' });
-    expect(warn).toHaveBeenCalledTimes(2);
-    expect(warn.mock.calls[0]![0]).toMatch(/VITE_API_URL is empty/);
-    expect(warn.mock.calls[1]![0]).toMatch(/VITE_KEYCLOAK_URL is unset/);
+  // Review N6: a missing deploy secret used to ship a CSP that allows
+  // localhost and blocks the real API, with only a warning in the log.
+  it.each([
+    ['both unset', {}, /CSP_ALLOW_MISSING_ORIGINS=true/],
+    ['both empty (unset GitHub secrets expand to "")', { VITE_API_URL: '', VITE_KEYCLOAK_URL: '' }, /CSP_ALLOW_MISSING_ORIGINS=true/],
+    ['API missing', { VITE_KEYCLOAK_URL: 'https://auth.example.com' }, /VITE_API_URL is not set.*Set both/],
+    ['Keycloak empty', { VITE_API_URL: 'https://api.example.com/api', VITE_KEYCLOAK_URL: ' ' }, /VITE_KEYCLOAK_URL is not set.*Set both/],
+  ])('fails a production build when %s', (_l, env, message) => {
+    expect(() => runPlugin(env)).toThrow(CspConfigError);
+    expect(() => runPlugin(env)).toThrow(message);
+  });
+
+  it('CSP_ALLOW_MISSING_ORIGINS=true allows a demo-only build with neither origin, with a warning', () => {
+    const { tags, warn } = runPlugin({ VITE_API_URL: '', VITE_KEYCLOAK_URL: '', CSP_ALLOW_MISSING_ORIGINS: 'true' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toMatch(/demo-only/);
+    expect(tags).toHaveLength(1);
+  });
+
+  it('the opt-out is read from process.env too (how CI passes it)', () => {
+    vi.stubEnv('CSP_ALLOW_MISSING_ORIGINS', 'true');
+    try {
+      expect(() => runPlugin({})).not.toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each(['1', 'yes', 'TRUE', 'false', ''])('opt-out value %j is not accepted (must be exactly "true")', (v) => {
+    expect(() => runPlugin({ CSP_ALLOW_MISSING_ORIGINS: v })).toThrow(CspConfigError);
+  });
+
+  it('the opt-out never covers a half-configured build (one origin set, one missing)', () => {
+    expect(() =>
+      runPlugin({ VITE_API_URL: 'https://api.example.com/api', CSP_ALLOW_MISSING_ORIGINS: 'true' }),
+    ).toThrow(/only one of/);
+  });
+
+  it('a root-relative API URL is an explicit same-origin choice, not "missing"', () => {
+    const { warn } = runPlugin({ VITE_API_URL: '/api', VITE_KEYCLOAK_URL: 'https://auth.example.com' });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('the dev server never fails for missing env', () => {
+    expect(() => runPlugin({}, 'serve')).not.toThrow();
   });
 
   it('fails the build on a malformed URL rather than emitting a policy', () => {

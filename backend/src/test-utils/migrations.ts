@@ -47,6 +47,8 @@ function truncatedFolder(lastTag: string): string {
 
 export interface ScratchDb {
   pool: pg.Pool;
+  /** Connection string of the scratch database (e.g. for a Worker env). */
+  url: string;
   /** Run the real migrator over the full migrations folder. */
   migrateToLatest(): Promise<void>;
   drop(): Promise<void>;
@@ -66,6 +68,7 @@ export async function scratchDbAt(lastTag: string): Promise<ScratchDb> {
   }
   return {
     pool,
+    url,
     migrateToLatest: () => migrate(drizzle(pool), { migrationsFolder: MIGRATIONS_FOLDER }),
     drop: async () => {
       await pool.end();

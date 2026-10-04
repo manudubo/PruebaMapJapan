@@ -28,3 +28,5 @@ backend/.dev.vars.example:generic-api-key:9
 backend/src/auth/keycloak.test.ts:generic-api-key:76
 backend/src/index.test.ts:generic-api-key:14
 backend/src/routes/public.test.ts:generic-api-key:12
+backend/tests/adversarial/harness.ts:generic-api-key:166
+backend/src/test-utils/db.ts:generic-api-key:27

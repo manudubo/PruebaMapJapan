@@ -1,5 +1,7 @@
 # QA — Adversarial Backend API Report
 
+> **Status update 2026-10-04:** the three `it.fails` listed as open below (SEC-07 issuance, SEC-22, BIZ-07) were fixed afterwards and are now normal passing tests (`../phases/25-biz-parity/25-BIZ07-SEC22-OTP-SUMMARY.md`; migrations 0008 and 0009). Latest verified run: backend 43 files / 1524 tests on real Postgres 16. See `QA-INDEX.md`.
+
 **Date:** 2026-09-30
 **Base:** `1e48552` (Merge Phase 22: reliability bugs) — worktree branch `worktree-agent-a769bd1685c6cfa13`
 **Scope:** Hono API on Workers (`backend/src`), Drizzle/Postgres, Keycloak JWT auth. Frontend, terraform/keycloak and workflows untouched.
