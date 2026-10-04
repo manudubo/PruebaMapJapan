@@ -1,8 +1,12 @@
-// Review M2/N2: deploy gating and supply-chain pins in the GitHub Actions
-// workflows. Parses the real YAML (not regexes over text).
+// Review M1/M2/N2: deploy gating and supply-chain pins in the GitHub Actions
+// workflows. Parses the real YAML (not regexes over text) and, for the
+// deploy-backend configuration gate, executes the step's shell script with
+// every secret combination.
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { join, resolve } from 'path';
+import { spawnSync } from 'child_process';
 import { parse } from 'yaml';
 
 const WF_DIR = resolve(__dirname, '../../.github/workflows');
@@ -18,6 +22,7 @@ interface Step {
 }
 interface Job {
   if?: string;
+  env?: Record<string, string>;
   steps: Step[];
   permissions?: unknown;
 }
@@ -120,5 +125,104 @@ describe('pinned actions and tools (N2)', () => {
     expect(all).toMatch(/axe-core@\d+\.\d+\.\d+\b/);
     expect(all).toMatch(/wait-on@\d+\.\d+\.\d+\b/);
     for (const m of all.matchAll(/npx --yes (\S+)/g)) expect(m[1]).toMatch(/@\d+\.\d+\.\d+$/);
+  });
+});
+
+describe('deploy-backend: migrate before deploy, gated on configuration (M1)', () => {
+  const wf = load('deploy-backend.yml');
+  const job = wf.jobs['deploy']!;
+  const steps = job.steps;
+  const idx = (pred: (s: Step) => boolean) => steps.findIndex(pred);
+
+  const configIdx = idx((s) => s.id === 'config');
+  const preflightIdx = idx((s) => (s.run ?? '').includes('db:preflight'));
+  const migrateIdx = idx((s) => (s.run ?? '').includes('db:migrate'));
+  const deployIdx = idx((s) => /npm run deploy|wrangler deploy/.test(s.run ?? ''));
+
+  it('runs config check -> preflight -> db:migrate -> deploy, in that order', () => {
+    expect(configIdx).toBe(0);
+    expect(preflightIdx).toBeGreaterThan(configIdx);
+    expect(migrateIdx).toBeGreaterThan(preflightIdx);
+    expect(deployIdx).toBeGreaterThan(migrateIdx);
+  });
+
+  it('uses the repo scripts, not drizzle-kit push', () => {
+    expect(steps[migrateIdx]!.run).toBe('npm run db:migrate --workspace=backend');
+    expect(steps[preflightIdx]!.run).toBe('npm run db:preflight --workspace=backend');
+    expect(JSON.stringify(wf)).not.toMatch(/drizzle-kit push|db:push/);
+  });
+
+  it('preflight and migrate read DATABASE_URL from the MIGRATION_DATABASE_URL secret', () => {
+    for (const i of [preflightIdx, migrateIdx]) {
+      expect(steps[i]!.env).toEqual({ DATABASE_URL: '${{ secrets.MIGRATION_DATABASE_URL }}' });
+    }
+  });
+
+  it('every step after the config check only runs when deploy is configured', () => {
+    for (const s of steps.slice(configIdx + 1)) {
+      expect(s.if, s.name ?? s.uses).toBe("steps.config.outputs.deploy == 'true'");
+    }
+  });
+
+  it('nothing uses continue-on-error (a failed migration must stop the deploy)', () => {
+    expect(JSON.stringify(job)).not.toContain('continue-on-error');
+  });
+
+  it('job env exposes only booleans about the secrets, never their values', () => {
+    expect(job.env).toEqual({
+      HAS_CLOUDFLARE_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN != '' }}",
+      HAS_MIGRATION_DATABASE_URL: "${{ secrets.MIGRATION_DATABASE_URL != '' }}",
+    });
+  });
+
+  describe('config gate script', () => {
+    const script = steps[configIdx]!.run!;
+
+    function runGate(env: Record<string, string>) {
+      const dir = mkdtempSync(join(tmpdir(), 'gate-'));
+      const out = join(dir, 'out');
+      try {
+        const r = spawnSync('bash', ['-e', '-c', script], {
+          env: { PATH: process.env['PATH'] ?? '', GITHUB_OUTPUT: out, ...env },
+          encoding: 'utf8',
+        });
+        let output = '';
+        try {
+          output = readFileSync(out, 'utf8');
+        } catch {
+          /* no output written */
+        }
+        return { code: r.status, stdout: r.stdout, output };
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('no Cloudflare token (demo only): exits 0 with a notice and deploy=false', () => {
+      for (const mig of ['true', 'false']) {
+        const r = runGate({ HAS_CLOUDFLARE_TOKEN: 'false', HAS_MIGRATION_DATABASE_URL: mig });
+        expect(r.code).toBe(0);
+        expect(r.output.trim()).toBe('deploy=false');
+        expect(r.stdout).toMatch(/^::notice /m);
+      }
+    });
+
+    it('Cloudflare token but no migration secret: FAILS with an error annotation', () => {
+      const r = runGate({ HAS_CLOUDFLARE_TOKEN: 'true', HAS_MIGRATION_DATABASE_URL: 'false' });
+      expect(r.code).toBe(1);
+      expect(r.output).not.toContain('deploy=true');
+      expect(r.stdout).toMatch(/^::error .*MIGRATION_DATABASE_URL/m);
+    });
+
+    it('both configured: deploy=true', () => {
+      const r = runGate({ HAS_CLOUDFLARE_TOKEN: 'true', HAS_MIGRATION_DATABASE_URL: 'true' });
+      expect(r.code).toBe(0);
+      expect(r.output.trim()).toBe('deploy=true');
+    });
+
+    it('unset variables behave like missing secrets (fail closed when deploy is configured)', () => {
+      expect(runGate({}).output.trim()).toBe('deploy=false');
+      expect(runGate({ HAS_CLOUDFLARE_TOKEN: 'true' }).code).toBe(1);
+    });
   });
 });
