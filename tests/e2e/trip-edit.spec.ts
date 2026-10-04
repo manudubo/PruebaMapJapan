@@ -273,7 +273,7 @@ test.describe('TRIP-03: destinations', () => {
     await expect(page.locator('#destinations-empty')).toBeHidden();
     const post = writes(calls, 'POST')[0];
     expect(post?.path).toBe('/trips/1/destinations');
-    expect(post?.body).toEqual({ city_name: 'Kyoto', country: 'Japan', start_date: '2026-01-06', end_date: '2026-01-09' });
+    expect(post?.body).toEqual({ city_name: 'Kyoto', country: 'Japan', start_date: '2026-01-06', end_date: '2026-01-09', zoom_level: 12 });
   });
 
   test('required fields block an empty destination', async ({ page }) => {

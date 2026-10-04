@@ -22,29 +22,28 @@ test.describe('Landing page', () => {
     await expect(page.locator('#landing-hero')).toBeVisible();
   });
 
-  test('countdown shows numeric values and keeps ticking', async ({ page }) => {
+  test('countdown shows days, hours and minutes only (no seconds)', async ({ page }) => {
     await expect(page.locator('#demo-countdown')).toBeVisible();
 
     await expect(page.locator('#cd-days')).toHaveText(/^\d+$/);
     await expect(page.locator('#cd-hours')).toHaveText(/^\d{2}$/);
     await expect(page.locator('#cd-mins')).toHaveText(/^\d{2}$/);
-    await expect(page.locator('#cd-secs')).toHaveText(/^\d{2}$/);
-
-    const first = await page.locator('#cd-secs').textContent();
-    // Web-first: retries until the seconds digit changes (or fails at the timeout).
-    await expect(page.locator('#cd-secs')).not.toHaveText(first ?? '', { timeout: 3000 });
+    await expect(page.locator('#cd-secs')).toHaveCount(0);
+    await expect(page.locator('#demo-countdown .countdown-unit')).toHaveCount(3);
+    await expect(page.locator('#demo-countdown')).toHaveAttribute('aria-live', 'off');
+    await expect(page.locator('#cd-sr')).toHaveText(/^\d+ days?, \d+ hours? and \d+ minutes? until the trip$/);
   });
 
-  test('city chips list all 8 destinations with the right targets', async ({ page }) => {
-    const chips = page.locator('.city-chip');
-    await expect(chips).toHaveCount(8);
+  test('the Cities list links all 8 destinations with the right targets', async ({ page }) => {
+    const cards = page.locator('#overview-cities .city-card');
+    await expect(cards).toHaveCount(8);
     for (const [label, href] of CITY_LINKS) {
-      await expect(page.locator(`.city-chip[href="${href}"]`)).toHaveText(label);
+      await expect(page.locator(`#overview-cities .city-card[href="${href}"] strong`)).toHaveText(label);
     }
   });
 
-  test('clicking a city chip navigates to that city page', async ({ page }) => {
-    await page.locator('.city-chip[href="kyoto.html"]').click();
+  test('clicking a city card navigates to that city page', async ({ page }) => {
+    await page.locator('#overview-cities .city-card[href="kyoto.html"]').click();
     await expect(page).toHaveURL(/kyoto\.html$/);
     await expect(page.locator('#map')).toHaveAttribute('data-city', 'kyoto');
   });
@@ -78,7 +77,7 @@ test.describe('Landing page', () => {
     await page.reload();
 
     await expect(page.locator('#landing-hero')).toBeVisible();
-    await expect(page.locator('.city-chip')).toHaveCount(8);
+    await expect(page.locator('#overview-cities .city-card')).toHaveCount(8);
     expect(errors).toEqual([]);
   });
 
@@ -97,7 +96,7 @@ test.describe('Landing page', () => {
     await page.reload();
 
     await expect(page.locator('#main-content')).toBeVisible();
-    await expect(page.locator('.demo-cities')).toBeVisible();
+    await expect(page.locator('#overview-cities')).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );

@@ -28,7 +28,7 @@ function pngSize(file: string): [number, number] {
 
 /** Run public/sw.js and capture the list handed to cache.addAll on install. */
 async function precacheList(): Promise<string[]> {
-  let listed: string[] = [];
+  const listed: string[] = [];
   const listeners: Record<string, (e: unknown) => void> = {};
   const self = {
     addEventListener: (t: string, fn: (e: unknown) => void) => void (listeners[t] = fn),
@@ -38,7 +38,8 @@ async function precacheList(): Promise<string[]> {
   };
   const caches = {
     open: async () => ({
-      addAll: async (list: string[]) => void (listed = list),
+      addAll: async (list: string[]) => void listed.push(...list),
+      add: async (url: string) => void listed.push(url),
       put: async () => undefined,
     }),
   };

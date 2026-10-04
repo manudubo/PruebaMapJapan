@@ -1,4 +1,6 @@
 import { Hono, type Context } from 'hono';
+import { dbFromEnv } from '../middleware/db';
+import { checkSchemaReady, SCHEMA_NOT_MIGRATED } from '../db/schema-guard';
 import type { Env } from '../types';
 
 const health = new Hono<{ Bindings: Env }>();
@@ -18,5 +20,20 @@ export function healthResponse(c: Context) {
 
 /** GET /api/health */
 health.get('/', healthResponse);
+
+/**
+ * GET /api/health/ready: readiness (review M1). Is the database migrated far
+ * enough for this code? Uses the same cached check as dbMiddleware, so a probe
+ * costs at most one catalog query per isolate (plus one every 30 s while the
+ * schema is behind). The body names no schema objects; the log does.
+ */
+health.get('/ready', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const db = dbFromEnv(c.env);
+  if (!db) return c.json({ status: 'unavailable' as const, code: 'not_configured' }, 503);
+  const verdict = await checkSchemaReady(db, c.env.DATABASE_URL);
+  if (!verdict.ok) return c.json({ status: 'unavailable' as const, code: SCHEMA_NOT_MIGRATED }, 503);
+  return c.json({ status: 'ready' as const });
+});
 
 export default health;

@@ -13,7 +13,10 @@ function parse(file: string): Document {
 }
 
 const mapPages = htmlPages.filter((f) => parse(f).getElementById('map'));
-const cityPages = mapPages.filter((f) => parse(f).getElementById('map')!.hasAttribute('data-city'));
+const cityPages = mapPages.filter((f) => {
+  const city = parse(f).getElementById('map')!.getAttribute('data-city');
+  return city !== null && city !== 'overview';
+});
 
 describe('map container accessible name', () => {
   it('finds all 8 static city pages and the dynamic trip page', () => {
@@ -21,6 +24,13 @@ describe('map container accessible name', () => {
       ['hakone', 'kyoto', 'nagoya', 'naoshima', 'osaka', 'takayama', 'tokyo', 'tokyo2'].map((c) => `${c}.html`),
     );
     expect(mapPages).toContain('trip.html');
+  });
+
+  it('the landing demo has the trip overview map (restored after 6ff0f80 dropped it)', () => {
+    const map = parse('index.html').getElementById('map')!;
+    expect(map.getAttribute('data-city')).toBe('overview');
+    expect(map.getAttribute('aria-label')).toBe('Map of the Japan 2026 trip');
+    expect(map.closest('#demo')).not.toBeNull();
   });
 
   it.each(mapPages)('%s gives #map a role and a non-empty aria-label', (file) => {

@@ -1,5 +1,7 @@
 # Frontend QA report (post Phase 22 + 23)
 
+> **Status update 2026-10-04:** bugs 7-10 (visual items 1-4) were fixed afterwards: `../phases/23-supply-chain-a11y/23-QA-FOLLOWUP.md`. The "CartoDB tiles unreachable" note is obsolete: maps now use OpenStreetMap (`QA-DEMO-FIXES.md`). See `QA-INDEX.md` for what was not verified.
+
 Branch: `worktree-agent-a200a427072db4913`. Method: `npm run build`, `vite preview` (port 4173), Playwright driving the
 preinstalled Chromium (`/opt/pw-browsers/chromium`), screenshots read by eye. No push, no PR.
 

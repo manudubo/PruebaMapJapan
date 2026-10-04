@@ -24,6 +24,12 @@ vi.mock('../db/queries/otp', async (importOriginal) => {
   };
 });
 
+// No real DB here: the schema guard (review M1) would query the mock URL.
+vi.mock('../db/schema-guard', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../db/schema-guard')>()),
+  checkSchemaReady: async () => ({ ok: true }),
+}));
+
 import app from '../index';
 import type { Env } from '../types';
 import { deleteStaleOtps, issueOtp } from '../db/queries/otp';

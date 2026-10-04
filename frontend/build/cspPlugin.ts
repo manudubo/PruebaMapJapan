@@ -1,4 +1,5 @@
 import type { HtmlTagDescriptor, Plugin } from 'vite';
+import { tileCspSources } from '../src/data/tiles';
 
 // SEC-04: Content-Security-Policy injected as a <meta> into every HTML entry.
 //
@@ -28,7 +29,8 @@ const CONNECT_SRC_STATIC = [
 const IMG_SRC_STATIC = [
   // data: carries Leaflet's control/marker images, which Vite inlines from leaflet.css.
   'data:',
-  'https://*.basemaps.cartocdn.com', // theme.ts map tiles
+  // Map tiles (src/data/tiles.ts is the single source, so the policy follows the provider).
+  ...tileCspSources(),
 ];
 
 export type CspTarget = 'serve' | 'build';
@@ -117,7 +119,51 @@ export function buildCsp({ apiUrl, keycloakUrl, target }: CspInput): string {
     `frame-src ${unique(["'self'", keycloak]).join(' ')}`,
     "manifest-src 'self'",
     "worker-src 'self'",
+    // No <base> may re-point relative URLs, and forms may only submit to this
+    // origin: sanitised user notes can still contain a <form> (review N6).
+    "base-uri 'self'",
+    "form-action 'self'",
   ].join('; ');
+}
+
+/** Opt-out for a deliberately backend-less (demo-only) production build. */
+export const ALLOW_MISSING_ENV = 'CSP_ALLOW_MISSING_ORIGINS';
+
+/**
+ * Review N6: a production build without VITE_API_URL / VITE_KEYCLOAK_URL used
+ * to warn and ship a CSP that allows localhost and blocks the real API. Unset
+ * GitHub secrets expand to "", so empty counts as missing too. A root-relative
+ * URL ("/api") is an explicit same-origin choice and is fine.
+ *
+ * Missing both is allowed only with CSP_ALLOW_MISSING_ORIGINS=true (exactly),
+ * from the Vite env or process.env: the demo-only GitHub Pages deploy. Missing
+ * one of the two is always a misconfiguration.
+ */
+export function checkProductionOrigins(
+  env: Record<string, string | undefined>,
+  warn: (msg: string) => void,
+): void {
+  const names = ['VITE_API_URL', 'VITE_KEYCLOAK_URL'] as const;
+  const missing = names.filter((n) => !env[n]?.trim());
+  if (missing.length === 0) return;
+
+  const optOut = (env[ALLOW_MISSING_ENV] ?? process.env[ALLOW_MISSING_ENV]) === 'true';
+  if (missing.length === 1) {
+    throw new CspConfigError(
+      `${missing[0]} is not set but ${names.find((n) => !missing.includes(n))} is: only one of the two origins ` +
+        `is configured, so the CSP would block the other in production. Set both.`,
+    );
+  }
+  if (!optOut) {
+    throw new CspConfigError(
+      'VITE_API_URL and VITE_KEYCLOAK_URL are not set for a production build, so the CSP would only allow ' +
+        `localhost. Set them, or set ${ALLOW_MISSING_ENV}=true for a deliberately demo-only build.`,
+    );
+  }
+  warn(
+    `[csp-meta] demo-only build (${ALLOW_MISSING_ENV}=true): VITE_API_URL and VITE_KEYCLOAK_URL are not set; ` +
+      'the CSP uses the localhost defaults.',
+  );
 }
 
 export function cspPlugin(): Plugin {
@@ -129,13 +175,7 @@ export function cspPlugin(): Plugin {
       // (.env files + process.env), so the policy cannot drift from the code.
       const env = config.env as Record<string, string | undefined>;
       const target: CspTarget = config.command === 'build' ? 'build' : 'serve';
-      for (const name of ['VITE_API_URL', 'VITE_KEYCLOAK_URL']) {
-        if (target === 'build' && !env[name]?.trim()) {
-          config.logger.warn(
-            `[csp-meta] ${name} is ${env[name] === undefined ? 'unset (CSP uses the localhost default)' : 'empty (CSP allows same-origin only)'}`,
-          );
-        }
-      }
+      if (target === 'build') checkProductionOrigins(env, config.logger.warn.bind(config.logger));
       csp = buildCsp({ apiUrl: env['VITE_API_URL'], keycloakUrl: env['VITE_KEYCLOAK_URL'], target });
     },
     transformIndexHtml(): HtmlTagDescriptor[] {

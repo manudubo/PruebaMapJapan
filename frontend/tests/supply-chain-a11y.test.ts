@@ -44,7 +44,9 @@ describe('SEC-16 / INFRA-06: service worker', () => {
         const store = cacheStore.get(name)!;
         return {
           addAll: async () => undefined,
-          put: async (req: { url: string }, res: unknown) => void store.set(req.url, res),
+          add: async () => undefined,
+          put: async (req: { url: string } | string, res: unknown) =>
+            void store.set(typeof req === 'string' ? req : req.url, res),
         };
       },
       keys: async () => [...cacheStore.keys()],
@@ -61,7 +63,7 @@ describe('SEC-16 / INFRA-06: service worker', () => {
       clients: { claim: vi.fn() },
     };
     vm.runInNewContext(src.replace(/__BUILD_VERSION__/g, version), {
-      self, caches, fetch: fetchMock, console,
+      self, caches, fetch: fetchMock, console, URL,
     });
     return { listeners, cacheStore, fetchMock };
   }

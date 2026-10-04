@@ -54,8 +54,14 @@ describe('upsertUser — first login (BUG-03)', () => {
     const winner = await upsertUser(testDb(), claims);
     const real = testDb();
     const raceErr = Object.assign(new Error('duplicate key'), { code: '23505', constraint: 'users_email_unique_idx' });
+    // The racing request's initial SELECT ran before the winner committed
+    // (miss); its INSERT then lands after the winner and trips the email index.
+    let selects = 0;
     const racing = new Proxy(real, {
       get(target, prop, receiver) {
+        if (prop === 'select' && selects++ === 0) {
+          return () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) });
+        }
         if (prop === 'insert') {
           return () => ({ values: () => ({ onConflictDoNothing: () => ({ returning: async () => { throw raceErr; } }) }) });
         }
@@ -106,6 +112,65 @@ describe('upsertUser — first login (BUG-03)', () => {
       upsertUser(testDb(), { keycloak_id: 'kc-2', email: 'x@example.com', name: 'n'.repeat(256) }),
     ).rejects.toThrow();
     expect(await userRows()).toHaveLength(1);
+  });
+});
+
+// Review S2: provisioning runs on every authenticated request. An existing
+// user must cost one SELECT, no INSERT and no users_id_seq value.
+describe('upsertUser — cost per request (S2)', () => {
+  function recordQueries() {
+    const pool = testPool();
+    const spy = vi.spyOn(pool, 'query');
+    return () =>
+      spy.mock.calls.map((c) => {
+        const q = c[0] as string | { text: string };
+        return (typeof q === 'string' ? q : q.text).trim().split(/\s+/)[0]!.toLowerCase();
+      });
+  }
+
+  async function sequenceState() {
+    const { rows } = await testPool().query('SELECT last_value::int AS v, is_called FROM users_id_seq');
+    return rows[0] as { v: number; is_called: boolean };
+  }
+
+  it('existing, unchanged user → exactly one SELECT', async () => {
+    await upsertUser(testDb(), claims);
+    const queries = recordQueries();
+    const res = await upsertUser(testDb(), claims);
+    expect(res.created).toBe(false);
+    expect(queries()).toEqual(['select']);
+  });
+
+  it('existing user never advances users_id_seq, however many requests', async () => {
+    await upsertUser(testDb(), claims);
+    const before = await sequenceState();
+    for (let i = 0; i < 10; i++) await upsertUser(testDb(), claims);
+    await Promise.all(Array.from({ length: 10 }, () => upsertUser(testDb(), claims)));
+    expect(await sequenceState()).toEqual(before);
+    // The next new user gets the very next id: no gaps from the 20 requests.
+    const next = await upsertUser(testDb(), { ...claims, keycloak_id: 'kc-next', email: 'next@example.com' });
+    expect(next.user.id).toBe(before.v + 1);
+  });
+
+  it('existing user whose profile changed → SELECT + UPDATE, no INSERT', async () => {
+    await upsertUser(testDb(), claims);
+    const queries = recordQueries();
+    await upsertUser(testDb(), { ...claims, name: 'New Name' });
+    expect(queries()).toEqual(['select', 'update']);
+  });
+
+  it('new user → SELECT (miss) + INSERT', async () => {
+    const queries = recordQueries();
+    const res = await upsertUser(testDb(), claims);
+    expect(res.created).toBe(true);
+    expect(queries()).toEqual(['select', 'insert']);
+  });
+
+  it('a new subject whose email is taken → SELECT, INSERT (23505), SELECT, then EmailConflictError', async () => {
+    await insertUser({ keycloak_id: 'owner', email: claims.email });
+    const queries = recordQueries();
+    await expect(upsertUser(testDb(), claims)).rejects.toBeInstanceOf(EmailConflictError);
+    expect(queries()).toEqual(['select', 'insert', 'select']);
   });
 });
 

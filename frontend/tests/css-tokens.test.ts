@@ -44,10 +44,13 @@ describe('CSS custom properties', () => {
     expect([...new Set(undefinedVars)]).toEqual([]);
   });
 
-  it('landing no longer hardcodes light countdown colours for dark mode', () => {
+  it('landing countdown colours come only from theme tokens (no hardcoded light colours)', () => {
     const index = read('index.html');
     expect(index).not.toMatch(/Countdown cards stay light/);
-    expect(index).toMatch(/\.countdown-unit\s*\{[^}]*background:\s*var\(--jp-surface\)/);
+    const rules = [...index.matchAll(/\.(?:demo-countdown[\w-]*|countdown-[\w-]+)\s*\{([^}]*)\}/g)].map((m) => m[1]!);
+    expect(rules.length).toBeGreaterThanOrEqual(5);
+    for (const body of rules) expect(body).not.toMatch(/#[0-9a-f]{3,6}\b|rgb/i);
+    expect(index).toMatch(/\.countdown-value\s*\{[^}]*color:\s*var\(--jp-text\)/);
   });
 });
 
@@ -89,9 +92,11 @@ describe('theme token contrast (WCAG AA 4.5:1)', () => {
   };
 
   const pairs: Array<[string, string]> = [
-    ['--jp-text', '--jp-surface'], // countdown value on card
-    ['--jp-text-secondary', '--jp-surface'], // city chip text
-    ['--jp-text-tertiary', '--jp-surface'], // countdown label on card
+    ['--jp-text', '--jp-surface'], // city card text
+    ['--jp-text', '--jp-bg'], // countdown value on the page background
+    ['--jp-text-secondary', '--jp-bg'], // countdown title / labels
+    ['--jp-text-secondary', '--jp-surface'], // attribution text
+    ['--jp-text-tertiary', '--jp-surface'], // city card dates
     ['--jp-text-tertiary', '--jp-bg'], // section titles on page bg
     ['--jp-white', '--jp-accent-solid'], // primary buttons / active tab
     ['--jp-white', '--jp-accent-solid-hover'],

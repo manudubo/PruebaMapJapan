@@ -8,12 +8,13 @@ Deployed to GitHub Pages at `/PruebaMapJapan/`.
 ## Commands
 ```bash
 npm run dev          # Dev server on http://localhost:3000 (opens browser)
-npm run build        # tsc + vite build → dist/
+npm run build        # tsc + vite build → dist/ (needs VITE_API_URL + VITE_KEYCLOAK_URL, or CSP_ALLOW_MISSING_ORIGINS=true for a demo-only build)
 npm run preview      # Preview production build locally
 npm run typecheck    # tsc --noEmit (no output, just type errors)
 npm run test         # Vitest in watch mode
 npm run test:run     # Vitest single run (for CI)
 npm run test:coverage
+npm run check:tiles  # opt-in, needs internet: 1 real tile per theme must not be a placeholder
 ```
 
 ## Architecture
@@ -29,7 +30,8 @@ All pages load `src/main.ts`. The map is identified by `<div id="map" data-city=
 | File | Role |
 |------|------|
 | `src/data/itinerary.ts` | All city/day/activity data — single source of truth |
-| `src/data/maps.ts` | Leaflet tile URLs and theme configs |
+| `src/data/maps.ts` | Google Maps links per place |
+| `src/data/tiles.ts` | Tile provider (URL, attribution, hosts) — feeds Leaflet, CSP img-src and tile guard tests |
 | `src/types/index.ts` | All TypeScript interfaces (`Activity`, `Day`, `CityData`, etc.) |
 | `src/main.ts` | App bootstrap — initializes theme, countdown, map, widgets |
 | `src/modules/map.ts` | Leaflet map init for city pages and overview |
@@ -82,4 +84,6 @@ Always run `npm run typecheck && npm run test:run` before committing.
 ## External APIs (no keys required)
 - Weather: Open-Meteo (`https://api.open-meteo.com`) — free, no auth
 - News: Google RSS feeds — public
-- Tiles: OpenStreetMap / CartoDB — public
+- Tiles: OpenStreetMap Foundation tile server (`tile.openstreetmap.org`) — keyless, light use only:
+  keep the "© OpenStreetMap contributors" attribution visible, never bulk-prefetch or SW-cache tiles.
+  Dark mode is a CSS filter on `.leaflet-tile-pane`. CartoDB basemaps now need an API key (placeholder tiles).
