@@ -3,7 +3,6 @@ import { HTTPException } from 'hono/http-exception';
 import type { ApiResponse } from '../types';
 import { dateConflict, pgErrorCode } from '../db/pg-errors';
 import { EmailConflictError } from '../db/queries/users';
-import { SCHEMA_OUT_OF_DATE_BODY } from './db';
 
 type Mapped = { status: 400 | 409; error: string; code: string };
 
@@ -29,11 +28,6 @@ const CLIENT_ERRORS: Record<string, Mapped> = {
   '23505': { status: 409, error: 'Conflict', code: 'conflict' }, // unique_violation
   '23503': { status: 409, error: 'Conflict', code: 'conflict' }, // foreign_key_violation
 };
-
-// The database lacks an object the code uses: undefined_table, undefined_column,
-// undefined_function, and invalid_column_reference (ON CONFLICT target with no
-// matching unique index, e.g. hotels before 0007).
-const SCHEMA_MISMATCH = new Set(['42P01', '42703', '42883', '42P10']);
 
 /**
  * Global error handler (M-09). Routes no longer swallow errors in
@@ -73,17 +67,6 @@ export function errorHandler(err: Error, c: Context) {
   }
 
   const sqlstate = pgErrorCode(err);
-  if (sqlstate && SCHEMA_MISMATCH.has(sqlstate)) {
-    // The code asked for a table/column/function/unique index the database
-    // does not have: the schema is behind (or ahead of) this Worker. The
-    // dbMiddleware check normally catches this first; this covers a schema
-    // changed under a running isolate.
-    console.error(
-      `${c.req.method} ${c.req.path} → 503 schema_out_of_date (SQLSTATE ${sqlstate}); run \`npm run db:migrate\`:`,
-      err,
-    );
-    return c.json(SCHEMA_OUT_OF_DATE_BODY, 503);
-  }
   const mapped = sqlstate ? CLIENT_ERRORS[sqlstate] : undefined;
   if (mapped) {
     console.warn(`${c.req.method} ${c.req.path} → ${mapped.status} (SQLSTATE ${sqlstate}):`, err);
