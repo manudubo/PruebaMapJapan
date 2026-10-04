@@ -170,6 +170,13 @@ The Worker's own runtime secrets (`DATABASE_URL`, `KEYCLOAK_URL`, `OTP_SECRET`,
 `RESEND_API_KEY`, ...) are not GitHub secrets: set them with
 `wrangler secret put <NAME>` (DEVELOPMENT.md, Step 3).
 
+Frontend build and missing URLs: a production build **fails** when exactly one
+of `VITE_API_URL` / `VITE_KEYCLOAK_URL` is set, or when neither is set and the
+build was not explicitly marked demo-only, because the page's Content Security
+Policy would otherwise point at `localhost`. `deploy-frontend.yml` marks the
+build demo-only (`CSP_ALLOW_MISSING_ORIGINS=true`) only when **both** secrets
+are absent, so the demo keeps deploying today.
+
 ### What happens on a push to `main`
 
 | `CLOUDFLARE_API_TOKEN` | `MIGRATION_DATABASE_URL` | Backend deploy job |

@@ -79,6 +79,28 @@ describe.each(DEPLOYS)('%s: only same-repo pushes to main deploy (M2)', (file) =
   });
 });
 
+describe('deploy-frontend: demo-only CSP opt-out (N6)', () => {
+  it('sets CSP_ALLOW_MISSING_ORIGINS only when both origin secrets are empty', () => {
+    const build = load('deploy-frontend.yml').jobs['build-and-deploy']!.steps.find(
+      (s) => s.run === 'npm run build --workspace=frontend',
+    )!;
+    expect(build.env?.['CSP_ALLOW_MISSING_ORIGINS']).toBe(
+      "${{ secrets.VITE_API_URL == '' && secrets.VITE_KEYCLOAK_URL == '' }}",
+    );
+  });
+
+  it.each(['ci.yml', 'security.yml'])('%s builds with both origins set and no opt-out', (file) => {
+    const steps = Object.values(load(file).jobs).flatMap((j) => j.steps);
+    const builds = steps.filter((s) => /npm run build(:frontend| --workspace=frontend)/.test(s.run ?? ''));
+    expect(builds.length).toBeGreaterThan(0);
+    for (const b of builds) {
+      expect(b.env?.['VITE_API_URL']).toMatch(/^https?:\/\//);
+      expect(b.env?.['VITE_KEYCLOAK_URL']).toMatch(/^https?:\/\//);
+      expect(b.env?.['CSP_ALLOW_MISSING_ORIGINS']).toBeUndefined();
+    }
+  });
+});
+
 describe('least-privilege permissions (N2)', () => {
   it.each(ALL)('%s declares top-level permissions', (file) => {
     expect(load(file).permissions).toBeDefined();
