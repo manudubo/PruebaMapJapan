@@ -88,6 +88,30 @@ journal. Rebuild it from the migrations and copy the data across:
 4. Point the Worker (`wrangler secret put DATABASE_URL`) and the
    `MIGRATION_DATABASE_URL` GitHub secret at the new database.
 
+### 0006 and swapped coordinates (data loss, by design)
+
+Migration 0006 adds lat/lng range CHECKs. Rows with an out-of-range value get
+**both** coordinates set to NULL first; a row whose lat and lng were simply
+entered the wrong way round (e.g. lat 139.7, lng 35.6 for Tokyo) loses its
+pin rather than being swapped back. Automatic swapping is not safe: when both
+values are within ±90 a swap cannot be detected, and swapping only the
+detectable rows would silently "fix" some pins and not others.
+
+Before migrating a database that predates 0006, list the candidates and fix
+them by hand if you want to keep them:
+
+```sql
+SELECT 'activities' AS t, id, lat, lng FROM activities
+ WHERE NOT lat BETWEEN -90 AND 90 AND lat BETWEEN -180 AND 180 AND lng BETWEEN -90 AND 90
+UNION ALL
+SELECT 'destinations', id, lat, lng FROM destinations
+ WHERE NOT lat BETWEEN -90 AND 90 AND lat BETWEEN -180 AND 180 AND lng BETWEEN -90 AND 90
+UNION ALL
+SELECT 'hotels', id, lat, lng FROM hotels
+ WHERE NOT lat BETWEEN -90 AND 90 AND lat BETWEEN -180 AND 180 AND lng BETWEEN -90 AND 90;
+-- then, per row you confirm:  UPDATE <t> SET lat = lng, lng = lat WHERE id = <id>;
+```
+
 ### Schema guard
 
 On its first DB request each Worker isolate checks (one catalog query, cached)
