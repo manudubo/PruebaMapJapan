@@ -109,7 +109,10 @@ test.describe('OTP fallback flow', () => {
     // PASS-07: UPDATE_PASSWORD is NOT forced when WebAuthn is available.
     // Headless Chrome supports WebAuthn, so it must NOT be forced after OTP login.
     await loginViaKcForm(page, OTP_USERNAME, process.env.E2E_OTP_PASSWORD ?? '');
-    await page.waitForURL(/dashboard\.html/, { timeout: 15_000 });
+    // loginViaKcForm returns as soon as the app URL is reached; on a fresh context the
+    // once-per-device passkey campaign may already have redirected to KC by now, so
+    // accept either page here instead of waiting for a navigation that never comes.
+    await page.waitForURL(/dashboard\.html|required-action/, { timeout: 15_000 });
 
     // The SPA session check may trigger a second KC required-action redirect ~1s after load.
     // Detect it and cancel — it is conditional, not a hard gate.
