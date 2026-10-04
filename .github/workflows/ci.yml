@@ -11,6 +11,15 @@ permissions:
   contents: read
 
 jobs:
+  # Review S5: terraform/keycloak/import.sh failure paths, against stub curl/terraform.
+  # shellcheck is preinstalled on ubuntu-latest runners.
+  test-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: shellcheck terraform/keycloak/import.sh terraform/keycloak/tests/import.test.sh
+      - run: bash terraform/keycloak/tests/import.test.sh
+
   typecheck-frontend:
     runs-on: ubuntu-latest
     steps:
