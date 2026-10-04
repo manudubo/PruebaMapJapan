@@ -1,6 +1,7 @@
 import type { NewsItem, WeatherData } from '@/types';
 import { ITINERARY } from '@/data/itinerary';
-import { getCache, setCache, createElement, cleanTitle, formatDate, isValidItem, createCalendarUrl } from './utils';
+import { getCache, setCache, clearCache, createElement, cleanTitle, formatDate, isValidItem, createCalendarUrl } from './utils';
+import { formatIsoDate } from './dates';
 
 const MAX_ITEMS = 4;
 
@@ -64,7 +65,10 @@ async function fetchWeather(lat: number, lon: number): Promise<void> {
   
   const cacheKey = `weather_${lat}_${lon}`;
   const cached = getCache<WeatherData>(cacheKey);
-  if (cached) { renderWeather(container, cached); return; }
+  if (cached) {
+    if (isWeatherData(cached)) { renderWeather(container, cached); return; }
+    clearCache(cacheKey); // corrupted entry: drop it and refetch
+  }
 
   try {
     const params = new URLSearchParams({
@@ -75,11 +79,33 @@ async function fetchWeather(lat: number, lon: number): Promise<void> {
     });
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
     if (!res.ok) throw new Error('Weather fetch failed');
-    const data = await res.json() as WeatherData;
+    const data = await res.json() as unknown;
+    if (!isWeatherData(data)) throw new Error('Unexpected weather payload');
     setCache(cacheKey, data);
     renderWeather(container, data);
   } catch {
     renderError(container, 'Weather unavailable');
+  }
+}
+
+function isWeatherData(d: unknown): d is WeatherData {
+  const w = d as Partial<WeatherData> | null;
+  return !!w && typeof w === 'object'
+    && typeof w.current?.temperature_2m === 'number'
+    && typeof w.current?.weather_code === 'number'
+    && Array.isArray(w.daily?.time) && w.daily.time.length >= 5
+    && Array.isArray(w.daily?.weather_code)
+    && Array.isArray(w.daily?.temperature_2m_max)
+    && Array.isArray(w.daily?.temperature_2m_min);
+}
+
+/** RSS links are untrusted: only plain web URLs may become hrefs (blocks javascript:/data:). */
+export function safeHref(link: string): string | null {
+  try {
+    const u = new URL(link.trim());
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
   }
 }
 
@@ -90,7 +116,7 @@ function renderWeather(container: HTMLElement, data: WeatherData): void {
   
   const forecastDays = daily.time.slice(1, 5).map((time, i) => {
     const idx = i + 1;
-    const date = new Date(time).toLocaleDateString('en-US', { weekday: 'short' });
+    const date = formatIsoDate(time, { weekday: 'short' });
     const min = Math.round(daily.temperature_2m_min[idx]);
     const max = Math.round(daily.temperature_2m_max[idx]);
     const icon = getWeatherIcon(daily.weather_code[idx]);
@@ -150,7 +176,7 @@ async function loadDynamicData(city: string, type: 'news' | 'events'): Promise<v
     let items = await fetchWithProxy(query, 'allorigins');
     if (!items?.length) items = await fetchWithProxy(query, 'corsproxy');
     
-    const filteredItems = items?.filter(isValidItem) ?? [];
+    const filteredItems = items?.filter(i => isValidItem(i) && safeHref(i.link) !== null) ?? [];
     if (filteredItems.length > 0) {
       const finalItems = filteredItems.slice(0, MAX_ITEMS);
       setCache(cacheKey, finalItems);
@@ -194,6 +220,8 @@ export function renderList(container: HTMLElement, items: NewsItem[], type: 'new
   ul.setAttribute('role', 'list');
 
   for (const item of items) {
+    const href = safeHref(item.link);
+    if (href === null) continue;
     const li = document.createElement('li');
     li.className = 'widget-list-item';
 
@@ -201,7 +229,7 @@ export function renderList(container: HTMLElement, items: NewsItem[], type: 'new
     div.className = 'widget-text-content';
 
     const a = document.createElement('a');
-    a.setAttribute('href', item.link);
+    a.setAttribute('href', href);
     a.setAttribute('target', '_blank');
     a.setAttribute('rel', 'noopener');
     a.className = 'widget-link';
@@ -228,7 +256,7 @@ export function renderList(container: HTMLElement, items: NewsItem[], type: 'new
     li.appendChild(div);
 
     if (type === 'events') {
-      const calUrl = createCalendarUrl(cleanTitle(item.title), item.link, `${city}, Japan`);
+      const calUrl = createCalendarUrl(cleanTitle(item.title), href, `${city}, Japan`);
       const calA = document.createElement('a');
       calA.setAttribute('href', calUrl);
       calA.setAttribute('target', '_blank');

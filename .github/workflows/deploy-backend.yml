@@ -1,25 +1,89 @@
 name: Deploy Backend to Cloudflare Workers
 
+# Runs after CI succeeds on a push to main. Order matters (review M1):
+#   pre-flight checks -> db:migrate -> wrangler deploy
+# so the Worker never goes live against a database that lacks the objects it
+# needs (otp_issue(), the hotel unique index, the BIZ-07 triggers).
+#
+# Secrets (Settings -> Secrets and variables -> Actions, repository secrets):
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID  - Worker deploy
+#   MIGRATION_DATABASE_URL                       - direct (non-pooled) Neon URL for migrations
+# No CLOUDFLARE_API_TOKEN = backend deploy not configured: the job ends green
+# with a notice. CLOUDFLARE_API_TOKEN without MIGRATION_DATABASE_URL = the job
+# FAILS before deploying. See SETUP.md "Production backend (optional)".
+
 on:
   workflow_run:
     workflows: [CI]
     branches: [main]
     types: [completed]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # workflow_run fires for CI runs of fork PRs too, and `branches` matches the
+    # fork's branch NAME, so a fork branch called "main" would otherwise reach
+    # this job with secrets (review M2). Only same-repo pushes to main deploy.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    env:
+      HAS_CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+      HAS_MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check deploy configuration
+        id: config
+        run: |
+          if [ "$HAS_CLOUDFLARE_TOKEN" != "true" ]; then
+            echo "::notice title=Backend deploy skipped::CLOUDFLARE_API_TOKEN is not set, so the backend is not deployed. This is expected while only the GitHub Pages demo is live. See SETUP.md, 'Production backend (optional)'."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$HAS_MIGRATION_DATABASE_URL" != "true" ]; then
+            echo "::error title=MIGRATION_DATABASE_URL is missing::Cloudflare deploy is configured but the MIGRATION_DATABASE_URL secret is not set. Refusing to deploy a Worker whose database migrations cannot be applied. Add the secret (SETUP.md, 'Create the migration database secret') and re-run this workflow."
+            exit 1
+          fi
+          echo "deploy=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.config.outputs.deploy == 'true'
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.config.outputs.deploy == 'true'
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci --workspace=backend
+
+      - name: Install backend dependencies
+        if: steps.config.outputs.deploy == 'true'
+        run: npm ci --workspace=backend
+
+      - name: Pre-flight migration checks (duplicate emails for 0005, push-created DB)
+        if: steps.config.outputs.deploy == 'true'
+        run: npm run db:preflight --workspace=backend
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+
+      - name: Apply database migrations
+        if: steps.config.outputs.deploy == 'true'
+        run: npm run db:migrate --workspace=backend
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+
       - name: Deploy to Cloudflare Workers
+        if: steps.config.outputs.deploy == 'true'
         run: npm run deploy --workspace=backend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

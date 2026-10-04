@@ -51,9 +51,18 @@ describe('DOM Utilities', () => {
     expect(el.className).toBe('test-class');
   });
 
-  it('should create element with HTML content', () => {
-    const el = createElement('span', '', '<strong>Hello</strong>');
-    expect(el.innerHTML).toBe('<strong>Hello</strong>');
+  it('sets the third argument as text, never as HTML (BUG-07)', () => {
+    const el = createElement('span', '', '<img src=x onerror=alert(1)>');
+    expect(el.textContent).toBe('<img src=x onerror=alert(1)>');
+    expect(el.children.length).toBe(0);
+    expect(el.querySelector('img')).toBeNull();
+  });
+
+  it('does not touch innerHTML (BUG-07)', () => {
+    const spy = vi.spyOn(Element.prototype, 'innerHTML', 'set');
+    createElement('p', 'x', 'plain text');
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

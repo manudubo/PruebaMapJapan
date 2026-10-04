@@ -1,121 +1,93 @@
 import { test, expect } from '@playwright/test';
+import { mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
+import { stubMapThirdParty } from './fixtures/mockThirdParty';
 
 test.describe('Accessibility', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.beforeEach(async ({ page }) => {
-    // Mock Keycloak to avoid external redirects
-    await page.route('**/realms/**', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-    });
+    await mockKeycloakLoggedOut(page);
+    await stubMapThirdParty(page);
   });
 
-  test('Landing page has skip link', async ({ page }) => {
+  test('Landing page has a skip link that targets an existing landmark', async ({ page }) => {
     await page.goto('');
-    await page.waitForLoadState('domcontentloaded');
 
-    const skipLink = page.locator('a[href="#main-content"]');
-    await expect(skipLink).toHaveCount(1);
+    await expect(page.locator('a[href="#main-content"]')).toHaveCount(1);
+    await expect(page.locator('#main-content')).toHaveCount(1);
   });
 
-  test('Landing page has h1', async ({ page }) => {
+  test('Skip link is the first tab stop and moves focus to the content', async ({ page }) => {
     await page.goto('');
-    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('#landing-hero')).toBeVisible();
 
-    const h1Elements = page.locator('h1');
-    // There should be exactly one h1 on the page
-    await expect(h1Elements).toHaveCount(1);
+    await page.keyboard.press('Tab');
+    await expect(page.locator('a.skip-link')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#main-content$/);
   });
 
-  test('Tokyo page map has aria-label', async ({ page }) => {
+  test('Landing page has exactly one h1', async ({ page }) => {
+    await page.goto('');
+    await expect(page.locator('h1')).toHaveCount(1);
+  });
+
+  test('Tokyo page map has a non-empty aria-label', async ({ page }) => {
     await page.goto('tokyo.html');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(500);
 
-    // The #map element should have an aria-label attribute
-    const mapEl = page.locator('#map[aria-label]');
-    await expect(mapEl).toBeAttached({ timeout: 10000 });
-
-    const ariaLabel = await mapEl.getAttribute('aria-label');
-    expect(ariaLabel).toBeTruthy();
-    expect(ariaLabel!.length).toBeGreaterThan(0);
+    await expect(page.locator('#map[aria-label]')).toBeAttached();
+    await expect(page.locator('#map')).toHaveAttribute('aria-label', /\S/);
   });
 
-  test('Search bar input has accessible label', async ({ page }) => {
+  test('Search input has an accessible name and combobox wiring', async ({ page }) => {
     await page.goto('');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(500);
+    const input = page.locator('search-bar input.search-input');
 
-    // Look for input within search-bar custom element
-    const inputWithAriaLabel = page.locator('search-bar input[aria-label]');
-    const inputWithId = page.locator('search-bar input[id]');
-
-    const ariaLabelCount = await inputWithAriaLabel.count();
-    const idCount = await inputWithId.count();
-
-    // Either the input has aria-label or it has an id that can be associated with a label
-    const hasAccessibleLabel = ariaLabelCount > 0 || idCount > 0;
-
-    if (!hasAccessibleLabel) {
-      // Check for a label element associated via htmlFor / for attribute
-      const labelForInput = page.locator('search-bar label');
-      const labelCount = await labelForInput.count();
-      // Input should have some form of accessible label
-      expect(labelCount + ariaLabelCount + idCount).toBeGreaterThanOrEqual(0);
-    } else {
-      expect(hasAccessibleLabel).toBe(true);
-    }
+    await expect(input).toHaveAttribute('aria-label', /\S/);
+    await expect(input).toHaveAttribute('aria-controls', 'search-dropdown');
+    await expect(page.locator('search-bar #search-dropdown')).toHaveAttribute('role', 'listbox');
+    await expect(page.locator('search-bar .clear-btn')).toHaveAttribute('aria-label', /clear/i);
   });
 
-  test('Day selector buttons have accessible names', async ({ page }) => {
+  test('Day selector is a tablist whose tabs all have accessible names', async ({ page }) => {
     await page.goto('tokyo.html');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
 
-    const daySelector = page.locator('#day-selector, .day-selector');
-    const selectorExists = await daySelector.count() > 0;
-
-    if (selectorExists) {
-      const buttons = daySelector.locator('button, [role="tab"]');
-      const buttonCount = await buttons.count();
-
-      if (buttonCount > 0) {
-        // Each button should have text content (accessible name)
-        for (let i = 0; i < buttonCount; i++) {
-          const btn = buttons.nth(i);
-          const textContent = await btn.textContent();
-          const ariaLabel = await btn.getAttribute('aria-label');
-          // Button must have either visible text or an aria-label
-          expect((textContent?.trim() ?? '').length + (ariaLabel?.length ?? 0)).toBeGreaterThan(0);
-        }
-      } else {
-        // No day buttons yet — page may not have loaded data, just verify selector exists
-        expect(selectorExists).toBe(true);
-      }
-    } else {
-      // Day selector not present — check the page loaded without errors
-      const main = page.locator('#main-content, main');
-      await expect(main).toBeVisible({ timeout: 10000 });
+    const selector = page.locator('#day-selector');
+    await expect(selector).toHaveAttribute('role', 'tablist');
+    const tabs = selector.locator('[role="tab"]');
+    await expect(tabs.first()).toBeVisible();
+    const count = await tabs.count();
+    expect(count).toBeGreaterThan(0);
+    for (let i = 0; i < count; i++) {
+      const name = ((await tabs.nth(i).textContent()) ?? '').trim() || (await tabs.nth(i).getAttribute('aria-label'));
+      expect(name, `day tab #${i} has no accessible name`).toBeTruthy();
     }
   });
 
-  test('Theme toggle has aria-label', async ({ page }) => {
+  test('Day tabs can be operated from the keyboard', async ({ page }) => {
+    await page.goto('tokyo.html');
+    const first = page.locator('#day-selector .day-btn').first();
+    await expect(first).toBeVisible();
+
+    await first.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(first).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('Theme toggle has a descriptive aria-label that tracks the current theme', async ({ page }) => {
     await page.goto('');
-    await page.waitForLoadState('domcontentloaded');
+    const toggle = page.locator('travel-nav .theme-toggle');
 
-    const themeToggle = page.locator(
-      '[data-action="toggle-theme"], .theme-toggle, #theme-toggle, [aria-label*="tema"], [aria-label*="theme"], [aria-label*="dark"], [aria-label*="modo"]',
-    ).first();
+    await expect(toggle).toHaveAttribute('aria-label', /^Switch to (dark|light) mode$/);
+    const before = await toggle.getAttribute('aria-label');
+    await toggle.click();
+    await expect(toggle).not.toHaveAttribute('aria-label', before ?? '');
+    await expect(toggle).toHaveAttribute('aria-label', /^Switch to (dark|light) mode$/);
+  });
 
-    const toggleCount = await themeToggle.count();
-
-    if (toggleCount > 0) {
-      const ariaLabel = await themeToggle.getAttribute('aria-label');
-      const title = await themeToggle.getAttribute('title');
-      // Theme toggle should have an aria-label or title for screen readers
-      expect((ariaLabel ?? title ?? '').length).toBeGreaterThan(0);
-    } else {
-      // Toggle may be inside a shadow DOM or custom element — just verify page loaded
-      const body = page.locator('body');
-      await expect(body).toBeVisible();
-    }
+  test('Navigation landmarks are labelled', async ({ page }) => {
+    await page.goto('');
+    await expect(page.locator('travel-nav nav[aria-label]')).toHaveAttribute('aria-label', /\S/);
   });
 });

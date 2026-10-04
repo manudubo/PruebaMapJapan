@@ -7,8 +7,14 @@
   <meta name="description" content="My Trips – Interactive travel itinerary">
   <meta name="view-transition" content="same-origin">
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Non-blocking web font (A11Y-05): was a render-blocking CSS @import -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
+
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <title>My Trips</title>
 
@@ -45,8 +51,8 @@
     .trip-card {
       display: flex;
       flex-direction: column;
-      background: var(--bg-secondary, #fff);
-      border: 1px solid var(--border-color, rgba(0,0,0,0.1));
+      background: var(--jp-surface);
+      border: 1px solid var(--jp-border-strong);
       overflow: hidden;
       text-decoration: none;
       color: inherit;
@@ -54,13 +60,13 @@
     }
 
     .trip-card:hover {
-      border-color: var(--accent, #0071e3);
+      border-color: var(--jp-accent);
     }
 
     .trip-card-cover {
       position: relative;
       height: 140px;
-      background: var(--accent-subtle, rgba(0,113,227,0.08));
+      background: var(--jp-accent-subtle);
       display: flex;
       align-items: flex-start;
       justify-content: flex-end;
@@ -91,14 +97,14 @@
       margin: 0;
       font-size: 16px;
       font-weight: 600;
-      color: var(--text-primary, #1d1d1f);
+      color: var(--jp-text, #1d1d1f);
       line-height: 1.3;
     }
 
     .trip-card-desc {
       margin: 0;
       font-size: 13px;
-      color: var(--text-secondary, #515154);
+      color: var(--jp-text-secondary, #515154);
       line-height: 1.5;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -117,12 +123,12 @@
     .trip-card-dates,
     .trip-card-dests {
       font-size: 12px;
-      color: var(--text-tertiary, #86868b);
+      color: var(--jp-text-tertiary, #86868b);
     }
 
     .trip-card-actions {
       padding: 8px 16px 12px;
-      border-top: 1px solid var(--border-color, rgba(0,0,0,0.08));
+      border-top: 1px solid var(--jp-border);
     }
 
     /* Empty / error states */
@@ -131,7 +137,7 @@
       grid-column: 1 / -1;
       padding: 32px;
       text-align: center;
-      color: var(--text-secondary, #515154);
+      color: var(--jp-text-secondary, #515154);
       font-size: 15px;
     }
 
@@ -142,7 +148,7 @@
 
     .login-prompt p {
       margin: 0 0 16px;
-      color: var(--text-secondary, #515154);
+      color: var(--jp-text-secondary, #515154);
     }
 
     @media (max-width: 768px) {

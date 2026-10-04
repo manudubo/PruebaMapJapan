@@ -10,8 +10,18 @@ export function showToast(message: string, type: ToastType): void {
 export function installGlobalErrorHandler(): void {
   window.addEventListener('unhandledrejection', (event) => {
     event.preventDefault();
+    // A 401 already produced the "session expired" toast + login redirect in
+    // the API client; don't stack a generic error toast on top of it.
+    if (isUnauthorizedApiError(event.reason)) return;
     showToast('An unexpected error occurred', 'error');
   });
+}
+
+// Duck-typed (not instanceof) to avoid a toast.ts -> api/client.ts import cycle.
+function isUnauthorizedApiError(reason: unknown): boolean {
+  if (typeof reason !== 'object' || reason === null) return false;
+  const r = reason as { name?: unknown; status?: unknown };
+  return r.name === 'ApiError' && r.status === 401;
 }
 
 function getOrCreateContainer(): HTMLElement {

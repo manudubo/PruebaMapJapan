@@ -1,5 +1,4 @@
 /* Japan Itinerary - Flat demo design system */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 /* ============================================
    CSS Custom Properties (Design Tokens)
@@ -22,16 +21,20 @@
   /* Text Colors */
   --jp-text: #1d1d1f;
   --jp-text-secondary: #515154;
-  --jp-text-tertiary: #86868b;
+  --jp-text-tertiary: #6e6e73;
 
   /* Accent Colors */
   --jp-accent: #0071e3;
   --jp-accent-hover: #0077ed;
+  --jp-accent-text: #0062c4;
+  /* Filled accent surfaces behind white text (buttons, active tabs): >= 4.5:1 */
+  --jp-accent-solid: #0071e3;
+  --jp-accent-solid-hover: #0066cc;
   --jp-accent-subtle: rgba(0, 113, 227, 0.08);
   --jp-success: #34c759;
   --jp-success-subtle: rgba(52, 199, 89, 0.1);
-  --jp-danger: #ff3b30;
-  --jp-danger-hover: #d70015;
+  --jp-danger: #d70015;
+  --jp-danger-hover: #b3000f;
   --jp-danger-subtle: rgba(255, 59, 48, 0.08);
 
   /* Shadows */
@@ -84,9 +87,13 @@
   --jp-border-glass: rgba(255, 255, 255, 0.1);
   --jp-text: #f5f5f7;
   --jp-text-secondary: #a1a1a6;
-  --jp-text-tertiary: #6e6e73;
+  --jp-text-tertiary: #98989d;
   --jp-accent: #0a84ff;
   --jp-accent-hover: #409cff;
+  --jp-accent-text: #409cff;
+  /* Dark accent (#0a84ff) is too light behind white text (3.6:1) */
+  --jp-accent-solid: #0071e3;
+  --jp-accent-solid-hover: #0062c4;
   --jp-accent-subtle: rgba(10, 132, 255, 0.15);
   --jp-success: #30d158;
   --jp-success-subtle: rgba(48, 209, 88, 0.14);
@@ -176,44 +183,29 @@
   color: var(--jp-text-tertiary);
 }
 
-/* ============================================
-   Countdown Section
-   ============================================ */
-.countdown-section {
-  padding: 40px;
-  background: var(--jp-surface);
-  border-bottom: 1px solid var(--jp-border);
+/* Landing overview: card <-> marker selection sync (src/modules/overviewMap.ts) */
+.city-card.is-selected {
+  border-color: var(--jp-accent);
+  background: var(--jp-accent-subtle);
 }
 
-.countdown-grid {
-  display: flex;
-  gap: 24px;
-  justify-content: center;
-  flex-wrap: wrap;
+.city-card:focus-visible {
+  outline: 2px solid var(--jp-accent);
+  outline-offset: 2px;
 }
 
-.countdown-item {
-  text-align: center;
-  min-width: 80px;
+.leaflet-marker-icon.is-highlighted .numbered-marker,
+.leaflet-marker-icon:focus-visible .numbered-marker {
+  outline: 2px solid var(--jp-text);
+  outline-offset: 2px;
 }
 
-.countdown-value {
-  display: block;
-  font-size: 48px;
-  font-weight: 700;
-  color: var(--jp-accent);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
+.leaflet-marker-icon:focus-visible {
+  outline: none;
 }
 
-.countdown-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--jp-text-tertiary);
-  margin-top: 8px;
+.overview-popup-link {
+  color: var(--jp-accent-text);
 }
 
 /* ============================================
@@ -323,14 +315,14 @@ body {
 }
 
 .btn-primary {
-  background: var(--jp-accent);
-  border-color: var(--jp-accent);
+  background: var(--jp-accent-solid);
+  border-color: var(--jp-accent-solid);
   color: var(--jp-white);
 }
 
 .btn-primary:hover {
-  background: var(--jp-accent-hover);
-  border-color: var(--jp-accent-hover);
+  background: var(--jp-accent-solid-hover);
+  border-color: var(--jp-accent-solid-hover);
 }
 
 .btn-secondary {
@@ -451,7 +443,71 @@ body {
 
 .form-group--checkbox {
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
+}
+
+.form-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--jp-text-tertiary);
+}
+
+.form-group--checkbox .form-hint {
+  flex-basis: 100%;
+  padding-left: 24px; /* align under the label text, past the 16px box + gap */
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.form-group .range-row input[type="range"] {
+  flex: 1;
+  padding: 0;
+  border: 0;
+  accent-color: var(--jp-accent);
+  background: transparent;
+}
+
+.range-row output {
+  min-width: 2ch;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--jp-text);
+  text-align: right;
+}
+
+.activity-tag {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--jp-optional);
+  border: 1px solid currentColor;
+}
+
+/* Editor activity rows: on phones, give the name the first line and wrap
+   time / tags / Edit / Delete onto the next one instead of squeezing the
+   name to nothing. (Row layout itself is set inline in activities.ts.) */
+@media (max-width: 480px) {
+  .activity-row {
+    flex-wrap: wrap;
+  }
+
+  .activity-row .activity-name {
+    flex: 1 1 calc(100% - 104px) !important;
+    white-space: normal !important;
+  }
+
+  /* right-align the wrapped second line, whatever comes first on it */
+  .activity-row .activity-name + * {
+    margin-left: auto;
+  }
 }
 
 .checkbox-label {
@@ -488,6 +544,10 @@ body {
 .modal {
   width: 100%;
   max-width: 480px;
+  /* Tall forms (activity modal) must scroll on short/mobile viewports. */
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   padding: 28px;
   background: var(--jp-bg);
   border: 1px solid var(--jp-border-strong);
@@ -712,67 +772,6 @@ body {
 }
 
 /* ============================================
-   Countdown
-   ============================================ */
-.countdown-container {
-  margin-top: 32px;
-  padding: 24px;
-  background: var(--jp-surface-subtle);
-  border: 1px solid var(--jp-border-glass);
-  box-shadow: none;
-  position: relative;
-}
-
-.countdown-container::before {
-  content: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--jp-gradient-shine);
-  pointer-events: none;
-}
-
-.countdown-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--jp-text-tertiary);
-  margin-bottom: 16px;
-}
-
-.countdown {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.countdown-unit {
-  text-align: center;
-  min-width: 70px;
-}
-
-.countdown-value {
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--jp-accent);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.countdown-text {
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--jp-text-tertiary);
-  margin-top: 6px;
-}
-
-/* ============================================
    Day Selector
    ============================================ */
 .day-selector {
@@ -841,7 +840,8 @@ body {
 
 .hotel-btn {
   position: absolute;
-  bottom: 20px;
+  /* Clears the tile attribution in the bottom-right corner. */
+  bottom: 28px;
   right: 20px;
   z-index: 1000;
   width: 44px;
@@ -877,6 +877,7 @@ body {
   flex-direction: column;
 }
 
+.legend h2,
 .legend h3 {
   font-size: 18px;
   font-weight: 600;
@@ -969,7 +970,7 @@ body {
 }
 
 .legend-item.is-optional::before {
-  content: 'Opcional';
+  content: 'Optional';
   position: absolute;
   top: 4px;
   right: 12px;
@@ -1002,6 +1003,13 @@ body {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 2px;
+}
+
+.legend-time {
+  margin-right: 6px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-text-secondary);
 }
 
 .legend-content small {
@@ -1495,6 +1503,53 @@ body {
 
 .leaflet-container {
   font-family: 'Inter', sans-serif;
+  background: var(--jp-surface-subtle);
+}
+
+/* Dark mode: the OSM tiles have no keyless dark variant, so darken them in place.
+   Only the tile pane is filtered; markers, route lines and popups keep their colours. */
+html[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7);
+}
+
+/* Tile attribution (required by the OSM licence): visible, quiet, readable in both themes.
+   The extra .leaflet-control class out-ranks leaflet.css, which is imported after this file. */
+.leaflet-container .leaflet-control.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--jp-surface) 88%, transparent);
+  color: var(--jp-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 1px 6px;
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--jp-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.leaflet-container .leaflet-control-attribution a:focus-visible {
+  outline: 2px solid var(--jp-accent);
+  outline-offset: 1px;
+}
+
+/* Shown by baseMap.ts when no tile could load: the map still has markers and links. */
+.map-tile-notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: calc(100% - 96px);
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--jp-surface-raised);
+  border: 1px solid var(--jp-border-strong);
+  color: var(--jp-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
 }
 
 /* Map Markers */
@@ -1632,17 +1687,8 @@ body {
     font-size: 14px;
   }
 
-  .countdown {
-    gap: 12px;
-  }
 
-  .countdown-unit {
-    min-width: 60px;
-  }
 
-  .countdown-value {
-    font-size: 28px;
-  }
 
   #map {
     height: 400px;
@@ -1719,17 +1765,8 @@ body {
     font-size: 22px;
   }
 
-  .countdown-container {
-    padding: 16px;
-  }
 
-  .countdown-value {
-    font-size: 24px;
-  }
 
-  .countdown-unit {
-    min-width: 50px;
-  }
 
   #map {
     height: 350px;
@@ -1826,7 +1863,6 @@ body {
   .theme-toggle,
   .day-selector,
   .hotel-btn,
-  .countdown-container,
   .legend-actions,
   .widgets-section {
     display: none;
@@ -2029,4 +2065,98 @@ body {
   .toast--exiting {
     transition: opacity 0.15s ease;
   }
+}
+
+/* ============================================
+   Auth status (src/auth/authStatusUI.ts)
+   ============================================ */
+.auth-unavailable {
+  padding: 32px;
+  text-align: center;
+}
+
+.auth-unavailable h1 {
+  margin: 0 0 12px;
+  font-size: clamp(20px, 4vw, 26px);
+  font-weight: 700;
+  color: var(--jp-text);
+}
+
+.auth-unavailable h1:focus {
+  outline: none;
+}
+
+.auth-unavailable-body {
+  max-width: 520px;
+  margin: 0 auto 20px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.auth-unavailable-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.auth-unavailable-actions .btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.auth-unavailable-status {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  color: var(--jp-text-secondary);
+  font-size: 14px;
+}
+
+.auth-pending {
+  padding: 16px;
+  color: var(--jp-text-secondary);
+  font-size: 14px;
+  text-align: center;
+}
+
+.auth-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding-block: 6px;
+  padding-inline: 16px 6px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-strong);
+  border-inline-start: 3px solid var(--jp-hotel);
+  color: var(--jp-text);
+  font-size: 14px;
+}
+
+.auth-notice-text {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.auth-notice-status {
+  color: var(--jp-text-secondary);
+}
+
+.auth-notice .auth-notice-retry,
+.auth-notice-dismiss {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.auth-notice-dismiss {
+  background: none;
+  border: 0;
+  color: var(--jp-text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.auth-notice-dismiss:hover {
+  color: var(--jp-text);
 }

@@ -14,12 +14,21 @@ import '@/components/Navbar';
 import '@/components/SearchBar';
 
 import * as L from 'leaflet';
-import { initTheme, getThemeConfig } from '@/modules/theme';
-import { initKeycloak, isAuthenticated } from '@/auth/keycloak';
+import 'leaflet/dist/leaflet.css';
+import { initTheme } from '@/modules/theme';
+import { createBaseMap, switchBaseMapTheme } from '@/modules/baseMap';
+import { isAuthenticated } from '@/auth/keycloak';
+import {
+  watchAuth,
+  showAuthPending,
+  hideAuthPending,
+  showAuthUnavailableState,
+  clearAuthUnavailableState,
+} from '@/auth/authStatusUI';
 import { getTrip, getPublicTrip } from '@/api/client';
 import { apiTripToCityData } from '@/modules/tripAdapter';
 import { getMapsUrl } from '@/data/maps';
-import { createDirectionsUrl, announceToScreenReader } from '@/modules/utils';
+import { createDirectionsUrl, createPlaceUrl, announceToScreenReader } from '@/modules/utils';
 import type { ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
@@ -111,9 +120,23 @@ function createHotelIcon(): L.DivIcon {
   });
 }
 
+/**
+ * "View on Maps" target for an activity (BIZ-03): the link saved in the
+ * editor, else the demo's static per-name table, else a pin search on the
+ * activity's coordinates. Null when there is nothing to link to.
+ */
+export function resolveActivityMapsUrl(activity: Activity): string | null {
+  return (
+    activity.mapsUrl ??
+    getMapsUrl(activity.name) ??
+    (activity.coords ? createPlaceUrl(activity.coords) : null)
+  );
+}
+
 export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): string {
   const badge = activity.optional ? `<span class="optional-badge">Option ${activity.optional}</span>` : '';
-  let html = `<div class="day-label">${day.label}${badge}</div><h4>${activity.name}</h4>`;
+  const time = activity.time ? ` · <time class="popup-time">${activity.time}</time>` : '';
+  let html = `<div class="day-label">${day.label}${time}${badge}</div><h4>${activity.name}</h4>`;
   if (activity.notes) html += `<p>${activity.notes}</p>`;
   if (!activity.isGeneric && mapsUrl && activity.coords) {
     const dirUrl = createDirectionsUrl(activity.coords);
@@ -152,12 +175,8 @@ export function buildHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
 function initMap(data: CityData): void {
   destroyMap();
 
-  const themeConfig = getThemeConfig();
-  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true }).setView(
-    data.center,
-    data.zoom
-  );
-  currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
+  const { map, tileLayer } = createBaseMap('map', data.center, data.zoom);
+  currentTileLayer = tileLayer;
   currentMap = map;
   window.currentMap = map;
   window.currentTileLayer = currentTileLayer;
@@ -191,7 +210,7 @@ function initMap(data: CityData): void {
           icon: createMarkerIcon(markerLabel, markerColor, isOptional),
           alt: activity.name,
         });
-        marker.bindPopup(buildPopup(activity, day, getMapsUrl(activity.name)));
+        marker.bindPopup(buildPopup(activity, day, resolveActivityMapsUrl(activity)));
         markersByDay[dateKey].push(marker);
         allMarkers.push(marker);
       });
@@ -209,18 +228,17 @@ function initMap(data: CityData): void {
   setupDayFilter(daySelector, map, data, markersByDay, allMarkers);
 
   const hotelBtn = document.getElementById('hotel-btn');
-  if (hotelBtn && data.hotel?.coords) {
+  const hotelCoords = data.hotel?.coords;
+  if (hotelBtn && hotelCoords) {
     hotelBtn.setAttribute('aria-label', 'Center map on hotel');
-    hotelBtn.onclick = () => map.setView(data.hotel.coords, 15);
+    hotelBtn.onclick = () => map.setView(hotelCoords, 15);
   }
 
   generateLegend(data);
 
   window.addEventListener('theme-changed', () => {
     if (!currentMap || !currentTileLayer) return;
-    const cfg = getThemeConfig();
-    currentMap.removeLayer(currentTileLayer);
-    currentTileLayer = L.tileLayer(cfg.tileUrl, { maxZoom: 19 }).addTo(currentMap);
+    currentTileLayer = switchBaseMapTheme(currentTileLayer);
     window.currentTileLayer = currentTileLayer;
   });
 
@@ -332,11 +350,11 @@ function generateLegend(data: CityData): void {
   updateHotelInfo(data.hotel);
 }
 
-function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement {
+export function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement {
   const isOptional = !!activity.optional;
   const markerLabel = isOptional ? activity.optional! : idx + 1;
   const markerColor = isOptional ? '#af52de' : day.color;
-  const mapsUrl = getMapsUrl(activity.name);
+  const mapsUrl = resolveActivityMapsUrl(activity);
   const item = document.createElement('li');
   item.className = 'legend-item' + (isOptional ? ' is-optional' : '');
   const noteText = activity.notes
@@ -353,7 +371,14 @@ function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement
   const contentDiv = document.createElement('div');
   contentDiv.className = 'legend-content';
   const nameEl = document.createElement('strong');
-  setText(nameEl, activity.name);
+  if (activity.time) {
+    const timeEl = document.createElement('time');
+    timeEl.className = 'legend-time';
+    timeEl.dateTime = activity.time;
+    setText(timeEl, activity.time);
+    nameEl.appendChild(timeEl);
+  }
+  nameEl.appendChild(document.createTextNode(activity.name));
   contentDiv.appendChild(nameEl);
   if (noteText) {
     const noteEl = document.createElement('small');
@@ -471,6 +496,11 @@ function showError(message: string): void {
   card.className = 'page-card';
   card.style.padding = '32px';
   card.style.textAlign = 'center';
+  const heading = document.createElement('h1');
+  heading.textContent = 'Trip unavailable';
+  heading.style.fontSize = '1.5rem';
+  heading.style.marginBottom = '12px';
+  card.appendChild(heading);
   const p = document.createElement('p');
   p.style.color = 'var(--jp-text-secondary,#515154)';
   setText(p, message);
@@ -521,28 +551,44 @@ async function init(): Promise<void> {
     return;
   }
 
-  // Try to auth silently
-  let authenticated = false;
-  try {
-    authenticated = await initKeycloak();
-  } catch {
-    // Continue unauthenticated
-  }
+  // Owner view needs auth. Bounded: 'unavailable' after a few seconds at most, and a late
+  // answer (or Retry) still lands here exactly once.
+  showAuthPending();
+  let handled = false;
+  watchAuth({
+    authenticated: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (handled) return;
+      handled = true;
+      void loadOwnedTrip(tripId, destIndex);
+    },
+    anonymous: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (handled) return;
+      handled = true;
+      showError("You don't have access to this trip. Ask the owner for the public link.");
+    },
+    unavailable: () => {
+      if (!handled) showAuthUnavailableState();
+    },
+  });
+  document.body.classList.add('ready');
+}
 
+async function loadOwnedTrip(tripId: string, destIndex: number): Promise<void> {
   let trip: ApiTrip | null = null;
-
-  // First try authenticated fetch, then fall back to public
-  if (authenticated && isAuthenticated()) {
+  if (isAuthenticated()) {
     try {
       trip = await getTrip(tripId);
     } catch {
-      // Fall through to public
+      // Shown as "no access" below
     }
   }
 
   if (!trip) {
     showError("You don't have access to this trip. Ask the owner for the public link.");
-    document.body.classList.add('ready');
     return;
   }
 
@@ -551,7 +597,7 @@ async function init(): Promise<void> {
 
   // Reveal the edit link for authenticated owners
   const editLink = document.getElementById('trip-edit-link') as HTMLAnchorElement | null;
-  if (editLink && authenticated) {
+  if (editLink) {
     editLink.href = `trip-edit.html?tripId=${trip.id}`;
     editLink.removeAttribute('hidden');
   }
@@ -584,8 +630,6 @@ async function init(): Promise<void> {
         }))
     );
   }
-
-  document.body.classList.add('ready');
 }
 
 if (document.readyState === 'loading') {

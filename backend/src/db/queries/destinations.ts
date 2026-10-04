@@ -78,19 +78,20 @@ export async function createDestination(
 
 /**
  * Update mutable fields on a destination.
+ * Returns undefined when the row is gone (e.g. its trip was deleted after
+ * the ownership check) — a normal 404, not an exception (M-09).
  */
 export async function updateDestination(
   db: Db,
   destId: number,
   data: UpdateDestinationData,
-): Promise<Destination> {
+): Promise<Destination | undefined> {
   const [updated] = await db
     .update(destinations)
     .set(data)
     .where(eq(destinations.id, destId))
     .returning();
 
-  if (!updated) throw new Error(`updateDestination: no destination found for id=${destId}`);
   return updated;
 }
 
@@ -126,31 +127,33 @@ export async function getFullDestination(db: Db, destId: number) {
 // ---------------------------------------------------------------------------
 
 /**
- * Create or replace the hotel for a destination.
+ * Create or replace the hotel for a destination — one atomic statement.
+ * Every field is replaced (omitted ones become null), as before; the row id
+ * is now stable across replacements. The unique index on destination_id
+ * makes concurrent calls converge on a single row (previously delete-then-
+ * insert let parallel PUTs leave several hotels).
  */
 export async function upsertHotel(
   db: Db,
   destinationId: number,
   data: CreateHotelData,
 ): Promise<Hotel> {
-  // Delete any existing hotel first (one-to-one relationship enforced by app)
-  await db.delete(hotels).where(eq(hotels.destination_id, destinationId));
-
-  const [created] = await db
+  const fields = {
+    name: data.name,
+    lat: data.lat ?? null,
+    lng: data.lng ?? null,
+    check_in_date: data.check_in_date ?? null,
+    check_out_date: data.check_out_date ?? null,
+    url: data.url ?? null,
+  };
+  const [row] = await db
     .insert(hotels)
-    .values({
-      destination_id: destinationId,
-      name: data.name,
-      lat: data.lat ?? null,
-      lng: data.lng ?? null,
-      check_in_date: data.check_in_date ?? null,
-      check_out_date: data.check_out_date ?? null,
-      url: data.url ?? null,
-    })
+    .values({ destination_id: destinationId, ...fields })
+    .onConflictDoUpdate({ target: hotels.destination_id, set: fields })
     .returning();
 
-  if (!created) throw new Error('upsertHotel: insert returned no rows');
-  return created;
+  if (!row) throw new Error('upsertHotel: upsert returned no rows');
+  return row;
 }
 
 /**

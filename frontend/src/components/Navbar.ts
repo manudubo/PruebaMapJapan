@@ -1,5 +1,5 @@
 import { toggleTheme, getTheme } from '@/modules/theme';
-import { initKeycloak, isAuthenticated, getUserInfo, login, logout } from '@/auth/keycloak';
+import { initKeycloak, isAuthenticated, getUserInfo, login, logout, onAuthStatusChange } from '@/auth/keycloak';
 
 export interface NavDestination {
   id: string | number;
@@ -11,6 +11,7 @@ export interface NavDestination {
 class TravelNav extends HTMLElement {
   private shadow: ShadowRoot;
   private destinations: NavDestination[] = [];
+  private offAuth: (() => void) | null = null;
 
   constructor() {
     super();
@@ -31,7 +32,9 @@ class TravelNav extends HTMLElement {
     this.render();
     this.setupEventListeners();
 
-    // Silently check auth state and update nav auth UI
+    // Silently check auth state and update nav auth UI; also on late answers / retries.
+    this.offAuth?.();
+    this.offAuth = onAuthStatusChange(() => this.updateAuthUI());
     initKeycloak()
       .then(() => {
         this.updateAuthUI();
@@ -39,6 +42,11 @@ class TravelNav extends HTMLElement {
       .catch(() => {
         this.updateAuthUI();
       });
+  }
+
+  disconnectedCallback(): void {
+    this.offAuth?.();
+    this.offAuth = null;
   }
 
   /**
@@ -192,7 +200,7 @@ class TravelNav extends HTMLElement {
         }
 
         .nav-link.is-active {
-          color: var(--jp-accent, #0071e3);
+          color: var(--jp-accent-text, var(--jp-accent, #0071e3));
           background: var(--jp-accent-subtle, rgba(0,113,227,0.1));
         }
 
@@ -236,14 +244,14 @@ class TravelNav extends HTMLElement {
         }
 
         .nav-auth-login {
-          background: var(--jp-accent, #0071e3);
-          color: var(--jp-white);
-          border: 1px solid var(--jp-accent, #0071e3);
+          background: var(--jp-accent-solid, #0071e3);
+          color: var(--jp-white, #fff);
+          border: 1px solid var(--jp-accent-solid, #0071e3);
         }
 
         .nav-auth-login:hover {
-          background: var(--jp-accent-hover, #0077ed);
-          border-color: var(--jp-accent-hover, #0077ed);
+          background: var(--jp-accent-solid-hover, #0066cc);
+          border-color: var(--jp-accent-solid-hover, #0066cc);
         }
 
         .nav-auth-logout {

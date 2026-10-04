@@ -107,4 +107,21 @@ describe('installGlobalErrorHandler', () => {
     window.dispatchEvent(event);
     expect(preventDefaultSpy).toHaveBeenCalled();
   });
+
+  it('does not add a generic error toast for an unhandled ApiError(401) (BUG-02)', async () => {
+    const { ApiError } = await import('@/api/client');
+    installGlobalErrorHandler();
+    const reason = new ApiError(401, 'unauthorized');
+    const handled = Promise.reject(reason);
+    handled.catch(() => {});
+    const event = new PromiseRejectionEvent('unhandledrejection', {
+      promise: handled,
+      reason,
+      cancelable: true,
+    });
+    const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
+    window.dispatchEvent(event);
+    expect(preventDefaultSpy).toHaveBeenCalled();
+    expect(document.querySelector('.toast--error')).toBeNull();
+  });
 });

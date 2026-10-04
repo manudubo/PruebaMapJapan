@@ -5,7 +5,7 @@
 - ✅ **v2.0 Auth Infrastructure & Hardening** — Phases 1–9 (shipped 2026-05-28)
 - ✅ **v3.0 Quality, Polish & DevX** — Phases 10–14 (shipped 2026-06-15)
 - ✅ **v3.1 E2E Stabilization** — Phases 15–19 (shipped 2026-07-23)
-- 🔄 **v3.2 Security & Code Health Hardening** — Phases 20–26 (roadmap created 2026-07-24, not started)
+- 🔄 **v3.2 Security & Code Health Hardening** — Phases 20–26 (executed 2026-07-24 → 2026-10-04; code complete on branch `claude/focused-lovelace-cryssy`, not yet merged or pushed; 7 requirements Partial/Deferred/Unverified, see `REQUIREMENTS.md`)
 
 ## Phases
 
@@ -50,15 +50,16 @@ Full outcome: 242 passed, 25 skipped (documented deferrals), 0 failed. See `.pla
 
 ### v3.2 Security & Code Health Hardening
 
-Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md`. Full findings and per-item verification status in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. Requirements defined: `.planning/REQUIREMENTS.md` (82 requirements, 100% mapped).
+Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md`. Full findings and per-item verification status in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. Requirements defined: `.planning/REQUIREMENTS.md` (82 requirements, 100% mapped; final status 75 Complete, 4 Partial, 1 Deferred, 2 Unverified). Per-requirement evidence: `.planning/phases/TRACEABILITY.md`. Phases 22-26 were executed from summaries only (no PLAN.md files).
 
-- [x] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14) — completed 2026-07-24
-- [x] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01) (completed 2026-07-30)
-- [ ] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
-- [ ] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05)
-- [ ] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03)
-- [ ] **Phase 25: Business Logic & Demo Parity** — timezone date-shift bug (BIZ-11), cross-level date coherence (BIZ-07), expose is_optional/is_generic/maps_url/time/zoom_level through editor (BIZ-01..05), date-order validation (BIZ-06/08/09), remaining parity items (BIZ-10)
-- [ ] **Phase 26: Remaining Security Hardening & IdP Flow** — KC passkey flow restructure (KC-01, SEC-12), JWKS/JWT/OTP atomicity (SEC-05/06/07), remaining low-severity security findings (SEC-08..11/13/17..25)
+- [x] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14) — completed 2026-07-24 (CSP `connect-src` bug found and fixed later: `20-CSP-FOLLOWUP.md`)
+- [x] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01)
+ (completed 2026-07-30)
+- [x] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
+- [x] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05) — DEP-02/A11Y-04/A11Y-05 **Partial**, DEP-03 **Unverified**
+- [x] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03) — executed 2026-09-30 → 2026-10-03; ARCH-09 **Unverified** (never green on Actions)
+- [x] **Phase 25: Business Logic & Demo Parity** — timezone date-shift bug (BIZ-11), cross-level date coherence (BIZ-07), expose is_optional/is_generic/maps_url/time/zoom_level through editor (BIZ-01..05), date-order validation (BIZ-06/08/09), remaining parity items (BIZ-10) — executed 2026-09-30 → 2026-10-03; BIZ-07 shipped as DB triggers in the follow-up
+- [x] **Phase 26: Remaining Security Hardening & IdP Flow** — KC passkey flow restructure (KC-01, SEC-12), JWKS/JWT/OTP atomicity (SEC-05/06/07), remaining low-severity security findings (SEC-08..11/13/17..25) — executed 2026-09-30 → 2026-10-03; SEC-17 **Partial**, SEC-18 **Deferred**
 
 ## Phase Details
 
@@ -104,7 +105,7 @@ Plans:
   3. Rapid concurrent `getMe()` calls at first login (simulated with two near-simultaneous requests) produce no 500; `auth.ts` uses `INSERT ... ON CONFLICT (keycloak_id) DO NOTHING` + re-select (BUG-03)
   4. `getHotel()` returns `null` on 404 without throwing (BUG-04); `createElement` defaults to `textContent`, raw `innerHTML` requires explicit opt-in (BUG-07); `upsertUser` is wired into the login path so KC email/name changes reflect in the app DB (BUG-08); SETUP.md documents the correct `terraform output -raw worker_client_secret` command (BUG-10)
   5. Remaining BUG-05/06/09/11/12/13/14/15/16 items pass the acceptance check in REQUIREMENTS.md (reorderActivities validates full ID set; stale `sessionStorage` comment corrected; `getUserInfo`/`getMe` use cases documented; lat/lng null uses `?? ''`; dead User-Agent header removed; `dest:any` replaced with proper narrowing; redundant query eliminated; slug regex tightened; per-user/hour OTP cap added)
-**Plans**: TBD
+**Plans**: Executed (summary-only, no PLAN.md): one pass, one commit per bug; see `phases/22-reliability-bugs/22-SUMMARY.md`
 **UI hint**: yes
 
 ### Phase 23: Supply Chain, Secrets & Accessibility
@@ -117,7 +118,7 @@ Plans:
   3. Gitleaks re-scan against HEAD shows 0 unresolved findings; all 14 prior `generic-api-key` findings are either documented as confirmed false-positives or had live keys rotated (DEP-02)
   4. `aria-expanded` is removed from `<input>` elements across all 12 affected pages; an axe-core run shows 0 `aria-allowed-attr` violations for this pattern; contrast violations on landing/dashboard/profile pages are fixed; `tripDetail.ts` `showError()` renders a proper heading element (A11Y-01..03)
   5. CI pipeline includes a Gitleaks/TruffleHog secret-scanning job and an axe/Lighthouse accessibility-scanning job; both run on each push to main (DEP-03)
-**Plans**: TBD
+**Plans**: Executed (summary-only, no PLAN.md): `phases/23-supply-chain-a11y/23-SUMMARY.md`, plus the QA follow-up `23-QA-FOLLOWUP.md`
 **UI hint**: yes
 
 ### Phase 24: Architecture Debt & Test Coverage
@@ -130,7 +131,7 @@ Plans:
   3. `createDb` return type is no longer `any`; `c.get('db')` is typed without a cast; a single `dbMiddleware` replaces the ~20 duplicated `DATABASE_URL` guard + `getDb()` blocks across `trips.ts`/`auth.ts`/`users.ts`/`public.ts`; `trips.ts` authorization cascade has unit test coverage; driver selection uses an explicit env var (not a `localhost` substring check); `resolveActivity` executes a single JOIN instead of 4 sequential SELECTs (ARCH-01, ARCH-02, ARCH-03, M-01, M-02)
   4. E2E `waitForTimeout` hard sleeps (31 instances) replaced with web-first `expect(locator)` assertions; `test.skip(condition)` calls converted to `test.fixme(condition, reason)` or removed (35 instances); per-route `catch {}` blocks log the original error before rethrowing or are removed in favor of propagation to the global `onError` handler (ARCH-07, M-09)
   5. `email_otp_codes` has an index on `user_id`/`expires_at` with an opportunistic cleanup on `otp-request`; `users.email` has a DB-level unique constraint; `lat`/`lng` columns have `CHECK (lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180)` constraints; PWA manifest icons use first-party/precached assets (DATA-01..03, PWA-01)
-**Plans**: TBD
+**Plans**: Executed (summary-only, no PLAN.md): `phases/24-arch-debt/24-BACKEND-SUMMARY.md` (backend/DB half) and `24-E2E-SUMMARY.md` (ARCH-07/09)
 
 ### Phase 25: Business Logic & Demo Parity
 **Goal**: User-created trips have field-fidelity parity with the demo — all editor fields are wired end-to-end from form to DB to view, date validation is robust and null-safe, and the confirmed timezone date-shift bug is fixed
@@ -141,7 +142,7 @@ Plans:
   2. `start_date ≤ end_date` is validated for trip, destination, and hotel records — null-safe (validation runs only when both dates are present; partial-date records remain valid); cross-level date coherence enforced in route handlers: day date within parent destination range, destination range within parent trip range, no overlapping destination ranges within a trip (BIZ-06, BIZ-07)
   3. Activity editor exposes `is_optional` checkbox, `is_generic` toggle, `maps_url` input (or auto-derived from lat/lng), `time` field, and `zoom_level` control; these fields propagate from form → Zod schema → DB → adapter → view type; the `optional_label` phantom field is cleaned up or removed (BIZ-01..05)
   4. `lat`/`lng` validated for numeric range (`-90 ≤ lat ≤ 90`, `-180 ≤ lng ≤ 180`) in Zod schemas; PATCH schemas require at least one field (`{}` returns 422, not 200); residual Spanish strings `"Desde"`/`"Hasta"` in `tripAdapter.ts` replaced with `"From"`/`"Until"` (BIZ-08, BIZ-09, BIZ-10)
-**Plans**: TBD
+**Plans**: Executed (summary-only, no PLAN.md): `phases/25-biz-parity/25-SUMMARY.md` (BIZ-07 deferred there) and `25-BIZ07-SEC22-OTP-SUMMARY.md` (BIZ-07, SEC-22, atomic OTP issuance)
 **UI hint**: yes
 
 ### Phase 26: Remaining Security Hardening & IdP Flow
@@ -154,7 +155,7 @@ Plans:
   3. `profile.ts` passkey label rendered via `textContent` or `DOMPurify.sanitize` (SEC-09); `SearchBar.highlightMatch` uses safe DOM construction (SEC-10); Keycloak `error.ftl` includes `kcSanitize()` before `?no_esc` (SEC-11); `X-Content-Type-Options: nosniff` and `Permissions-Policy` headers present in `backend/src/middleware/security.ts` (SEC-20)
   4. CORS allowed origins separated by `ENVIRONMENT` — no `localhost:3000`/`:5173` in production config (SEC-23); Terraform `variables.tf` E2E user password defaults removed (SEC-19); `avatar_url`/`preferences` KC attribute mappers have `add_to_access_token: false` (SEC-25); Terraform documented as sole source of truth for `browserFlow` (SEC-13, ARCH-08)
   5. Remaining SEC-08/17/18/21/22/24 items remediated per per-item acceptance check in REQUIREMENTS.md (email fails loud in prod on missing RESEND_API_KEY; `sslRequired` verified vs Railway proxy config; Nominatim proxied or risk documented; public trip field exposure documented as intentional; `resolveDestination` returns 404 in both unauthorized and non-existent cases; health endpoint minimized or rate-limited)
-**Plans**: TBD
+**Plans**: Executed (summary-only, no PLAN.md): `phases/26-idp-flow/26-IDP-SUMMARY.md` (Keycloak/Terraform half) and `26-APPSEC-SUMMARY.md` (application half)
 **UI hint**: yes
 
 ## Progress
@@ -180,13 +181,24 @@ Plans:
 | 17. OTP + Login Helper | v3.1 | 2/2 | Complete | 2026-06-23 |
 | 18. Passkeys Fixes | v3.1 | 2/2 | Complete | 2026-07-13 |
 | 19. Session + Closure | v3.1 | 2/2 | Complete | 2026-07-23 |
-| 20. Critical Security | v3.2 | 0/4 | Not started | — |
-| 21. Deploy & Build Safety | v3.2 | 2/2 | Complete    | 2026-07-30 |
-| 22. Reliability Bugs | v3.2 | 0/0 | Not started | — |
-| 23. Supply Chain, Secrets & Accessibility | v3.2 | 0/0 | Not started | — |
-| 24. Architecture Debt & Test Coverage | v3.2 | 0/0 | Not started | — |
-| 25. Business Logic & Demo Parity | v3.2 | 0/0 | Not started | — |
-| 26. Remaining Security Hardening & IdP Flow | v3.2 | 0/0 | Not started | — |
+| 20. Critical Security | v3.2 | 4/4 | Complete | 2026-07-24 |
+| 21. Deploy & Build Safety | v3.2 | 2/2 | Complete | 2026-07-30 |
+| 22. Reliability Bugs | v3.2 | 0 plans, 1 summary | Executed (summary-only, no PLAN.md); 16/16 requirements Complete | 2026-09-30 |
+| 23. Supply Chain, Secrets & Accessibility | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 6 Complete, DEP-02/A11Y-04/A11Y-05 Partial, DEP-03 Unverified | 2026-09-30 (+ QA follow-up) |
+| 24. Architecture Debt & Test Coverage | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 14/15 Complete, ARCH-09 Unverified | 2026-10-03 |
+| 25. Business Logic & Demo Parity | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 11/11 Complete (BIZ-07 in follow-up) | 2026-10-03 |
+| 26. Remaining Security Hardening & IdP Flow | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 17/19 Complete, SEC-17 Partial, SEC-18 Deferred | 2026-10-03 |
+
+## Post-phase work (v3.2, outside the original requirements)
+
+Not part of the 82 requirements. Found by QA after Phases 22-26 and recorded in `.planning/qa/` (index: `qa/QA-INDEX.md`). Commits per item are in `phases/TRACEABILITY.md`.
+
+- **Adversarial backend QA** (`QA-BACKEND-REPORT.md`): 11 new defects fixed (malformed-JSON 500, no body cap, path-id aliasing, JWT `exp` typing, mojibake in JWT claims, NUL bytes, `javascript:` URLs and others). The three `it.fails` it left open (SEC-07 issuance, SEC-22, BIZ-07) were closed afterwards, so the suite has no `it.fails` left.
+- **Frontend QA** (`QA-FRONTEND-REPORT.md`) and follow-up (`23-QA-FOLLOWUP.md`): theme crash with blocked storage, offline PWA precache, search relevance/XSS, widget payload hardening, dark landing cards, floating search button, Keycloak-down states, double-submit trip creation, OTP requests sent to the wrong origin.
+- **Demo regressions** (`QA-DEMO-FIXES.md`): CartoDB now serves "API KEY REQUIRED" tiles, so maps moved to keyless OpenStreetMap tiles (dark mode by CSS filter, attribution, tile-failure notice, SW never caches tiles); the trip overview map and Cities list lost in an earlier redesign were restored; the landing countdown became minute-based and minimalist.
+- **CSP `connect-src` fix** (`20-CSP-FOLLOWUP.md`): the Phase 20 policy blocked the API origin, so every logged-in call failed in an enforcing browser. The policy is now derived from the resolved build env.
+- **Review fixes** (`REVIEW-FIXES.md`): migrations run before the Worker deploys, same-repo-only deploys with pinned actions, `db:preflight` and a 503 schema guard, trip-edit survives a slow Keycloak, production-safe `import.sh`, build fails on missing CSP origins, service worker resilience.
+- **Open from this work:** CI Keycloak job (S3) not built; Neon smoke test (S4) not run (`qa/NEON-SMOKE-CHECKLIST.md`).
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*
 *Full v3.0 phase details in `.planning/milestones/v3.0-ROADMAP.md`*

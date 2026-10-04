@@ -30,7 +30,6 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
       - ./themes:/opt/keycloak/themes
     command: start-dev
     depends_on:

@@ -1,4 +1,6 @@
-const CACHE_NAME = 'japan-trip-v3';
+// __BUILD_VERSION__ is replaced at build time by the swVersion Vite plugin
+// (hash of the emitted bundle), so every deploy rotates the cache.
+const CACHE_NAME = 'japan-trip-__BUILD_VERSION__';
 
 const PRECACHE_ASSETS = [
   './',
@@ -11,34 +13,60 @@ const PRECACHE_ASSETS = [
   './naoshima.html',
   './hakone.html',
   './tokyo2.html',
-  './manifest.json'
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
-const EXTERNAL_ASSETS = [
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-];
+// Hashed JS/CSS chunks emitted by the build (stamped by the swVersion Vite plugin).
+// Without them the precached HTML renders unstyled and script-less when opened offline
+// before its assets were ever fetched.
+const BUILD_ASSETS = [] /* __BUILD_ASSETS__ */;
 
+// Never intercepted or cached by the SW. Map tiles are included on purpose: the
+// OSM tile policy forbids bulk/offline caching beyond the browser's HTTP cache,
+// and opaque cross-origin tile responses would bloat the cache anyway.
 const NETWORK_ONLY_DOMAINS = [
   'api.allorigins.win',
   'corsproxy.io',
-  'api.open-meteo.com'
+  'api.open-meteo.com',
+  'tile.openstreetmap.org'
 ];
 
 function isNetworkOnly(url) {
   return NETWORK_ONLY_DOMAINS.some(domain => url.includes(domain));
 }
 
+// The offline shell: without these the app cannot open offline at all, so a
+// failure here fails the install (the previous worker stays in charge).
+const CORE_ASSETS = ['./', './index.html', './manifest.json'];
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(PRECACHE_ASSETS).catch(err => {
-        console.warn('Cache error:', err);
-      });
+    caches.open(CACHE_NAME).then(async cache => {
+      await cache.addAll(CORE_ASSETS);
+      // Everything else one by one: cache.addAll is atomic, so a single 404
+      // used to leave no offline cache at all (review N7).
+      const rest = [...PRECACHE_ASSETS, ...BUILD_ASSETS].filter(url => !CORE_ASSETS.includes(url));
+      const results = await Promise.allSettled(rest.map(url => cache.add(url)));
+      const failed = rest.filter((_, i) => results[i].status === 'rejected');
+      if (failed.length > 0) {
+        console.warn(`Precache: ${failed.length} of ${rest.length} optional files failed`, failed);
+      }
     })
   );
 });
+
+// One cache entry per page, not per query string: trip.html?tripId=1 and
+// ?tripId=2 are the same static HTML (review N7).
+function pageCacheKey(url) {
+  const u = new URL(url);
+  u.search = '';
+  u.hash = '';
+  return u.href;
+}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -49,22 +77,40 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (isNetworkOnly(event.request.url)) return;
-  
+  const { request } = event;
+  if (request.method !== 'GET' || isNetworkOnly(request.url)) return;
+
+  // HTML / navigations: network-first so a redeploy is picked up on the next
+  // load; fall back to cache (then the index page) when offline.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok && response.type === 'basic') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(pageCacheKey(request.url), clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(pageCacheKey(request.url))
+            .then(cached => cached || caches.match('./index.html'))
+        )
+    );
+    return;
+  }
+
+  // Everything else (hashed, immutable assets): cache-first.
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(request).then(cached => {
       if (cached) return cached;
-      return fetch(event.request).then(response => {
+      return fetch(request).then(response => {
         if (response.ok && response.type === 'basic') {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
         return response;
       });
-    }).catch(() => {
-      if (event.request.mode === 'navigate') {
-        return caches.match('./index.html');
-      }
     })
   );
 });

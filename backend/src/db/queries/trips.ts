@@ -38,22 +38,14 @@ export async function getTripsByUser(db: Db, userId: number): Promise<Trip[]> {
  * Return a single trip with its full nested structure:
  * destinations → hotels + days → activities.
  * Enforces ownership by requiring `userId`.
+ * Returns undefined when the trip does not exist or is not owned by `userId`
+ * (findFirst already does this — no separate existence pre-check needed).
  */
 export async function getTripById(
   db: Db,
   tripId: number,
   userId: number,
 ) {
-  // Fetch the trip row first so we can return undefined when not found.
-  const [trip] = await db
-    .select()
-    .from(trips)
-    .where(and(eq(trips.id, tripId), eq(trips.user_id, userId)))
-    .limit(1);
-
-  if (!trip) return undefined;
-
-  // Fetch the full nested tree using Drizzle's relational query API.
   const result = await db.query.trips.findFirst({
     where: and(eq(trips.id, tripId), eq(trips.user_id, userId)),
     with: {
@@ -104,21 +96,21 @@ export async function createTrip(
 
 /**
  * Update fields on a trip. Ownership is verified via `userId`.
- * Returns the updated row.
+ * Returns the updated row, or undefined when the trip does not exist or is
+ * not owned by `userId` (a normal 404, not an exception — M-09).
  */
 export async function updateTrip(
   db: Db,
   tripId: number,
   userId: number,
   data: UpdateTripData,
-): Promise<Trip> {
+): Promise<Trip | undefined> {
   const [updated] = await db
     .update(trips)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(trips.id, tripId), eq(trips.user_id, userId)))
     .returning();
 
-  if (!updated) throw new Error(`updateTrip: no trip found for id=${tripId}, userId=${userId}`);
   return updated;
 }
 
@@ -139,9 +131,20 @@ export async function deleteTrip(
 /**
  * Return a public trip by its UUID slug.
  * Only returns trips with is_public = true.
+ *
+ * Field exposure (SEC-21):
+ *  - `user_id` is projected out: it identifies the owner's internal account
+ *    and nothing in the public view uses it.
+ *  - Hotel name/coordinates/check-in/out dates and day dates ARE returned on
+ *    purpose: sharing the full itinerary is the feature (the owner opts in
+ *    per trip via is_public, and the slug is an unguessable UUID).
+ *  - Numeric row ids (trip/destination/day/activity/hotel and their FKs) are
+ *    kept: the frontend adapter keys days by id when a date is missing, and
+ *    ids grant nothing — every authenticated route re-checks ownership.
  */
 export async function getTripBySlug(db: Db, slug: string) {
   return db.query.trips.findFirst({
+    columns: { user_id: false },
     where: and(eq(trips.public_slug, slug), eq(trips.is_public, true)),
     with: {
       destinations: {

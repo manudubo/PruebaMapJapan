@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '../index';
 import { users } from '../schema';
+import { isUniqueViolation } from '../pg-errors';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,23 +84,98 @@ export async function updateUser(
   return updated;
 }
 
+/** DB-level unique index on lower(email) (DATA-02). */
+export const USERS_EMAIL_UNIQUE_IDX = 'users_email_unique_idx';
+
 /**
- * Insert-or-update a user on every login.
- * If the user already exists their email and name are refreshed; otherwise
- * a new row is created.
- * Returns the user record (existing or freshly created).
+ * The token's email already belongs to a different app user (different
+ * keycloak_id) — e.g. a recreated realm or migrated IdP issuing new subject
+ * ids. Never auto-merged: relinking by email would let whoever controls that
+ * address take over the old account.
+ */
+export class EmailConflictError extends Error {
+  constructor() {
+    super('Email already belongs to another account');
+    this.name = 'EmailConflictError';
+  }
+}
+
+export type UserClaims = {
+  keycloak_id: string;
+  /** Empty string when the token carries no email claim. */
+  email: string;
+  name: string;
+};
+
+/**
+ * Provision-or-refresh the app user for an authenticated request.
+ *
+ * - Cheap for existing users (review S2): one SELECT by keycloak_id. Only
+ *   on a miss do we INSERT, so the common request makes one round-trip and
+ *   never consumes a users_id_seq value.
+ * - Race-safe first login (BUG-03): the INSERT is `ON CONFLICT (keycloak_id)
+ *   DO NOTHING` followed by a re-select, so near-simultaneous first requests
+ *   (all of which missed the SELECT) never hit the unique index and 500.
+ * - Keycloak is the source of truth for identity (BUG-08): if the token's
+ *   email/name differ from the stored row, the row is updated. Empty claims
+ *   never overwrite stored values, and nothing is written when unchanged.
  */
 export async function upsertUser(
   db: Db,
-  keycloakId: string,
-  email: string,
-  name: string,
-): Promise<User> {
-  const existing = await getUserByKeycloakId(db, keycloakId);
+  claims: UserClaims,
+): Promise<{ user: User; created: boolean }> {
+  const existing = await getUserByKeycloakId(db, claims.keycloak_id);
+  if (existing) return { user: await refreshProfile(db, existing, claims), created: false };
 
-  if (existing) {
-    return updateUser(db, keycloakId, { email, name });
+  let inserted: User | undefined;
+  try {
+    [inserted] = await db
+      .insert(users)
+      .values({
+        keycloak_id: claims.keycloak_id,
+        email: claims.email,
+        name: claims.name,
+        avatar_url: null,
+        preferences: {},
+      })
+      .onConflictDoNothing({ target: users.keycloak_id })
+      .returning();
+  } catch (err) {
+    if (!isUniqueViolation(err, USERS_EMAIL_UNIQUE_IDX)) throw err;
+    // The email index is not the ON CONFLICT arbiter, so a concurrent first
+    // request of THIS subject can win between our SELECT and our INSERT and
+    // surface here as an email violation. Only if no row has our
+    // keycloak_id is the email really another account's (DATA-02).
   }
 
-  return createUser(db, { keycloak_id: keycloakId, email, name });
+  if (inserted) return { user: inserted, created: true };
+
+  // Lost a first-login race (ON CONFLICT or the email index): the winner's
+  // row is committed by now.
+  const winner = await getUserByKeycloakId(db, claims.keycloak_id);
+  if (!winner) throw new EmailConflictError();
+  return { user: await refreshProfile(db, winner, claims), created: false };
+}
+
+/** BUG-08 / DATA-02: bring the stored email/name in line with the token. */
+async function refreshProfile(db: Db, existing: User, claims: UserClaims): Promise<User> {
+  const changes: UpdateUserData = {};
+  if (claims.email && claims.email !== existing.email) changes.email = claims.email;
+  if (claims.name && claims.name !== existing.name) changes.name = claims.name;
+
+  if (Object.keys(changes).length === 0) return existing;
+
+  try {
+    return await updateUser(db, claims.keycloak_id, changes);
+  } catch (err) {
+    if (!changes.email || !isUniqueViolation(err, USERS_EMAIL_UNIQUE_IDX)) throw err;
+    // Keycloak moved this user to an email another row owns (DATA-02). Keep
+    // the stored email so the user can still sign in; refresh the rest.
+    console.warn(
+      `upsertUser: email refresh for keycloakId=${claims.keycloak_id} conflicts with another account; keeping stored email`,
+    );
+    delete changes.email;
+    if (Object.keys(changes).length === 0) return existing;
+    return updateUser(db, claims.keycloak_id, changes);
+  }
 }

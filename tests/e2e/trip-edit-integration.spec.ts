@@ -27,15 +27,6 @@ const sessionEntries: [string, string][] = (() => {
 const FRONTEND_BASE = 'http://localhost:5173/PruebaMapJapan';
 const API_BASE = 'http://localhost:8787/api';
 
-async function isFrontendRunning(): Promise<boolean> {
-  try {
-    const r = await fetch(`${FRONTEND_BASE}/`, { signal: AbortSignal.timeout(3000) });
-    return r.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function createTrip(page: Page, token: string): Promise<string> {
   const tripId: string = await page.evaluate(async (args) => {
     const [apiBase, tok] = args as [string, string];
@@ -66,9 +57,6 @@ test.beforeEach(async ({ context }) => {
 // P2-V1: trip-edit page loads and form pre-fills from API
 // ---------------------------------------------------------------------------
 test('P2-V1: trip-edit page loads; metadata form pre-fills from API @integration', async ({ page }) => {
-  const up = await isFrontendRunning();
-  test.skip(!up, 'Frontend not running');
-
   const [req] = await Promise.all([
     page.waitForRequest(r =>
       r.url().includes('/api/') &&
@@ -99,9 +87,6 @@ test('P2-V1: trip-edit page loads; metadata form pre-fills from API @integration
 // P2-V2: is_public toggle PATCHes with correct field
 // ---------------------------------------------------------------------------
 test('P2-V2: is_public checkbox sends PATCH with is_public:true @integration', async ({ page }) => {
-  const up = await isFrontendRunning();
-  test.skip(!up, 'Frontend not running');
-
   const [req] = await Promise.all([
     page.waitForRequest(r =>
       r.url().includes('/api/') &&
@@ -137,9 +122,6 @@ test('P2-V2: is_public checkbox sends PATCH with is_public:true @integration', a
 // P2-V3: Destination CRUD — add a destination via modal
 // ---------------------------------------------------------------------------
 test('P2-V3: add destination via modal; POST to /destinations succeeds @integration', async ({ page }) => {
-  const up = await isFrontendRunning();
-  test.skip(!up, 'Frontend not running');
-
   const [req] = await Promise.all([
     page.waitForRequest(r =>
       r.url().includes('/api/') &&
@@ -180,9 +162,6 @@ test('P2-V3: add destination via modal; POST to /destinations succeeds @integrat
 // P2-V4: Hotel URL rendered as plain text, not an anchor
 // ---------------------------------------------------------------------------
 test('P2-V4: hotel URL renders as plain text, not an <a> tag @integration', async ({ page }) => {
-  const up = await isFrontendRunning();
-  test.skip(!up, 'Frontend not running');
-
   const [req] = await Promise.all([
     page.waitForRequest(r =>
       r.url().includes('/api/') &&
@@ -234,9 +213,6 @@ test('P2-V4: hotel URL renders as plain text, not an <a> tag @integration', asyn
 // P2-V5: Activity time field + reorder via POST
 // ---------------------------------------------------------------------------
 test('P2-V5: activity time input saved; reorder POST sends ordered_ids @integration', async ({ page }) => {
-  const up = await isFrontendRunning();
-  test.skip(!up, 'Frontend not running');
-
   const [req] = await Promise.all([
     page.waitForRequest(r =>
       r.url().includes('/api/') &&

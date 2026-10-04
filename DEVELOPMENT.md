@@ -22,7 +22,7 @@ cd keycloak
 docker compose up -d
 ```
 
-Wait ~15 seconds for Keycloak to finish importing the realm. Check status:
+Wait ~15 seconds for Keycloak to start, then create/configure the realm with Terraform (`terraform/keycloak`, see SETUP.md Step 5 — Terraform is the only source of truth for the realm). Check status:
 ```bash
 docker compose ps
 # Both services should show "Up (healthy)"
@@ -36,9 +36,11 @@ Services started:
 
 ### 3. Initialise the database
 ```bash
-# Create all tables
+# Create all tables, functions and triggers (always db:migrate, never
+# `drizzle-kit push`: push does not create the SQL functions/triggers and
+# leaves the database without a migration journal, so a later db:migrate fails)
 cd backend
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/japan_trip npx drizzle-kit push --force
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/japan_trip npm run db:migrate
 
 # Load demo Japan 2026 itinerary
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/japan_trip npx tsx src/db/seed.ts
@@ -158,7 +160,10 @@ To enable passkeys for a test user:
 # Unit tests (frontend)
 npm run test --workspace=frontend
 
-# Unit tests (backend)
+# Unit tests (backend) — need a real Postgres server (ARCH-06). Each run
+# creates a throwaway database on it, applies all migrations, and drops it.
+# Default server: postgresql://postgres:postgres@localhost:5432/postgres
+# (the docker compose Postgres). Override with TEST_DATABASE_URL.
 npm run test --workspace=backend
 
 # E2E tests (Playwright — requires both servers running)
@@ -188,12 +193,18 @@ npm run test:all
 
 1. Sign up at https://neon.tech (no credit card)
 2. Create a project → copy the **Connection string** (starts with `postgresql://`)
-3. Run migrations against Neon:
+3. Run migrations against Neon (use the **direct** URL, not the `-pooler` one):
    ```bash
    cd backend
-   DATABASE_URL="<your-neon-url>" npx drizzle-kit push --force
-   DATABASE_URL="<your-neon-url>" npx tsx src/db/seed.ts
+   DATABASE_URL="<your-neon-direct-url>" npm run db:preflight   # known blockers, e.g. duplicate emails
+   DATABASE_URL="<your-neon-direct-url>" npm run db:migrate
+   DATABASE_URL="<your-neon-direct-url>" npx tsx src/db/seed.ts   # optional demo data
    ```
+   After the first deploy, `deploy-backend.yml` runs `db:preflight` and `db:migrate`
+   automatically before every `wrangler deploy`, using the `MIGRATION_DATABASE_URL`
+   GitHub secret (see SETUP.md, "Production backend (optional)"). Never use
+   `drizzle-kit push` against production: it skips the SQL functions and triggers
+   and breaks later `db:migrate` runs.
 
 ### Step 2 — Keycloak on Railway (~$5/month)
 
@@ -208,10 +219,14 @@ npm run test:all
    KC_DB_URL=jdbc:postgresql://<railway-pg-host>/<db>
    KC_DB_USERNAME=<user>
    KC_DB_PASSWORD=<password>
-   KC_HOSTNAME=<your-railway-domain>.up.railway.app
-   KEYCLOAK_ADMIN=admin
-   KEYCLOAK_ADMIN_PASSWORD=<strong-password>
+   KC_HOSTNAME=https://<your-railway-domain>.up.railway.app
+   KC_HTTP_ENABLED=true
+   KC_PROXY_HEADERS=xforwarded
+   KC_BOOTSTRAP_ADMIN_USERNAME=admin
+   KC_BOOTSTRAP_ADMIN_PASSWORD=<strong-password>
    ```
+   Then configure the realm with Terraform and, once the proxy headers are verified, set
+   `ssl_required = "all"` (see `keycloak/README.md` → "TLS behind the Railway proxy").
 7. Note the public URL (e.g., `https://japan-keycloak.up.railway.app`)
 
 ### Step 3 — Backend on Cloudflare Workers (free tier)
@@ -241,7 +256,7 @@ npm run test:all
 2. Source: **GitHub Actions**
 3. Add GitHub Actions secrets (**Settings → Secrets → Actions**):
    ```
-   VITE_API_URL          = https://prueba-map-japan-api.<account>.workers.dev
+   VITE_API_URL          = https://prueba-map-japan-api.<account>.workers.dev/api
    VITE_KEYCLOAK_URL     = https://japan-keycloak.up.railway.app
    VITE_KEYCLOAK_REALM   = japan-trip
    VITE_KEYCLOAK_CLIENT_ID = japan-trip-frontend
@@ -257,11 +272,16 @@ Add GitHub Actions secrets for Cloudflare:
 ```
 CLOUDFLARE_API_TOKEN   = (from https://dash.cloudflare.com/profile/api-tokens)
 CLOUDFLARE_ACCOUNT_ID  = (from Cloudflare dashboard sidebar)
+MIGRATION_DATABASE_URL = (direct Neon connection string; see SETUP.md)
 ```
+
+With `CLOUDFLARE_API_TOKEN` set, the deploy job **fails** if `MIGRATION_DATABASE_URL`
+is missing, rather than deploying a Worker its database is not migrated for. Without
+`CLOUDFLARE_API_TOKEN` the backend deploy is skipped with a notice (demo-only setup).
 
 From this point, pushing to `main` triggers:
 - `deploy-frontend.yml` → builds and deploys frontend to GitHub Pages
-- `deploy-backend.yml` → deploys backend to Cloudflare Workers
+- `deploy-backend.yml` → pre-flight checks, `db:migrate`, then deploys the backend to Cloudflare Workers
 - `ci.yml` → runs typechecks + unit tests + E2E tests on every PR
 
 ---
@@ -304,7 +324,7 @@ PruebaMapJapan/
 │   └── wrangler.toml          # Cloudflare Workers config
 │
 ├── keycloak/                  # Auth server (Keycloak 25)
-│   ├── realm-export.json      # Realm config (passkeys, clients, flows)
+│   ├── themes/                # Login/email/account theme (japan-trip)
 │   ├── docker-compose.yml     # Local: Keycloak + PostgreSQL
 │   ├── Dockerfile             # Production image (Railway)
 │   └── railway.toml           # Railway deployment config

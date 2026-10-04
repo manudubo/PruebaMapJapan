@@ -4,13 +4,18 @@ import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
 import {
-  initKeycloak,
   getUserInfo,
   logout,
   keycloak,
 } from '@/auth/keycloak';
+import { watchAuth, showAuthUnavailableState, clearAuthUnavailableState } from '@/auth/authStatusUI';
 import { getMe } from '@/api/client';
 import { installGlobalErrorHandler } from '@/modules/toast';
+import {
+  renderPasskeyList,
+  renderPasskeyListError,
+  type PasskeyCredential,
+} from '@/modules/passkeyList';
 
 const KEYCLOAK_URL = import.meta.env['VITE_KEYCLOAK_URL'] as string ?? 'http://localhost:8080';
 const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string ?? 'japan-trip';
@@ -44,16 +49,9 @@ function showStatus(
 // ---------------------------------------------------------------------------
 
 // KC 26 Account API returns credential types with nested userCredentialMetadatas
-interface CredentialEntry {
-  id: string;
-  type: string;
-  userLabel?: string;
-  createdDate?: number;
-}
-
 interface CredentialTypeResponse {
   type: string;
-  userCredentialMetadatas: Array<{ credential: CredentialEntry }>;
+  userCredentialMetadatas: Array<{ credential: PasskeyCredential }>;
 }
 
 async function loadPasskeys(): Promise<void> {
@@ -77,44 +75,10 @@ async function loadPasskeys(): Promise<void> {
     const credentials = passkeyType?.userCredentialMetadatas.map((m) => m.credential) ?? [];
     credentialCount = credentials.length; // D-16: no extra API call
 
-    if (credentials.length === 0) {
-      list.innerHTML =
-        '<li class="passkey-empty">You don\'t have any passkeys registered yet.</li>';
-      return;
-    }
-
-    list.innerHTML = credentials
-      .map((c) => {
-        const label = c.userLabel ?? 'Passkey';
-        const created = c.createdDate
-          ? new Date(c.createdDate).toLocaleDateString('en-US', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-            })
-          : '';
-        return `
-        <li class="passkey-item" data-credential-id="${c.id}">
-          <div class="passkey-info">
-            <span class="passkey-name">${label}</span>
-            ${created ? `<span class="passkey-meta">Registered: ${created}</span>` : ''}
-          </div>
-          <button class="btn btn-danger" type="button" data-credential-id="${c.id}" data-passkey-delete>
-            Delete
-          </button>
-        </li>`;
-      })
-      .join('');
-
-    list.querySelectorAll<HTMLButtonElement>('[data-passkey-delete]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const credId = btn.dataset.credentialId;
-        if (credId) openDeleteConfirm(credId);
-      });
-    });
+    // SEC-09: labels are user-controlled — rendered via textContent only.
+    renderPasskeyList(list, credentials, openDeleteConfirm);
   } catch {
-    list.innerHTML =
-      '<li class="passkey-empty">Could not load passkey list.</li>';
+    renderPasskeyListError(list);
   }
 }
 
@@ -247,22 +211,30 @@ function openDeleteConfirm(credentialId: string): void {
 // Init
 // ---------------------------------------------------------------------------
 
-async function init(): Promise<void> {
+function init(): void {
   initTheme();
   installGlobalErrorHandler();
 
-  let authenticated = false;
-  try {
-    authenticated = await initKeycloak();
-  } catch {
-    // Keycloak unavailable
-  }
+  // Bounded auth check. Signed out -> landing; Keycloak unreachable -> retryable error state
+  // (it used to bounce to the landing as if signed out); late sign-in -> load once.
+  let loaded = false;
+  watchAuth({
+    authenticated: () => {
+      clearAuthUnavailableState();
+      if (loaded) return;
+      loaded = true;
+      void loadProfile();
+    },
+    anonymous: () => {
+      window.location.replace(new URL('index.html', window.location.href).href);
+    },
+    unavailable: () => {
+      if (!loaded) showAuthUnavailableState();
+    },
+  });
+}
 
-  if (!authenticated) {
-    window.location.replace(new URL('index.html', window.location.href).href);
-    return;
-  }
-
+async function loadProfile(): Promise<void> {
   // Fill header info from token (fast)
   const info = getUserInfo();
   if (info) {

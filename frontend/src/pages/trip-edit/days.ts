@@ -2,6 +2,11 @@ import { createDay, updateDay, deleteDay } from '@/api/client';
 import { setText, setStyle } from '@/modules/dom';
 import type { ApiDay, ApiDestination } from '@/types';
 import { renderActivitiesSection } from './activities';
+import { eachDateInRange } from '@/modules/dates';
+import { saveErrorMessage } from './formHelpers';
+
+/** Upper bound for "Generate all days" — one request per day. */
+const MAX_GENERATED_DAYS = 120;
 
 const COLOR_MAP: Record<string, string> = {
   '--jp-marker-1': '#ff3b30',
@@ -258,8 +263,10 @@ async function handleFormSubmit(e: Event): Promise<void> {
     }
     closeModal();
     renderDaysDisplay(currentContainer, currentDest, currentTripId);
-  } catch {
-    setText(formError, 'Could not save. Check your connection and try again.');
+  } catch (err) {
+    // A 422 (e.g. BIZ-07: date outside the destination's range) carries the
+    // API's explanation; anything else is a connectivity problem.
+    setText(formError, saveErrorMessage(err));
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
@@ -338,17 +345,26 @@ async function generateDays(
 
   const existingDates = new Set(dest.days.map((d) => d.date));
 
-  const current = new Date(dest.start_date);
-  const end = new Date(dest.end_date);
-  const promises: Promise<ApiDay>[] = [];
-
-  while (current <= end) {
-    const iso = current.toISOString().slice(0, 10);
-    if (!existingDates.has(iso)) {
-      promises.push(createDay(tripId, dest.id, { date: iso }));
-    }
-    current.setDate(current.getDate() + 1);
+  // Calendar arithmetic on the date strings (BIZ-11): the old
+  // new Date(iso) + setDate + toISOString loop mixed UTC and local time and
+  // produced a duplicate / missing day across a DST change in the Americas.
+  let range: string[];
+  try {
+    range = eachDateInRange(dest.start_date, dest.end_date, MAX_GENERATED_DAYS);
+  } catch {
+    setText(genError, `The destination spans more than ${MAX_GENERATED_DAYS} days. Check its dates.`);
+    genError.removeAttribute('hidden');
+    return;
   }
+  if (range.length === 0) {
+    setText(genError, 'The destination departure is before its arrival. Edit the destination dates.');
+    genError.removeAttribute('hidden');
+    return;
+  }
+
+  const promises: Promise<ApiDay>[] = range
+    .filter((iso) => !existingDates.has(iso))
+    .map((iso) => createDay(tripId, dest.id, { date: iso }));
 
   if (promises.length === 0) {
     setText(genError, 'All days in this period already exist.');
@@ -356,13 +372,28 @@ async function generateDays(
     return;
   }
 
-  try {
-    const created = await Promise.all(promises);
-    dest.days.push(...created);
-    renderDaysDisplay(currentContainer, dest, tripId);
-  } catch {
-    setText(genError, 'Could not generate all days. Please try again.');
-    genError.removeAttribute('hidden');
+  // allSettled: keep the days the API did create even when some were
+  // rejected (e.g. BIZ-07 422 because the destination's dates changed in
+  // another tab), so the list matches the server and a retry skips them.
+  const results = await Promise.allSettled(promises);
+  const created = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+  const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+  dest.days.push(...created);
+  if (created.length > 0) renderDaysDisplay(currentContainer, dest, tripId);
+  if (firstFailure) {
+    const reason = firstFailure.reason as { status?: unknown } | null;
+    const failed = results.length - created.length;
+    const lead = `Could not generate ${failed} of ${results.length} days.`;
+    // After a re-render the old error element is detached; show the error
+    // in the freshly rendered section.
+    const target = created.length > 0
+      ? currentContainer.querySelector<HTMLElement>('[data-role="generate-error"]') ?? genError
+      : genError;
+    setText(
+      target,
+      reason?.status === 422 ? `${lead} ${saveErrorMessage(firstFailure.reason)}` : `${lead} Please try again.`,
+    );
+    target.removeAttribute('hidden');
     genBtn.disabled = false;
     setText(genBtn, 'Generate all days');
   }
@@ -402,6 +433,7 @@ function renderDaysDisplay(
   const genError = document.createElement('p');
   genError.className = 'error-msg';
   genError.setAttribute('hidden', '');
+  genError.dataset['role'] = 'generate-error';
 
   genBtn.addEventListener('click', async () => {
     genBtn.disabled = true;

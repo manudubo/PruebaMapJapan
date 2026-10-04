@@ -1,6 +1,13 @@
 import { search, buildSearchIndex, getTypeIcon, getSuggestions } from '@/modules/search';
 import type { SearchResult } from '@/modules/search';
 import { debounce } from '@/modules/utils';
+import { highlightMatch } from '@/modules/highlight';
+
+const KEYBOARD_HINT_HTML = `
+  <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+  <span><kbd>↵</kbd> select</span>
+  <span><kbd>esc</kbd> close</span>
+`;
 
 /**
  * Global Search Bar Component
@@ -31,29 +38,61 @@ class SearchBar extends HTMLElement {
   private render(): void {
     this.shadow.innerHTML = `
       <style>
+        /*
+         * In-flow by default: a row between the navbar and the page, aligned to the
+         * inline end (right in LTR, left in RTL). A fixed overlay covered page
+         * content (headers, activity action buttons) on every viewport narrower than
+         * the 1200px container plus its gutter.
+         */
         :host {
-          position: fixed;
-          top: 68px;
-          right: 16px;
+          display: block;
+          position: relative;
           z-index: 1000;
           font-family: var(--jp-font, 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif);
         }
         
+        /* Box styles live here, not on :host: the page's universal reset overrides :host padding. */
+        .search-strip {
+          display: flex;
+          justify-content: flex-end;
+          padding: 4px 16px;
+          /* Reads as a toolbar strip attached under the navbar */
+          background: var(--jp-surface, #fff);
+          border-bottom: 1px solid var(--jp-border, rgba(0,0,0,0.06));
+        }
+        
         .search-container {
           position: relative;
-          width: 44px;
+          /* 44px input + 2px border: the tap target itself stays >= 44x44 */
+          width: 46px;
+          max-width: 100%;
           transition: width 0.2s ease;
         }
         
         .search-container.expanded {
-          width: 320px;
+          width: min(100%, 420px);
         }
         
-        @media (max-width: 480px) {
-          .search-container.expanded {
-            width: calc(100vw - 32px);
+        /*
+         * Wide screens only: float in the empty gutter beside the 1200px container.
+         * 1320px leaves room for the 44px button, its offset and a scrollbar
+         * without touching the page card (needs viewport >= ~1290px).
+         */
+        @media (min-width: 1320px) {
+          :host {
             position: fixed;
-            right: 16px;
+            top: 68px;
+            inset-inline-end: max(16px, env(safe-area-inset-right, 0px));
+          }
+        
+          .search-strip {
+            padding: 0;
+            background: none;
+            border: 0;
+          }
+        
+          .search-container.expanded {
+            width: 320px;
           }
         }
         
@@ -73,7 +112,7 @@ class SearchBar extends HTMLElement {
         
         .search-icon {
           position: absolute;
-          left: 12px;
+          inset-inline-start: 12px;
           width: 18px;
           height: 18px;
           color: var(--jp-text-tertiary, #86868b);
@@ -84,7 +123,8 @@ class SearchBar extends HTMLElement {
         .search-input {
           width: 100%;
           height: 44px;
-          padding: 0 12px 0 42px;
+          padding-block: 0;
+          padding-inline: 42px 12px;
           border: none;
           background: transparent;
           font-size: 16px;
@@ -102,7 +142,7 @@ class SearchBar extends HTMLElement {
         
         .clear-btn {
           position: absolute;
-          right: 8px;
+          inset-inline-end: 8px;
           width: 28px;
           height: 28px;
           padding: 0;
@@ -134,8 +174,7 @@ class SearchBar extends HTMLElement {
         .search-dropdown {
           position: absolute;
           top: calc(100% + 4px);
-          left: 0;
-          right: 0;
+          inset-inline: 0;
           background: var(--jp-surface, #fff);
           border: 1px solid var(--jp-border-strong, #d1d1d6);
           box-shadow: none;
@@ -296,14 +335,6 @@ class SearchBar extends HTMLElement {
           margin-right: 4px;
         }
         
-        /* Responsive */
-        @media (max-width: 768px) {
-          :host {
-            top: 64px;
-            right: 12px;
-          }
-        }
-        
         /* Screen reader only */
         .sr-only {
           position: absolute;
@@ -317,6 +348,7 @@ class SearchBar extends HTMLElement {
         }
       </style>
       
+      <div class="search-strip">
       <div class="search-container" role="search">
         <div class="search-input-wrapper">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -328,7 +360,6 @@ class SearchBar extends HTMLElement {
             class="search-input" 
             placeholder="Search..."
             aria-label="Search activities, places, days"
-            aria-expanded="false"
             aria-controls="search-dropdown"
             aria-autocomplete="list"
             autocomplete="off"
@@ -344,6 +375,7 @@ class SearchBar extends HTMLElement {
         <div class="search-dropdown" id="search-dropdown" role="listbox" aria-label="Search results">
           <ul class="search-results"></ul>
         </div>
+      </div>
       </div>
     `;
   }
@@ -449,56 +481,70 @@ class SearchBar extends HTMLElement {
       return;
     }
     
-    let html = '';
-    
+    // SEC-10: build result items with DOM APIs — titles, subtitles and the
+    // query-highlight are text nodes, never parsed HTML.
+    const frag = document.createDocumentFragment();
+
     if (isSuggestions) {
-      html += '<li class="section-header">Cities</li>';
+      const header = document.createElement('li');
+      header.className = 'section-header';
+      header.textContent = 'Cities';
+      frag.appendChild(header);
     }
-    
-    html += this.results.map((result, index) => {
-      const iconHtml = getTypeIcon(result.type);
-      const iconStyle = result.color ? `background:${result.color}` : '';
-      const iconClass = result.color ? 'result-icon has-color' : 'result-icon';
-      
-      return `
-        <li>
-          <a href="#" 
-             class="search-result${index === this.selectedIndex ? ' selected' : ''}"
-             role="option"
-             aria-selected="${index === this.selectedIndex}"
-             data-index="${index}">
-            <div class="${iconClass}" style="${iconStyle}">${iconHtml}</div>
-            <div class="result-content">
-              <div class="result-title">${this.highlightMatch(result.title)}</div>
-              <div class="result-subtitle">${result.subtitle}</div>
-            </div>
-            <span class="result-badge">${result.type === 'activity' ? 'place' : result.type === 'day' ? 'day' : result.type}</span>
-          </a>
-        </li>
-      `;
-    }).join('');
-    
-    if (!isSuggestions) {
-      html += `
-        <li class="keyboard-hint">
-          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span><kbd>↵</kbd> select</span>
-          <span><kbd>esc</kbd> close</span>
-        </li>
-      `;
-    }
-    
-    list.innerHTML = html;
-    
-    // Add click handlers to results
-    list.querySelectorAll('.search-result').forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.preventDefault();
-        const index = parseInt((item as HTMLElement).dataset.index || '0');
-        this.handleResultClick(this.results[index]);
-        this.closeDropdown();
-      });
+
+    this.results.forEach((result, index) => {
+      frag.appendChild(this.buildResultItem(result, index));
     });
+
+    if (!isSuggestions) {
+      const hint = document.createElement('li');
+      hint.className = 'keyboard-hint';
+      // Static markup only — no data interpolated.
+      hint.innerHTML = KEYBOARD_HINT_HTML;
+      frag.appendChild(hint);
+    }
+
+    list.replaceChildren(frag);
+  }
+
+  private buildResultItem(result: SearchResult, index: number): HTMLLIElement {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#';
+    a.className = `search-result${index === this.selectedIndex ? ' selected' : ''}`;
+    a.setAttribute('role', 'option');
+    a.setAttribute('aria-selected', String(index === this.selectedIndex));
+    a.dataset.index = String(index);
+
+    const icon = document.createElement('div');
+    icon.className = result.color ? 'result-icon has-color' : 'result-icon';
+    // CSSOM assignment: an invalid/hostile value is simply dropped.
+    if (result.color) icon.style.background = result.color;
+    icon.innerHTML = getTypeIcon(result.type); // static SVG from a fixed map
+
+    const content = document.createElement('div');
+    content.className = 'result-content';
+    const title = document.createElement('div');
+    title.className = 'result-title';
+    title.appendChild(highlightMatch(result.title, this.input?.value ?? ''));
+    const subtitle = document.createElement('div');
+    subtitle.className = 'result-subtitle';
+    subtitle.textContent = result.subtitle;
+    content.append(title, subtitle);
+
+    const badge = document.createElement('span');
+    badge.className = 'result-badge';
+    badge.textContent =
+      result.type === 'activity' ? 'place' : result.type === 'day' ? 'day' : result.type;
+
+    a.append(icon, content, badge);
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.handleResultClick(result);
+      this.closeDropdown();
+    });
+    li.appendChild(a);
+    return li;
   }
 
   private handleResultClick(result: SearchResult): void {
@@ -515,21 +561,6 @@ class SearchBar extends HTMLElement {
     }
     
     window.location.href = url;
-  }
-
-  private highlightMatch(text: string): string {
-    if (!this.input?.value) return text;
-    
-    const query = this.input.value.toLowerCase();
-    const index = text.toLowerCase().indexOf(query);
-    
-    if (index === -1) return text;
-    
-    return text.substring(0, index) +
-           '<mark style="background:var(--jp-accent);color:var(--jp-white);padding:0 2px;">' +
-           text.substring(index, index + query.length) +
-           '</mark>' +
-           text.substring(index + query.length);
   }
 
   private handleKeydown(e: KeyboardEvent): void {
@@ -579,14 +610,12 @@ class SearchBar extends HTMLElement {
     if (!this.dropdown || !this.input) return;
     this.isOpen = true;
     this.dropdown.classList.add('open');
-    this.input.setAttribute('aria-expanded', 'true');
   }
 
   private closeDropdown(): void {
     if (!this.dropdown || !this.input) return;
     this.isOpen = false;
     this.dropdown.classList.remove('open');
-    this.input.setAttribute('aria-expanded', 'false');
     this.selectedIndex = -1;
   }
 }

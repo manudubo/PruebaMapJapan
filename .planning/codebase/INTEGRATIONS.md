@@ -5,9 +5,10 @@
 ## APIs & External Services
 
 **Maps:**
-- Leaflet (open-source, no external API calls) — tile layer URLs are configured per city page
+- Leaflet — raster tiles from the OSM tile server `tile.openstreetmap.org`, configured once in `frontend/src/data/tiles.ts`
+  (CSP img-src is derived from it). CartoDB was dropped in 2026-10: it now serves "API KEY REQUIRED" placeholders.
   - SDK: `leaflet` npm package
-  - Auth: None required
+  - Auth: None required (OSM tile usage policy: attribution, no bulk prefetch/caching)
 
 **Auth:**
 - Keycloak 25.0 — OpenID Connect provider with passkey support
@@ -17,7 +18,7 @@
   - Token algorithm: RS256
   - PKCE method: S256 (`frontend/src/auth/keycloak.ts` line 43)
   - Valid audiences: `japan-trip-api`, `japan-trip-frontend`, `account`
-  - Keycloak realm: `japan-trip` (exported to `keycloak/realm-export.json`)
+  - Keycloak realm: `japan-trip` (defined in `terraform/keycloak/`)
 
 ## Data Storage
 
@@ -48,7 +49,7 @@
 - Keycloak 25.0 (self-hosted)
   - Local: Docker at `http://localhost:8080` via `keycloak/docker-compose.yml`
   - Production: Railway via Dockerfile at `keycloak/Dockerfile` + `keycloak/railway.toml`
-  - Realm config: `keycloak/realm-export.json`
+  - Realm config: `terraform/keycloak/` (sole source of truth; no realm export)
   - Custom themes: `keycloak/themes/`
 
 **Flow:**

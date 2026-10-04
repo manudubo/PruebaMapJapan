@@ -1,5 +1,6 @@
 import type { users, trips, destinations, hotels, days, activities } from '../db/schema';
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
+import type { Db } from '../db';
 
 // ---------------------------------------------------------------------------
 // Inferred row types from Drizzle schema
@@ -27,13 +28,17 @@ export type NewActivity = InferInsertModel<typeof activities>;
 // ---------------------------------------------------------------------------
 export interface Env {
   DATABASE_URL: string;
+  /** "neon" (HTTP, default on Workers) | "pg" (TCP, Node dev/seed/tests) — ARCH-02 */
+  DB_DRIVER?: string;
   KEYCLOAK_URL: string;
   KEYCLOAK_REALM: string;
   VALID_AUDIENCES: string;        // comma-separated, e.g. "japan-trip-frontend"
   KC_ADMIN_CLIENT_ID: string;     // D-03: worker client credentials
   KC_ADMIN_CLIENT_SECRET: string; // D-03: worker client credentials
   OTP_SECRET: string;             // HMAC-SHA256 key for OTP hashing (D-07)
-  RESEND_API_KEY?: string;        // absent in local dev → Mailpit fallback (D-08)
+  RESEND_API_KEY?: string;        // required unless ENVIRONMENT=development (SEC-08)
+  /** "development" enables localhost CORS + Mailpit; anything else = production (fail-closed). */
+  ENVIRONMENT?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +67,8 @@ export interface ContextVariables {
   user: KeycloakJwtPayload;
   /** DB primary key for the authenticated user — set by ensureUserProvisioned */
   dbUserId: number;
+  /** Typed database handle — set by dbMiddleware (M-01) */
+  db: Db;
 }
 
 // ---------------------------------------------------------------------------

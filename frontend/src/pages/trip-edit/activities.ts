@@ -11,6 +11,7 @@ import {
   extractCoordsFromGoogleMapsUrl,
 } from '@/modules/geocoder';
 import type { ApiActivity, ApiDay } from '@/types';
+import { buildCheckbox, isHttpUrl, saveErrorMessage } from './formHelpers';
 
 // Module-scoped modal state (singleton — built once, reused per call)
 let modalOverlay: HTMLElement | null = null;
@@ -23,6 +24,9 @@ let geocoderBtn: HTMLButtonElement;
 let geocoderResults: HTMLElement;
 let latInput: HTMLInputElement;
 let lngInput: HTMLInputElement;
+let mapsUrlInput: HTMLInputElement;
+let optionalInput: HTMLInputElement;
+let genericInput: HTMLInputElement;
 let formError: HTMLElement;
 
 // Current context
@@ -142,6 +146,43 @@ function buildModal(): void {
 
   form.appendChild(geocoderGroup);
 
+  // Google Maps link (BIZ-03) — what "View on Maps" opens in the trip view.
+  const mapsGroup = document.createElement('div');
+  mapsGroup.className = 'form-group';
+  const mapsLabel = document.createElement('label');
+  mapsLabel.setAttribute('for', 'act-maps-url');
+  mapsLabel.textContent = 'Google Maps link (optional)';
+  mapsGroup.appendChild(mapsLabel);
+  const mInput = document.createElement('input');
+  mInput.type = 'url';
+  mInput.id = 'act-maps-url';
+  mInput.name = 'maps_url';
+  mInput.placeholder = 'https://maps.app.goo.gl/…';
+  mInput.setAttribute('aria-describedby', 'act-maps-url-hint');
+  mapsGroup.appendChild(mInput);
+  const mapsHint = document.createElement('p');
+  mapsHint.className = 'form-hint';
+  mapsHint.id = 'act-maps-url-hint';
+  mapsHint.textContent = 'Without a link, the trip view opens the coordinates in Google Maps.';
+  mapsGroup.appendChild(mapsHint);
+  form.appendChild(mapsGroup);
+
+  // Alternative option (BIZ-01) and area marker (BIZ-02)
+  const optional = buildCheckbox(
+    'act-optional',
+    'is_optional',
+    'Alternative option',
+    'Shown as Option A, B… on the map — one of several choices for the day.',
+  );
+  form.appendChild(optional.group);
+  const generic = buildCheckbox(
+    'act-generic',
+    'is_generic',
+    'General area, not an exact spot',
+    'For neighbourhoods or free time: no directions link is shown.',
+  );
+  form.appendChild(generic.group);
+
   const errorP = document.createElement('p');
   errorP.className = 'error-msg';
   errorP.id = 'act-form-error';
@@ -180,6 +221,9 @@ function buildModal(): void {
   geocoderResults = gResults;
   latInput = latHidden;
   lngInput = lngHidden;
+  mapsUrlInput = mInput;
+  optionalInput = optional.input;
+  genericInput = generic.input;
   formError = errorP;
 
   cancelBtn.addEventListener('click', closeModal);
@@ -199,8 +243,13 @@ function openModal(act: ApiActivity | null): void {
   timeInput.value = act?.time ?? '';
   notesInput.value = act?.notes ?? '';
   geocoderInput.value = '';
-  latInput.value = act ? String(act.lat) : '';
-  lngInput.value = act ? String(act.lng) : '';
+  // lat/lng are null at runtime for activities without coordinates; avoid
+  // String(null) === "null" leaking into the form.
+  latInput.value = String(act?.lat ?? '');
+  lngInput.value = String(act?.lng ?? '');
+  mapsUrlInput.value = act?.maps_url ?? '';
+  optionalInput.checked = act?.is_optional ?? false;
+  genericInput.checked = act?.is_generic ?? false;
 
   geocoderResults.setAttribute('hidden', '');
   geocoderResults.replaceChildren();
@@ -235,6 +284,8 @@ async function handleGeocoderSearch(): Promise<void> {
     if (coords) {
       latInput.value = coords.lat;
       lngInput.value = coords.lng;
+      // The pasted link is also the natural "View on Maps" target.
+      if (!mapsUrlInput.value.trim()) mapsUrlInput.value = query;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = 'Found';
@@ -297,6 +348,15 @@ async function handleFormSubmit(e: Event): Promise<void> {
   e.preventDefault();
 
   formError.setAttribute('hidden', '');
+
+  const mapsUrl = mapsUrlInput.value.trim();
+  if (mapsUrl && !isHttpUrl(mapsUrl)) {
+    setText(formError, 'The Google Maps link must start with http:// or https://.');
+    formError.removeAttribute('hidden');
+    mapsUrlInput.focus();
+    return;
+  }
+
   const saveBtn = document.getElementById('act-save-btn') as HTMLButtonElement | null;
   if (saveBtn) {
     saveBtn.disabled = true;
@@ -312,6 +372,9 @@ async function handleFormSubmit(e: Event): Promise<void> {
     name: nameInput.value.trim(),
     time: timeInput.value || null,
     notes: notesInput.value.trim() || null,
+    maps_url: mapsUrl || null,
+    is_optional: optionalInput.checked,
+    is_generic: genericInput.checked,
     ...(lat !== undefined && !isNaN(lat) ? { lat } : {}),
     ...(lng !== undefined && !isNaN(lng) ? { lng } : {}),
   };
@@ -338,8 +401,8 @@ async function handleFormSubmit(e: Event): Promise<void> {
     }
     closeModal();
     renderActivitiesDisplay(currentContainer, currentDay, currentTripId, currentDestId);
-  } catch {
-    setText(formError, 'Could not save. Check your connection and try again.');
+  } catch (err) {
+    setText(formError, saveErrorMessage(err));
     formError.removeAttribute('hidden');
   } finally {
     if (saveBtn) {
@@ -413,20 +476,33 @@ async function handleReorder(
   day: ApiDay,
   container: HTMLElement,
 ): Promise<void> {
-  const newActivities = [...activities];
+  const swapped = [...activities];
   const swapIndex = direction === 'up' ? movedIndex - 1 : movedIndex + 1;
-  [newActivities[movedIndex], newActivities[swapIndex]] = [
-    newActivities[swapIndex],
-    newActivities[movedIndex],
+  [swapped[movedIndex], swapped[swapIndex]] = [
+    swapped[swapIndex],
+    swapped[movedIndex],
   ];
 
-  // Optimistic update — mutate shared state before API call
+  // Optimistic update. order_index must be renumbered too: the render sorts
+  // by order_index, so a bare array swap would be undone on re-render.
+  // Copies (not mutations) keep `activities` intact for the revert path.
+  const newActivities = swapped.map((a, idx) => ({ ...a, order_index: idx }));
   day.activities = newActivities;
   renderActivitiesDisplay(container, day, tripId, destId);
 
   try {
     const orderedIds = newActivities.map((a) => Number(a.id));
-    await reorderActivities(tripId, destId, day.id, orderedIds);
+    const saved = await reorderActivities(tripId, destId, day.id, orderedIds);
+
+    // Confirm with the server's order_index values — unless a newer reorder
+    // has already replaced this state, in which case that one wins.
+    if (day.activities !== newActivities) return;
+    const savedIndex = new Map(saved.map((a) => [String(a.id), a.order_index]));
+    day.activities = newActivities.map((a) => ({
+      ...a,
+      order_index: savedIndex.get(String(a.id)) ?? a.order_index,
+    }));
+    renderActivitiesDisplay(container, day, tripId, destId);
   } catch {
     // Revert to original order
     day.activities = activities;
@@ -436,6 +512,13 @@ async function handleReorder(
     setText(errEl, 'Could not save. Check your connection and try again.');
     container.appendChild(errEl);
   }
+}
+
+function buildTag(text: string): HTMLElement {
+  const tag = document.createElement('span');
+  tag.className = 'activity-tag';
+  setText(tag, text);
+  return tag;
 }
 
 function renderActivitiesDisplay(
@@ -547,6 +630,10 @@ function renderActivitiesDisplay(
       setText(timeSpan, act.time);
       row.appendChild(timeSpan);
     }
+
+    // Flags set in the modal, so they're visible without opening it
+    if (act.is_optional) row.appendChild(buildTag('Option'));
+    if (act.is_generic) row.appendChild(buildTag('Area'));
 
     // Edit button
     const editBtn = document.createElement('button');

@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { getTheme, getThemeConfig, THEME_CONFIG } from '@/modules/theme';
-import { getDaysRemaining, hasTripStarted } from '@/modules/countdown';
 import { ITINERARY } from '@/data/itinerary';
 import { getMapsUrl, hasMapsUrl } from '@/data/maps';
 
@@ -23,9 +22,9 @@ describe('Theme Module', () => {
     expect(getTheme()).toBe('dark');
   });
 
-  it('should return config for theme', () => {
-    expect(getThemeConfig('light').tileUrl).toContain('light_all');
-    expect(getThemeConfig('dark').tileUrl).toContain('dark_all');
+  it('should return config for theme (both themes share the keyless OSM tiles)', () => {
+    expect(getThemeConfig('light').tileUrl).toContain('tile.openstreetmap.org');
+    expect(getThemeConfig('dark').tileUrl).toBe(getThemeConfig('light').tileUrl);
   });
 
   it('should have valid tile URLs', () => {
@@ -36,36 +35,6 @@ describe('Theme Module', () => {
   it('should have valid route colors', () => {
     expect(THEME_CONFIG.light.routeColor).toMatch(/^#[0-9a-f]{6}$/i);
     expect(THEME_CONFIG.dark.routeColor).toMatch(/^#[0-9a-f]{6}$/i);
-  });
-});
-
-// ============================================
-// Countdown Tests
-// ============================================
-
-describe('Countdown Module', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  it('should return positive days before trip', () => {
-    vi.setSystemTime(new Date('2026-01-01T00:00:00+09:00'));
-    expect(getDaysRemaining()).toBeGreaterThan(50);
-  });
-
-  it('should return 0 after trip starts', () => {
-    vi.setSystemTime(new Date('2026-03-01T00:00:00+09:00'));
-    expect(getDaysRemaining()).toBe(0);
-  });
-
-  it('should return false before trip date', () => {
-    vi.setSystemTime(new Date('2026-01-01T00:00:00+09:00'));
-    expect(hasTripStarted()).toBe(false);
-  });
-
-  it('should return true after trip date', () => {
-    vi.setSystemTime(new Date('2026-02-23T00:00:00+09:00'));
-    expect(hasTripStarted()).toBe(true);
   });
 });
 

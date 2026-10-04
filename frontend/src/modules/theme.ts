@@ -1,17 +1,36 @@
 import type { Theme, ThemeConfig } from '@/types';
+import { TILE_PROVIDER } from '@/data/tiles';
 
 const THEME_KEY = 'theme';
 
+// Both themes share the keyless OSM tiles; dark mode darkens them with a CSS
+// filter on .leaflet-tile-pane (main.css), so markers and popups keep their colours.
 export const THEME_CONFIG: Record<Theme, ThemeConfig> = {
   light: {
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    tileUrl: TILE_PROVIDER.url,
     routeColor: '#0071e3'
   },
   dark: {
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    tileUrl: TILE_PROVIDER.url,
     routeColor: '#0a84ff'
   }
 };
+
+/** localStorage can throw (blocked site data, some private modes); theming must not depend on it. */
+function readSavedTheme(): Theme | null {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return v === 'light' || v === 'dark' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveTheme(theme: Theme): void {
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch { /* preference just won't persist */ }
+}
 
 export function getTheme(): Theme {
   return (document.documentElement.getAttribute('data-theme') as Theme) ?? 'light';
@@ -22,7 +41,7 @@ export function getThemeConfig(theme?: Theme): ThemeConfig {
 }
 
 export function initTheme(): void {
-  const saved = localStorage.getItem(THEME_KEY) as Theme | null;
+  const saved = readSavedTheme();
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const theme: Theme = saved ?? (prefersDark ? 'dark' : 'light');
   applyTheme(theme);
@@ -38,7 +57,7 @@ function applyTheme(theme: Theme): void {
 export function toggleTheme(): void {
   const current = getTheme();
   const next: Theme = current === 'dark' ? 'light' : 'dark';
-  localStorage.setItem(THEME_KEY, next);
+  saveTheme(next);
   applyTheme(next);
   window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
 }
@@ -66,7 +85,7 @@ function updateMetaThemeColor(theme: Theme): void {
 function setupSystemThemeListener(): void {
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   mq.addEventListener('change', (e) => {
-    if (!localStorage.getItem(THEME_KEY)) {
+    if (!readSavedTheme()) {
       applyTheme(e.matches ? 'dark' : 'light');
       window.dispatchEvent(new CustomEvent('theme-changed'));
     }
