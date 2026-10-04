@@ -1,14 +1,17 @@
 import type { Theme, ThemeConfig } from '@/types';
+import { TILE_PROVIDER } from '@/data/tiles';
 
 const THEME_KEY = 'theme';
 
+// Both themes share the keyless OSM tiles; dark mode darkens them with a CSS
+// filter on .leaflet-tile-pane (main.css), so markers and popups keep their colours.
 export const THEME_CONFIG: Record<Theme, ThemeConfig> = {
   light: {
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    tileUrl: TILE_PROVIDER.url,
     routeColor: '#0071e3'
   },
   dark: {
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    tileUrl: TILE_PROVIDER.url,
     routeColor: '#0a84ff'
   }
 };

@@ -24,10 +24,14 @@ const PRECACHE_ASSETS = [
 // before its assets were ever fetched.
 const BUILD_ASSETS = [] /* __BUILD_ASSETS__ */;
 
+// Never intercepted or cached by the SW. Map tiles are included on purpose: the
+// OSM tile policy forbids bulk/offline caching beyond the browser's HTTP cache,
+// and opaque cross-origin tile responses would bloat the cache anyway.
 const NETWORK_ONLY_DOMAINS = [
   'api.allorigins.win',
   'corsproxy.io',
-  'api.open-meteo.com'
+  'api.open-meteo.com',
+  'tile.openstreetmap.org'
 ];
 
 function isNetworkOnly(url) {

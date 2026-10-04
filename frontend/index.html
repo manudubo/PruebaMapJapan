@@ -183,9 +183,13 @@
 
     /* Demo section */
     .demo-section {
-      padding: 40px 24px 60px;
+      padding: 40px 0 60px;
+    }
+
+    .demo-intro {
       max-width: 760px;
       margin: 0 auto;
+      padding: 0 24px;
     }
 
     .demo-section-title {
@@ -198,74 +202,57 @@
       text-align: center;
     }
 
-    /* Countdown */
+    /* Countdown: quiet type on the page background, no boxes (tokens only, both themes) */
+    .demo-countdown-wrap {
+      margin-bottom: 40px;
+    }
+
+    .demo-countdown-title {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--jp-text-secondary);
+      margin-bottom: 12px;
+    }
+
     .demo-countdown {
       display: flex;
-      gap: 12px;
       justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 40px;
+      align-items: baseline;
+      gap: clamp(20px, 7vw, 40px);
     }
 
     .countdown-unit {
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: var(--jp-surface);
-      border: 1px solid var(--jp-border-strong);
-      padding: 16px 20px;
-      min-width: 72px;
+      min-width: 3ch;
     }
 
     .countdown-value {
-      font-size: 32px;
-      font-weight: 700;
+      font-size: clamp(28px, 8vw, 36px);
+      font-weight: 500;
       font-variant-numeric: tabular-nums;
-      color: var(--jp-text, #1d1d1f);
+      letter-spacing: -0.02em;
+      color: var(--jp-text);
       line-height: 1;
     }
 
     .countdown-label {
       font-size: 11px;
-      color: var(--jp-text-tertiary);
+      font-variant-caps: all-small-caps;
+      letter-spacing: 0.08em;
+      color: var(--jp-text-secondary);
       margin-top: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
     }
 
-    .demo-countdown-title {
-      text-align: center;
-      font-size: 13px;
-      color: var(--jp-text-secondary);
-      margin-bottom: 16px;
-    }
 
-    /* City chips */
-    .demo-cities {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-    }
-
-    .city-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 14px;
-      background: var(--jp-surface);
-      border: 1px solid var(--jp-border-strong);
-      color: var(--jp-text-secondary);
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.15s ease;
-    }
-
-    .city-chip:hover {
-      border-color: var(--jp-accent);
-      color: var(--jp-accent-text);
-      background: var(--jp-accent-subtle);
+    /* Trip overview (restored from ab6b603): map + "Cities" cards in a page card.
+       .map-section, .quick-links, .cities-grid and .city-card come from main.css. */
+    .demo-overview {
+      margin-top: 8px;
     }
 
     .divider {
@@ -301,25 +288,69 @@
       <!-- Demo section — always visible -->
       <hr class="divider">
       <section class="demo-section" id="demo" aria-label="Demo: Japan 2026">
+        <div class="demo-intro">
         <p class="demo-section-title">Demo — Japan 2026</p>
 
-        <p class="demo-countdown-title">Days until the trip</p>
-        <div class="demo-countdown" id="demo-countdown" aria-live="polite" aria-label="Cuenta regresiva">
-          <div class="countdown-unit"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">days</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">hours</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">minutes</span></div>
-          <div class="countdown-unit"><span class="countdown-value" id="cd-secs">--</span><span class="countdown-label">seconds</span></div>
+        <div class="demo-countdown-wrap" id="demo-countdown-wrap" data-trip-start="2027-02-22">
+          <p class="demo-countdown-title" id="demo-countdown-title">Until the trip</p>
+          <!-- role=timer is not live: updated once a minute by src/modules/countdown.ts, read on demand -->
+          <div class="demo-countdown" id="demo-countdown" role="timer" aria-live="off" aria-atomic="true" aria-labelledby="demo-countdown-title cd-sr">
+            <span class="sr-only" id="cd-sr"></span>
+            <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">days</span></div>
+            <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">hours</span></div>
+            <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">min</span></div>
+          </div>
+        </div>
         </div>
 
-        <div class="demo-cities" aria-label="Itinerary cities">
-          <a href="tokyo.html" class="city-chip">Tokyo</a>
-          <a href="nagoya.html" class="city-chip">Nagoya</a>
-          <a href="takayama.html" class="city-chip">Takayama</a>
-          <a href="kyoto.html" class="city-chip">Kyoto</a>
-          <a href="osaka.html" class="city-chip">Osaka</a>
-          <a href="naoshima.html" class="city-chip">Naoshima</a>
-          <a href="hakone.html" class="city-chip">Hakone</a>
-          <a href="tokyo2.html" class="city-chip">Tokyo (return)</a>
+        <!-- Trip overview: the map initialises lazily (src/modules/overviewMap.ts); the
+             cards below are plain links, so the cities stay reachable without JS or tiles. -->
+        <div class="page-card demo-overview">
+          <section class="map-section" aria-labelledby="overview-map-title">
+            <h2 class="sr-only" id="overview-map-title">Map of the cities to visit</h2>
+            <div class="map-container">
+              <div id="map" data-city="overview" role="application" aria-label="Map of the Japan 2026 trip" aria-describedby="overview-map-help"></div>
+              <p class="sr-only" id="overview-map-help">Numbered markers follow the visiting order. Tab to a marker and press Enter for its dates and a link. The same cities are listed below.</p>
+            </div>
+          </section>
+
+          <section class="quick-links" aria-labelledby="overview-cities-title">
+            <h3 id="overview-cities-title">Cities</h3>
+            <div class="cities-grid" id="overview-cities">
+              <a href="tokyo.html" class="city-card" data-city="tokyo">
+                <span class="city-marker" style="background:#ff3b30" aria-hidden="true">1</span>
+                <div class="city-info"><strong>Tokyo</strong><small>22 Feb – 1 Mar</small></div>
+              </a>
+              <a href="nagoya.html" class="city-card" data-city="nagoya">
+                <span class="city-marker" style="background:#ff9500" aria-hidden="true">2</span>
+                <div class="city-info"><strong>Nagoya</strong><small>2–3 Mar</small></div>
+              </a>
+              <a href="takayama.html" class="city-card" data-city="takayama">
+                <span class="city-marker" style="background:#ffcc00" aria-hidden="true">3</span>
+                <div class="city-info"><strong>Takayama</strong><small>4–7 Mar</small></div>
+              </a>
+              <a href="kyoto.html" class="city-card" data-city="kyoto">
+                <span class="city-marker" style="background:#34c759" aria-hidden="true">4</span>
+                <div class="city-info"><strong>Kyoto</strong><small>8–13 Mar</small></div>
+              </a>
+              <a href="osaka.html" class="city-card" data-city="osaka">
+                <span class="city-marker" style="background:#5ac8fa" aria-hidden="true">5</span>
+                <div class="city-info"><strong>Osaka</strong><small>14–17 Mar</small></div>
+              </a>
+              <a href="naoshima.html" class="city-card" data-city="naoshima">
+                <span class="city-marker" style="background:#007aff" aria-hidden="true">6</span>
+                <div class="city-info"><strong>Naoshima</strong><small>18–19 Mar</small></div>
+              </a>
+              <a href="hakone.html" class="city-card" data-city="hakone">
+                <span class="city-marker" style="background:#af52de" aria-hidden="true">7</span>
+                <div class="city-info"><strong>Hakone</strong><small>20–21 Mar</small></div>
+              </a>
+              <a href="tokyo2.html" class="city-card" data-city="tokyo2">
+                <span class="city-marker" style="background:#ff2d55" aria-hidden="true">8</span>
+                <div class="city-info"><strong>Tokyo <span class="sr-only">(return)</span></strong><small>22–23 Mar</small></div>
+              </a>
+            </div>
+          </section>
         </div>
       </section>
     </main>
@@ -358,31 +389,6 @@
 
   </script>
   <script>
-    // Demo countdown — target: Feb 22 2027 (next Japan trip)
-    (function() {
-      var target = new Date('2027-02-22T00:00:00').getTime();
-      function update() {
-        var now = Date.now();
-        var diff = target - now;
-        if (diff <= 0) { return; }
-        var days = Math.floor(diff / 86400000);
-        var hours = Math.floor((diff % 86400000) / 3600000);
-        var mins = Math.floor((diff % 3600000) / 60000);
-        var secs = Math.floor((diff % 60000) / 1000);
-        var pad = function(n) { return String(n).padStart(2, '0'); };
-        var d = document.getElementById('cd-days');
-        var h = document.getElementById('cd-hours');
-        var m = document.getElementById('cd-mins');
-        var s = document.getElementById('cd-secs');
-        if (d) d.textContent = String(days);
-        if (h) h.textContent = pad(hours);
-        if (m) m.textContent = pad(mins);
-        if (s) s.textContent = pad(secs);
-      }
-      update();
-      setInterval(update, 1000);
-    })();
-
     // Mark body as ready when styles are loaded
     document.fonts.ready.then(function() {
       document.body.classList.add('ready');

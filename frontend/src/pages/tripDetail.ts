@@ -15,7 +15,8 @@ import '@/components/SearchBar';
 
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { initTheme, getThemeConfig } from '@/modules/theme';
+import { initTheme } from '@/modules/theme';
+import { createBaseMap, switchBaseMapTheme } from '@/modules/baseMap';
 import { isAuthenticated } from '@/auth/keycloak';
 import {
   watchAuth,
@@ -174,12 +175,8 @@ export function buildHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
 function initMap(data: CityData): void {
   destroyMap();
 
-  const themeConfig = getThemeConfig();
-  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true }).setView(
-    data.center,
-    data.zoom
-  );
-  currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
+  const { map, tileLayer } = createBaseMap('map', data.center, data.zoom);
+  currentTileLayer = tileLayer;
   currentMap = map;
   window.currentMap = map;
   window.currentTileLayer = currentTileLayer;
@@ -241,9 +238,7 @@ function initMap(data: CityData): void {
 
   window.addEventListener('theme-changed', () => {
     if (!currentMap || !currentTileLayer) return;
-    const cfg = getThemeConfig();
-    currentMap.removeLayer(currentTileLayer);
-    currentTileLayer = L.tileLayer(cfg.tileUrl, { maxZoom: 19 }).addTo(currentMap);
+    currentTileLayer = switchBaseMapTheme(currentTileLayer);
     window.currentTileLayer = currentTileLayer;
   });
 

@@ -5,9 +5,10 @@
 ## APIs & External Services
 
 **Maps:**
-- Leaflet (open-source, no external API calls) — tile layer URLs are configured per city page
+- Leaflet — raster tiles from the OSM tile server `tile.openstreetmap.org`, configured once in `frontend/src/data/tiles.ts`
+  (CSP img-src is derived from it). CartoDB was dropped in 2026-10: it now serves "API KEY REQUIRED" placeholders.
   - SDK: `leaflet` npm package
-  - Auth: None required
+  - Auth: None required (OSM tile usage policy: attribution, no bulk prefetch/caching)
 
 **Auth:**
 - Keycloak 25.0 — OpenID Connect provider with passkey support

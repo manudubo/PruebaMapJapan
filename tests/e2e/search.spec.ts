@@ -69,7 +69,7 @@ test.describe('Search functionality', () => {
     await expect(page.locator('search-bar img')).toHaveCount(0);
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
     expect(errors).toEqual([]);
-    await expect(page.locator('.demo-cities')).toBeVisible();
+    await expect(page.locator('#overview-cities')).toBeVisible();
   });
 
   test('a very long query does not crash search', async ({ page }) => {

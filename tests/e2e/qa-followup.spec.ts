@@ -127,26 +127,28 @@ test.describe('@qa-noauth search button layout', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('@qa-noauth dark mode tokens', () => {
-  test('landing countdown cards and city chips are dark in dark mode, light in light mode', async ({ browser }) => {
+  test('landing countdown and city cards are dark in dark mode, light in light mode', async ({ browser }) => {
     for (const scheme of ['dark', 'light'] as const) {
       const ctx = await browser.newContext({ colorScheme: scheme });
       await offlineIdp(ctx);
       await blockExternal(ctx);
       const page = await ctx.newPage();
       await page.goto('index.html');
-      const bgLum = await page.locator('.countdown-unit').first().evaluate((el) => {
-        const m = getComputedStyle(el).backgroundColor.match(/\d+/g)!.map(Number);
+      // The countdown is unboxed text now: its digits must follow the theme.
+      const textLum = await page.locator('.countdown-value').first().evaluate((el) => {
+        const m = getComputedStyle(el).color.match(/\d+/g)!.map(Number);
         return (0.2126 * m[0]! + 0.7152 * m[1]! + 0.0722 * m[2]!) / 255;
       });
-      const chipLum = await page.locator('.city-chip').first().evaluate((el) => {
+      const chipLum = await page.locator('#overview-cities .city-card').first().evaluate((el) => {
         const m = getComputedStyle(el).backgroundColor.match(/\d+/g)!.map(Number);
         return (0.2126 * m[0]! + 0.7152 * m[1]! + 0.0722 * m[2]!) / 255;
       });
       if (scheme === 'dark') {
-        expect(bgLum).toBeLessThan(0.2);
+        expect(textLum).toBeGreaterThan(0.8);
         expect(chipLum).toBeLessThan(0.2);
       } else {
-        expect(bgLum).toBeGreaterThan(0.9);
+        expect(textLum).toBeLessThan(0.2);
+        expect(chipLum).toBeGreaterThan(0.9);
       }
       await ctx.close();
     }
