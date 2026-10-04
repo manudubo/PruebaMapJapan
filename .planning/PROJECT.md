@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A full-stack web app for planning, visualizing, and sharing trip itineraries. Users build trips with destinations, hotels, day-by-day chronograms, and activities — all rendered on an interactive Leaflet map. Keycloak OIDC auth with passkeys and OTP fallback. Built as both a portfolio piece and a personally useful tool. v2.0 shipped a hardened auth infrastructure with Terraform IaC, email OTP fallback, passkey campaign, and Playwright real-auth E2E coverage. v3.0 shipped quality, polish, and developer experience: a unified design language between the app and Keycloak, centralized error handling, a single-command dev environment with all KC test users as IaC, an OAuth/OIDC security audit, and full new-user trip-creation E2E parity.
+A full-stack web app for planning, visualizing, and sharing trip itineraries. Users build trips with destinations, hotels, day-by-day chronograms, and activities — all rendered on an interactive Leaflet map. Keycloak OIDC auth with passkeys and OTP fallback. Built as both a portfolio piece and a personally useful tool. v2.0 shipped a hardened auth infrastructure with Terraform IaC, email OTP fallback, passkey campaign, and Playwright real-auth E2E coverage. v3.0 shipped quality, polish, and developer experience: a unified design language between the app and Keycloak, centralized error handling, a single-command dev environment with all KC test users as IaC, an OAuth/OIDC security audit, and full new-user trip-creation E2E parity. v3.2 (executed, pending verification) hardened security and code health across the stack: reliability bugs, supply chain and accessibility, a real-Postgres test harness, DB-level data integrity, demo/editor parity, and a rebuilt Keycloak login flow.
 
 ## Core Value
 
@@ -35,20 +35,36 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - ✓ Theme consistency: light/dark toggle persists across all MPA flows including Leaflet tile switching — v3.0 (Phase 10)
 - ✓ E2E suite stabilized: full Playwright suite green across chromium/firefox/webkit (242 passed, 25 documented deferrals, 0 unexplained failures); shared `loginViaKcForm` helper replaces four independent KC-navigation implementations; every environment-specific deferral is a `test.fixme(condition, reason)`, never a silent skip — v3.1 (Phases 15-19)
 
-### Active (v3.2)
+### Validated in v3.2 (executed 2026-07-24 to 2026-10-04; pending PR review and first Actions run)
 
-(Defined in next step — see `.planning/REQUIREMENTS.md`)
+Status per requirement is in `.planning/REQUIREMENTS.md` (75 Complete, 4 Partial, 1 Deferred, 2 Unverified); evidence in `.planning/phases/TRACEABILITY.md`.
+
+- ✓ Critical security: OTP from CSPRNG, widget XSS closed with DOM APIs, CSP meta built from the resolved build env, unused admin secret removed from the Cloudflare Terraform — Phase 20
+- ✓ Deploy and build safety: backend builds, deploys gated on CI, wrangler pinned, Keycloak healthcheck, dependency bumps — Phase 21
+- ✓ Reliability: 16 audited bugs fixed test-first (reorder persistence, 401 handling, first-login race, OTP hourly cap, and more) — Phase 22
+- ✓ Supply chain and a11y: Leaflet first-party, versioned network-first service worker, gitleaks triage, axe/Lighthouse scripts, contrast and heading fixes — Phase 23 (A11Y-04/05, DEP-02 partial; DEP-03 unverified)
+- ✓ Architecture and data: real-Postgres backend tests, typed DB layer, shared `dbMiddleware`, single-JOIN ownership, global error handler, migrations 0004-0007 (OTP index, unique email, lat/lng CHECKs, one hotel per destination), first-party PWA icons — Phase 24 (ARCH-09 unverified)
+- ✓ Editor and demo parity: optional/generic/time/maps-link/zoom fields end to end, date and coordinate validation (422), local-date parsing, DB triggers for cross-level date coherence (migration 0008) — Phase 25
+- ✓ Remaining security: JWKS cooldown, generic `invalid_token`, atomic OTP attempts and issuance (migration 0009), email transport gate, CORS and security headers by environment, no existence oracle (404), XSS sinks removed, Keycloak browser flow rebuilt (the old flow let a username alone sign in) — Phase 26 (SEC-17 partial, SEC-18 deferred)
+- ✓ Post-phase QA: adversarial backend suite, frontend and service-worker QA, OpenStreetMap tiles after CartoDB began returning placeholders, restored overview map, minute-based countdown, deploy-order guard, production-safe Keycloak import script
+
+### Active
+
+- [ ] Review and merge the v3.2 branch; first GitHub Actions run (decides ARCH-06, ARCH-09, DEP-03)
+- [ ] Owner actions before any production deploy: Keycloak `import.sh --remove-stale-flows` plus Terraform apply, `MIGRATION_DATABASE_URL` secret, Neon smoke checklist, duplicate-email check, rotate the leaked local Keycloak secret
+- [ ] SEC-18 Nominatim proxy, SEC-17 `ssl_required = "all"`, A11Y-04/05 (v3.2 leftovers)
+- [ ] CI job that runs Keycloak and the real-auth e2e specs (also closes the "Real-auth E2E in CI" item below)
 
 ### Future (deferred, unscoped)
 
-- [ ] **Production deployment**: Cloudflare Workers (backend) + Neon (DB) + Railway (Keycloak) all live with public URLs
-- [ ] **Landing demo experience**: Landing page showcases Japan trip as demo without requiring login
+- [ ] **Production deployment**: Cloudflare Workers (backend) + Neon (DB) + Railway (Keycloak) all live with public URLs. v3.2 made it deployable (build, CI gate, migration-before-deploy, schema guard) but nothing has been deployed
+- [x] **Landing demo experience**: landing page with hero, overview map of all cities and countdown, no login needed (v3.2 post-phase QA); GitHub Pages still serves the older build until the branch is merged
 - [ ] **Deployment runbook**: Document how to bring up all three services in both local and production environments
 - [ ] **Real-auth E2E in CI**: Keycloak in CI environment; SKIP_REAL_AUTH removed from pipeline
 - [ ] **Passkey rename**: PUT credentials/{id}/label
 - [ ] **Prod rpId for passkeys**: Set to Railway hostname in Terraform before any prod passkey registration
 
-## Current Milestone: v3.2 Security & Code Health Hardening
+## Current Milestone: v3.2 Security & Code Health Hardening (executed, pending verification)
 
 **Goal:** Fix the ~85 actionable findings from a 7-pass live-verified repo audit — security, deploy safety, reliability bugs, dependencies, accessibility, architecture/test debt, data layer, business-logic/demo-parity, and IdP hardening.
 
@@ -59,6 +75,8 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 - Fix the most user-visible reliability bug (activity drag-reorder not persisting visually) plus ~15 lower-severity bugs
 - Close the structural gap between the trip-planner demo and what a real user can build with it — cross-level date coherence validation, the confirmed timezone date-shift bug, and exposing DB/schema fields (optional/generic activities, custom map links, zoom) through the actual editor UI
 - Full detail, per-item verification status, and rationale: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`
+
+**Outcome so far:** all seven phases executed. The two live-verified blockers from the audit are fixed (backend builds; unused admin secret removed from Terraform). Items still open are listed under Active above and in `.planning/STATE.md`.
 
 Source: Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 → 2026-07-24) and `codex-review.md` (2026-06-23 live-environment audit, largely superseded by v3.1's login-harness rewrite but still valid on security/deploy/dependency findings).
 
@@ -74,7 +92,7 @@ Source: Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 �
 
 ## Context
 
-**Codebase state (as of 2026-07-23, v3.1 shipped):**
+**Codebase state (as of 2026-10-04, v3.2 executed on branch `claude/focused-lovelace-cryssy`; v3.1 baseline below is `main` at `3c147f6`):**
 - Full-stack brownfield: Hono + Cloudflare Workers backend, Vanilla TypeScript frontend (MPA), Keycloak 26.6.1 OIDC auth
 - 19 phases complete; 94 plans shipped (62 v2.0 + 19 v3.0 + 13 v3.1)
 - Design: unified `--jp-*` token system across app + KC login/account/email themes; light/dark toggle persists across MPA navigations
@@ -82,9 +100,10 @@ Source: Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 �
 - Dev environment: `npm run dev` (Docker detection → KC health wait → backend → frontend); all KC test users + strict redirect URIs as Terraform IaC
 - Security: RFC 9700 checklist on file, JWKS retry-on-failure, CSP/HSTS/X-Frame-Options headers, E2E audience-rejection coverage
 - New-user flow: full UI-driven trip creation (destination/hotel/day/activity/geocoder/map/search) covered by Playwright E2E with no ROPC anywhere in the suite
+- v3.2 added: backend tests on real Postgres 16 (1524 tests, 43 files), frontend 1042 tests (47 files), 10 SQL migrations (0004-0009 are v3.2), DB triggers/functions for date coherence and OTP issuance, OpenStreetMap tiles, a Keycloak browser flow that requires a credential. Last verified 2026-10-04; Playwright e2e and live Keycloak were not re-run
 - Production deployment still not configured (Cloudflare + Neon + Railway) — deferred, unscoped; the backend build is fixed as of Phase 21 (2026-07-30): `wrangler deploy --dry-run` passes (nodejs_compat_v2 via `compatibility_date = "2024-09-23"`), deploy workflows are CI-gated via `workflow_run`, and deps are patched to 0 HIGH/CRITICAL advisories
 - E2E suite fully stabilized (v3.1, Phases 15-19): 242 passed / 25 skipped / 0 failed on the full Playwright suite across chromium/firefox/webkit/chromium-passkeys; shared `loginViaKcForm` helper; dedicated `session-test@local` KC user eliminates cross-spec session contamination; every deferral is a documented `test.fixme`
-- A comprehensive 7-pass security/code-health audit (`ANALISIS-REPO.md`, ~85 findings) is complete and synthesized into `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`, not yet formalized into a milestone
+- The 7-pass audit (`ANALISIS-REPO.md`, ~85 findings) was formalized into the v3.2 milestone (82 requirements) and executed
 
 **Known critical constraint (carried forward):**
 - `webAuthnPolicyPasswordlessRpId` must be set to Railway prod hostname before any prod passkey registration — no migration path exists
@@ -119,6 +138,13 @@ Source: Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 �
 | Dedicated `session-test@local` KC user for `session-management.spec.ts` (v3.1 Phase 19) | Sharing `e2e-test@local` across specs caused `logoutUser()` calls in one spec to cross-contaminate KC sessions in another | ✓ Good — standing preference: every E2E spec should ideally have its own dedicated KC user going forward |
 | passkeyCampaign per-device cookie pre-seeded via `context.addCookies()` before login (v3.1 Phase 19) | Every fresh test context re-triggered the full webauthn-register-passwordless required-action redirect, slowing the suite and breaking session-count assertions | ⚠️ Revisit — reliable on chromium/firefox; doesn't suppress the redirect on webkit, accepted as a documented `test.fixme` deferral |
 | `waitForLoadState('networkidle')` removed from E2E waits (v3.1 Phase 19) | Vite's HMR WebSocket keeps the page perpetually non-idle in dev, causing indefinite hangs (worst on webkit) | ✓ Good — replaced with locator-based waits, no regressions |
+| OpenStreetMap tiles instead of CartoDB (v3.2 QA) | CartoDB now answers every tile with a 200 "API KEY REQUIRED" placeholder; e2e stubs hid it. OSM is keyless; dark mode via CSS filter | ✓ Good — single provider config in `src/data/tiles.ts`; ⚠️ revisit if traffic grows (OSM tile policy) |
+| Cross-level date rules and OTP issuance live in the database (v3.2 Phases 25/26, migrations 0008/0009) | Production uses the Neon HTTP driver, which has no interactive transactions; a route cannot hold a lock between check and write | ✓ Good — races covered by forced-interleaving tests; ⚠️ Neon driver path not yet smoke-tested |
+| 404 instead of 403 for foreign resources (v3.2 SEC-22) | A 403 reveals that a resource exists | ✓ Good — identical bodies asserted on all 19 attack routes |
+| Migrations run in the deploy workflow with a direct `MIGRATION_DATABASE_URL`, before `wrangler deploy` (v3.2 review) | The new Worker calls objects (`otp_issue()`, triggers) that only exist after migration | ✓ Good — plus `db:preflight` and a 503 schema guard; ⚠️ not yet run on Actions |
+| CSP built from the resolved build env, production build fails on missing/invalid origins (v3.2 Phase 20 fix, review N6) | The first CSP blocked the API origin and would have broken every logged-in call in production | ✓ Good |
+| Keycloak login flow: conditional passkey, otherwise password, never username-only (v3.2 KC-01) | The old REQUIRED+ALTERNATIVE layout let a username alone produce a token | ⚠️ Revisit — passkey users have no password fallback; recovery is Forgot password or admin action |
+| Phases 22-26 executed from summaries without PLAN.md (v3.2) | Parallel agents on separate worktrees | ⚠️ Revisit — traceability had to be rebuilt afterwards (`phases/TRACEABILITY.md`); prefer a PLAN.md per phase |
 | 69 unpushed local commits backed up to `origin/backup/2026-07-22` rather than merged straight to `main` (v3.1 session) | Deploy workflows have no CI gate and the backend fails `wrangler deploy --dry-run` — a straight merge risked pushing a broken build to a prod deploy trigger | ✓ Good — no data loss, no accidental deploy; commits later merged properly after the E2E gate was green |
 
 ## Evolution
@@ -139,4 +165,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-Last updated: 2026-07-30 — Phase 21 (Deploy & Build Safety) complete
+Last updated: 2026-10-04 — v3.2 Phases 20-26 executed and consolidated; pending PR review and first Actions run

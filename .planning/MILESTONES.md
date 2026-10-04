@@ -1,5 +1,43 @@
 # Milestones
 
+## v3.2 — Security & Code Health Hardening
+
+**Status:** Executed, pending verification (not yet merged or pushed; close with `/gsd-complete-milestone` after the open items below)
+**Phases:** 20–26
+**Plans:** 6 with PLAN.md (Phases 20–21); Phases 22–26 were executed from summaries only (9 summary documents)
+**Timeline:** 2026-07-24 → 2026-10-04 (Phases 20–21 by 2026-07-30; Phases 22–26 and QA 2026-09-30 → 2026-10-04)
+**Stats (`git log 3c147f6..HEAD`):** 151 commits plus 18 merges, 303 files changed, +30,798 / -4,212 lines (backend 99 files, frontend 108, e2e 31, Terraform/Keycloak 13, planning 39)
+**Tests as last verified (2026-10-04, real Postgres 16):** backend 1524 (43 files), frontend 1042 (47 files, also under `America/Argentina/Buenos_Aires`); typecheck and production build clean. At the start of Phase 22 the counts were 34 and 101. Playwright e2e was not re-run.
+**Requirements:** 82 plus 1 extra: 75 Complete, 4 Partial, 1 Deferred, 2 Unverified (`.planning/REQUIREMENTS.md`, evidence in `.planning/phases/TRACEABILITY.md`)
+
+### Delivered
+
+Fixed the findings of the 7-pass repo audit: the backend now builds and deploys behind CI with migrations applied first, the highest-risk security items are closed, backend tests run against a real database, user-built trips have the same fields as the demo, and the Keycloak login flow no longer lets a username alone sign in.
+
+### Key Accomplishments
+
+1. Closed the exploitable findings: CSPRNG OTP codes, DOM-API rendering for RSS and search results, a CSP built from the build environment (after QA showed the first version blocked the API), JWKS refresh cooldown, generic `invalid_token`, atomic OTP attempts and issuance, CORS and security headers per environment, 404 instead of 403 for foreign resources
+2. Rebuilt the Keycloak browser flow. The old flow was a live authentication bypass (username only produced a token); the new one requires a credential, Terraform is the only source of realm config, and `import.sh` is safe to run against production
+3. Replaced mock-based backend tests with a real ephemeral Postgres 16 harness (34 → 1524 backend tests) and added an adversarial API suite with forced race interleavings; typed the DB layer, shared one `dbMiddleware`, and added a global error handler that maps SQLSTATEs to 4xx
+4. Moved integrity rules into the database: unique email, lat/lng CHECKs, one hotel per destination, cross-level date coherence triggers and an atomic `otp_issue()` function (migrations 0004–0009), because production uses the Neon HTTP driver without transactions
+5. Reached editor/demo parity: optional, generic, time, maps-link and zoom fields end to end; 422 field errors; local-date parsing across 13 time zones; "Generate all days" keeps partial successes
+6. Supply chain and accessibility: Leaflet bundled, content-hashed network-first service worker, gitleaks triage, axe and Lighthouse scripts, first-party PWA icons, contrast and heading fixes
+7. Post-phase QA fixed demo regressions (CartoDB placeholder tiles replaced with OpenStreetMap, overview map restored, minute-based countdown) and review findings (migrate-before-deploy, same-repo-only deploys with pinned actions, schema guard, Keycloak-down states)
+
+### Known Gaps at Close
+
+- ARCH-09 (CI e2e green) and DEP-03 (security workflow) have never run on GitHub Actions; the Postgres service in `test-backend` is also unobserved
+- Partial: DEP-02 (leaked local Keycloak secret redacted but rotation unverified), A11Y-04 (marker target size), A11Y-05 (landing LCP), SEC-17 (`ssl_required` not switched to `all`; Railway unchecked)
+- Deferred: SEC-18 (Nominatim proxy), with the reason recorded
+- No CI job runs Keycloak (S3); the Neon HTTP driver path has never run (S4)
+- Production Keycloak must be re-imported with `--remove-stale-flows` and treated as exposed until then; the backend has never been deployed to production
+- Verification gaps for the PR reviewer: `.planning/qa/QA-INDEX.md`
+
+### Archive
+
+- Roadmap: `.planning/ROADMAP.md` (archive to `.planning/milestones/v3.2-ROADMAP.md` on completion)
+- Requirements: `.planning/REQUIREMENTS.md` (archive to `.planning/milestones/v3.2-REQUIREMENTS.md` on completion)
+
 ## v3.1 — E2E Stabilization
 
 **Shipped:** 2026-07-23
