@@ -98,9 +98,20 @@ describe('errorHandler (M-09)', () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  it('other SQLSTATEs (e.g. 42P01 undefined_table) stay a 500', async () => {
+  it.each(['42P01', '42703', '42883', '42P10'])(
+    'schema-mismatch SQLSTATE %s → 503 schema_out_of_date, logged as an error',
+    async (sqlstate) => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const res = await appThrowing(new Error('wrapped', { cause: { code: sqlstate } })).request('/x');
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({ success: false, error: 'Service temporarily unavailable', code: 'schema_out_of_date' });
+      expect(JSON.stringify(log.mock.calls)).toContain('db:migrate');
+    },
+  );
+
+  it('other SQLSTATEs (e.g. 40P01 deadlock_detected) stay a 500', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await appThrowing(Object.assign(new Error('x'), { code: '42P01' })).request('/x');
+    const res = await appThrowing(Object.assign(new Error('x'), { code: '40P01' })).request('/x');
     expect(res.status).toBe(500);
   });
 });
@@ -148,14 +159,14 @@ describe('errors from real routes reach the global handler (M-09)', () => {
     expect(await snapshotDb()).toBe(before);
   });
 
-  it('a failing query inside a handler → generic 500 and the real error is logged', async () => {
+  it('a query on a table missing under a running isolate → generic 503 schema_out_of_date, real error logged', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { trip } = await ownerWithTrip();
     await testPool().query('ALTER TABLE destinations RENAME TO destinations_gone');
     try {
       const res = await call('GET', `/api/trips/${trip.id}/destinations`, { sub: 'owner' });
-      expect(res.status).toBe(500);
-      expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
+      expect(res.status).toBe(503);
+      expect(res.body).toEqual({ success: false, error: 'Service temporarily unavailable', code: 'schema_out_of_date' });
       expect(JSON.stringify(log.mock.calls)).toContain('destinations');
     } finally {
       await testPool().query('ALTER TABLE destinations_gone RENAME TO destinations');
@@ -167,8 +178,8 @@ describe('errors from real routes reach the global handler (M-09)', () => {
     await testPool().query('ALTER TABLE users RENAME TO users_gone');
     try {
       const res = await call('GET', '/api/trips', { sub: 'owner' });
-      expect(res.status).toBe(500);
-      expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
+      expect(res.status).toBe(503);
+      expect(res.body).toEqual({ success: false, error: 'Service temporarily unavailable', code: 'schema_out_of_date' });
       expect(JSON.stringify(res.body)).not.toMatch(/users|relation/);
       // …while the real cause is logged server-side.
       expect(JSON.stringify(log.mock.calls.map((c) => String(c[1])))).toMatch(/users/);

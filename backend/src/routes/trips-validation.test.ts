@@ -6,6 +6,8 @@ import type { Context, Next } from 'hono';
 // Postgres (ARCH-06). What is under test is the HTTP contract: invalid bodies
 // get 422 before any handler/DB work; valid bodies reach the query layer with
 // the parsed values.
+// The DB is mocked: skip dbMiddleware's schema-readiness query.
+vi.mock('../db/schema-check', () => ({ schemaStatus: async () => [] }));
 vi.mock('../middleware/auth', () => ({
   authMiddleware: async (c: Context, next: Next) => {
     c.set('user', { sub: 'kc-1', email: 'user@example.com', name: 'U', preferred_username: 'u' });

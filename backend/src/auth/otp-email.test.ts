@@ -11,6 +11,8 @@ vi.mock('resend', () => ({
   },
 }));
 
+// The DB is mocked: skip dbMiddleware's schema-readiness query.
+vi.mock('../db/schema-check', () => ({ schemaStatus: async () => [] }));
 vi.mock('../middleware/auth', () => ({
   authMiddleware: async (c: Context, next: Next) => {
     c.set('user', { sub: 'kc-1', email: 'user@example.com', name: 'U', preferred_username: 'u' });
