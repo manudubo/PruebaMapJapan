@@ -628,7 +628,10 @@ tripsRoute.get(
       .limit(1);
 
     if (!hotelRows[0]) {
-      const response: ApiResponse<never> = { success: false, error: 'Hotel not found' };
+      // Distinguishable from the SEC-22 "Destination not found" 404 so the
+      // editor can show an empty form only here (review N1). Safe: this
+      // branch is reached only for a destination the caller owns.
+      const response: ApiResponse<never> = { success: false, error: 'Hotel not found', code: 'hotel_not_found' };
       return c.json(response, 404);
     }
 

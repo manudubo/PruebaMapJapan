@@ -470,7 +470,25 @@ describe('destinations / days / activities / hotel CRUD (owner)', () => {
     expect((await call('DELETE', `${D(A as Ids)}/hotel`, { sub: 'owner' })).status).toBe(200);
     const gone = await call('GET', `${D(A as Ids)}/hotel`, { sub: 'owner' });
     expect(gone.status).toBe(404);
-    expect(gone.body).toEqual({ success: false, error: 'Hotel not found' });
+    expect(gone.body).toEqual({ success: false, error: 'Hotel not found', code: 'hotel_not_found' });
+  });
+
+  // Review N1: the editor must tell "no hotel yet" from "destination gone or
+  // not yours". Only an owned destination without a hotel carries the code;
+  // missing/foreign destinations keep the SEC-22 indistinguishable body.
+  it('GET hotel: hotel_not_found only for an owned destination without a hotel', async () => {
+    const { A } = await world();
+    await call('DELETE', `${D(A as Ids)}/hotel`, { sub: 'owner' });
+    const noHotel = await call('GET', `${D(A as Ids)}/hotel`, { sub: 'owner' });
+    expect(noHotel.body['code']).toBe('hotel_not_found');
+
+    const missingDest = await call('GET', `${D({ ...(A as Ids), dest: 999_991 })}/hotel`, { sub: 'owner' });
+    const foreign = await call('GET', `${D(A as Ids)}/hotel`, { sub: 'intruder' });
+    for (const res of [missingDest, foreign]) {
+      expect(res.status).toBe(404);
+      expect(res.body['code']).toBeUndefined();
+      expect(res.body).toEqual({ success: false, error: 'Destination not found' });
+    }
   });
 
   it('hotel: 20 concurrent PUTs leave exactly one row, holding one of the submitted names', async () => {

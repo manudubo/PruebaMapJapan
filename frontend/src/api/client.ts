@@ -275,7 +275,8 @@ export async function deleteDay(
 
 /**
  * Get the hotel for a destination, or null if it has none.
- * The backend answers 404 when there is no hotel, so 404 maps to null;
+ * The backend answers 404 code=hotel_not_found when there is no hotel,
+ * which maps to null; any other 404 (destination gone/foreign) and
  * any other error still throws.
  */
 export async function getHotel(tripId: string, destId: string): Promise<ApiHotel | null> {
@@ -285,7 +286,9 @@ export async function getHotel(tripId: string, destId: string): Promise<ApiHotel
       { auth: true }
     );
   } catch (err) {
-    if (err instanceof ApiError && err.status === 404) return null;
+    // Only "this destination has no hotel" is an empty result. Any other 404
+    // (destination or trip gone, or not the user's: SEC-22) is an error.
+    if (err instanceof ApiError && err.status === 404 && err.code === 'hotel_not_found') return null;
     throw err;
   }
 }
