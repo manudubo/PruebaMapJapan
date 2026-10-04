@@ -8,7 +8,7 @@ Deployed to GitHub Pages at `/PruebaMapJapan/`.
 ## Commands
 ```bash
 npm run dev          # Dev server on http://localhost:3000 (opens browser)
-npm run build        # tsc + vite build → dist/
+npm run build        # tsc + vite build → dist/ (needs VITE_API_URL + VITE_KEYCLOAK_URL, or CSP_ALLOW_MISSING_ORIGINS=true for a demo-only build)
 npm run preview      # Preview production build locally
 npm run typecheck    # tsc --noEmit (no output, just type errors)
 npm run test         # Vitest in watch mode
