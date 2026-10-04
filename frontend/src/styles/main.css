@@ -183,6 +183,31 @@
   color: var(--jp-text-tertiary);
 }
 
+/* Landing overview: card <-> marker selection sync (src/modules/overviewMap.ts) */
+.city-card.is-selected {
+  border-color: var(--jp-accent);
+  background: var(--jp-accent-subtle);
+}
+
+.city-card:focus-visible {
+  outline: 2px solid var(--jp-accent);
+  outline-offset: 2px;
+}
+
+.leaflet-marker-icon.is-highlighted .numbered-marker,
+.leaflet-marker-icon:focus-visible .numbered-marker {
+  outline: 2px solid var(--jp-text);
+  outline-offset: 2px;
+}
+
+.leaflet-marker-icon:focus-visible {
+  outline: none;
+}
+
+.overview-popup-link {
+  color: var(--jp-accent-text);
+}
+
 /* ============================================
    Countdown Section
    ============================================ */

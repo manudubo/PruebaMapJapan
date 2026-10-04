@@ -127,7 +127,7 @@ test.describe('@qa-noauth search button layout', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('@qa-noauth dark mode tokens', () => {
-  test('landing countdown cards and city chips are dark in dark mode, light in light mode', async ({ browser }) => {
+  test('landing countdown and city cards are dark in dark mode, light in light mode', async ({ browser }) => {
     for (const scheme of ['dark', 'light'] as const) {
       const ctx = await browser.newContext({ colorScheme: scheme });
       await offlineIdp(ctx);
@@ -138,7 +138,7 @@ test.describe('@qa-noauth dark mode tokens', () => {
         const m = getComputedStyle(el).backgroundColor.match(/\d+/g)!.map(Number);
         return (0.2126 * m[0]! + 0.7152 * m[1]! + 0.0722 * m[2]!) / 255;
       });
-      const chipLum = await page.locator('.city-chip').first().evaluate((el) => {
+      const chipLum = await page.locator('#overview-cities .city-card').first().evaluate((el) => {
         const m = getComputedStyle(el).backgroundColor.match(/\d+/g)!.map(Number);
         return (0.2126 * m[0]! + 0.7152 * m[1]! + 0.0722 * m[2]!) / 255;
       });

@@ -22,7 +22,8 @@ import { ITINERARY } from '@/data/itinerary';
 import { initTheme } from '@/modules/theme';
 import { initCountdown } from '@/modules/countdown';
 import { initWidgets } from '@/modules/widgets';
-import { initCityMap, initOverviewMap, updateMapTheme, centerNavOnActive } from '@/modules/map';
+import { initCityMap, updateMapTheme, centerNavOnActive } from '@/modules/map';
+import { initOverviewMap, observeOverviewMap } from '@/modules/overviewMap';
 
 // ============================================
 // Application Initialization
@@ -88,7 +89,8 @@ function initializeMap(): void {
   const page = mapEl.dataset.city;
   
   if (page === 'overview') {
-    initOverviewMap();
+    // Landing demo: below the fold, so it must not compete with the hero (LCP).
+    observeOverviewMap(mapEl, () => initOverviewMap(mapEl, document.getElementById('overview-cities')));
     return;
   }
   

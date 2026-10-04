@@ -183,9 +183,13 @@
 
     /* Demo section */
     .demo-section {
-      padding: 40px 24px 60px;
+      padding: 40px 0 60px;
+    }
+
+    .demo-intro {
       max-width: 760px;
       margin: 0 auto;
+      padding: 0 24px;
     }
 
     .demo-section-title {
@@ -240,32 +244,10 @@
       margin-bottom: 16px;
     }
 
-    /* City chips */
-    .demo-cities {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-    }
-
-    .city-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 14px;
-      background: var(--jp-surface);
-      border: 1px solid var(--jp-border-strong);
-      color: var(--jp-text-secondary);
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.15s ease;
-    }
-
-    .city-chip:hover {
-      border-color: var(--jp-accent);
-      color: var(--jp-accent-text);
-      background: var(--jp-accent-subtle);
+    /* Trip overview (restored from ab6b603): map + "Cities" cards in a page card.
+       .map-section, .quick-links, .cities-grid and .city-card come from main.css. */
+    .demo-overview {
+      margin-top: 8px;
     }
 
     .divider {
@@ -301,6 +283,7 @@
       <!-- Demo section — always visible -->
       <hr class="divider">
       <section class="demo-section" id="demo" aria-label="Demo: Japan 2026">
+        <div class="demo-intro">
         <p class="demo-section-title">Demo — Japan 2026</p>
 
         <p class="demo-countdown-title">Days until the trip</p>
@@ -311,15 +294,56 @@
           <div class="countdown-unit"><span class="countdown-value" id="cd-secs">--</span><span class="countdown-label">seconds</span></div>
         </div>
 
-        <div class="demo-cities" aria-label="Itinerary cities">
-          <a href="tokyo.html" class="city-chip">Tokyo</a>
-          <a href="nagoya.html" class="city-chip">Nagoya</a>
-          <a href="takayama.html" class="city-chip">Takayama</a>
-          <a href="kyoto.html" class="city-chip">Kyoto</a>
-          <a href="osaka.html" class="city-chip">Osaka</a>
-          <a href="naoshima.html" class="city-chip">Naoshima</a>
-          <a href="hakone.html" class="city-chip">Hakone</a>
-          <a href="tokyo2.html" class="city-chip">Tokyo (return)</a>
+        </div>
+
+        <!-- Trip overview: the map initialises lazily (src/modules/overviewMap.ts); the
+             cards below are plain links, so the cities stay reachable without JS or tiles. -->
+        <div class="page-card demo-overview">
+          <section class="map-section" aria-labelledby="overview-map-title">
+            <h2 class="sr-only" id="overview-map-title">Map of the cities to visit</h2>
+            <div class="map-container">
+              <div id="map" data-city="overview" role="application" aria-label="Map of the Japan 2026 trip" aria-describedby="overview-map-help"></div>
+              <p class="sr-only" id="overview-map-help">Numbered markers follow the visiting order. Tab to a marker and press Enter for its dates and a link. The same cities are listed below.</p>
+            </div>
+          </section>
+
+          <section class="quick-links" aria-labelledby="overview-cities-title">
+            <h3 id="overview-cities-title">Cities</h3>
+            <div class="cities-grid" id="overview-cities">
+              <a href="tokyo.html" class="city-card" data-city="tokyo">
+                <span class="city-marker" style="background:#ff3b30" aria-hidden="true">1</span>
+                <div class="city-info"><strong>Tokyo</strong><small>22 Feb – 1 Mar</small></div>
+              </a>
+              <a href="nagoya.html" class="city-card" data-city="nagoya">
+                <span class="city-marker" style="background:#ff9500" aria-hidden="true">2</span>
+                <div class="city-info"><strong>Nagoya</strong><small>2–3 Mar</small></div>
+              </a>
+              <a href="takayama.html" class="city-card" data-city="takayama">
+                <span class="city-marker" style="background:#ffcc00" aria-hidden="true">3</span>
+                <div class="city-info"><strong>Takayama</strong><small>4–7 Mar</small></div>
+              </a>
+              <a href="kyoto.html" class="city-card" data-city="kyoto">
+                <span class="city-marker" style="background:#34c759" aria-hidden="true">4</span>
+                <div class="city-info"><strong>Kyoto</strong><small>8–13 Mar</small></div>
+              </a>
+              <a href="osaka.html" class="city-card" data-city="osaka">
+                <span class="city-marker" style="background:#5ac8fa" aria-hidden="true">5</span>
+                <div class="city-info"><strong>Osaka</strong><small>14–17 Mar</small></div>
+              </a>
+              <a href="naoshima.html" class="city-card" data-city="naoshima">
+                <span class="city-marker" style="background:#007aff" aria-hidden="true">6</span>
+                <div class="city-info"><strong>Naoshima</strong><small>18–19 Mar</small></div>
+              </a>
+              <a href="hakone.html" class="city-card" data-city="hakone">
+                <span class="city-marker" style="background:#af52de" aria-hidden="true">7</span>
+                <div class="city-info"><strong>Hakone</strong><small>20–21 Mar</small></div>
+              </a>
+              <a href="tokyo2.html" class="city-card" data-city="tokyo2">
+                <span class="city-marker" style="background:#ff2d55" aria-hidden="true">8</span>
+                <div class="city-info"><strong>Tokyo <span class="sr-only">(return)</span></strong><small>22–23 Mar</small></div>
+              </a>
+            </div>
+          </section>
         </div>
       </section>
     </main>
