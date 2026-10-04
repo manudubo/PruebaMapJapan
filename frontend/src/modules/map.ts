@@ -4,6 +4,7 @@ import type { Activity, Day, Hotel, CityData, CityMarker } from '@/types';
 import { ITINERARY } from '@/data/itinerary';
 import { getMapsUrl } from '@/data/maps';
 import { getTheme, getThemeConfig } from './theme';
+import { createBaseMap, switchBaseMapTheme } from './baseMap';
 import { createDirectionsUrl, announceToScreenReader } from './utils';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
@@ -73,11 +74,8 @@ export function initCityMap(city: string): L.Map | null {
   const data = ITINERARY[city];
   if (!data) return null;
 
-  const themeConfig = getThemeConfig();
-  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true })
-    .setView(data.center, data.zoom);
-  
-  currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
+  const { map, tileLayer } = createBaseMap('map', data.center, data.zoom);
+  currentTileLayer = tileLayer;
   window.currentMap = map;
   window.currentTileLayer = currentTileLayer;
 
@@ -361,10 +359,8 @@ function updateHotelInfo(hotel: Hotel): void {
 export function initOverviewMap(): void {
   const theme = getTheme();
   const themeConfig = getThemeConfig(theme);
-  const map = L.map('map', { zoomControl: true, attributionControl: false, keyboard: true })
-    .setView([35.5, 137.0], 6);
-  
-  currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(map);
+  const { map, tileLayer } = createBaseMap('map', [35.5, 137.0], 6);
+  currentTileLayer = tileLayer;
   window.currentMap = map;
   window.currentTileLayer = currentTileLayer;
 
@@ -408,7 +404,5 @@ export function initOverviewMap(): void {
 
 export function updateMapTheme(): void {
   if (!window.currentMap || !window.currentTileLayer) return;
-  const themeConfig = getThemeConfig();
-  window.currentMap.removeLayer(window.currentTileLayer);
-  window.currentTileLayer = L.tileLayer(themeConfig.tileUrl, { maxZoom: 19 }).addTo(window.currentMap);
+  window.currentTileLayer = switchBaseMapTheme(window.currentTileLayer);
 }

@@ -916,7 +916,8 @@ body {
 
 .hotel-btn {
   position: absolute;
-  bottom: 20px;
+  /* Clears the tile attribution in the bottom-right corner. */
+  bottom: 28px;
   right: 20px;
   z-index: 1000;
   width: 44px;
@@ -1578,6 +1579,53 @@ body {
 
 .leaflet-container {
   font-family: 'Inter', sans-serif;
+  background: var(--jp-surface-subtle);
+}
+
+/* Dark mode: the OSM tiles have no keyless dark variant, so darken them in place.
+   Only the tile pane is filtered; markers, route lines and popups keep their colours. */
+html[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7);
+}
+
+/* Tile attribution (required by the OSM licence): visible, quiet, readable in both themes.
+   The extra .leaflet-control class out-ranks leaflet.css, which is imported after this file. */
+.leaflet-container .leaflet-control.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--jp-surface) 88%, transparent);
+  color: var(--jp-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 1px 6px;
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--jp-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.leaflet-container .leaflet-control-attribution a:focus-visible {
+  outline: 2px solid var(--jp-accent);
+  outline-offset: 1px;
+}
+
+/* Shown by baseMap.ts when no tile could load: the map still has markers and links. */
+.map-tile-notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: calc(100% - 96px);
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--jp-surface-raised);
+  border: 1px solid var(--jp-border-strong);
+  color: var(--jp-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
 }
 
 /* Map Markers */

@@ -23,9 +23,9 @@ describe('Theme Module', () => {
     expect(getTheme()).toBe('dark');
   });
 
-  it('should return config for theme', () => {
-    expect(getThemeConfig('light').tileUrl).toContain('light_all');
-    expect(getThemeConfig('dark').tileUrl).toContain('dark_all');
+  it('should return config for theme (both themes share the keyless OSM tiles)', () => {
+    expect(getThemeConfig('light').tileUrl).toContain('tile.openstreetmap.org');
+    expect(getThemeConfig('dark').tileUrl).toBe(getThemeConfig('light').tileUrl);
   });
 
   it('should have valid tile URLs', () => {

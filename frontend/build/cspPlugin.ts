@@ -1,4 +1,5 @@
 import type { HtmlTagDescriptor, Plugin } from 'vite';
+import { tileCspSources } from '../src/data/tiles';
 
 // SEC-04: Content-Security-Policy injected as a <meta> into every HTML entry.
 //
@@ -28,7 +29,8 @@ const CONNECT_SRC_STATIC = [
 const IMG_SRC_STATIC = [
   // data: carries Leaflet's control/marker images, which Vite inlines from leaflet.css.
   'data:',
-  'https://*.basemaps.cartocdn.com', // theme.ts map tiles
+  // Map tiles (src/data/tiles.ts is the single source, so the policy follows the provider).
+  ...tileCspSources(),
 ];
 
 export type CspTarget = 'serve' | 'build';

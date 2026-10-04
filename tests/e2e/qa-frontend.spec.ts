@@ -112,16 +112,25 @@ test.describe('@qa-noauth theme', () => {
     expect(bg).not.toBe('rgb(245, 245, 247)');
   });
 
-  test('map tile layer switches with the theme', async ({ page }) => {
+  test('theme switch keeps the OSM tiles and darkens them with a CSS filter (no tile reload)', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     const tiles: string[] = [];
-    page.on('request', (r) => { if (r.url().includes('basemaps.cartocdn.com')) tiles.push(r.url()); });
+    page.on('request', (r) => { if (r.url().includes('tile.openstreetmap.org')) tiles.push(r.url()); });
     await offlineIdp(page);
     await blockExternal(page);
     await page.goto('kyoto.html');
+    await expect.poll(() => tiles.length).toBeGreaterThan(0);
+    await page.waitForLoadState('networkidle');
+    const pane = page.locator('#map .leaflet-tile-pane');
+    expect(await pane.evaluate((el) => getComputedStyle(el).filter)).toBe('none');
+    const before = tiles.length;
     await page.locator('travel-nav .theme-toggle').click();
-    await expect.poll(() => tiles.some((u) => u.includes('dark_all'))).toBe(true);
-    expect(tiles.some((u) => u.includes('light_all'))).toBe(true);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect.poll(() => pane.evaluate((el) => getComputedStyle(el).filter)).toContain('invert(1)');
+    // Markers are not filtered (only the tile pane is).
+    expect(await page.locator('#map .leaflet-marker-pane').evaluate((el) => getComputedStyle(el).filter)).toBe('none');
+    expect(tiles.length).toBe(before);
+    expect(tiles.every((u) => !u.includes('cartocdn'))).toBe(true);
   });
 });
 

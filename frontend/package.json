@@ -10,6 +10,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "check:tiles": "vitest run --config vitest.live.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
