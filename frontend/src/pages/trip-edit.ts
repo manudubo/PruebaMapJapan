@@ -3,48 +3,78 @@ import '@/components/Navbar';
 
 import { initTheme } from '@/modules/theme';
 import { showToast, installGlobalErrorHandler } from '@/modules/toast';
-import { initKeycloak, isAuthenticated } from '@/auth/keycloak';
+import {
+  watchAuth,
+  showAuthUnavailableState,
+  clearAuthUnavailableState,
+} from '@/auth/authStatusUI';
 import { getTrip } from '@/api/client';
 import { initMetadataSection } from './trip-edit/metadata';
 import { initDestinationsSection } from './trip-edit/destinations';
 
-async function init(): Promise<void> {
+/**
+ * Trip editor bootstrap.
+ *
+ * Auth goes through the shared watchAuth handling (review S1), like dashboard,
+ * trip and profile: initKeycloak() gives up after AUTH_INIT_TIMEOUT_MS, and
+ * that must not read as "signed out". So:
+ * - authenticated -> load the trip (once, also when the answer arrives late)
+ * - anonymous     -> back to the dashboard (it shows the sign-in prompt)
+ * - unavailable   -> "can't reach sign-in" state with Retry; no redirect
+ */
+export function initTripEdit(
+  navigate: (url: string) => void = (url) => window.location.replace(url),
+): void {
   initTheme();
   installGlobalErrorHandler();
 
-  const params = new URLSearchParams(window.location.search);
-  const tripId = params.get('tripId');
+  const tripId = new URLSearchParams(window.location.search).get('tripId');
+  const dashboardUrl = new URL('dashboard.html', window.location.href).href;
 
-  let authenticated = false;
-  try {
-    authenticated = await initKeycloak();
-  } catch { /* continue */ }
+  let handled = false;
+  watchAuth({
+    authenticated: () => {
+      clearAuthUnavailableState();
+      if (handled) return;
+      handled = true;
+      if (!tripId) {
+        navigate(dashboardUrl);
+        return;
+      }
+      void loadEditor(tripId, () => navigate(dashboardUrl));
+    },
+    anonymous: () => {
+      clearAuthUnavailableState();
+      if (handled) return;
+      handled = true;
+      navigate(dashboardUrl);
+    },
+    unavailable: () => {
+      if (handled) return;
+      showAuthUnavailableState();
+      // The page fades in on body.ready (FOUC guard); the error must be visible.
+      document.body.classList.add('ready');
+    },
+  });
+}
 
-  if (!authenticated || !isAuthenticated()) {
-    window.location.href = 'dashboard.html';
-    return;
-  }
-
-  if (!tripId) {
-    window.location.href = 'dashboard.html';
-    return;
-  }
-
+async function loadEditor(tripId: string, backToDashboard: () => void): Promise<void> {
   try {
     const trip = await getTrip(tripId);
     initMetadataSection(trip);
     initDestinationsSection(trip, tripId);
-    const destSection = document.getElementById('destinations-section');
-    destSection?.removeAttribute('hidden');
+    document.getElementById('destinations-section')?.removeAttribute('hidden');
     document.body.classList.add('ready');
   } catch {
     showToast('Could not load trip — returning to dashboard', 'error');
-    setTimeout(() => { window.location.href = 'dashboard.html'; }, 1500);
+    setTimeout(backToDashboard, 1500);
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
+if (!import.meta.env.VITEST) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => initTripEdit());
+  } else {
+    initTripEdit();
+  }
 }
