@@ -384,11 +384,11 @@ describe('upgrade from a push-built 0003 database (SETUP.md `drizzle-kit push --
     await db.drop();
   });
 
-  it.fails('ends with the same catalog schema as a fresh database', async () => {
+  it('ends with the same catalog schema as a fresh database', async () => {
     expect(await schemaFingerprint(db)).toEqual(freshPrint);
   });
 
-  it.fails('a pre-slug trip can be shared: it has a slug and the public page answers', async () => {
+  it('a pre-slug trip can be shared: it has a slug and the public page answers', async () => {
     const owner = await makeUser(signer, { sub: 'kc-push', email: 'push@example.test' });
     const req = client(makeEnv(db.url, { DB_DRIVER: 'neon', ENVIRONMENT: 'development' }));
     const share = await req('PATCH', `/api/trips/${tripId}`, { token: owner.token, body: { is_public: true } });
@@ -397,7 +397,7 @@ describe('upgrade from a push-built 0003 database (SETUP.md `drizzle-kit push --
     expect((await req('GET', `/api/public/trips/${share.body.data.public_slug}`)).status).toBe(200);
   });
 
-  it.fails('a user with NULL preferences reads {} from /api/users/me', async () => {
+  it('a user with NULL preferences reads {} from /api/users/me', async () => {
     const owner = await makeUser(signer, { sub: 'kc-push', email: 'push@example.test' });
     const req = client(makeEnv(db.url, { DB_DRIVER: 'neon', ENVIRONMENT: 'development' }));
     const me = await req('GET', '/api/users/me', { token: owner.token });
