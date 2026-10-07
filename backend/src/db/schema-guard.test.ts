@@ -225,6 +225,22 @@ describe('GET /api/health/ready', () => {
     expect(res.body).toEqual({ status: 'unavailable', code: 'db_unreachable' });
   });
 
+  it('503 db_unreachable when the database goes away after a cached "ready"', async () => {
+    // The schema verdict is cached forever once ready; readiness must still
+    // notice a database that stopped answering (uptime checks, deploy waits).
+    scratch = await scratchDbAt('0010_reconcile_push_built_schema');
+    const env = testEnv({ DATABASE_URL: scratch.url });
+    expect((await call('GET', '/api/health/ready', { env })).status).toBe(200);
+    await closeDbPools();
+    await scratch.drop();
+    scratch = undefined;
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await call('GET', '/api/health/ready', { env });
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ status: 'unavailable', code: 'db_unreachable' });
+  });
+
   it('503 config error without DATABASE_URL', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await call('GET', '/api/health/ready', { env: testEnv({ DATABASE_URL: '' }) });
