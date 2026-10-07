@@ -10,7 +10,32 @@
  */
 import { parseDbDriver, type DbDriver, type PgPoolOptions } from '../db';
 import { resolveEnvironment, type AppEnvironment } from '../config/environment';
+import { assertEmailConfig, OtpEmailConfigError } from '../auth/otp-email';
+import { CLIENT_IP_HEADERS, MAX_TRUSTED_PROXY_HOPS } from '../middleware/client-ip';
+import { normaliseConfiguredOrigin } from '../middleware/cors';
+import { parseLogLevel, type LogLevel } from '../observability/logger';
+import { userAgentProduct } from '../routes/geocode';
 import type { Env } from '../types';
+
+/**
+ * Every variable the Node server or the app reads from the environment. All of
+ * them reach the bindings (unknown ones too); this list is what the self-host
+ * stack must be able to set (docker-compose.prod.yml is checked against it in
+ * bootstrap.test.ts). Keep it in sync with the Env interface.
+ */
+export const SERVER_ENV_CONTRACT = [
+  // app (Env)
+  'ENVIRONMENT', 'DATABASE_URL', 'DB_DRIVER',
+  'KEYCLOAK_URL', 'KEYCLOAK_REALM', 'VALID_AUDIENCES', 'KEYCLOAK_ISSUER', 'KEYCLOAK_JWKS_URL', 'ALLOWED_AZP',
+  'KC_ADMIN_CLIENT_ID', 'KC_ADMIN_CLIENT_SECRET',
+  'OTP_SECRET', 'EMAIL_PROVIDER', 'EMAIL_FROM', 'SMTP_FROM', 'RESEND_API_KEY',
+  'SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASS',
+  'ALLOWED_ORIGINS', 'TRUSTED_PROXY_HOPS', 'CLIENT_IP_HEADER',
+  'NOMINATIM_CONTACT', 'NOMINATIM_URL', 'NOMINATIM_USER_AGENT',
+  // Node server only
+  'LOG_LEVEL', 'LOG_REQUESTS', 'PORT', 'HOST', 'PG_POOL_MAX', 'PG_IDLE_TIMEOUT_MS', 'PG_CONNECT_TIMEOUT_MS',
+  'SHUTDOWN_TIMEOUT_MS',
+] as const;
 
 export type RawEnv = Record<string, string | undefined>;
 
@@ -33,6 +58,12 @@ export interface ServerConfig {
   shutdownTimeoutMs: number;
   /** Origins the CORS middleware should allow (forwarded as ALLOWED_ORIGINS). */
   allowedOrigins: string[];
+  /** OTP mail transport resolved by auth/otp-email.ts (resend | smtp | mailpit). */
+  emailProvider: string;
+  /** Threshold for the app logger (LOG_LEVEL, default info). */
+  logLevel: LogLevel;
+  /** One access-log line per request from the Node wrapper (LOG_REQUESTS=true). */
+  logRequests: boolean;
 }
 
 const MIN_OTP_SECRET_LENGTH = 32;
@@ -69,14 +100,6 @@ function parseUrl(value: string): URL | null {
   } catch {
     return null;
   }
-}
-
-/** An exact browser origin: scheme://host[:port], nothing else. */
-function isExactOrigin(value: string, requireHttps: boolean): boolean {
-  const url = parseUrl(value);
-  if (!url) return false;
-  if (url.protocol !== 'https:' && (requireHttps || url.protocol !== 'http:')) return false;
-  return url.origin === value;
 }
 
 /**
@@ -149,9 +172,11 @@ export function loadServerConfig(raw: RawEnv): ServerConfig {
   }
 
   // Geocoding proxy (OSM Nominatim usage policy: identify the application and
-  // give a contact). Required in production for /api/geocode.
-  if (production && trimmed(raw, 'NOMINATIM_USER_AGENT') === '') {
-    problems.push('NOMINATIM_USER_AGENT is not set (e.g. "TravelMap-selfhost/1.0")');
+  // give a contact). The contact is required in production for /api/geocode;
+  // the product name is optional (routes/geocode.ts has a default).
+  const agent = trimmed(raw, 'NOMINATIM_USER_AGENT');
+  if (agent !== '' && userAgentProduct(agent) === null) {
+    problems.push('NOMINATIM_USER_AGENT must be product tokens such as "TravelMap-selfhost/1.0" (no spaces inside a token, no parentheses)');
   }
   if (production && trimmed(raw, 'NOMINATIM_CONTACT') === '') {
     problems.push('NOMINATIM_CONTACT is not set (an email or URL where OSM can reach you)');
@@ -165,40 +190,27 @@ export function loadServerConfig(raw: RawEnv): ServerConfig {
     problems.push(`OTP_SECRET must be at least ${MIN_OTP_SECRET_LENGTH} characters in production`);
   }
 
-  // OTP email transport (contract shared with the app's email module):
-  // EMAIL_PROVIDER=resend|smtp, EMAIL_FROM (alias SMTP_FROM), RESEND_API_KEY or
-  // SMTP_HOST/SMTP_PORT/SMTP_SECURE/SMTP_USER/SMTP_PASS. The app refuses to
-  // send without a transport in production (SEC-08); fail at boot instead of
-  // on the first sign-in.
-  const provider = trimmed(raw, 'EMAIL_PROVIDER').toLowerCase();
-  const hasResend = trimmed(raw, 'RESEND_API_KEY') !== '';
-  const hasSmtp = trimmed(raw, 'SMTP_HOST') !== '';
-  if (provider !== '' && provider !== 'resend' && provider !== 'smtp') {
-    problems.push(`EMAIL_PROVIDER must be "resend" or "smtp" (got "${provider}")`);
-  } else if (provider === 'resend' && !hasResend) {
-    problems.push('EMAIL_PROVIDER=resend but RESEND_API_KEY is not set');
-  } else if (provider === 'smtp' && !hasSmtp) {
-    problems.push('EMAIL_PROVIDER=smtp but SMTP_HOST is not set');
-  } else if (production && !hasResend && !hasSmtp) {
-    problems.push('No OTP email transport: set RESEND_API_KEY, or SMTP_HOST (+ SMTP_USER/SMTP_PASS)');
+  // OTP email transport: the app's own resolver (auth/otp-email.ts) is the one
+  // validation, run here at boot instead of on the first sign-in (SEC-08). It
+  // reads the raw strings exactly as the app will see them in the bindings.
+  let emailProvider = 'none';
+  try {
+    emailProvider = assertEmailConfig({ ...raw, ENVIRONMENT: environment });
+  } catch (err) {
+    if (!(err instanceof OtpEmailConfigError)) throw err;
+    problems.push(`OTP email transport: ${err.message}`);
   }
-  if (production && trimmed(raw, 'EMAIL_FROM') === '' && trimmed(raw, 'SMTP_FROM') === '') {
-    problems.push('EMAIL_FROM is not set (sender of OTP emails, e.g. "TravelMap <login@yourdomain>")');
-  }
-  const smtpSecure = trimmed(raw, 'SMTP_SECURE').toLowerCase();
-  if (smtpSecure !== '' && !['starttls', 'tls', 'none'].includes(smtpSecure)) {
-    problems.push(`SMTP_SECURE must be starttls, tls or none (got "${smtpSecure}")`);
-  }
-  if (trimmed(raw, 'SMTP_PORT') !== '') parseIntInRange(raw, 'SMTP_PORT', 587, 1, 65535, problems);
 
-  // Client IP behind the reverse proxy (read by the app's rate limiter).
-  parseIntInRange(raw, 'TRUSTED_PROXY_HOPS', 0, 0, 10, problems);
+  // Client IP behind the reverse proxy (read by the app's rate limiter, which
+  // would silently fall back to the TCP peer on a bad value).
+  parseIntInRange(raw, 'TRUSTED_PROXY_HOPS', 0, 0, MAX_TRUSTED_PROXY_HOPS, problems);
   const ipHeader = trimmed(raw, 'CLIENT_IP_HEADER').toLowerCase();
-  if (ipHeader !== '' && !['x-forwarded-for', 'x-real-ip', 'cf-connecting-ip'].includes(ipHeader)) {
-    problems.push(`CLIENT_IP_HEADER must be x-forwarded-for, x-real-ip or cf-connecting-ip (got "${ipHeader}")`);
+  if (ipHeader !== '' && !(CLIENT_IP_HEADERS as readonly string[]).includes(ipHeader)) {
+    problems.push(`CLIENT_IP_HEADER must be ${CLIENT_IP_HEADERS.join(', ')} (got "${ipHeader}")`);
   }
 
-  // CORS origins.
+  // CORS origins: the CORS middleware's own rule (it would drop a bad entry and
+  // lock the SPA out; here it stops the boot instead).
   const allowedOrigins = trimmed(raw, 'ALLOWED_ORIGINS')
     .split(',')
     .map((o) => o.trim())
@@ -207,13 +219,18 @@ export function loadServerConfig(raw: RawEnv): ServerConfig {
     problems.push('ALLOWED_ORIGINS is not set (e.g. https://manudubo.github.io)');
   }
   for (const origin of allowedOrigins) {
-    if (!isExactOrigin(origin, production)) {
+    if (normaliseConfiguredOrigin(origin, environment) === null) {
       problems.push(
         `ALLOWED_ORIGINS entry "${origin}" is not an exact ${production ? 'https ' : ''}origin ` +
-          '(scheme://host, no path or trailing slash)',
+          '(scheme://host, no path or trailing slash; http only for localhost in development)',
       );
     }
   }
+
+  // Log threshold for the app's structured logger.
+  const logLevelRaw = trimmed(raw, 'LOG_LEVEL');
+  const logLevel = logLevelRaw === '' ? 'info' : parseLogLevel(logLevelRaw);
+  if (logLevel === null) problems.push(`LOG_LEVEL must be debug, info, warn or error (got "${logLevelRaw}")`);
 
   // Server and pool.
   const port = parseIntInRange(raw, 'PORT', 8787, 1, 65535, problems);
@@ -251,6 +268,9 @@ export function loadServerConfig(raw: RawEnv): ServerConfig {
     pool,
     shutdownTimeoutMs,
     allowedOrigins,
+    emailProvider,
+    logLevel: logLevel ?? 'info',
+    logRequests: trimmed(raw, 'LOG_REQUESTS') === 'true',
   };
 }
 
@@ -266,9 +286,8 @@ export function describeConfig(config: ServerConfig): Record<string, unknown> {
     keycloak: `${config.bindings.KEYCLOAK_URL}/realms/${config.bindings.KEYCLOAK_REALM}`,
     keycloakJwks: config.bindings['KEYCLOAK_JWKS_URL'] || '(derived from KEYCLOAK_URL)',
     allowedOrigins: config.allowedOrigins,
-    otpEmail:
-      config.bindings['EMAIL_PROVIDER'] ||
-      (config.bindings.RESEND_API_KEY ? 'resend' : config.bindings['SMTP_HOST'] ? 'smtp' : 'none'),
+    otpEmail: config.emailProvider,
     trustedProxyHops: Number(config.bindings['TRUSTED_PROXY_HOPS'] || 0),
+    logLevel: config.logLevel,
   };
 }

@@ -3,7 +3,9 @@
  * docs/SELF-HOSTING.md). Runs the SAME Hono app as the Cloudflare Worker
  * (src/index.ts); only the bindings come from process.env instead of wrangler.
  *
- * - validates the environment and exits(1) listing every problem
+ * - validates the environment and exits(1) listing every problem (including
+ *   the OTP email transport), applies LOG_LEVEL and the pg pool limits
+ *   (node/bootstrap.ts)
  * - DB_DRIVER=pg (TCP pool, size/timeouts from PG_POOL_MAX etc.)
  * - JSON log lines on stdout/stderr
  * - SIGTERM/SIGINT: stop accepting, drain in-flight requests, close pg pools
@@ -14,15 +16,16 @@
 import { serve } from '@hono/node-server';
 import type { Server } from 'node:http';
 import app from './index';
-import { closeDbPools, configurePgPool } from './db';
-import { describeConfig, loadServerConfig, ServerConfigError, type ServerConfig } from './node/config';
-import { createFetchHandler, gracefulShutdown, installJsonConsole, logLine } from './node/runtime';
+import { closeDbPools } from './db';
+import { describeConfig, ServerConfigError } from './node/config';
+import { prepareServer, type PreparedServer } from './node/bootstrap';
+import { gracefulShutdown, installJsonConsole, logLine } from './node/runtime';
 
 installJsonConsole();
 
-function loadConfigOrExit(): ServerConfig {
+function prepareOrExit(): PreparedServer {
   try {
-    return loadServerConfig(process.env);
+    return prepareServer(app, process.env);
   } catch (err) {
     if (err instanceof ServerConfigError) {
       logLine('error', 'invalid configuration, refusing to start', { problems: err.problems });
@@ -32,15 +35,7 @@ function loadConfigOrExit(): ServerConfig {
     process.exit(1);
   }
 }
-const config = loadConfigOrExit();
-
-configurePgPool(config.pool);
-const fetchHandler = createFetchHandler(
-  app,
-  config.bindings,
-  undefined,
-  process.env['LOG_REQUESTS'] === 'true',
-);
+const { config, fetchHandler } = prepareOrExit();
 
 const server = serve(
   {
