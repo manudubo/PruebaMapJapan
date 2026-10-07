@@ -147,7 +147,7 @@ describe('POST /api/auth/otp-request — email gating (SEC-08)', () => {
     expect(issueOtp).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
-    expect(String(errorSpy.mock.calls[0]?.[1])).toMatch(/RESEND_API_KEY/);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/RESEND_API_KEY/);
   });
 
   it('development without key → 201 via Mailpit', async () => {
@@ -183,6 +183,6 @@ describe('POST /api/auth/otp-request — email gating (SEC-08)', () => {
     vi.mocked(markOtpUsed).mockRejectedValueOnce(new Error('db down'));
     const res = await post({ ...base, ENVIRONMENT: 'development' });
     expect(res.status).toBe(500);
-    expect(String(errorSpy.mock.calls[0]?.[1])).toMatch(/fetch failed/);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/fetch failed/);
   });
 });

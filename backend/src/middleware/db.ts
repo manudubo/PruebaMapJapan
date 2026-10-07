@@ -2,6 +2,7 @@ import type { Context, Next } from 'hono';
 import { getDb, parseDbDriver, type Db, type DbDriver } from '../db';
 import { checkSchemaReady, SCHEMA_NOT_MIGRATED } from '../db/schema-guard';
 import type { Env, ContextVariables, ApiResponse } from '../types';
+import { log } from '../observability/logger';
 
 /**
  * Build the DB handle from the Worker env, or return null when the
@@ -10,7 +11,7 @@ import type { Env, ContextVariables, ApiResponse } from '../types';
  */
 export function dbFromEnv(env: Partial<Env> | undefined): Db | null {
   if (!env?.DATABASE_URL) {
-    console.error('dbMiddleware: DATABASE_URL is not configured');
+    log.error('db.not_configured', { reason: 'DATABASE_URL is not set' });
     return null;
   }
   let driver: DbDriver;
@@ -18,7 +19,7 @@ export function dbFromEnv(env: Partial<Env> | undefined): Db | null {
     // Workers default to the Neon HTTP driver; Node entry points pass "pg".
     driver = parseDbDriver(env.DB_DRIVER, 'neon');
   } catch (err) {
-    console.error('dbMiddleware:', err);
+    log.error('db.bad_driver', { error: err });
     return null;
   }
   return getDb(env.DATABASE_URL, driver);
@@ -48,7 +49,13 @@ export async function dbMiddleware(
 
   const verdict = await checkSchemaReady(db, c.env.DATABASE_URL);
   if (!verdict.ok) {
-    console.error(`${c.req.method} ${c.req.path} → 503 ${SCHEMA_NOT_MIGRATED}`);
+    log.error('db.schema_not_migrated', {
+      request_id: c.get('requestId'),
+      method: c.req.method,
+      route: c.req.routePath,
+      status: 503,
+      code: SCHEMA_NOT_MIGRATED,
+    });
     const response: ApiResponse<never> = {
       success: false,
       error: 'Service unavailable',

@@ -6,6 +6,7 @@ import { ensureUserProvisioned } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { OtpVerifySchema } from '../validation/schemas';
 import { otpEmailTransport, sendOtpEmail } from '../auth/otp-email';
+import { log } from '../observability/logger';
 import {
   getLatestUnexpiredOtp,
   issueOtp,
@@ -79,7 +80,7 @@ authRoute.post('/otp-request', async (c) => {
   // DATA-01: opportunistic purge of dead codes. Best-effort housekeeping —
   // a failure here must not block sign-in, so log and carry on.
   await deleteStaleOtps(db).catch((err: unknown) => {
-    console.error('otp-request: stale OTP cleanup failed:', err);
+    log.error('otp.cleanup_failed', { request_id: c.get('requestId'), error: err });
   });
 
   // bias < 0.023% across Uint32 range — negligible for 6-digit OTP

@@ -98,6 +98,7 @@ describe('POST /api/auth/otp-request — hourly cap (BUG-16)', () => {
 
     expect(res.status).toBe(201);
     expect(issueOtp).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledWith('otp-request: stale OTP cleanup failed:', expect.any(Error));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"event":"otp.cleanup_failed"'));
+    expect(String(log.mock.calls[0]?.[0])).toContain('cleanup exploded');
   });
 });

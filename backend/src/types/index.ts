@@ -69,6 +69,8 @@ export interface ContextVariables {
   dbUserId: number;
   /** Typed database handle — set by dbMiddleware (M-01) */
   db: Db;
+  /** Server-generated id of this request (X-Request-Id, every log line). */
+  requestId: string;
 }
 
 // ---------------------------------------------------------------------------

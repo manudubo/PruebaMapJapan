@@ -3,6 +3,12 @@ import { HTTPException } from 'hono/http-exception';
 import type { ApiResponse } from '../types';
 import { dateConflict, pgErrorCode } from '../db/pg-errors';
 import { EmailConflictError } from '../db/queries/users';
+import { log } from '../observability/logger';
+import { requestIdOf, routeLabel } from './request-context';
+
+function where(c: Context) {
+  return { request_id: requestIdOf(c), method: c.req.method, route: routeLabel(c) };
+}
 
 type Mapped = { status: 400 | 409; error: string; code: string };
 
@@ -31,8 +37,9 @@ const CLIENT_ERRORS: Record<string, Mapped> = {
 
 /**
  * Global error handler (M-09). Routes no longer swallow errors in
- * `catch {}` blocks; everything unexpected lands here, is logged with the
- * request line (visible in `wrangler tail`), and gets a generic body — the
+ * `catch {}` blocks; everything unexpected lands here, is logged as one
+ * scrubbed JSON line with the request id and route pattern (never the query
+ * string or bound SQL parameters), and gets a generic body — the
  * raw error message is never sent to the client.
  */
 export function errorHandler(err: Error, c: Context) {
@@ -45,7 +52,7 @@ export function errorHandler(err: Error, c: Context) {
 
   if (err instanceof EmailConflictError) {
     // DATA-02: a different account already owns this email.
-    console.warn(`${c.req.method} ${c.req.path} → 409:`, err.message);
+    log.warn('http.email_conflict', { ...where(c), status: 409 });
     const response: ApiResponse<never> = { success: false, error: err.message, code: 'email_conflict' };
     return c.json(response, 409);
   }
@@ -56,7 +63,7 @@ export function errorHandler(err: Error, c: Context) {
     // written for the user (dates and the user's own destination name only),
     // so it is returned as-is, shaped like a validation error so editor forms
     // show it next to the field.
-    console.warn(`${c.req.method} ${c.req.path} → 422 date_conflict:`, conflict.message);
+    log.warn('http.date_conflict', { ...where(c), status: 422, column: conflict.column });
     const body: DateConflictResponse = {
       success: false,
       error: conflict.message,
@@ -69,12 +76,14 @@ export function errorHandler(err: Error, c: Context) {
   const sqlstate = pgErrorCode(err);
   const mapped = sqlstate ? CLIENT_ERRORS[sqlstate] : undefined;
   if (mapped) {
-    console.warn(`${c.req.method} ${c.req.path} → ${mapped.status} (SQLSTATE ${sqlstate}):`, err);
+    log.warn('http.db_client_error', { ...where(c), status: mapped.status, sqlstate, error: err });
     const response: ApiResponse<never> = { success: false, error: mapped.error, code: mapped.code };
     return c.json(response, mapped.status);
   }
 
-  console.error(`Unhandled error on ${c.req.method} ${c.req.path}:`, err);
+  // The error is scrubbed by the logger: Drizzle puts the bound parameters
+  // (emails, OTP hashes) in its message and pg puts row values in `detail`.
+  log.error('http.unhandled_error', { ...where(c), status: 500, error: err });
   const response: ApiResponse<never> = {
     success: false,
     error: 'Internal server error',

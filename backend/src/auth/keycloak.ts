@@ -1,4 +1,5 @@
 import type { Env, KeycloakJwtPayload } from '../types';
+import { log } from '../observability/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -172,7 +173,7 @@ async function fetchJwks(env: Env): Promise<Map<string, CryptoKey>> {
         keyMap.set(jwk.kid, cryptoKey);
       } catch {
         // Skip keys that fail to import — log but don't break
-        console.warn(`Failed to import JWK with kid=${jwk.kid}`);
+        log.warn('auth.jwk_import_failed', { kid: String(jwk.kid).slice(0, 64) });
       }
     }
   }

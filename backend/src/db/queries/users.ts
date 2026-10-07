@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { Db } from '../index';
 import { users } from '../schema';
 import { isUniqueViolation } from '../pg-errors';
+import { log } from '../../observability/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -171,9 +172,7 @@ async function refreshProfile(db: Db, existing: User, claims: UserClaims): Promi
     if (!changes.email || !isUniqueViolation(err, USERS_EMAIL_UNIQUE_IDX)) throw err;
     // Keycloak moved this user to an email another row owns (DATA-02). Keep
     // the stored email so the user can still sign in; refresh the rest.
-    console.warn(
-      `upsertUser: email refresh for keycloakId=${claims.keycloak_id} conflicts with another account; keeping stored email`,
-    );
+    log.warn('users.email_refresh_conflict', { keycloak_id: claims.keycloak_id, action: 'kept stored email' });
     delete changes.email;
     if (Object.keys(changes).length === 0) return existing;
     return updateUser(db, claims.keycloak_id, changes);

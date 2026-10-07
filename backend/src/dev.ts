@@ -13,6 +13,16 @@ import app from './index';
 
 const PORT = Number(process.env.PORT) || 8787;
 
+function redactUrlPassword(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (u.password) u.password = '***';
+    return u.toString();
+  } catch {
+    return raw ? '(unparseable URL)' : '';
+  }
+}
+
 // Inject process.env as Hono bindings (equivalent to c.env in Workers)
 const env = {
   DATABASE_URL: process.env.DATABASE_URL ?? '',
@@ -37,7 +47,8 @@ serve(
   () => {
     console.log(`\n Backend running at http://localhost:${PORT}`);
     console.log(`  Health: http://localhost:${PORT}/api/health`);
-    console.log(`  DB:     ${env.DATABASE_URL || '(not set)'}`);
+    // Never print the DB password (shell history, screen shares, CI logs).
+    console.log(`  DB:     ${redactUrlPassword(env.DATABASE_URL) || '(not set)'}`);
     console.log(`  KC:     ${env.KEYCLOAK_URL}/realms/${env.KEYCLOAK_REALM}\n`);
   },
 );
