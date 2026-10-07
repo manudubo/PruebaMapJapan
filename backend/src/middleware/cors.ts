@@ -1,8 +1,9 @@
 import { cors } from 'hono/cors';
 import { resolveEnvironment, type AppEnvironment } from '../config/environment';
+import { PAGES_ORIGIN } from '../config/deploy-defaults';
 
-/** The deployed frontend (GitHub Pages). */
-export const PRODUCTION_ORIGINS: readonly string[] = ['https://manud.github.io'];
+/** The deployed frontend (GitHub Pages) — config/deploy-defaults.json. */
+export const PRODUCTION_ORIGINS: readonly string[] = [PAGES_ORIGIN];
 
 /** Vite dev server / preview ports — only ever allowed in development (SEC-23). */
 export const DEVELOPMENT_ONLY_ORIGINS: readonly string[] = [

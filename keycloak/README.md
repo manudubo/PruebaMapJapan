@@ -87,7 +87,7 @@ KC=https://keycloak.up.railway.app
 # 1. Issuer must be https:// (hostname/scheme resolved correctly)
 curl -s "$KC/realms/japan-trip/.well-known/openid-configuration" | jq -r .issuer
 # 2. Login-page cookies must carry the Secure flag
-curl -s -o /dev/null -D - "$KC/realms/japan-trip/protocol/openid-connect/auth?client_id=japan-trip-frontend&response_type=code&scope=openid&redirect_uri=https%3A%2F%2Fmanud.github.io%2FPruebaMapJapan%2Fdashboard.html" \
+curl -s -o /dev/null -D - "$KC/realms/japan-trip/protocol/openid-connect/auth?client_id=japan-trip-frontend&response_type=code&scope=openid&redirect_uri=https%3A%2F%2Fmanudubo.github.io%2FPruebaMapJapan%2Fdashboard.html" \
   | grep -i '^set-cookie' | grep -ci secure   # expect > 0
 ```
 

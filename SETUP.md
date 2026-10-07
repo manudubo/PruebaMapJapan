@@ -14,7 +14,7 @@ Install these before proceeding:
 ## Step 1 — Clone the repository
 
 ```bash
-git clone https://github.com/manud/PruebaMapJapan.git
+git clone https://github.com/manudubo/PruebaMapJapan.git
 cd PruebaMapJapan
 ```
 
@@ -48,7 +48,7 @@ ENVIRONMENT=development
 
 `ENVIRONMENT=development` enables the localhost CORS origins and the Mailpit
 email fallback. Any other value (including unset under `wrangler`) is treated as
-production: only `https://manud.github.io` is allowed by CORS and OTP requests
+production: only `https://manudubo.github.io` is allowed by CORS and OTP requests
 fail loudly if `RESEND_API_KEY` is missing.
 
 ## Step 4 — Start Keycloak

@@ -8,7 +8,7 @@ import app from '../../src/index';
 import { makeEnv } from './harness';
 
 const env = makeEnv('postgresql://unused@127.0.0.1:1/none');
-const ALLOWED = 'https://manud.github.io';
+const ALLOWED = 'https://manudubo.github.io';
 
 function preflight(origin: string | null, method = 'POST', headers = 'authorization,content-type') {
   const h: Record<string, string> = {
@@ -30,18 +30,18 @@ describe('CORS preflight', () => {
 
   it.each([
     ['literal "null" (sandboxed iframe / file://)', 'null'],
-    ['suffix attack', 'https://manud.github.io.evil.test'],
-    ['prefix attack', 'https://evilmanud.github.io'],
+    ['suffix attack', 'https://manudubo.github.io.evil.test'],
+    ['prefix attack', 'https://evilmanudubo.github.io'],
     ['other github pages user', 'https://attacker.github.io'],
-    ['http downgrade', 'http://manud.github.io'],
-    ['explicit default port', 'https://manud.github.io:443'],
-    ['trailing slash', 'https://manud.github.io/'],
-    ['upper-case host', 'https://MANUD.GITHUB.IO'],
-    ['userinfo trick', 'https://manud.github.io@evil.test'],
+    ['http downgrade', 'http://manudubo.github.io'],
+    ['explicit default port', 'https://manudubo.github.io:443'],
+    ['trailing slash', 'https://manudubo.github.io/'],
+    ['upper-case host', 'https://MANUDUBO.GITHUB.IO'],
+    ['userinfo trick', 'https://manudubo.github.io@evil.test'],
     ['wildcard', '*'],
     ['empty string', ''],
     ['header-folding attempt', 'https://evil.test X-Injected: 1'],
-    ['punycode homograph', 'https://manud.xn--githu-9ua.io'],
+    ['punycode homograph', 'https://manudubo.xn--githu-9ua.io'],
   ])('%s → no Access-Control-Allow-Origin', async (_l, origin) => {
     const res = await preflight(origin);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();

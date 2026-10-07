@@ -1,3 +1,10 @@
+# The Pages origin and app path live in config/deploy-defaults.json, shared with the
+# backend CORS default, so they are written down exactly once.
+locals {
+  deploy_defaults = jsondecode(file("${path.module}/../../config/deploy-defaults.json"))
+  pages_app_url   = "${local.deploy_defaults.pagesOrigin}${local.deploy_defaults.appBasePath}"
+}
+
 resource "keycloak_realm" "japan_trip" {
   realm        = "japan-trip"
   enabled      = true
@@ -68,17 +75,17 @@ resource "keycloak_openid_client" "japan_trip_frontend" {
     "http://localhost:5173/PruebaMapJapan/profile.html",
     "http://localhost:5173/PruebaMapJapan/index.html",
     "http://localhost:5173/PruebaMapJapan/silent-check-sso.html",
-    "https://manud.github.io/PruebaMapJapan/dashboard.html",
-    "https://manud.github.io/PruebaMapJapan/profile.html",
-    "https://manud.github.io/PruebaMapJapan/index.html",
-    "https://manud.github.io/PruebaMapJapan/silent-check-sso.html",
+    "${local.pages_app_url}dashboard.html",
+    "${local.pages_app_url}profile.html",
+    "${local.pages_app_url}index.html",
+    "${local.pages_app_url}silent-check-sso.html",
   ]
 
   valid_post_logout_redirect_uris = [
     "http://localhost:5173/PruebaMapJapan/index.html",
     "http://localhost:5173/",
-    "https://manud.github.io/PruebaMapJapan/index.html",
-    "https://manud.github.io/",
+    "${local.pages_app_url}index.html",
+    "${local.deploy_defaults.pagesOrigin}/",
   ]
   web_origins = ["+"]
 

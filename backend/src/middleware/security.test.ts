@@ -77,7 +77,7 @@ describe('security headers (SEC-20)', () => {
       {
         method: 'OPTIONS',
         headers: {
-          Origin: 'https://manud.github.io',
+          Origin: 'https://manudubo.github.io',
           'Access-Control-Request-Method': 'POST',
         },
       },
