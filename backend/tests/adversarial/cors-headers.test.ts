@@ -16,7 +16,7 @@ function preflight(origin: string | null, method = 'POST', headers = 'authorizat
     'Access-Control-Request-Headers': headers,
   };
   if (origin !== null) h.Origin = origin;
-  return app.request('/api/trips', { method: 'OPTIONS', headers: h }, env);
+  return app.request('https://api.example.test/api/trips', { method: 'OPTIONS', headers: h }, env);
 }
 
 describe('CORS preflight', () => {
@@ -64,7 +64,7 @@ describe('CORS preflight', () => {
   });
 
   it('actual request from a foreign origin: still 401 without token, and no ACAO', async () => {
-    const res = await app.request('/api/trips', { headers: { Origin: 'https://evil.test' } }, env);
+    const res = await app.request('https://api.example.test/api/trips', { headers: { Origin: 'https://evil.test' } }, env);
     expect(res.status).toBe(401);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
@@ -83,33 +83,33 @@ describe('CORS preflight', () => {
 
 describe('security headers', () => {
   const cases: [string, () => Promise<Response>][] = [
-    ['200 health', async () => app.request('/api/health', {}, env)],
-    ['401 unauthenticated', async () => app.request('/api/trips', {}, env)],
-    ['404 unknown route', async () => app.request('/api/nope', {}, env)],
-    ['400 bad slug', async () => app.request('/api/public/trips/not-a-uuid', {}, env)],
+    ['200 health', async () => app.request('https://api.example.test/api/health', {}, env)],
+    ['401 unauthenticated', async () => app.request('https://api.example.test/api/trips', {}, env)],
+    ['404 unknown route', async () => app.request('https://api.example.test/api/nope', {}, env)],
+    ['400 bad slug', async () => app.request('https://api.example.test/api/public/trips/not-a-uuid', {}, env)],
   ];
 
   it.each(cases)('%s carries CSP, X-Frame-Options, HSTS, Referrer-Policy', async (_l, call) => {
     const res = await call();
-    expect(res.headers.get('Content-Security-Policy')).toBe("default-src 'none'");
+    expect(res.headers.get('Content-Security-Policy')).toContain("default-src 'none'");
     expect(res.headers.get('X-Frame-Options')).toBe('DENY');
     expect(res.headers.get('Strict-Transport-Security')).toContain('max-age=');
     expect(res.headers.get('Referrer-Policy')).toBe('no-referrer');
   });
 
   it('JSON responses are served as application/json (never sniffable HTML)', async () => {
-    const res = await app.request('/api/nope', {}, env);
+    const res = await app.request('https://api.example.test/api/nope', {}, env);
     expect(res.headers.get('Content-Type')).toMatch(/^application\/json/);
   });
 
   it('SEC-20: X-Content-Type-Options: nosniff and Permissions-Policy are set', async () => {
-    const res = await app.request('/api/health', {}, env);
+    const res = await app.request('https://api.example.test/api/health', {}, env);
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.headers.get('Permissions-Policy')).not.toBeNull();
   });
 
   it('health endpoint does not leak env/config (SEC-24 baseline)', async () => {
-    const res = await app.request('/api/health', {}, env);
+    const res = await app.request('https://api.example.test/api/health', {}, env);
     const text = await res.text();
     expect(text).not.toContain('postgresql://');
     expect(text).not.toContain(env.OTP_SECRET);

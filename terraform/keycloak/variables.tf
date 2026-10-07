@@ -63,7 +63,7 @@ variable "app_origins" {
     condition = var.app_origins == null ? true : alltrue([
       for o in var.app_origins : can(regex("^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:[0-9]{1,5})?$", o))
     ])
-    error_message = "app_origins entries must be exact lower-case https origins without path or trailing slash, e.g. https://manudubo.github.io."
+    error_message = "app_origins entries must be exact lower-case https origins without path or trailing slash, e.g. https://<user>.github.io."
   }
 }
 
