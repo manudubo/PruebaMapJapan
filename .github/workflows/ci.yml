@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - run: shellcheck terraform/keycloak/import.sh terraform/keycloak/tests/import.test.sh
+      - run: shellcheck terraform/keycloak/import.sh terraform/keycloak/tests/import.test.sh scripts/ci/keycloak-flow.sh
       - run: bash terraform/keycloak/tests/import.test.sh
 
   typecheck-frontend:

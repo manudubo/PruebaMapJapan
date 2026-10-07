@@ -53,7 +53,9 @@ export default defineConfig({
   // CI serves the production build via `vite preview`. Letting Playwright own the server
   // guarantees it is listening before the first test (a backgrounded shell step raced the
   // test run) and is torn down afterwards. Locally, dev servers are started by hand.
-  webServer: process.env.CI
+  // PW_NO_WEBSERVER=1: specs that never load the app (keycloak-flow.yml drives Keycloak
+  // directly) skip the frontend build and preview server.
+  webServer: process.env.CI && !process.env.PW_NO_WEBSERVER
     ? {
         command: 'npm run preview:frontend',
         cwd: '..',
