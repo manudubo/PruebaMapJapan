@@ -161,6 +161,9 @@ services:
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:?set in .env}
       KC_DB_POOL_MAX_SIZE: "20"
+      # Check pooled connections before use, so the first requests after a
+      # Postgres restart do not fail on dead connections (500 otherwise).
+      QUARKUS_DATASOURCE_JDBC_VALIDATE_ON_BORROW: "true"
       # Public URL (issuer, login pages, emails), path included.
       KC_HOSTNAME: ${KC_PUBLIC_URL:?run via scripts/compose.sh}
       # Admin console only via SSH tunnel to the 127.0.0.1 port below.

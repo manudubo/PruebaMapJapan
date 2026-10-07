@@ -10,6 +10,9 @@ REPO_DIR="$(cd "$SELFHOST_DIR/../.." && pwd)"
 ENV_FILE="${SELFHOST_ENV_FILE:-$SELFHOST_DIR/.env}"
 COMPOSE_FILE_PATH="$SELFHOST_DIR/docker-compose.prod.yml"
 DRY_RUN="${DRY_RUN:-0}"
+# BuildKit's default provenance attestation embeds a timestamp, so every
+# rebuild produced a new image ID and `up` recreated containers for nothing.
+export BUILDX_NO_DEFAULT_ATTESTATIONS=1
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   C_OK=$'\e[32m'; C_WARN=$'\e[33m'; C_ERR=$'\e[31m'; C_DIM=$'\e[2m'; C_OFF=$'\e[0m'
