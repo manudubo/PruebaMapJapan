@@ -946,7 +946,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--jp-white);
-  background: var(--jp-optional);
+  background: #9b3fc8; /* --jp-optional (#af52de) is 4.13:1 under white text; this is >= 4.5:1 */
   padding: 3px 8px;
   margin-left: auto;
 }
