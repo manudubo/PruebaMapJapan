@@ -1,0 +1,12 @@
+# Context is the repo root; send only what the backend image needs.
+*
+!package.json
+!package-lock.json
+!backend/package.json
+!backend/tsconfig.json
+!backend/drizzle.config.ts
+!backend/src/**
+!frontend/package.json
+!config/*.json
+backend/src/**/*.test.ts
+backend/.dev.vars
