@@ -1,0 +1,6 @@
+# Secrets and server state: never commit.
+.env
+.env.*
+!.env.example
+backups/
+state/

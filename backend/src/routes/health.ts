@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { sql } from 'drizzle-orm';
 import { dbFromEnv } from '../middleware/db';
 import { checkSchemaReady, SCHEMA_NOT_MIGRATED } from '../db/schema-guard';
 import type { Env } from '../types';
@@ -24,7 +25,7 @@ health.get('/', healthResponse);
 /**
  * GET /api/health/ready: readiness (review M1). Is the database migrated far
  * enough for this code? Uses the same cached check as dbMiddleware, so a probe
- * costs at most one catalog query per isolate (plus one every 30 s while the
+ * costs one `SELECT 1` plus at most one catalog query per isolate (plus one every 30 s while the
  * schema is behind). The body names no schema objects; the log does.
  */
 health.get('/ready', async (c) => {
@@ -36,6 +37,15 @@ health.get('/ready', async (c) => {
   // dbMiddleware lets a request through when the check cannot run (the query
   // then fails on its own); a readiness probe must not report that as ready.
   if (verdict.unverified) return c.json({ status: 'unavailable' as const, code: 'db_unreachable' }, 503);
+  // A "ready" schema verdict is cached for the life of the process, so it says
+  // nothing about the database answering NOW. One trivial query does: without
+  // it a probe kept reporting ready while Postgres was down (self-hosting QA).
+  try {
+    await db.execute(sql`SELECT 1`);
+  } catch (err) {
+    console.warn('health/ready: database not answering:', (err as Error).message);
+    return c.json({ status: 'unavailable' as const, code: 'db_unreachable' }, 503);
+  }
   return c.json({ status: 'ready' as const });
 });
 

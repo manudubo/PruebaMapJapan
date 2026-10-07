@@ -1,0 +1,11 @@
+# Installed by deploy/selfhost/scripts/backup-timer.sh.
+[Unit]
+Description=Daily TravelMap backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
