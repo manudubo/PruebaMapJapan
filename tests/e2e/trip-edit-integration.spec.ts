@@ -1,6 +1,7 @@
 /**
  * Phase 2 manual-verification integration tests.
- * Requires: frontend + backend running, Keycloak up, testuser/Test1234! created.
+ * Requires: frontend + backend running, Keycloak up and the global-setup session
+ * (.auth/session.json, e2e-test@local). Trips created here are deleted in afterAll.
  */
 import { test, expect, Page } from '@playwright/test';
 import * as fs from 'fs';
@@ -11,7 +12,7 @@ test.describe.configure({ mode: 'serial' });
 // Integration tests include a full Keycloak login round-trip — allow extra time
 test.setTimeout(90000);
 
-test.fixme(true, 'trip-edit API integration not implemented in v3.1 — pre-written for future Phase 2 integration');
+test.fixme(!!process.env.SKIP_REAL_AUTH, 'requires a live Keycloak + backend (SKIP_REAL_AUTH is set, as in CI); run locally per SETUP.md');
 
 // sessionStorage replay for Playwright bug #31108 — keycloak-js stores tokens here
 const sessionEntries: [string, string][] = (() => {
@@ -27,6 +28,9 @@ const sessionEntries: [string, string][] = (() => {
 const FRONTEND_BASE = 'http://localhost:5173/PruebaMapJapan';
 const API_BASE = 'http://localhost:8787/api';
 
+// Trips created by this file, deleted in afterAll so repeated runs do not pile up rows.
+const createdTrips: Array<{ id: string; token: string }> = [];
+
 async function createTrip(page: Page, token: string): Promise<string> {
   const tripId: string = await page.evaluate(async (args) => {
     const [apiBase, tok] = args as [string, string];
@@ -39,8 +43,18 @@ async function createTrip(page: Page, token: string): Promise<string> {
     if (!data.data?.id) throw new Error(`Trip create failed: ${JSON.stringify(data)}`);
     return String(data.data.id);
   }, [API_BASE, token]);
+  createdTrips.push({ id: tripId, token });
   return tripId;
 }
+
+test.afterAll(async ({ request }) => {
+  for (const { id, token } of createdTrips.splice(0)) {
+    const res = await request.delete(`${API_BASE}/trips/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.ok(), `cleanup DELETE /trips/${id}`).toBe(true);
+  }
+});
 
 // CRITICAL: addInitScript must run before any page.goto() (Playwright bug #31108)
 test.beforeEach(async ({ context }) => {
