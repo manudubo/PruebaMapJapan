@@ -30,7 +30,10 @@ test.describe('@qa-noauth landing overview map', () => {
     await page.setViewportSize({ width: 375, height: 740 });
     await open(page);
     await expect(page.locator('#landing-hero h1')).toBeVisible();
-    await page.waitForTimeout(500);
+    // observeOverviewMap's IntersectionObserver delivers its first (not intersecting)
+    // entry in the next rendering update; after two animation frames it has run, so a
+    // missing map below is a real "not initialised", not "not yet".
+    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
     await expect(page.locator('#map.leaflet-container')).toHaveCount(0);
     expect(tiles).toEqual([]);
 

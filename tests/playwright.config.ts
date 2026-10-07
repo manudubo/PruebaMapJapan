@@ -32,7 +32,8 @@ export default defineConfig({
         ...devices['Desktop Firefox'],
         ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
       },
-      testIgnore: ['**/passkeys.spec.ts'],
+      // idp-config: static file checks, browser-independent; run once (chromium).
+      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts'],
     },
     {
       name: 'webkit',
@@ -40,7 +41,7 @@ export default defineConfig({
         ...devices['Desktop Safari'],
         ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
       },
-      testIgnore: ['**/passkeys.spec.ts'],
+      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts'],
     },
     {
       name: 'chromium-passkeys',

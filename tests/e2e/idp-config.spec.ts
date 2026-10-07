@@ -67,12 +67,9 @@ function flowTree(hcl: string): { roots: string[]; nodes: FlowNode[] } {
 
 const isCondition = (n: FlowNode) => n.kind === 'execution' && n.id.startsWith('conditional-');
 
+// Pure file checks: they run once, in the chromium project (firefox/webkit ignore this
+// file in tests/playwright.config.ts) instead of being skipped per browser at runtime.
 test.describe('Keycloak config invariants (static)', () => {
-  test.beforeEach(({}, testInfo) => {
-    // Pure file checks: run once, not once per browser project.
-    test.skip(testInfo.project.name !== 'chromium', 'static checks run in the chromium project only');
-  });
-
   const flows = () => flowTree(fs.readFileSync(path.join(TF_DIR, 'flows.tf'), 'utf-8'));
 
   test('KC-01: no flow level mixes REQUIRED/CONDITIONAL with ALTERNATIVE', () => {
