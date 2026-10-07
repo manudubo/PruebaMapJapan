@@ -1,0 +1,37 @@
+# HOST_MODE=subdomains, INGRESS=cloudflared (Cloudflare Tunnel).
+# In the Cloudflare dashboard both public hostnames point at http://proxy:80:
+#   api.{$DOMAIN}  -> backend  (/api/*)
+#   auth.{$DOMAIN} -> Keycloak (/auth/*)
+{
+	admin off
+	auto_https off
+	servers {
+		# cloudflared is a container on the compose network (private address).
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+import /etc/caddy/snippets.caddy
+
+http://api.{$DOMAIN} {
+	import access_log
+	import hide_server
+	import hsts
+	import backend_routes api.{$DOMAIN}
+	import not_found
+}
+
+http://auth.{$DOMAIN} {
+	import access_log
+	import hide_server
+	import hsts
+	import keycloak_routes auth.{$DOMAIN}
+	import not_found
+}
+
+# Anything else that reaches the proxy (wrong Host): nothing to see.
+:80 {
+	import not_found
+}
