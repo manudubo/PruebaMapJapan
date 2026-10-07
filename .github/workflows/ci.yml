@@ -19,6 +19,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: shellcheck terraform/keycloak/import.sh terraform/keycloak/tests/import.test.sh
       - run: bash terraform/keycloak/tests/import.test.sh
+      # Self-hosting kit (docs/SELF-HOSTING.md): lint, then unit tests with a
+      # stub tailscale, `docker compose config` per mode and Caddyfile parsing.
+      - run: shellcheck -x deploy/selfhost/scripts/*.sh deploy/selfhost/scripts/lib/*.sh deploy/selfhost/tests/*.sh deploy/selfhost/postgres/init/*.sh
+      - run: bash deploy/selfhost/tests/scripts.test.sh
+        env:
+          CADDY_VALIDATE: '1'
 
   typecheck-frontend:
     runs-on: ubuntu-latest
