@@ -1,6 +1,7 @@
 import { expect, test } from './fixtures/kc-admin';
 import type { Page } from '@playwright/test';
 import crypto from 'node:crypto';
+import { FailurePacer } from './fixtures/kc-pacing';
 
 /**
  * Internet-exposure hardening of the japan-trip realm (PROD-HARDENING.md):
@@ -12,6 +13,11 @@ import crypto from 'node:crypto';
  *   E2E_KC_PROFILE     local (default) | production — the Terraform profile applied
  *   E2E_APP_ORIGIN     SPA origin (default https://manudubo.github.io)
  *   KC_ADMIN_CLIENT_ID/SECRET   service account with manage-users (throwaway users)
+ *   CI_KEYCLOAK=1      a job that provides Keycloak and admin credentials: a missing
+ *                      precondition then FAILS instead of marking the tests fixme
+ *
+ * Browser-independent (mostly raw HTTP): the firefox and webkit projects ignore this
+ * file in playwright.config.ts, so it runs once.
  */
 
 const KEYCLOAK_URL = (process.env.KEYCLOAK_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
@@ -20,7 +26,7 @@ const APP_ORIGIN = process.env.E2E_APP_ORIGIN ?? 'https://manudubo.github.io';
 const APP_REDIRECT = `${APP_ORIGIN}/PruebaMapJapan/dashboard.html`;
 const HAS_ADMIN = !!process.env.KC_ADMIN_CLIENT_ID && !!process.env.KC_ADMIN_CLIENT_SECRET;
 const ISSUER = process.env.E2E_KC_ISSUER ?? `${KEYCLOAK_URL}/realms/japan-trip`;
-const QUICK_LOGIN_GAP_MS = 1300;
+const REQUIRE_KC = process.env.CI_KEYCLOAK === '1';
 const VERIFIER = 'prod-hardening-negative-test-verifier-value-000000000';
 const CHALLENGE = crypto.createHash('sha256').update(VERIFIER).digest('base64url');
 // Satisfies both profiles' password policies (length 12+, upper, digit, special).
@@ -87,10 +93,11 @@ async function feedback(page: Page): Promise<string> {
 test.describe('Keycloak internet-exposure hardening', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test.beforeEach(async ({ request }, testInfo) => {
-    test.skip(testInfo.project.name !== 'chromium', 'Keycloak behaviour checks run once (chromium)');
+  test.beforeEach(async ({ request }) => {
     const r = await request.get(`${KEYCLOAK_URL}/realms/japan-trip`, { timeout: 5000 }).catch(() => null);
-    test.skip(!r?.ok(), 'Keycloak is not running');
+    const up = !!r?.ok();
+    test.fixme(!up && !REQUIRE_KC, 'needs Keycloak with the japan-trip realm at KEYCLOAK_URL (keycloak/README.md)');
+    expect(up, `realm japan-trip not reachable at ${KEYCLOAK_URL}`).toBe(true);
   });
 
   test('issuer in discovery matches KEYCLOAK_URL (incl. a relative path such as /auth)', async ({ request }) => {
@@ -158,7 +165,8 @@ test.describe('Keycloak internet-exposure hardening', () => {
 
   test.describe('with throwaway users (admin credentials)', () => {
     test.beforeEach(() => {
-      test.skip(!HAS_ADMIN, 'KC_ADMIN_CLIENT_ID/SECRET not set');
+      test.fixme(!HAS_ADMIN && !REQUIRE_KC, 'needs KC_ADMIN_CLIENT_ID/SECRET (a client with realm-management manage-users)');
+      expect(HAS_ADMIN, 'KC_ADMIN_CLIENT_ID/SECRET').toBe(true);
     });
 
     test('quick successive failures lock the account temporarily, with the same generic error', async ({ page, kcAdmin }) => {
@@ -175,7 +183,11 @@ test.describe('Keycloak internet-exposure hardening', () => {
         const first = await postPassword(page, await formActionOf(page), 'Wrong-Password-1!');
         const second = await postPassword(page, first.nextAction, 'Wrong-Password-2!');
         expect(second.location).toBe('');
-        await page.waitForTimeout(QUICK_LOGIN_GAP_MS);
+        // Pace the correct attempt like a human, so it is refused because of the lockout
+        // the quick pair caused and not because it is itself a third quick failure.
+        const pacer = new FailurePacer();
+        pacer.failed();
+        await pacer.humanPause();
         const third = await postPassword(page, second.nextAction, STRONG_PASSWORD);
         expect(third.location.startsWith(APP_REDIRECT), 'correct password must be refused during the lockout').toBe(false);
         // A locked account must not be distinguishable from a wrong password.
@@ -193,11 +205,13 @@ test.describe('Keycloak internet-exposure hardening', () => {
       await kcAdmin.clearRequiredActions(username);
       try {
         const hits = trackCodes(page);
+        const pacer = new FailurePacer();
         await page.goto(authUrl(APP_REDIRECT));
         await submit(page, 'username', username);
         for (let i = 0; i < 2; i++) {
           await submit(page, 'password', `Wrong-Password-${i}!`);
-          await page.waitForTimeout(QUICK_LOGIN_GAP_MS);
+          pacer.failed();
+          await pacer.humanPause();
         }
         await submit(page, 'password', STRONG_PASSWORD);
         await expect.poll(() => gotCode(hits)).toBe(true);
@@ -208,18 +222,20 @@ test.describe('Keycloak internet-exposure hardening', () => {
 
     test('reaching max_login_failures locks the account (production threshold)', async ({ page, kcAdmin }) => {
       const max = Number(process.env.E2E_KC_MAX_FAILURES ?? (PROFILE === 'production' ? 10 : 30));
-      test.skip(max > 12, 'run with E2E_KC_PROFILE=production (threshold 10) — 30 spaced attempts take too long');
+      test.fixme(max > 12, 'needs the production threshold: run with E2E_KC_PROFILE=production (10 failures); 30 human-paced attempts take too long');
       test.setTimeout(60_000 + max * 10_000);
       const username = uniqueUser('bf-max');
       await kcAdmin.createUser(username, STRONG_PASSWORD);
       await kcAdmin.clearRequiredActions(username);
       try {
         const hits = trackCodes(page);
+        const pacer = new FailurePacer();
         await page.goto(authUrl(APP_REDIRECT));
         await submit(page, 'username', username);
         for (let i = 0; i < max; i++) {
           await submit(page, 'password', `Wrong-Password-${i}!`);
-          await page.waitForTimeout(QUICK_LOGIN_GAP_MS);
+          pacer.failed();
+          await pacer.humanPause();
         }
         await submit(page, 'password', STRONG_PASSWORD);
         expect(gotCode(hits)).toBe(false);
