@@ -1,0 +1,14 @@
+# TEST ONLY: plays the role of Tailscale Funnel (TLS for PUBLIC_HOST, then
+# plain HTTP to the stack's proxy on 127.0.0.1:PROXY_PORT).
+{
+	admin off
+	auto_https disable_redirects
+	local_certs
+	http_port 38099
+	https_port {$TEST_TLS_PORT}
+}
+
+{$PUBLIC_HOST} {
+	tls internal
+	reverse_proxy 127.0.0.1:{$PROXY_PORT}
+}
