@@ -180,5 +180,123 @@ browser-passkey
 credential subflow after the username, WebAuthn guarded by the condition) without needing Keycloak.
 
 The passwordless policy uses `authenticatorAttachment = platform` to prefer built-in
-authenticators (Touch ID, Windows Hello, Face ID) and `rpId = localhost` (changing it requires
-every user to re-register their passkey).
+authenticators (Touch ID, Windows Hello, Face ID). Both WebAuthn policies take their rpId from
+the Terraform variable `webauthn_rp_id` (`localhost` locally); see section 4 before changing it.
+
+---
+
+## 4. Internet-facing production (self-hosted, single host or split hosts)
+
+Everything that must differ from a laptop hangs off `profile = "production"` in
+`terraform/keycloak`. Start from `terraform/keycloak/production.tfvars.example`. A production
+plan **fails** (Terraform preconditions) unless:
+
+| Setting | Required value | Why |
+|---|---|---|
+| `ssl_required` | `all` | SEC-17. Needs `KC_PROXY_HEADERS=xforwarded` (or TLS on Keycloak itself), otherwise every login says "HTTPS required" |
+| test users | not created (`create_test_users` false, the default) | the six Playwright users and their passwords never exist in production |
+| `webauthn_rp_id` | the Keycloak host name, not `localhost` | see "Passkeys" below |
+| `kc_url` | `https://…`, `kc_tls_insecure_skip_verify = false` | the admin password crosses this connection |
+| realm SMTP | a real server over TLS (`smtp_starttls` or `smtp_ssl`) | verification and reset-password mail |
+
+Production also defaults to: self-registration **off** (`registration_allowed`), no
+`japan-trip-worker` client (`create_worker_client`; the backend never uses it, and a confidential
+client with `manage-users` is a standing account-takeover credential), Terraform deletion
+protection on the realm, and the stronger password policy below.
+
+### Single-host mode (no domain: Tailscale Funnel)
+
+One public host name serves both, with path routing:
+
+| Piece | Value |
+|---|---|
+| Keycloak server env | `KC_HTTP_RELATIVE_PATH=/auth`, `KC_HOSTNAME=https://<machine>.<tailnet>.ts.net/auth`, `KC_PROXY_HEADERS=xforwarded`, `KC_HTTP_ENABLED=true` (TLS ends at the proxy) |
+| Terraform | `kc_url = "https://<machine>.<tailnet>.ts.net/auth"`, `webauthn_rp_id = "<machine>.<tailnet>.ts.net"` |
+| Issuer (what tokens carry) | `https://<machine>.<tailnet>.ts.net/auth/realms/japan-trip` |
+| Backend | `KEYCLOAK_URL=https://<machine>.<tailnet>.ts.net/auth`, optionally `KEYCLOAK_JWKS_URL=http://keycloak:8080/auth/realms/japan-trip/protocol/openid-connect/certs` (internal network; `iss` must still be the public issuer) |
+| Frontend build | `VITE_KEYCLOAK_URL=https://<machine>.<tailnet>.ts.net/auth`, `VITE_API_URL=https://<machine>.<tailnet>.ts.net/api` |
+
+Split hosts work the same way without the path (`https://auth.<domain>`, rpId `auth.<domain>`
+or the registrable parent `<domain>` if you want passkeys to also work on sibling hosts).
+
+Validated on Keycloak 26.6.1 with `KC_HTTP_RELATIVE_PATH=/auth` behind TLS: discovery issuer and
+JWKS under `/auth`, a real access token accepted by the backend verifier, the real ID token from
+the same login rejected (`.planning/qa/PROD-HARDENING.md`).
+
+### Passkeys: set `webauthn_rp_id` once, before anyone registers
+
+A passkey is cryptographically bound to the rpId it was created for. Changing `webauthn_rp_id`
+later (for example when moving from a ts.net name to your own domain) makes **every registered
+passkey unusable**; users fall back to their password (or "Forgot password") and must register a
+new passkey. Choose the long-term host name first. The rpId must be the host that serves the
+Keycloak login pages (or a registrable parent of it); the `/auth` path plays no role.
+
+### Brute-force protection
+
+Temporary lockouts only. `permanent_lockout = false` on purpose: anyone on the internet who knows
+a username could otherwise lock its owner out for good.
+
+| Parameter | Production | Local |
+|---|---|---|
+| Failures before lockout (`brute_force_max_login_failures`) | 10 | 30 (Keycloak's default; the negative E2E tests fail logins on purpose and Keycloak keeps counts between runs) |
+| Wait increment / max wait | 60 s / 15 min | same |
+| Quick-login check | two failures < 1 s apart lock for 60 s | same |
+| Failure counter reset | 12 h | same |
+
+A locked account shows the same "Invalid username or password." as a wrong password (theme
+messages in `themes/japan-trip/login/messages`). To unlock someone early: admin console →
+Users → the user → "Brute force: unlock", or `DELETE /admin/realms/japan-trip/attack-detection/brute-force/users/{id}`.
+
+### Password policy
+
+Production: `length(12) and maxLength(128) and notUsername and notEmail and passwordHistory(3)`
+(NIST SP 800-63B style: long, no composition rules). Local keeps the historical
+`length(8) and upperCase(1) and digits(1) and specialChars(1)` that the seeded test passwords
+satisfy. Existing passwords are not re-checked; the policy applies on the next change.
+
+### Email (verification, reset password) with Gmail — no domain needed
+
+1. On the Google account: enable 2-Step Verification (Google Account → Security).
+2. Create an app password: <https://myaccount.google.com/apppasswords> (on a phone: Google app →
+   Manage your Google Account → Security → 2-Step Verification → App passwords). Name it
+   "TravelMap"; copy the 16 characters (spaces are ignored).
+3. Terraform: `smtp_host = "smtp.gmail.com"`, `smtp_port = 587`, `smtp_starttls = true`
+   (or 465 with `smtp_ssl = true`), `smtp_user` = `smtp_from` = the Gmail address, and
+   `export TF_VAR_smtp_password='<app password>'` — never in a committed file.
+4. The backend uses the same account for OTP mail: `EMAIL_PROVIDER=smtp`, `SMTP_HOST=smtp.gmail.com`,
+   `SMTP_PORT=587`, `SMTP_SECURE=starttls`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM="TravelMap <you@gmail.com>"`.
+
+Limits: Gmail allows roughly 500 recipients per day for a personal account and rewrites the
+From address to the account address. Revoke the app password if the server is compromised.
+With a domain you can switch the backend to Resend (`RESEND_API_KEY`) and Keycloak to any SMTP relay.
+
+### Required actions and email verification
+
+`verify_email = true` and `VERIFY_EMAIL` is a default required action: an account whose address
+is not verified is asked to verify on login. Accounts created by an admin with "Email verified"
+on pass straight through (checked live). The backend additionally refuses to send OTP codes to an
+address the token does not mark `email_verified`.
+
+### Username enumeration (documented residual risk)
+
+The browser flow is username-first (KC-01). Keycloak answers an unknown username on the username
+step ("Invalid username or email.") and a known one with the next step (password form, or the
+WebAuthn prompt when the user has a passkey). Anyone can therefore test whether an account exists,
+and whether it has a passkey. There is no Keycloak setting that hides this in a username-first
+flow; the alternatives are a combined username+password form (loses passkey-first sign-in) or a
+custom authenticator. What bounds it here: self-registration is off in production (no
+"username taken" oracle either), lockouts are temporary, the credential-failure messages are
+identical, and the reverse proxy should rate-limit `POST …/login-actions/authenticate` per client
+IP. `tests/e2e/idp-hardening.spec.ts` pins the current behaviour so a Keycloak change that removes
+the difference is noticed.
+
+### Verification
+
+```bash
+cd tests
+KEYCLOAK_URL=https://<host>/auth E2E_KC_PROFILE=production \
+KC_ADMIN_CLIENT_ID=<throwaway service account with manage-users> KC_ADMIN_CLIENT_SECRET=... \
+SKIP_REAL_AUTH=1 npx playwright test e2e/idp-hardening.spec.ts --project=chromium
+```
+
+Delete the throwaway service-account client afterwards.
