@@ -5,6 +5,7 @@ import usersRoute from './users';
 import tripsRoute from './trips';
 import publicRoute from './public';
 import authRoute from './auth';
+import geocodeRoute from './geocode';
 
 /**
  * Aggregates all API routes and mounts them under their respective prefixes.
@@ -21,5 +22,8 @@ routes.route('/trips', tripsRoute);
 routes.route('/public', publicRoute);
 
 routes.route('/auth', authRoute);
+
+// Nominatim proxy for the trip editor (SEC-18), authenticated.
+routes.route('/geocode', geocodeRoute);
 
 export default routes;

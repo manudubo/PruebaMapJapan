@@ -66,6 +66,10 @@ export interface Env {
   TRUSTED_PROXY_HOPS?: string;
   /** x-forwarded-for (default) | x-real-ip | cf-connecting-ip; read only when TRUSTED_PROXY_HOPS > 0. */
   CLIENT_IP_HEADER?: string;
+  /** Contact (email or URL) for the Nominatim User-Agent; required outside development (SEC-18). */
+  NOMINATIM_CONTACT?: string;
+  /** Upstream search endpoint (default https://nominatim.openstreetmap.org/search). */
+  NOMINATIM_URL?: string;
 }
 
 // ---------------------------------------------------------------------------
