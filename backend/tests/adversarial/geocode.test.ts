@@ -96,6 +96,15 @@ describe('GET /api/geocode', () => {
     expect(url.searchParams.get('limit')).toBe('5');
   });
 
+  it('NOMINATIM_USER_AGENT names the deployment in the User-Agent; an unsafe value falls back to the default', async () => {
+    await geocode('Osaka', { env: env({ NOMINATIM_USER_AGENT: 'TravelMap-selfhost/1.0' }) });
+    expect(upstream.at(-1)!.headers.get('User-Agent')).toBe('TravelMap-selfhost/1.0 (+owner@example.org)');
+    for (const bad of ['evil\r\nX-Injected: 1', 'a (b)', 'x'.repeat(101), ' ']) {
+      expect(userAgent('owner@example.org', bad)).toBe(userAgent('owner@example.org'));
+    }
+    expect(userAgent('owner@example.org')).toBe('TravelMap-PruebaMapJapan/1.0 (+owner@example.org)');
+  });
+
   it('caches normalised queries: case/whitespace/NFKC variants hit the upstream once', async () => {
     for (const q of ['Kyoto Station', '  kyoto   station ', 'KYOTO STATION', 'Ｋｙｏｔｏ Station']) {
       expect((await geocode(q)).status).toBe(200);
