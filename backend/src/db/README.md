@@ -74,9 +74,16 @@ Exit 0 = safe to migrate, 1 = a blocker was found (printed with the fix),
 
 ### Databases created with `drizzle-kit push`
 
-Such a database has the app tables but no `drizzle.__drizzle_migrations` rows,
-and its schema differs in details from the migrated one. Do not try to fake the
-journal. Rebuild it from the migrations and copy the data across:
+A database with no `drizzle.__drizzle_migrations` rows that is still at the
+0003 shape (production before the journal existed in Phase 24, built by hand or
+by pushing the 0003-era `schema.ts`) needs nothing special: `db:migrate`
+re-runs 0000–0003 as no-ops (all `IF NOT EXISTS`) and applies 0004+; 0010
+reconciles the push-specific differences. Pre-flight does not flag it.
+
+Pre-flight blocks a journal-less database that already has objects from 0004
+or later (pushed from a newer `schema.ts`): the migrator would fail at 0004.
+Do not try to fake the journal. Rebuild it from the migrations and copy the
+data across:
 
 1. Take a backup (on Neon: **Branches → Create branch** from the current one).
 2. Create an empty database (or Neon branch/database) and run
