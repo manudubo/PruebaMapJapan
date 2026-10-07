@@ -35,7 +35,12 @@ function loadConfigOrExit(): ServerConfig {
 const config = loadConfigOrExit();
 
 configurePgPool(config.pool);
-const fetchHandler = createFetchHandler(app, config.bindings);
+const fetchHandler = createFetchHandler(
+  app,
+  config.bindings,
+  undefined,
+  process.env['LOG_REQUESTS'] === 'true',
+);
 
 const server = serve(
   {

@@ -59,11 +59,15 @@ interface FetchApp {
  * `{ incoming, outgoing }`; it is merged into the bindings because the app
  * reads `c.env.incoming.socket.remoteAddress` as the TCP peer (rate limiting
  * keys on it — without it every client would share one bucket).
+ *
+ * `logRequests` adds one access-log line per request (LOG_REQUESTS=true);
+ * off by default because the app logs requests itself where it can.
  */
 export function createFetchHandler(
   app: FetchApp,
   bindings: Record<string, unknown>,
   sink = defaultSink,
+  logRequests = true,
 ): (request: Request, nodeEnv?: Record<string, unknown>) => Promise<Response> {
   return async (request, nodeEnv) => {
     const started = performance.now();
@@ -76,7 +80,7 @@ export function createFetchHandler(
     } finally {
       // Path only: query strings can carry codes or tokens.
       const { pathname } = new URL(request.url);
-      if (pathname !== '/api/health' && pathname !== '/api/health/ready') {
+      if (logRequests && pathname !== '/api/health' && pathname !== '/api/health/ready') {
         logLine(
           status >= 500 ? 'error' : 'info',
           'request',
