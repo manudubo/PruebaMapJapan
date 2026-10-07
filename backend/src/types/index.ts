@@ -50,6 +50,10 @@ export interface Env {
    * the Pages origin from config/deploy-defaults.json. Empty: none.
    */
   ALLOWED_ORIGINS?: string;
+  /** Proxies in front of the app (default 0 = trust no forwarding header). See middleware/client-ip.ts. */
+  TRUSTED_PROXY_HOPS?: string;
+  /** x-forwarded-for (default) | x-real-ip | cf-connecting-ip; read only when TRUSTED_PROXY_HOPS > 0. */
+  CLIENT_IP_HEADER?: string;
 }
 
 // ---------------------------------------------------------------------------

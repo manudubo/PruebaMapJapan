@@ -4,6 +4,7 @@ import { corsMiddleware } from './middleware/cors';
 import { securityMiddleware } from './middleware/security';
 import { errorHandler } from './middleware/errors';
 import { requestContext } from './middleware/request-context';
+import { POLICIES, rateLimit } from './middleware/rate-limit';
 import routes from './routes';
 import { healthResponse } from './routes/health';
 import type { Env } from './types';
@@ -20,6 +21,11 @@ app.use('*', requestContext);
 app.use('*', securityMiddleware);
 app.use('*', corsMiddleware);
 
+// Per-IP ceiling on the whole API, before the body is read or a token is
+// verified (cheap rejection of floods). After CORS so the SPA can read the
+// 429 and its Retry-After. Endpoint-specific limits sit on the routes.
+app.use('/api/*', rateLimit(POLICIES.apiPerIp));
+
 // Refuse oversized bodies before any auth or DB work. Real payloads (an
 // activity with long notes) are a few KB; without a cap one request could
 // store megabytes in unbounded text columns.
@@ -35,7 +41,7 @@ app.use(
 // ---------------------------------------------------------------------------
 // Root health check (unauthenticated)
 // ---------------------------------------------------------------------------
-app.get('/', healthResponse);
+app.get('/', rateLimit(POLICIES.healthPerIp), healthResponse);
 
 // ---------------------------------------------------------------------------
 // API routes — all business logic lives under /api

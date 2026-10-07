@@ -43,10 +43,13 @@ import {
   UpsertHotelSchema,
 } from '../validation/schemas';
 import { parseId } from '../validation/ids';
+import { POLICIES, rateLimit } from '../middleware/rate-limit';
 
 const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
 // Apply auth + DB handle + user-provisioning to every route in this router.
+// Trip creation is the only unbounded-growth write a new account can spam.
+tripsRoute.on('POST', '/', rateLimit(POLICIES.tripCreatePerIp));
 tripsRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 
 // Ownership checks (trip → destination → day → activity) are single-JOIN
@@ -75,7 +78,7 @@ tripsRoute.get('/', async (c) => {
  * POST /api/trips
  * Creates a new trip for the authenticated user.
  */
-tripsRoute.post('/', zValidator('json', CreateTripSchema), async (c) => {
+tripsRoute.post('/', rateLimit(POLICIES.tripCreatePerUser), zValidator('json', CreateTripSchema), async (c) => {
   const db = c.get('db');
   const userId = c.get('dbUserId');
   const body = c.req.valid('json');
