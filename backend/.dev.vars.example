@@ -13,3 +13,22 @@ OTP_SECRET=replace-with-64-char-hex
 # email fallback. Any other value (or unset under wrangler) is treated as
 # production, where a missing RESEND_API_KEY makes otp-request fail loudly.
 ENVIRONMENT=development
+
+# OTP email provider (SEC-08). Unset in development = local Mailpit.
+# Production needs ONE of:
+#   RESEND_API_KEY=re_...            (needs a domain verified in Resend)
+#   SMTP, e.g. Gmail + app password  (no domain needed; Node backend only):
+# EMAIL_PROVIDER=smtp
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_SECURE=starttls             # or SMTP_PORT=465 with SMTP_SECURE=tls
+# SMTP_USER=you@gmail.com
+# SMTP_PASS=                       # 16-char app password; never commit it
+# EMAIL_FROM=TravelMap <you@gmail.com>
+#
+# Internet exposure (see .planning/qa/PROD-HARDENING.md):
+# ALLOWED_ORIGINS=https://manudubo.github.io
+# TRUSTED_PROXY_HOPS=0             # Tailscale Funnel -> Caddy -> app: 2
+# CLIENT_IP_HEADER=x-forwarded-for
+# KEYCLOAK_JWKS_URL=               # optional internal JWKS URL
+# NOMINATIM_CONTACT=               # contact email/URL for the OSM usage policy
