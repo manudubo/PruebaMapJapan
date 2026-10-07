@@ -102,6 +102,54 @@ async function importRsaPublicKey(jwk: JwkKey): Promise<CryptoKey> {
   );
 }
 
+/**
+ * Where tokens come from, derived once from the env. Works for both layouts:
+ *
+ *  - split hosts:  KEYCLOAK_URL=https://auth.example.org
+ *  - single host:  KEYCLOAK_URL=https://host.tailnet.ts.net/auth  (KC_HTTP_RELATIVE_PATH=/auth)
+ *
+ * The issuer is `${KEYCLOAK_URL}/realms/${realm}` (trailing slashes on
+ * KEYCLOAK_URL ignored) unless KEYCLOAK_ISSUER overrides it. KEYCLOAK_JWKS_URL
+ * lets a self-hosted backend fetch keys over the internal network
+ * (http://keycloak:8080/auth/...) while still requiring the PUBLIC issuer in
+ * `iss` — the issuer is what the browser's token says, the JWKS URL is only
+ * where we read keys from.
+ */
+export interface KeycloakEndpoints {
+  issuer: string;
+  jwksUrl: string;
+}
+
+function trimSlashes(url: string): string {
+  return url.trim().replace(/\/+$/, '');
+}
+
+export function keycloakEndpoints(env: Pick<Env, 'KEYCLOAK_URL' | 'KEYCLOAK_REALM' | 'KEYCLOAK_ISSUER' | 'KEYCLOAK_JWKS_URL'>): KeycloakEndpoints {
+  const base = trimSlashes(env.KEYCLOAK_URL ?? '');
+  const realmPath = `/realms/${encodeURIComponent((env.KEYCLOAK_REALM ?? '').trim())}`;
+  const issuer = env.KEYCLOAK_ISSUER?.trim() ? trimSlashes(env.KEYCLOAK_ISSUER) : `${base}${realmPath}`;
+  const jwksUrl = env.KEYCLOAK_JWKS_URL?.trim()
+    ? env.KEYCLOAK_JWKS_URL.trim()
+    : `${base}${realmPath}/protocol/openid-connect/certs`;
+  return { issuer, jwksUrl };
+}
+
+function csv(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+}
+
+/** Clients whose access tokens this API accepts (`azp`). Defaults to VALID_AUDIENCES. */
+export function allowedAuthorizedParties(env: Pick<Env, 'ALLOWED_AZP' | 'VALID_AUDIENCES'>): string[] {
+  const explicit = csv(env.ALLOWED_AZP);
+  return explicit.length > 0 ? explicit : csv(env.VALID_AUDIENCES);
+}
+
+/** Tolerated clock skew for iat in the future. */
+const MAX_IAT_SKEW_S = 60;
+
 export function validateAudience(aud: string | string[] | undefined, valid: string[]): boolean {
   if (!aud) return false;
   const audArray = Array.isArray(aud) ? aud : [aud];
@@ -148,7 +196,7 @@ async function forceRefreshJwks(env: Env): Promise<Map<string, CryptoKey> | null
 
 async function fetchJwks(env: Env): Promise<Map<string, CryptoKey>> {
   const now = Date.now();
-  const jwksUrl = `${env.KEYCLOAK_URL}/realms/${env.KEYCLOAK_REALM}/protocol/openid-connect/certs`;
+  const { jwksUrl } = keycloakEndpoints(env);
 
   const response = await fetch(jwksUrl, {
     headers: { Accept: 'application/json' },
@@ -200,11 +248,19 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
   const [encodedHeader, encodedPayload, encodedSignature] = parts as [string, string, string];
 
   // Decode header to get kid and alg
-  let header: { kid?: string; alg?: string };
+  let header: { kid?: string; alg?: string; typ?: unknown };
   try {
-    header = JSON.parse(base64urlDecode(encodedHeader)) as { kid?: string; alg?: string };
+    header = JSON.parse(base64urlDecode(encodedHeader)) as { kid?: string; alg?: string; typ?: unknown };
   } catch {
     throw new Error('Failed to parse JWT header');
+  }
+  if (header === null || typeof header !== 'object') {
+    throw new Error('Failed to parse JWT header');
+  }
+  // Keycloak signs every token with header typ "JWT"; anything else (e.g.
+  // "at+jwt" from another IdP, or a JWE) is not one of ours.
+  if (header.typ !== undefined && header.typ !== 'JWT') {
+    throw new Error('Unexpected JWT header typ');
   }
 
   if (header.alg !== 'RS256') {
@@ -239,20 +295,44 @@ export async function verifyJwt(token: string, env: Env): Promise<KeycloakJwtPay
     throw new Error('JWT is not yet valid (nbf)');
   }
 
-  // Validate issuer
-  const expectedIssuer = `${env.KEYCLOAK_URL}/realms/${env.KEYCLOAK_REALM}`;
+  if (payload === null || typeof payload !== 'object') {
+    throw new Error('Failed to parse JWT payload');
+  }
+
+  if (typeof payload.iat === 'number' && payload.iat > now + MAX_IAT_SKEW_S) {
+    throw new Error('JWT issued in the future (iat)');
+  }
+
+  // Validate issuer (exact string match, so a path prefix such as /auth is significant)
+  const expectedIssuer = keycloakEndpoints(env).issuer;
   if (!payload.iss || payload.iss !== expectedIssuer) {
     throw new Error(`JWT issuer mismatch: got "${payload.iss}", expected "${expectedIssuer}"`);
   }
 
-  const validAudiences = env.VALID_AUDIENCES.split(',').map(s => s.trim());
+  // Token type: only access tokens. Keycloak's ID tokens are signed with the
+  // same realm key, carry the same issuer and have aud = the frontend client
+  // id, so without this check an ID token (e.g. leaked from a URL fragment or
+  // from logs) would be accepted as an API credential. Keycloak puts the type
+  // in the `typ` claim: "Bearer" (access), "ID", "Refresh", "Logout", ...
+  if (payload.typ !== 'Bearer') {
+    throw new Error(`JWT is not an access token (typ=${JSON.stringify(payload.typ)})`);
+  }
+
+  const validAudiences = csv(env.VALID_AUDIENCES);
   const aud = payload.aud;
   if (!validateAudience(aud, validAudiences)) {
     throw new Error(`JWT audience not accepted: ${JSON.stringify(aud)}`);
   }
 
+  // Authorized party: the client the token was issued TO. A service-account
+  // token of another client in the realm (e.g. japan-trip-worker) can carry
+  // our audience through a mapper, but its azp gives it away.
+  if (typeof payload.azp !== 'string' || !allowedAuthorizedParties(env).includes(payload.azp)) {
+    throw new Error(`JWT azp not accepted: ${JSON.stringify(payload.azp)}`);
+  }
+
   // Validate required claims
-  if (!payload.sub) {
+  if (typeof payload.sub !== 'string' || payload.sub === '') {
     throw new Error('JWT missing required sub claim');
   }
 

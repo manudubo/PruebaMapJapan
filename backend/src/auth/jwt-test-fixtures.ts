@@ -56,6 +56,8 @@ export function validClaims(overrides: Record<string, unknown> = {}): Record<str
     iss: TEST_ISSUER,
     sub: 'user-123',
     aud: 'japan-trip-frontend',
+    typ: 'Bearer',
+    azp: 'japan-trip-frontend',
     exp: now + 300,
     iat: now,
     email: 'u@example.com',

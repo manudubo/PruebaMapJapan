@@ -37,6 +37,12 @@ export interface Env {
   KC_ADMIN_CLIENT_SECRET: string; // D-03: worker client credentials
   OTP_SECRET: string;             // HMAC-SHA256 key for OTP hashing (D-07)
   RESEND_API_KEY?: string;        // required unless ENVIRONMENT=development (SEC-08)
+  /** Public issuer override (default `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`). */
+  KEYCLOAK_ISSUER?: string;
+  /** Where to fetch signing keys (default derived from KEYCLOAK_URL); may be an internal URL. */
+  KEYCLOAK_JWKS_URL?: string;
+  /** Comma-separated client ids allowed as `azp` (default: VALID_AUDIENCES). */
+  ALLOWED_AZP?: string;
   /** "development" enables localhost CORS + Mailpit; anything else = production (fail-closed). */
   ENVIRONMENT?: string;
   /**
@@ -53,6 +59,10 @@ export interface KeycloakJwtPayload {
   sub: string;
   iss: string;
   aud?: string | string[];
+  /** Keycloak token type claim: "Bearer" for access tokens, "ID" for ID tokens. */
+  typ?: string;
+  /** Authorized party: the client the token was issued to. */
+  azp?: string;
   email?: string;
   name: string;
   preferred_username: string;

@@ -33,6 +33,8 @@ const claims = (over: Record<string, unknown> = {}) => ({
   sub: 'kc-jwt-user',
   iss: ISSUER,
   aud: AUDIENCE,
+  typ: 'Bearer',
+  azp: AUDIENCE,
   email: `${String(over.sub ?? 'kc-jwt-user')}@example.test`,
   name: 'Jwt User',
   preferred_username: 'jwt',
