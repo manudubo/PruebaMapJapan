@@ -114,6 +114,9 @@ function uniqueUser(prefix: string): string {
 // Satisfies the realm password policy: length(8) upperCase(1) digits(1) specialChars(1)
 const THROWAWAY_PASSWORD = 'Idp-Flow-Test-1!';
 
+/** Longer than the realm's quick_login_check_milli_seconds (1000). */
+const QUICK_LOGIN_GAP_MS = 1300;
+
 async function addVirtualAuthenticator(page: Page): Promise<{ cdp: CDPSession; authenticatorId: string }> {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('WebAuthn.enable', { enableUI: false });
@@ -252,9 +255,13 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
         await submitUsername(page, username);
         await submitPassword(page, 'Wrong-Password-1!');
         expect(issuedCode(hits)).toBe(false);
+        // Brute-force detection treats two failures less than 1 s apart as a bot
+        // ("quick login" lockout, see idp-hardening.spec.ts), so type like a human.
+        await page.waitForTimeout(QUICK_LOGIN_GAP_MS);
         await submitPassword(page, process.env.E2E_TEST_PASSWORD ?? 'Another-User-Pw-1!');
         expect(issuedCode(hits)).toBe(false);
         // The correct one still works in the same session afterwards.
+        await page.waitForTimeout(QUICK_LOGIN_GAP_MS);
         await submitPassword(page, THROWAWAY_PASSWORD);
         await expect.poll(() => issuedCode(hits)).toBe(true);
       } finally {
