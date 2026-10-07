@@ -18,7 +18,7 @@
 # otherwise the official Terraform image. State lives in
 # deploy/selfhost/state/terraform (back it up; backup.sh does).
 set -euo pipefail
-# shellcheck source=lib/common.sh
+# shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 
 ASSUME_YES=0

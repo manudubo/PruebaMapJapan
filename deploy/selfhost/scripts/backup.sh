@@ -13,7 +13,7 @@
 #   ./scripts/backup.sh --list      # list existing backups
 # Daily automatic backups: ./scripts/backup-timer.sh install
 set -euo pipefail
-# shellcheck source=lib/common.sh
+# shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 
 LIST=0

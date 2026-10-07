@@ -6,7 +6,7 @@
 #   ./scripts/compose.sh logs -f backend
 #   ./scripts/compose.sh config      # the fully resolved file (contains secrets!)
 set -euo pipefail
-# shellcheck source=lib/common.sh
+# shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 load_config
 compose "$@"

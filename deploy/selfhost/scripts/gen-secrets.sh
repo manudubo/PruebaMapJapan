@@ -9,7 +9,7 @@
 #        replace one secret; see docs/SELF-HOSTING.md "Rotating secrets" for
 #        what else each one needs (DB passwords must also change in Postgres).
 set -euo pipefail
-# shellcheck source=lib/common.sh
+# shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
 
 SECRETS=(POSTGRES_SUPERUSER_PASSWORD APP_DB_PASSWORD KC_DB_PASSWORD KC_ADMIN_PASSWORD OTP_SECRET)

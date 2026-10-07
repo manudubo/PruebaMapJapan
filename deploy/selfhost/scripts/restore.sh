@@ -16,9 +16,9 @@
 # state, and starts everything again. .env is NOT overwritten: if you are
 # rebuilding a dead server, copy <backup>/env to .env yourself first.
 set -euo pipefail
-# shellcheck source=lib/common.sh
+# shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
-# shellcheck source=lib/checks.sh
+# shellcheck source=SCRIPTDIR/lib/checks.sh
 . "$(dirname "$0")/lib/checks.sh"
 
 DRILL=0; ONLY=all; ASSUME_YES=0; WHICH=""

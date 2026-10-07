@@ -10,9 +10,9 @@
 # Steps: config + port checks -> build -> postgres -> db:preflight ->
 #        db:migrate -> start everything -> wait for /api/health/ready
 set -euo pipefail
-# shellcheck source=lib/common.sh
+# shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
-# shellcheck source=lib/checks.sh
+# shellcheck source=SCRIPTDIR/lib/checks.sh
 . "$(dirname "$0")/lib/checks.sh"
 
 BUILD=1
