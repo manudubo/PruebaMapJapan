@@ -1,0 +1,92 @@
+name: Keycloak flow
+
+# Review S3: run the KC-01 regression tests (tests/e2e/idp-flow.spec.ts) against a real
+# Keycloak 26.6.1 configured by terraform/keycloak, so a change to flows.tf that
+# reopens the username-only login bypass fails in CI, not only on a laptop.
+#
+# Informational: this is a separate workflow and the deploy workflows only follow
+# "CI" (workflow_run), so a red run here never blocks a deploy. Make it a required
+# check once it has a record of green runs on Actions (see .planning/qa/E2E-DEBT-KC-CI.md).
+#
+# Needs no repository secrets: the Keycloak admin password, the test-user passwords and
+# the worker client secret are generated per run by scripts/ci/keycloak-flow.sh and
+# only ever written to mode-600 files under $RUNNER_TEMP.
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keycloak-flow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  idp-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Install Terraform
+        env:
+          TF_VERSION: 1.9.8
+          TF_SHA256: 186e0145f5e5f2eb97cbd785bc78f21bae4ef15119349f6ad4fa535b83b10df8
+        run: |
+          zip="$RUNNER_TEMP/terraform.zip"
+          curl -fsSL -o "$zip" "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+          echo "${TF_SHA256}  ${zip}" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          unzip -o -q "$zip" terraform -d "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/terraform" version
+
+      - run: npm ci
+        working-directory: tests
+      - run: npx playwright install --with-deps chromium firefox
+        working-directory: tests
+
+      - name: Start Keycloak 26.6.1
+        run: scripts/ci/keycloak-flow.sh start
+      - name: Apply terraform/keycloak (throwaway secrets)
+        run: scripts/ci/keycloak-flow.sh apply
+
+      - name: Run KC-01 regression tests (chromium + firefox)
+        working-directory: tests
+        env:
+          # Fail (not fixme) when Keycloak or its credentials are missing.
+          CI_KEYCLOAK: '1'
+          # No app under test: the specs drive Keycloak directly.
+          SKIP_REAL_AUTH: 'true'
+          PW_NO_WEBSERVER: '1'
+        run: |
+          set -a
+          . "$RUNNER_TEMP/keycloak-flow/e2e.env"
+          set +a
+          npx playwright test e2e/idp-flow.spec.ts e2e/idp-config.spec.ts \
+            --project=chromium --project=firefox --retries=0
+
+      - name: Keycloak log (on failure)
+        if: failure()
+        run: docker logs --tail 200 kc-flow
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: keycloak-flow-playwright-report
+          path: tests/playwright-report/
+          retention-days: 7
+      - name: Remove Keycloak and generated secrets
+        if: always()
+        run: scripts/ci/keycloak-flow.sh stop
