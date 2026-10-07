@@ -111,13 +111,33 @@ describe('GET /api/geocode', () => {
   });
 
   it('a backlog beyond 5 s answers 429 geocoder_busy instead of queueing forever', async () => {
-    __resetGeocoderForTests({ now: () => now, sleep: () => new Promise(() => {}) }); // waits never finish
+    // Deterministic: the injected clock never moves and every wait is parked until we
+    // release it, so nothing depends on elapsed time or on how fast the six requests
+    // get through auth under suite load. The seventh is sent only after the six hold
+    // their slots (slot 0 goes straight upstream, slots 1-5 = 1..5 s wait), so it
+    // must be the one that sees a 6 s backlog.
+    const parked: Array<{ ms: number; release: () => void }> = [];
+    __resetGeocoderForTests({
+      now: () => now,
+      sleep: (ms) => new Promise<void>((release) => parked.push({ ms, release })),
+    });
     const pending = Array.from({ length: 6 }, (_, i) => geocode(`busy ${i}`));
+    await vi.waitFor(() => {
+      expect(parked).toHaveLength(5);
+      expect(upstream).toHaveLength(1);
+    });
+    expect(parked.map((p) => p.ms)).toEqual([1000, 2000, 3000, 4000, 5000]);
+
     const seventh = await geocode('busy 7');
     expect(seventh.status).toBe(429);
     expect(seventh.body.error).toBe('geocoder_busy');
     expect(seventh.headers.get('Retry-After')).toBe('5');
-    void pending;
+    expect(upstream).toHaveLength(1); // the refused request never reached Nominatim
+
+    // The queued six were not dropped: once their waits end they are served.
+    parked.forEach((p) => p.release());
+    expect((await Promise.all(pending)).map((r) => r.status)).toEqual([200, 200, 200, 200, 200, 200]);
+    expect(upstream).toHaveLength(6);
   });
 
   it.each([
