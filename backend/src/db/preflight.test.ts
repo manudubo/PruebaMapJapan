@@ -93,7 +93,14 @@ describe('isPushCreatedDatabase', () => {
     }
   });
 
-  it('true when the app tables exist but the journal is missing or empty', async () => {
+  it('false for a journal-less database still at 0003 (re-running 0000–0003 is safe)', async () => {
+    db = await scratchDbAt('0003_add_email_otp_codes');
+    await db.pool.query('DROP SCHEMA drizzle CASCADE');
+    expect(await isPushCreatedDatabase(db.pool)).toBe(false);
+    await db.migrateToLatest();
+  });
+
+  it('true when 0004+ objects exist but the journal is missing or empty', async () => {
     db = await scratchDbAt('0009_otp_issue_atomic');
     await db.pool.query('DELETE FROM drizzle.__drizzle_migrations');
     expect(await isPushCreatedDatabase(db.pool)).toBe(true);

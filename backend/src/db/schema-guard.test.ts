@@ -216,6 +216,15 @@ describe('GET /api/health/ready', () => {
     expect(res.body).toEqual({ status: 'unavailable', code: 'schema_not_migrated' });
   });
 
+  it('503 db_unreachable when the readiness check itself cannot run (never "ready" unverified)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await call('GET', '/api/health/ready', {
+      env: testEnv({ DATABASE_URL: 'postgresql://nobody@127.0.0.1:1/none' }),
+    });
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ status: 'unavailable', code: 'db_unreachable' });
+  });
+
   it('503 config error without DATABASE_URL', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await call('GET', '/api/health/ready', { env: testEnv({ DATABASE_URL: '' }) });

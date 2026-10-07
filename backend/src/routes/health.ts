@@ -33,6 +33,9 @@ health.get('/ready', async (c) => {
   if (!db) return c.json({ status: 'unavailable' as const, code: 'not_configured' }, 503);
   const verdict = await checkSchemaReady(db, c.env.DATABASE_URL);
   if (!verdict.ok) return c.json({ status: 'unavailable' as const, code: SCHEMA_NOT_MIGRATED }, 503);
+  // dbMiddleware lets a request through when the check cannot run (the query
+  // then fails on its own); a readiness probe must not report that as ready.
+  if (verdict.unverified) return c.json({ status: 'unavailable' as const, code: 'db_unreachable' }, 503);
   return c.json({ status: 'ready' as const });
 });
 

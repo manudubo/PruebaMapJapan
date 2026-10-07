@@ -82,10 +82,13 @@ test.describe('@qa-noauth service worker', () => {
     await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
     await page.goto('index.html'); // only the landing page has ever been visited
     await page.evaluate(() => navigator.serviceWorker.ready);
+    // Wait for the whole precache (every build chunk, now that the map code is a lazy chunk), not a magic count.
     await page.waitForFunction(async () => {
+      const sw = await (await fetch('sw.js')).text();
+      const expected = new Set(sw.match(/\.\/assets\/[^"']+/g) ?? []).size;
       const names = await caches.keys();
       if (!names.length) return false;
-      return (await (await caches.open(names[0]!)).keys()).length > 12;
+      return (await (await caches.open(names[0]!)).keys()).length >= Math.max(13, expected);
     });
     await context.setOffline(true);
     await page.goto('tokyo.html');

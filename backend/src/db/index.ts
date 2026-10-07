@@ -63,6 +63,10 @@ function pgPool(databaseUrl: string): pg.Pool {
   let pool = pgPools.get(databaseUrl);
   if (!pool) {
     pool = new Pool({ connectionString: databaseUrl });
+    // An idle client dropped by the server (restart, idle timeout) emits
+    // 'error' on the pool; unhandled, that event kills the Node process.
+    // The pool discards the client and reconnects on the next query.
+    pool.on('error', (err) => console.error('pg pool: idle client error:', err.message));
     pgPools.set(databaseUrl, pool);
   }
   return pool;
