@@ -4,7 +4,7 @@
 #   travelmap (owner travelmap) - backend
 #   keycloak  (owner keycloak)  - Keycloak
 # Changing APP_DB_PASSWORD / KC_DB_PASSWORD later does NOT re-run this script:
-# use deploy/selfhost/scripts/rotate-db-password.sh.
+# see docs/SELF-HOSTING.md "Rotating secrets" (ALTER ROLE ... PASSWORD).
 set -eu
 
 : "${APP_DB_PASSWORD:?APP_DB_PASSWORD is not set}"
