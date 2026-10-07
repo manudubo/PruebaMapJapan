@@ -1,4 +1,4 @@
-import { describe, it, expect, expectTypeOf, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, expectTypeOf, beforeEach, afterAll, vi } from 'vitest';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import {
@@ -102,5 +102,28 @@ describe('createDb driver + pooling', () => {
     const after = createDb(testDatabaseUrl(), 'pg');
     expect((after as unknown as { $client: unknown }).$client).not.toBe(before.$client);
     await expect(after.select().from(users)).resolves.toEqual([]);
+  });
+});
+
+describe('node-postgres pool resilience', () => {
+  it('an idle pooled connection killed by the server does not crash the process; the next query reconnects', async () => {
+    const url = testDatabaseUrl();
+    const db = createDb(url, 'pg');
+    await db.select().from(users); // leaves an idle client in the cached pool
+    const pool = (db as unknown as { $client: { listenerCount(e: string): number } }).$client;
+    // Without an 'error' listener, a server-side disconnect of an idle client
+    // (DB restart, Neon idle timeout, DROP … FORCE) is an uncaught 'error'
+    // event that kills the dev server / seed process.
+    expect(pool.listenerCount('error')).toBeGreaterThan(0);
+    const dbName = new URL(url).pathname.slice(1);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await testPool().query(
+      `SELECT pg_terminate_backend(a.pid) FROM pg_stat_activity a
+        WHERE a.datname = $1 AND a.pid <> pg_backend_pid() AND a.state = 'idle'`,
+      [dbName],
+    );
+    await new Promise((r) => setTimeout(r, 200));
+    await expect(createDb(url, 'pg').select().from(users)).resolves.toEqual([]);
+    log.mockRestore();
   });
 });
