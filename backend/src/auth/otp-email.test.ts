@@ -13,7 +13,7 @@ vi.mock('resend', () => ({
 
 vi.mock('../middleware/auth', () => ({
   authMiddleware: async (c: Context, next: Next) => {
-    c.set('user', { sub: 'kc-1', email: 'user@example.com', name: 'U', preferred_username: 'u' });
+    c.set('user', { sub: 'kc-1', email: 'user@example.com', email_verified: true, name: 'U', preferred_username: 'u' });
     await next();
   },
 }));
@@ -95,37 +95,37 @@ describe('otpEmailTransport', () => {
 
 describe('sendOtpEmail', () => {
   it('production without key never contacts Mailpit', async () => {
-    await expect(sendOtpEmail({ ...base, ENVIRONMENT: 'production' }, 'a@b.c', '123456')).rejects.toThrow(OtpEmailConfigError);
+    await expect(sendOtpEmail({ ...base, ENVIRONMENT: 'production' }, 'a@b.co', '123456')).rejects.toThrow(OtpEmailConfigError);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(resendSend).not.toHaveBeenCalled();
   });
 
   it('development without key posts to Mailpit with the code', async () => {
-    await sendOtpEmail({ ...base, ENVIRONMENT: 'development' }, 'a@b.c', '123456');
+    await sendOtpEmail({ ...base, ENVIRONMENT: 'development' }, 'a@b.co', '123456');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(MAILPIT_SEND_URL);
     const body = JSON.parse(String(init.body));
-    expect(body.To).toEqual([{ Name: '', Email: 'a@b.c' }]);
+    expect(body.To).toEqual([{ Name: '', Email: 'a@b.co' }]);
     expect(body.Text).toContain('123456');
   });
 
   it('development: a Mailpit HTTP error is surfaced, not swallowed', async () => {
     fetchSpy.mockResolvedValue(new Response('nope', { status: 500 }));
-    await expect(sendOtpEmail({ ...base, ENVIRONMENT: 'development' }, 'a@b.c', '123456')).rejects.toThrow(/Mailpit.*500/);
+    await expect(sendOtpEmail({ ...base, ENVIRONMENT: 'development' }, 'a@b.co', '123456')).rejects.toThrow(/Mailpit.*500/);
   });
 
   it('with a key, uses Resend and never Mailpit', async () => {
-    await sendOtpEmail({ ...base, ENVIRONMENT: 'production', RESEND_API_KEY: 're_x' }, 'a@b.c', '654321');
+    await sendOtpEmail({ ...base, ENVIRONMENT: 'production', RESEND_API_KEY: 're_x' }, 'a@b.co', '654321');
     expect(resendSend).toHaveBeenCalledTimes(1);
-    expect(resendSend.mock.calls[0]?.[0]).toMatchObject({ to: ['a@b.c'] });
+    expect(resendSend.mock.calls[0]?.[0]).toMatchObject({ to: ['a@b.co'] });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('a Resend API error (returned, not thrown) becomes a thrown error', async () => {
     resendSend.mockResolvedValue({ data: null, error: { name: 'invalid_api_key', message: 'bad key', statusCode: 401 }, headers: null });
     await expect(
-      sendOtpEmail({ ...base, ENVIRONMENT: 'production', RESEND_API_KEY: 're_bad' }, 'a@b.c', '1'),
+      sendOtpEmail({ ...base, ENVIRONMENT: 'production', RESEND_API_KEY: 're_bad' }, 'a@b.co', '1'),
     ).rejects.toThrow(/Resend rejected.*invalid_api_key/);
   });
 });

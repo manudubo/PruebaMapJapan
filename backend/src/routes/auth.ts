@@ -70,9 +70,16 @@ authRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 // POST /api/auth/otp-request
 // No request body — email is taken from c.var.user.email
 authRoute.post('/otp-request', rateLimit(POLICIES.otpRequestPerUser), async (c) => {
-  const email = c.get('user').email;
+  const { email, email_verified: emailVerified } = c.get('user');
   if (!email) {
     const response: ApiResponse<never> = { success: false, error: 'no_email' };
+    return c.json(response, 422);
+  }
+  // The code only ever goes to the account's own address, and only once
+  // Keycloak has verified it: otherwise anyone could register an account
+  // with a stranger's address and use our mailbox to spam it.
+  if (emailVerified !== true) {
+    const response: ApiResponse<never> = { success: false, error: 'email_not_verified' };
     return c.json(response, 422);
   }
 
