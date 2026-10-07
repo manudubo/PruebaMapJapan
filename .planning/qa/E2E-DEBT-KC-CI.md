@@ -1,6 +1,16 @@
 # E2E test debt (ARCH-07 residue) and the Keycloak CI job (review S3)
 
-Base: `origin/main` at ed49639 (PR #23 merged). Worktree branch only; not pushed.
+Base: `origin/main` at ed49639 (PR #23 merged), then `origin/claude/focused-lovelace-cryssy` (941e44b, real-auth QA + A11Y-04/05) merged in. Worktree branch only; not pushed.
+
+**After the merge:**
+- **Re-grep:** no new `waitForTimeout` or `test.skip(` in tests/e2e.
+- **Keycloak-related files unchanged by the merge:** the Terraform files, `idp-*` specs, fixtures and Playwright config. So the Keycloak runs below still apply.
+- **Checks re-run:**
+  - typecheck: clean;
+  - frontend: 50 files, 1102 tests;
+  - backend, on a fresh Postgres 16: 48 files, 1619 tests;
+  - full CI-mode Chromium suite: 282 passed, 48 fixme, 0 failed;
+  - `overview-map`, `qa-frontend` and `qa-sw` with `--repeat-each=3`: 144/144.
 
 ## 1. Test debt
 
