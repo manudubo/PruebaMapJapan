@@ -39,6 +39,11 @@ export interface Env {
   RESEND_API_KEY?: string;        // required unless ENVIRONMENT=development (SEC-08)
   /** "development" enables localhost CORS + Mailpit; anything else = production (fail-closed). */
   ENVIRONMENT?: string;
+  /**
+   * Comma-separated exact browser origins allowed by CORS (SEC-23). Unset:
+   * the Pages origin from config/deploy-defaults.json. Empty: none.
+   */
+  ALLOWED_ORIGINS?: string;
 }
 
 // ---------------------------------------------------------------------------
