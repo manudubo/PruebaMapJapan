@@ -11,7 +11,8 @@
  *   ORIGIN=https://manudubo.github.io  USERNAME=...  PASSWORD=...
  *   API_URL=https://host/api   (default PUBLIC_URL/api)
  *   NODE_EXTRA_CA_CERTS=root.crt  for a test CA
- * Prints one JSON summary line; exit 0 only if the API returned 200.
+ * Prints one JSON summary line; exit 0 only if the API accepted the token
+ * (200/201) and refused a tampered copy (401).
  */
 import { createHash, randomBytes } from 'node:crypto';
 
@@ -105,6 +106,10 @@ res = await fetch(`${KC}/realms/${REALM}/protocol/openid-connect/token`, {
 const tokenCors = res.headers.get('access-control-allow-origin');
 const tokens = await res.json();
 if (!tokens.access_token) throw new Error(`token exchange failed: ${JSON.stringify(tokens)}`);
+if (env.TOKEN_FILE) {
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(env.TOKEN_FILE, tokens.access_token, { mode: 0o600 });
+}
 const claims = JSON.parse(Buffer.from(tokens.access_token.split('.')[1], 'base64url').toString());
 
 res = await fetch(`${API_URL}/users/me`, {
@@ -132,4 +137,5 @@ console.log(
     forgedStatus,
   }),
 );
-process.exit(apiStatus === 200 && forgedStatus === 401 ? 0 : 1);
+// /users/me answers 201 the first time it provisions the user, then 200.
+process.exit((apiStatus === 200 || apiStatus === 201) && forgedStatus === 401 ? 0 : 1);

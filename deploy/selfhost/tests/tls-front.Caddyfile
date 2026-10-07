@@ -6,6 +6,11 @@
 	local_certs
 	http_port 38099
 	https_port {$TEST_TLS_PORT}
+	# Append to X-Forwarded-For like tailscale serve (Go's ReverseProxy) does,
+	# instead of Caddy's default of replacing it for untrusted clients.
+	servers {
+		trusted_proxies static 0.0.0.0/0 ::/0
+	}
 }
 
 {$PUBLIC_HOST} {

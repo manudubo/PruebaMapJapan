@@ -10,6 +10,8 @@
 services:
   backend:
     build:
+      # TEST_BACKEND_CONTEXT: build from another checkout (e.g. with unmerged app changes)
+      context: ${TEST_BACKEND_CONTEXT:-../..}
       network: host
       args:
         HTTPS_PROXY: ${TEST_BUILD_PROXY:-}
@@ -17,6 +19,7 @@ services:
       secrets: [extra_ca]
   migrate:
     build:
+      context: ${TEST_BACKEND_CONTEXT:-../..}
       network: host
       args:
         HTTPS_PROXY: ${TEST_BUILD_PROXY:-}

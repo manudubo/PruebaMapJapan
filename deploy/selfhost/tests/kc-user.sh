@@ -19,5 +19,7 @@ if [ -z "$id" ]; then
   api -X POST "$base/users" -d "$(jq -n --arg u "$user" '{username:$u,email:$u,emailVerified:true,enabled:true,firstName:"Self",lastName:"Host",requiredActions:[]}')"
   id="$(api "$base/users?username=$(jq -rn --arg u "$user" '$u|@uri')&exact=true" | jq -r '.[0].id')"
 fi
+# VERIFY_EMAIL is a default action for new users; this test user is verified.
+api -X PUT "$base/users/$id" -d '{"requiredActions":[],"emailVerified":true}'
 api -X PUT "$base/users/$id/reset-password" -d "$(jq -n --arg p "$pass" '{type:"password",value:$p,temporary:false}')"
 printf '%s\n' "$id"
