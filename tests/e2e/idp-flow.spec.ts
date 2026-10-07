@@ -141,7 +141,14 @@ async function addVirtualAuthenticator(page: Page): Promise<{ cdp: CDPSession; a
 async function enrolPasskey(page: Page, hits: URL[], username: string, password: string): Promise<void> {
   await submitUsername(page, username, '&kc_action=webauthn-register-passwordless');
   await submitPassword(page, password);
+  // The redirect to the app must have committed (app page, or an error page when no
+  // frontend runs) before the caller navigates again; seeing the request is not enough,
+  // the still-pending redirect would interrupt the caller's next page.goto().
+  const leftKeycloak = page.waitForEvent('framenavigated', {
+    predicate: (frame) => frame === page.mainFrame() && !frame.url().startsWith(KEYCLOAK_URL),
+  });
   await page.locator('#registerWebAuthn').click();
+  await leftKeycloak;
   await expect.poll(() => issuedCode(hits)).toBe(true);
   await page.context().clearCookies(); // drop the SSO session, keep the authenticator
   hits.length = 0;
