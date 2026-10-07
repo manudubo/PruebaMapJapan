@@ -5,14 +5,36 @@ export interface NominatimResult {
 }
 
 /**
- * Search Nominatim for a place name.
+ * SEC-18: with a backend (VITE_API_URL set, absolute or a same-origin path)
+ * the editor geocodes through GET /api/geocode, which sends the OSM-required
+ * identifying User-Agent, holds the upstream to 1 request/second and caches.
+ * Only a demo-only build (no backend) calls Nominatim from the browser, and
+ * only that build's CSP allows nominatim.openstreetmap.org (cspPlugin.ts).
+ */
+export function geocoderMode(raw: unknown = import.meta.env['VITE_API_URL']): 'proxy' | 'direct' {
+  return typeof raw === 'string' && raw.trim() !== '' ? 'proxy' : 'direct';
+}
+
+/**
+ * Search places by name.
  * IMPORTANT: Only call on explicit button click — never on keypress (OSM rate limit: 1 req/s).
- * No custom User-Agent: it is a forbidden header in browser fetch and is
- * silently replaced by the browser's own. From a browser, Nominatim's usage
- * policy is satisfied by the browser User-Agent plus the page's Referer.
- * (The "403 without User-Agent" behaviour only applies to server-side fetch.)
+ * No custom User-Agent from the browser: it is a forbidden header in fetch and
+ * is silently replaced by the browser's own; the proxy sets the real one.
  */
 export async function searchNominatim(query: string): Promise<NominatimResult[]> {
+  if (geocoderMode() === 'proxy') {
+    // Loaded lazily so the demo-only path does not pull in the API client.
+    const [{ apiUrl }, { getToken }] = await Promise.all([import('@/api/client'), import('@/auth/keycloak')]);
+    const token = await getToken();
+    const res = await fetch(apiUrl(`/geocode?q=${encodeURIComponent(query)}`), {
+      headers: { Authorization: `Bearer ${token}`, 'Accept-Language': 'es,en' },
+    });
+    if (!res.ok) throw new Error(`Geocoder error ${res.status}`);
+    const body = (await res.json()) as { success?: boolean; data?: NominatimResult[] };
+    if (!body.success || !Array.isArray(body.data)) throw new Error('Geocoder error');
+    return body.data;
+  }
+
   const url = new URL('https://nominatim.openstreetmap.org/search');
   url.searchParams.set('q', query);
   url.searchParams.set('format', 'json');
