@@ -1,11 +1,22 @@
 /* Japan Itinerary - Flat demo design system */
 
+/* Metric-matched fallback for Inter (A11Y-05): text paints immediately in a face with Inter's
+   proportions, so the font swap (font-display: swap) does not move the layout. */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica'), local('Liberation Sans');
+  size-adjust: 107.64%;
+  ascent-override: 89.79%;
+  descent-override: 22.36%;
+  line-gap-override: 0%;
+}
+
 /* ============================================
    CSS Custom Properties (Design Tokens)
    ============================================ */
 :root {
   /* Typography */
-  --jp-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --jp-font: 'Inter', 'Inter Fallback', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
 
   /* Background Colors */
   --jp-bg: #f5f5f7;
@@ -2159,4 +2170,19 @@ html[data-theme="dark"] .leaflet-tile-pane {
 
 .auth-notice-dismiss:hover {
   color: var(--jp-text);
+}
+
+/* Reserve the space of the not-yet-upgraded custom elements (the page paints before the JS
+   defines them), so <main> does not jump when they render: CLS 0 on the landing (A11Y-05).
+   Heights match the rendered components; the search strip is fixed (out of flow) from 1320px. */
+travel-nav:not(:defined) {
+  display: block;
+  min-height: 57px;
+}
+
+@media (max-width: 1319.98px) {
+  search-bar:not(:defined) {
+    display: block;
+    min-height: 55px;
+  }
 }
