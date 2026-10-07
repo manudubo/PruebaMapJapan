@@ -2,7 +2,7 @@ import { chromium, FullConfig } from '@playwright/test';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
-import { clearRequiredActions } from './e2e/fixtures/kc-admin';
+import { clearRequiredActions, resetCredentials } from './e2e/fixtures/kc-admin';
 import { loginViaKcForm } from './e2e/fixtures/kc-login-helper';
 
 dotenv.config({ path: path.join(__dirname, '.env.test') });
@@ -149,6 +149,9 @@ async function globalSetup(_config: FullConfig): Promise<() => Promise<void>> {
   // OIDC login — skipped entirely when SKIP_REAL_AUTH is set (D-03)
   if (!process.env.SKIP_REAL_AUTH) {
     if (!isStorageStateFresh()) {
+      // An interrupted passkeys.spec run can leave a passkey on this user; passkey users
+      // get no password fallback in browser-passkey, so the password login would hang.
+      await resetCredentials(process.env.E2E_TEST_USERNAME!);
       await kcLogin();
     } else {
       console.log('Reusing fresh storageState from .auth/user.json');
