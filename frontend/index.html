@@ -14,6 +14,12 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
 
+  <!-- LCP image (A11Y-05): the hero background is discovered by the preload scanner instead of after JS.
+       One preload per size bucket (media) so only the file the CSS below will pick is fetched. -->
+  <link rel="preload" as="image" href="/demo-hero-640.avif" type="image/avif" media="(max-width: 768px)" fetchpriority="high">
+  <link rel="preload" as="image" href="/demo-hero-1280.avif" type="image/avif" media="(min-width: 769px) and (max-width: 1440px)" fetchpriority="high">
+  <link rel="preload" as="image" href="/demo-hero-1920.avif" type="image/avif" media="(min-width: 1441px)" fetchpriority="high">
+
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
@@ -23,8 +29,6 @@
   <style>
     html { background: #f5f5f7; }
     html[data-theme="dark"] { background: #000; }
-    body { opacity: 0; transition: opacity 0.15s ease; }
-    body.ready { opacity: 1; }
   </style>
   <script>
     // Apply theme immediately to prevent flash
@@ -64,6 +68,21 @@
 
     html[data-theme="dark"] .landing-hero {
       --landing-image-opacity: 0.28;
+    }
+
+    /* Hero image: AVIF, then WebP, then the (resized) JPEG; sized by viewport width to match the preloads above. */
+    .landing-hero {
+      --landing-hero-image: image-set(url('/demo-hero-640.avif') type('image/avif'), url('/demo-hero-640.webp') type('image/webp'), url('/demo-hero.jpg') type('image/jpeg'));
+    }
+    @media (min-width: 769px) {
+      .landing-hero {
+        --landing-hero-image: image-set(url('/demo-hero-1280.avif') type('image/avif'), url('/demo-hero-1280.webp') type('image/webp'), url('/demo-hero.jpg') type('image/jpeg'));
+      }
+    }
+    @media (min-width: 1441px) {
+      .landing-hero {
+        --landing-hero-image: image-set(url('/demo-hero-1920.avif') type('image/avif'), url('/demo-hero-1920.webp') type('image/webp'), url('/demo-hero.jpg') type('image/jpeg'));
+      }
     }
 
     .landing-hero::before {
@@ -362,8 +381,6 @@
     const hero = document.getElementById('landing-hero');
 
     if (hero) {
-      hero.style.setProperty('--landing-hero-image', "url('/PruebaMapJapan/demo-hero.jpg')");
-
       var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (!reduceMotion) {
         var ticking = false;
@@ -387,16 +404,6 @@
       }
     }
 
-  </script>
-  <script>
-    // Mark body as ready when styles are loaded
-    document.fonts.ready.then(function() {
-      document.body.classList.add('ready');
-    });
-    // Fallback for browsers without font loading API
-    window.addEventListener('load', function() {
-      document.body.classList.add('ready');
-    });
   </script>
 </body>
 </html>

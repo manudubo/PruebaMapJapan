@@ -20,8 +20,6 @@
   <style>
     html { background: #f5f5f7; }
     html[data-theme="dark"] { background: #000; }
-    body { opacity: 0; transition: opacity 0.15s ease; }
-    body.ready { opacity: 1; }
   </style>
   <script>
     (function() {
@@ -232,9 +230,5 @@
   </div>
 
   <script type="module" src="/src/pages/profile.ts"></script>
-  <script>
-    document.fonts.ready.then(function() { document.body.classList.add('ready'); });
-    window.addEventListener('load', function() { document.body.classList.add('ready'); });
-  </script>
 </body>
 </html>
