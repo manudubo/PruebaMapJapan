@@ -3,6 +3,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { corsMiddleware } from './middleware/cors';
 import { securityMiddleware } from './middleware/security';
 import { errorHandler } from './middleware/errors';
+import { requestContext } from './middleware/request-context';
+import { POLICIES, rateLimit } from './middleware/rate-limit';
 import routes from './routes';
 import { healthResponse } from './routes/health';
 import type { Env } from './types';
@@ -12,9 +14,17 @@ const app = new Hono<{ Bindings: Env }>();
 // ---------------------------------------------------------------------------
 // Global middleware
 // ---------------------------------------------------------------------------
-// Security headers first so they also wrap CORS preflight responses.
+// Request id + access log outermost, so every response (including errors and
+// preflights) carries X-Request-Id and is logged once.
+app.use('*', requestContext);
+// Security headers next so they also wrap CORS preflight responses.
 app.use('*', securityMiddleware);
 app.use('*', corsMiddleware);
+
+// Per-IP ceiling on the whole API, before the body is read or a token is
+// verified (cheap rejection of floods). After CORS so the SPA can read the
+// 429 and its Retry-After. Endpoint-specific limits sit on the routes.
+app.use('/api/*', rateLimit(POLICIES.apiPerIp));
 
 // Refuse oversized bodies before any auth or DB work. Real payloads (an
 // activity with long notes) are a few KB; without a cap one request could
@@ -31,7 +41,7 @@ app.use(
 // ---------------------------------------------------------------------------
 // Root health check (unauthenticated)
 // ---------------------------------------------------------------------------
-app.get('/', healthResponse);
+app.get('/', rateLimit(POLICIES.healthPerIp), healthResponse);
 
 // ---------------------------------------------------------------------------
 // API routes — all business logic lives under /api

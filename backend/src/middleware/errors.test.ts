@@ -70,7 +70,10 @@ describe('errorHandler (M-09)', () => {
     const body = await res.text();
     expect(JSON.parse(body)).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
     expect(body).not.toContain('secret_table');
-    expect(log).toHaveBeenCalledWith('Unhandled error on GET /x:', err);
+    expect(log).toHaveBeenCalledTimes(1);
+    const line = JSON.parse(String(log.mock.calls[0]?.[0])) as Record<string, any>;
+    expect(line).toMatchObject({ level: 'error', event: 'http.unhandled_error', method: 'GET', status: 500 });
+    expect(line.error.message).toContain('secret_table');
   });
 
   it('HTTPException keeps its status (e.g. 400 malformed body, 401)', async () => {
@@ -171,7 +174,7 @@ describe('errors from real routes reach the global handler (M-09)', () => {
       expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
       expect(JSON.stringify(res.body)).not.toMatch(/users|relation/);
       // …while the real cause is logged server-side.
-      expect(JSON.stringify(log.mock.calls.map((c) => String(c[1])))).toMatch(/users/);
+      expect(JSON.stringify(log.mock.calls.map((c) => String(c[0])))).toMatch(/users/);
       expect(log).toHaveBeenCalled();
     } finally {
       await testPool().query('ALTER TABLE users_gone RENAME TO users');

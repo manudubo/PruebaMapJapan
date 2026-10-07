@@ -8,6 +8,9 @@ compatibility_flags = ["nodejs_compat"]
 # requires RESEND_API_KEY (SEC-08/SEC-23). Local `wrangler dev` overrides this
 # via ENVIRONMENT=development in .dev.vars.
 ENVIRONMENT = "production"
+# CORS allow-list (exact origins, comma-separated). Unset = the Pages origin
+# in config/deploy-defaults.json; set explicitly so the deploy is self-describing.
+ALLOWED_ORIGINS = "https://manudubo.github.io"
 # Explicit DB driver (ARCH-02): Neon serverless over HTTP on Workers.
 DB_DRIVER = "neon"
 

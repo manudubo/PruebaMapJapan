@@ -2,6 +2,9 @@ kc_url        = "http://localhost:8080"
 kc_admin_user = "admin"
 kc_admin_pass = "REPLACE_WITH_ADMIN_PASSWORD"
 
+# profile = "local" (default): test users, localhost redirects, Mailpit SMTP.
+# Production uses production.tfvars.example instead (keycloak/README.md section 4).
+
 # SEC-17: keep "external" locally (plain HTTP). Production: "all" — see keycloak/README.md.
 ssl_required = "external"
 

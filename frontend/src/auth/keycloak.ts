@@ -4,7 +4,12 @@ import Keycloak from 'keycloak-js';
 // Configuration — injected via Vite env vars at build time
 // ---------------------------------------------------------------------------
 
-const KEYCLOAK_URL = import.meta.env['VITE_KEYCLOAK_URL'] as string | undefined ?? 'http://localhost:8080';
+/** Base URL incl. a relative path in single-host mode (https://host/auth); trailing slashes dropped. */
+export function keycloakBaseUrl(raw: string | undefined): string {
+  return (raw ?? 'http://localhost:8080').trim().replace(/\/+$/, '');
+}
+
+export const KEYCLOAK_URL = keycloakBaseUrl(import.meta.env['VITE_KEYCLOAK_URL'] as string | undefined);
 const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string | undefined ?? 'japan-trip';
 const KEYCLOAK_CLIENT_ID = import.meta.env['VITE_KEYCLOAK_CLIENT_ID'] as string | undefined ?? 'japan-trip-frontend';
 

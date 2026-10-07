@@ -123,14 +123,66 @@ test.describe('Keycloak config invariants (static)', () => {
     expect(fs.existsSync(path.join(ROOT, 'keycloak/realm-export.json'))).toBe(false);
   });
 
-  test('SEC-19: test-user password variables have no defaults', () => {
+  test('SEC-19: password variables have no usable default (absent or null) and are sensitive', () => {
     const vars = resources(read('terraform/keycloak/variables.tf').replace(/^variable /gm, 'resource "variable" '));
     const passwords = vars.filter((v) => v.name.endsWith('_password'));
-    expect(passwords.length).toBeGreaterThanOrEqual(6);
+    expect(passwords.length).toBeGreaterThanOrEqual(7); // six test users + smtp_password
     for (const v of passwords) {
-      expect(attr(v.body, 'default'), `variable ${v.name} must not have a default`).toBeUndefined();
+      const def = attr(v.body, 'default');
+      expect(def === undefined || def === 'null', `variable ${v.name} must not have a default value`).toBe(true);
       expect(attr(v.body, 'sensitive')).toBe('true');
     }
+    // null defaults are only safe because a precondition demands real values when used.
+    expect(read('terraform/keycloak/main.tf')).toMatch(/!local\.create_test_users \|\| alltrue\(\[for p in local\.test_passwords : p != null\]\)/);
+  });
+
+  test('PROD: production profile guards are preconditions, not comments', () => {
+    const main = read('terraform/keycloak/main.tf');
+    const realm = resources(main).find((b) => b.type === 'keycloak_realm')!;
+    for (const guard of [
+      /!local\.production \|\| var\.ssl_required == "all"/,
+      /!local\.production \|\| !local\.create_test_users/,
+      /!local\.production \|\| var\.webauthn_rp_id != "localhost"/,
+      /!local\.production \|\| \(startswith\(var\.kc_url, "https:\/\/"\) && !var\.kc_tls_insecure_skip_verify\)/,
+      /!local\.production \|\| \(var\.smtp_host != "mailpit"/,
+    ]) {
+      expect(realm.body, String(guard)).toMatch(guard);
+    }
+    // TLS verification of the admin connection is never hard-coded off.
+    expect(read('terraform/keycloak/versions.tf')).toMatch(/tls_insecure_skip_verify\s*=\s*var\.kc_tls_insecure_skip_verify/);
+  });
+
+  test('PROD: brute-force detection on, temporary lockouts only; both WebAuthn policies use var.webauthn_rp_id', () => {
+    const realm = resources(read('terraform/keycloak/main.tf')).find((b) => b.type === 'keycloak_realm')!;
+    expect(realm.body).toMatch(/brute_force_detection\s*\{/);
+    expect(attr(realm.body, 'permanent_lockout')).toBe('false');
+    expect(realm.body.match(/relying_party_id\s*=\s*var\.webauthn_rp_id/g)).toHaveLength(2);
+    expect(attr(realm.body, 'verify_email')).toBe('true');
+  });
+
+  test('PROD: frontend client has exact redirect URIs (no wildcards) and explicit web origins', () => {
+    const main = read('terraform/keycloak/main.tf');
+    const client = resources(main).find((b) => b.name === 'japan_trip_frontend')!;
+    expect(attr(client.body, 'valid_redirect_uris')).toBe('local.redirect_uris');
+    expect(attr(client.body, 'web_origins')).toBe('local.all_origins');
+    expect(attr(client.body, 'direct_access_grants_enabled')).toBe('false');
+    expect(attr(client.body, 'implicit_flow_enabled')).toBe('false');
+    expect(attr(client.body, 'pkce_code_challenge_method')).toBe('S256');
+    expect(main).not.toMatch(/web_origins\s*=\s*\[\s*"[+*]"/);
+    expect(main).not.toMatch(/"[^"\n]*\*"/); // no wildcard redirect/origin string anywhere
+    // Production never lists the Vite dev origins.
+    expect(main).toMatch(/all_origins\s*=\s*local\.production \? local\.app_origins : concat\(local\.app_origins, var\.local_dev_origins\)/);
+  });
+
+  test('PROD: Playwright test users and the manage-users worker client are conditional', () => {
+    const main = read('terraform/keycloak/main.tf');
+    const users = resources(main).filter((r) => r.type === 'keycloak_user');
+    expect(users.length).toBe(6);
+    for (const b of users) {
+      expect(b.body, `keycloak_user.${b.name}`).toMatch(/count = local\.create_test_users \? 1 : 0/);
+    }
+    const worker = resources(main).find((b) => b.name === 'japan_trip_worker')!;
+    expect(worker.body).toMatch(/count = local\.create_worker_client \? 1 : 0/);
   });
 
   test('SEC-25: user-editable attributes stay out of the access token', () => {

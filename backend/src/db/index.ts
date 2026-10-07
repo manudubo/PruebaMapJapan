@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { log } from '../observability/logger';
 import { drizzle as drizzleNeon, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzlePg, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
@@ -83,7 +84,7 @@ function pgPool(databaseUrl: string): pg.Pool {
     // An idle client dropped by the server (restart, idle timeout) emits
     // 'error' on the pool; unhandled, that event kills the Node process.
     // The pool discards the client and reconnects on the next query.
-    pool.on('error', (err) => console.error('pg pool: idle client error:', err.message));
+    pool.on('error', (err) => log.error('db.pool_idle_client_error', { error: err }));
     pgPools.set(databaseUrl, pool);
   }
   return pool;

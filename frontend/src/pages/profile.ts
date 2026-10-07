@@ -7,6 +7,7 @@ import {
   getUserInfo,
   logout,
   keycloak,
+  keycloakBaseUrl,
 } from '@/auth/keycloak';
 import { watchAuth, showAuthUnavailableState, clearAuthUnavailableState } from '@/auth/authStatusUI';
 import { getMe } from '@/api/client';
@@ -17,7 +18,7 @@ import {
   type PasskeyCredential,
 } from '@/modules/passkeyList';
 
-const KEYCLOAK_URL = import.meta.env['VITE_KEYCLOAK_URL'] as string ?? 'http://localhost:8080';
+const KEYCLOAK_URL = keycloakBaseUrl(import.meta.env['VITE_KEYCLOAK_URL'] as string | undefined);
 const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string ?? 'japan-trip';
 
 let credentialCount = 0;

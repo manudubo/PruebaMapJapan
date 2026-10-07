@@ -39,6 +39,8 @@ tests/.env.test
 
 # Terraform state and secrets
 terraform/keycloak/local.tfvars
+terraform/keycloak/production.tfvars
+terraform/keycloak/*.auto.tfvars
 terraform/keycloak/terraform.tfstate
 terraform/keycloak/terraform.tfstate.backup
 terraform/keycloak/.terraform/

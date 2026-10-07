@@ -13,7 +13,7 @@ vi.mock('../db/queries/trips', async (importOriginal) => {
 
 import app from '../index';
 import type { Env } from '../types';
-import { PERMISSIONS_POLICY } from './security';
+import { API_CSP, HSTS, PERMISSIONS_POLICY } from './security';
 
 const mockEnv: Env = {
   DATABASE_URL: 'postgresql://mock:mock@localhost/mockdb',
@@ -28,33 +28,33 @@ const mockEnv: Env = {
 function expectAllSecurityHeaders(res: Response): void {
   expect(res.headers.get('x-content-type-options')).toBe('nosniff');
   expect(res.headers.get('permissions-policy')).toBe(PERMISSIONS_POLICY);
-  expect(res.headers.get('content-security-policy')).toBe("default-src 'none'");
+  expect(res.headers.get('content-security-policy')).toBe(API_CSP);
   expect(res.headers.get('x-frame-options')).toBe('DENY');
-  expect(res.headers.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains');
+  expect(res.headers.get('strict-transport-security')).toBe(HSTS);
   expect(res.headers.get('referrer-policy')).toBe('no-referrer');
 }
 
 describe('security headers (SEC-20)', () => {
   it('are present on a 200 response', async () => {
-    const res = await app.request('/api/health', {}, mockEnv);
+    const res = await app.request('https://api.example.test/api/health', {}, mockEnv);
     expect(res.status).toBe(200);
     expectAllSecurityHeaders(res);
   });
 
   it('are present on a 404 from notFound', async () => {
-    const res = await app.request('/nope', {}, mockEnv);
+    const res = await app.request('https://api.example.test/nope', {}, mockEnv);
     expect(res.status).toBe(404);
     expectAllSecurityHeaders(res);
   });
 
   it('are present on a 401 from the auth middleware', async () => {
-    const res = await app.request('/api/trips', {}, mockEnv);
+    const res = await app.request('https://api.example.test/api/trips', {}, mockEnv);
     expect(res.status).toBe(401);
     expectAllSecurityHeaders(res);
   });
 
   it('are present on a 400 validation error', async () => {
-    const res = await app.request('/api/public/trips/not-a-uuid', {}, mockEnv);
+    const res = await app.request('https://api.example.test/api/public/trips/not-a-uuid', {}, mockEnv);
     expect(res.status).toBe(400);
     expectAllSecurityHeaders(res);
   });
@@ -62,7 +62,7 @@ describe('security headers (SEC-20)', () => {
   it('are present on a 500 from app.onError', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await app.request(
-      '/api/public/trips/00000000-0000-0000-0000-000000000000',
+      'https://api.example.test/api/public/trips/00000000-0000-0000-0000-000000000000',
       {},
       mockEnv,
     );
@@ -73,11 +73,11 @@ describe('security headers (SEC-20)', () => {
 
   it('are present on a CORS preflight response', async () => {
     const res = await app.request(
-      '/api/trips',
+      'https://api.example.test/api/trips',
       {
         method: 'OPTIONS',
         headers: {
-          Origin: 'https://manud.github.io',
+          Origin: 'https://manudubo.github.io',
           'Access-Control-Request-Method': 'POST',
         },
       },

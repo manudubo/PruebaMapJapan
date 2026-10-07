@@ -159,7 +159,9 @@ describe('authMiddleware — generic invalid_token (SEC-06)', () => {
     const iss = 'x'.repeat(50_000);
     await expectGenericRejection(await call(`Bearer ${await signJwt(key, validClaims({ iss }))}`));
     const line = String(warn.mock.calls[0]?.[0]);
-    expect(line.length).toBeLessThan(400);
+    // Reason clipped to 300 chars, inside a JSON log object (request id, ts…).
+    expect(line.length).toBeLessThan(700);
+    expect(line).not.toContain('x'.repeat(400));
   });
 
   it('newlines in attacker claims cannot forge extra log lines', async () => {

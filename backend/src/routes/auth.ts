@@ -6,6 +6,8 @@ import { ensureUserProvisioned } from '../middleware/user';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { OtpVerifySchema } from '../validation/schemas';
 import { otpEmailTransport, sendOtpEmail } from '../auth/otp-email';
+import { log } from '../observability/logger';
+import { POLICIES, rateLimit } from '../middleware/rate-limit';
 import {
   getLatestUnexpiredOtp,
   issueOtp,
@@ -56,6 +58,10 @@ async function timingSafeCompare(
 
 const authRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
+// Per-IP limits run before the token is verified, so a flood is rejected
+// without JWT/DB work; per-user limits run after authentication.
+authRoute.use('/otp-request', rateLimit(POLICIES.otpRequestPerIp));
+authRoute.use('/otp-verify', rateLimit(POLICIES.otpVerifyPerIp));
 authRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 
 // Unexpected failures propagate to the global errorHandler (M-09), which logs
@@ -63,10 +69,17 @@ authRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
 
 // POST /api/auth/otp-request
 // No request body — email is taken from c.var.user.email
-authRoute.post('/otp-request', async (c) => {
-  const email = c.get('user').email;
+authRoute.post('/otp-request', rateLimit(POLICIES.otpRequestPerUser), async (c) => {
+  const { email, email_verified: emailVerified } = c.get('user');
   if (!email) {
     const response: ApiResponse<never> = { success: false, error: 'no_email' };
+    return c.json(response, 422);
+  }
+  // The code only ever goes to the account's own address, and only once
+  // Keycloak has verified it: otherwise anyone could register an account
+  // with a stranger's address and use our mailbox to spam it.
+  if (emailVerified !== true) {
+    const response: ApiResponse<never> = { success: false, error: 'email_not_verified' };
     return c.json(response, 422);
   }
 
@@ -79,7 +92,7 @@ authRoute.post('/otp-request', async (c) => {
   // DATA-01: opportunistic purge of dead codes. Best-effort housekeeping —
   // a failure here must not block sign-in, so log and carry on.
   await deleteStaleOtps(db).catch((err: unknown) => {
-    console.error('otp-request: stale OTP cleanup failed:', err);
+    log.error('otp.cleanup_failed', { request_id: c.get('requestId'), error: err });
   });
 
   // bias < 0.023% across Uint32 range — negligible for 6-digit OTP
@@ -110,7 +123,7 @@ authRoute.post('/otp-request', async (c) => {
 
 // POST /api/auth/otp-verify
 // Body: { code: string } — validated by OtpVerifySchema
-authRoute.post('/otp-verify', zValidator('json', OtpVerifySchema), async (c) => {
+authRoute.post('/otp-verify', rateLimit(POLICIES.otpVerifyPerUser), zValidator('json', OtpVerifySchema), async (c) => {
   const db = c.get('db');
   const userId = c.get('dbUserId');
   const { code } = c.req.valid('json');

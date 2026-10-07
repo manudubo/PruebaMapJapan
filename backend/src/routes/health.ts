@@ -3,8 +3,13 @@ import { sql } from 'drizzle-orm';
 import { dbFromEnv } from '../middleware/db';
 import { checkSchemaReady, SCHEMA_NOT_MIGRATED } from '../db/schema-guard';
 import type { Env } from '../types';
+import { POLICIES, rateLimit } from '../middleware/rate-limit';
 
 const health = new Hono<{ Bindings: Env }>();
+
+// Unauthenticated and cheap, but on a single home server every request still
+// costs CPU; /ready also runs a (cached) catalog query.
+health.use('*', rateLimit(POLICIES.healthPerIp));
 
 /**
  * Minimal liveness body (SEC-24). It deliberately carries no service name,

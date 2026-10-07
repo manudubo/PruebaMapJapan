@@ -59,6 +59,8 @@ describe('verifyJwt — JWKS retry on signature failure (SEC-02)', () => {
       iss: 'http://localhost:8080/realms/japan-trip',
       sub: 'test-user-id',
       aud: 'japan-trip-frontend',
+      typ: 'Bearer',
+      azp: 'japan-trip-frontend',
       exp: now + 3600,
       nbf: now - 1,
       iat: now,
