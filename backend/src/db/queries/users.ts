@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../index';
 import { users } from '../schema';
 import { isUniqueViolation } from '../pg-errors';
@@ -44,6 +44,21 @@ export async function getUserByKeycloakId(
     .where(eq(users.keycloak_id, keycloakId))
     .limit(1);
 
+  return results[0];
+}
+
+/**
+ * The account that owns `email` (case-insensitive; users_email_unique_idx
+ * guarantees at most one). Empty/blank addresses match nothing.
+ */
+export async function getUserByEmail(db: Db, email: string): Promise<User | undefined> {
+  const wanted = email.trim().toLowerCase();
+  if (wanted === '') return undefined;
+  const results = await db
+    .select()
+    .from(users)
+    .where(and(sql`lower(${users.email}) = ${wanted}`, sql`${users.email} <> ''`))
+    .limit(1);
   return results[0];
 }
 
