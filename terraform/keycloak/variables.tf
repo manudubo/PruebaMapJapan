@@ -115,9 +115,10 @@ variable "frontend_url" {
 # Self-service sign-up (REG-01/05). Default: on locally, OFF in production. Turning it
 # on in production is an explicit opt-in that main.tf preconditions accept only with
 # the abuse controls in place (TLS SMTP, brute-force lockouts at <= 10 failures, the
-# recovery client, a >= 12 character password policy). The per-IP / per-day sign-up
-# throttle lives in the proxy (deploy/selfhost/caddy, REGISTRATION_* in .env), and the
-# API refuses unverified e-mail addresses (backend). See docs/SELF-HOSTING.md "Open sign-up".
+# recovery client, a >= 12 character password policy). The API refuses unverified
+# e-mail addresses (backend) and scripts/purge-unverified.sh removes never-verified
+# accounts. Keycloak has no sign-up rate limit of its own and stock Caddy has no rate
+# limiter: see docs/SELF-HOSTING.md "Open sign-up" for the limits and what is missing.
 variable "registration_allowed" {
   description = "Allow self-registration (default: true for local, false for production)"
   type        = bool
