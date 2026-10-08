@@ -58,12 +58,21 @@ jobs:
       - run: npx playwright install --with-deps chromium firefox
         working-directory: tests
 
-      - name: Start Keycloak 26.6.1
+      # Offline: every production / sign-up misconfiguration must fail the plan
+      # (terraform/keycloak/tests/guards.tftest.hcl, mocked provider, no Keycloak).
+      - name: Terraform plan guards (terraform test)
+        env:
+          TF_DATA_DIR: ${{ runner.temp }}/tf-guards
+        run: |
+          terraform -chdir=terraform/keycloak init -input=false -lockfile=readonly -no-color > /dev/null
+          terraform -chdir=terraform/keycloak test -no-color
+
+      - name: Start Keycloak 26.6.1 and Mailpit
         run: scripts/ci/keycloak-flow.sh start
       - name: Apply terraform/keycloak (throwaway secrets)
         run: scripts/ci/keycloak-flow.sh apply
 
-      - name: Run KC-01 regression tests (chromium + firefox)
+      - name: Run KC-01 / registration tests (chromium + firefox)
         working-directory: tests
         env:
           # Fail (not fixme) when Keycloak or its credentials are missing.
@@ -76,6 +85,7 @@ jobs:
           . "$RUNNER_TEMP/keycloak-flow/e2e.env"
           set +a
           npx playwright test e2e/idp-flow.spec.ts e2e/idp-config.spec.ts e2e/idp-hardening.spec.ts \
+            e2e/idp-registration.spec.ts \
             --project=chromium --project=firefox --retries=0
 
       - name: Keycloak log (on failure)
