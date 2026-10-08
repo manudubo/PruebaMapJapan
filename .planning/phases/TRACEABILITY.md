@@ -1,6 +1,6 @@
 # v3.2 Traceability: requirement -> status -> commits -> tests -> summary
 
-Rebuilt on 2026-10-04 from `git log 3c147f6..HEAD` (HEAD `33ab925`), the per-phase summaries and the code. Extended on 2026-10-08 for the PR #24 batch (`git log origin/main..HEAD`, head `2d7a734`, 89 commits; section "Post-v3.2 batch" at the end) and for the Actions results of PR #23. Rows below that changed in that update are marked (updated 2026-10-08). Phases 22-26 have no PLAN.md, and most commit subjects carry no requirement ID, so IDs were matched through the files each commit touched and the summaries. Each row was checked against the current code; the full unit suites were re-run on 2026-10-04 (backend 1524, frontend 1042, both passing).
+Rebuilt on 2026-10-04 from `git log 3c147f6..HEAD` (HEAD `33ab925`), the per-phase summaries and the code. Extended on 2026-10-08 for the PR #24 batch (`git log origin/main..HEAD`, head `2d7a734`, 89 commits; section "Post-v3.2 batch" at the end) and for the Actions results of PR #23. Extended again on 2026-10-08 for the registration batch (`git log --oneline origin/main..HEAD`, 53 commits after `d2dd404`, head `f581d45`; section "Registration batch" at the end; summaries `REG-IDP` / `REG-BE` / `REG-UI` / `REG-INT` = `qa/REGISTRATION-{IDP,BACKEND,UI,INTEGRATION}-REPORT.md`). Rows below that changed in that update are marked (updated 2026-10-08). Phases 22-26 have no PLAN.md, and most commit subjects carry no requirement ID, so IDs were matched through the files each commit touched and the summaries. Each row was checked against the current code; the full unit suites were re-run on 2026-10-04 (backend 1524, frontend 1042, both passing).
 
 Status vocabulary (same as `REQUIREMENTS.md`): **Complete** = implemented and proven by tests or a recorded manual check. **Partial** = part of the acceptance criteria met. **Deferred** = consciously not done. **Unverified** = implemented, a required verification has not happened.
 
@@ -235,3 +235,21 @@ Merge commits of the batch: 941e44b (A11Y), c3f4c31 (real-auth QA), eb62969 (sys
 - `feb5f5e`: `terraform fmt` of the Keycloak module.
 - `5ad817c`: static Keycloak/theme invariant spec, also covers SEC-11/13/19/25.
 - Actions evidence for PR #23 and the push to main is from the GitHub check-runs API (checked 2026-10-08), not from a commit: head `2200c6e` had `e2e`, `accessibility`, `gitleaks`, `test-backend`, `test-frontend`, `test-scripts`, `typecheck-frontend`, `typecheck-backend`, `build-backend` and the Vercel preview comments check all successful; `ed49639` had the same plus `deploy` and `build-and-deploy`.
+
+## Registration batch (REG-01..07; 53 commits after `d2dd404`, 2026-10-08)
+
+Merge commits: cde9023 (IdP), 91be138 (UI), ae6c03b (backend), f26a235 (integration). Tests are files that exist in the tree; counts are the reports' figures, not re-run. `tf/` = `terraform/keycloak/tests/`.
+
+| ID | Status | Key commits | Tests | Summary |
+|----|--------|-------------|-------|---------|
+| REG-01 | Unverified | 4649ea4, bd34659, 74d7556, 6aa71a6, 06fa511, fc85bc6, cfe23b4 | tf/guards.tftest.hcl (23 runs), e2e/idp-registration.spec.ts, e2e/idp-config.spec.ts (KC) | REG-IDP |
+| REG-02 | Complete | 995bab6, 85f9824, 0c26e86, 5dc6c7a, dd13730 / f017a77 (`onboarding.is_new`) | be/routes/email-verify.test.ts, be/config/verified-email.test.ts, be/db/migrations.test.ts, be/db/schema-guard.test.ts, adv/email-verification.test.ts, sys/upgrade-path.test.ts | REG-BE |
+| REG-03 | Complete | fdb3395, b6463b8, 86c5512 | adv/recovery.test.ts, be/auth/password-policy.test.ts, e2e/idp-registration.spec.ts (#7-#9), e2e/registration-integration.spec.ts (#4), ss/stack-e2e.sh `recover` | REG-BE, REG-INT |
+| REG-04 | Complete | ea9662b, c2e9b36, 2e63d60, 64c1269, 074e7e1, 31e4472, f0c51f1, 912970b, c931572, a706211, f507242 | fe/verify-email.test.ts, fe/passkey-onboarding.test.ts, fe/dashboard-onboarding.test.ts, fe/recover-view.test.ts, fe/recover-page.test.ts, fe/password-backup.test.ts, fe/password-rules.test.ts, fe/auth-gate.test.ts, fe/registration.test.ts, e2e/registration-ui.spec.ts, e2e/registration-ui-a11y.spec.ts | REG-UI |
+| REG-05 | Complete | 17a2493, b061473 | e2e/idp-flow.spec.ts (KC), e2e/registration-integration.spec.ts (#4) | REG-IDP |
+| REG-06 | Partial | a85ed2f, 4649ea4, 3160610, 003f15f, 823c180 | ss/purge-unverified.test.sh (34), ss/scripts.test.sh, tf/guards.tftest.hcl; no test for a sign-up throttle (not built) | REG-IDP |
+| REG-07 | Unverified | d12959b, b775454, 8c70a4d, 7425a2d, b431ae3, f8c6026, 4c32341, 5b1544c, 59a0c8d, f3845e1 | be/routes/auth-flows-contract.test.ts, fe/auth-flows-contract.test.ts (both read `contracts/auth-flows.json`), e2e/registration-integration.spec.ts, e2e/idp-registration.spec.ts, fe/workflows.test.ts | REG-INT |
+
+Other commits of the batch: 5c4fa67, b0fef8d, f3845e1 (reports and screenshots); b29ee1a (UI Playwright, REG-04); 607b4b3 (duplicate block after merging two onboarding branches); 3367cc6 (revert; compose env left to the backend); f581d45 (`.gitleaksignore` for the reCAPTCHA test-key fixtures in the guard tests).
+
+Bugs the integration run found and fixed: recovery token without roles (b6463b8), `max_attempts` shown as a wait (d12959b), dev server dropping env variables (59a0c8d), a wrong recovery e2e assumption (8c70a4d).

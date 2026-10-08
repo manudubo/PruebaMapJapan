@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: Security & Code Health Hardening
-status: v3.2_merged_production_readiness_pending_validation
+status: v3.2_merged_registration_batch_pending_validation
 stopped_at: v3.2 merged (PR #23, green on Actions); second batch (PR #24, 89 commits) consolidated in planning docs; waiting for PR #24 checks and validation on the owner's real server
 last_updated: "2026-10-08T00:00:00.000Z"
-last_activity: 2026-10-08 -- Planning docs updated for the PR #24 batch
+last_activity: 2026-10-08 -- Planning docs updated for the self-registration batch
 progress:
   total_phases: 7
   completed_phases: 7
@@ -30,7 +30,7 @@ Plan: n/a — Phases 22-26 ran from summaries, not PLAN.md files; the batch ran 
 Status: v3.2 shipped to `main` (CI green). PR #24 open, validated in the sandbox only
 Last activity: 2026-10-08
 
-Progress: v3.2 100%. Requirements: 84 Complete, 3 Partial (DEP-02, SEC-17, PROD-01), 1 Unverified (QA-01), 0 Deferred (88 rows: 82 audit-derived, DATA-04, and PROD-01..04, QA-01).
+Progress: v3.2 100%. Requirements: 88 Complete, 4 Partial (DEP-02, SEC-17, PROD-01, REG-06), 3 Unverified (QA-01, REG-01, REG-07), 0 Deferred (95 rows: 82 audit-derived, DATA-04, PROD-01..04, QA-01, REG-01..07). PR #24 is in `main` as `d2dd404` (its "open / running checks" wording below is from before the merge); the registration batch is 53 commits on top, not pushed to a PR.
 
 GitHub Actions evidence (checked 2026-10-08 through the API): PR #23 head `2200c6e` had all 10 checks green (`e2e`, `accessibility`, `gitleaks`, `test-backend`, `test-frontend`, `test-scripts`, `typecheck-*`, `build-backend`, Vercel preview comments). The push to `main` at `ed49639` ran green (12 check runs including `e2e`, `accessibility`, `gitleaks`, `test-backend`, `build-and-deploy` and `deploy`; the `Security & Accessibility Scans`, `Deploy Frontend to GitHub Pages` and `Deploy Backend to Cloudflare Workers` runs succeeded; the backend deploy almost certainly skipped without Cloudflare secrets, cause not inspected). For PR #24 head `2d7a734`, `Keycloak flow`, `CI` and the security workflow had started; `e2e`, `idp-flow`, `accessibility` and `test-backend` were still in progress, the rest green. Re-read before merging.
 
@@ -77,10 +77,19 @@ Full log in PROJECT.md Key Decisions table. v3.2 decisions that affect how the c
 - **404, not 403 (SEC-22):** foreign and missing resources answer the same 404 body on all nested routes; there is no existence oracle.
 - **Direct `MIGRATION_DATABASE_URL` secret:** migrations run in the deploy workflow with a direct (non-pooled) Neon URL, in the order config gate, `db:preflight`, `db:migrate`, `wrangler deploy`. No `CLOUDFLARE_API_TOKEN` means the job is green and skipped (demo-only today).
 - **CSP strict origins:** the CSP meta is built from the resolved Vite env. A production build fails if exactly one of `VITE_API_URL` / `VITE_KEYCLOAK_URL` is missing, or if both are missing without `CSP_ALLOW_MISSING_ORIGINS=true` (the Pages workflow sets that only when both secrets are empty). IPv6 hosts, wildcards, credentials and non-loopback `http` are rejected.
-- **Keycloak login flow:** passkey users always get WebAuthn; users without a passkey get the password form; no credential means no session. Trade-off: passkey users have no "Try another way" password fallback (recovery is "Forgot password" or an admin deleting the credential). Terraform is the only source of realm config.
+- **Keycloak login flow:** passkey users always get WebAuthn; users without a passkey get the password form; no credential means no session. Users with both get "Try another way" (REG-05, `17a2493`); a passkey-only user has no password form and recovers by e-mail code (REG-03). Terraform is the only source of realm config.
 - **Schema validation answers 422** (path-id, JSON syntax and reorder-permutation errors stay 400). Public trip responses omit `user_id`; numeric ids stay because the adapter needs them.
 - **Keycloak is the source of truth for user name/email** (BUG-08); `PATCH /api/users/me` name is overwritten on the next request.
 - **Test DB:** backend tests run on a real ephemeral Postgres 16 (`TEST_DATABASE_URL`), never skipped. `db:migrate` is the supported way to build the schema (`drizzle-kit push` produces a different schema; preflight stops a push-created DB).
+
+
+Third batch (self-registration, REG-01..07):
+
+- **Backend-owned e-mail OTP verification:** Keycloak core has no e-mail OTP and Java SPIs are out of scope, so `verify_email = false` in the realm and the backend sends and checks the 6-digit code (`email-verify/request|confirm`), reusing the login OTP core with a `purpose` column (migration 0011).
+- **Passkey-first sign-up:** Keycloak 26.6.1 form actions accept only REQUIRED/DISABLED, so the registration password cannot be optional. The form has no password and `webauthn-register-passwordless` is a default required action that cannot be skipped; users on devices without passkey support recover by e-mail code and set a password. E-mail is the username.
+- **Recovery client risk:** `travelmap-recovery` is a confidential service-account client holding realm-management `manage-users` (scope-mapped, `b6463b8`; without the mapping its token had no roles). Its secret lives in the server `.env` and the backend; whoever gets it can reset any password. It is the only admin client allowed in production.
+- **Verified semantic (DB flag):** verified = `users.email_verified_at` is set OR the token claim `email_verified === true` (boolean; `"true"`, `1`, null do not count). Migration 0011 stamps every existing user so the gate does not lock them out. `REQUIRE_VERIFIED_EMAIL` defaults to on outside development.
+- **Squatting defence:** recovering an account whose e-mail was never verified also deletes its other credentials and sessions; a legitimate unverified user loses passkeys they enrolled.
 
 ### Pending Todos
 
@@ -99,6 +108,7 @@ Full log in PROJECT.md Key Decisions table. v3.2 decisions that affect how the c
 6. Create the first account with `deploy/selfhost/scripts/add-user.sh` (registration is off in production).
 7. Consider a Caddy rate limit on `POST /auth/realms/japan-trip/login-actions/authenticate` (username enumeration).
 8. Run the Neon smoke checklist if the Worker/Neon path will be used; rotate the leaked local `japan-trip-worker` secret (DEP-02).
+9. Registration (third batch): set `REGISTRATION_ENABLED=true` only when ready; run `keycloak-apply.sh` (writes `KEYCLOAK_RECOVERY_CLIENT_SECRET` to `.env`), redeploy the backend, run `stack-e2e.sh register verify recover` against the real host; enable `purge-timer.sh` (daily); decide on reCAPTCHA (`TF_VAR_recaptcha_site_key` / `recaptcha_secret_key`, `require_recaptcha`); consider a Caddy or WAF limit on `/auth/realms/japan-trip/protocol/openid-connect/registrations`; check that `users.email_verified_at` is filled for existing users before turning the gate on.
 
 ### Blockers/Concerns
 
@@ -109,6 +119,12 @@ Full log in PROJECT.md Key Decisions table. v3.2 decisions that affect how the c
 - **Real validation on the owner's server is pending.** Funnel, Gmail delivery and passkeys on the `.ts.net` rpId were never exercised: the sandbox used a TLS front for Funnel and Mailpit for Gmail. Whether `tailscale serve` forwards the true client IP in `X-Forwarded-For` (the `TRUSTED_PROXY_HOPS=2` assumption) is unverified. `funnel.sh` ran only against a stub tailscale.
 - **Neon is only an emulator.** The Neon HTTP driver path ran against a fake that models the `/sql` contract (`backend/tests/system/`), not real Neon; the smoke checklist (S4) is still unrun.
 - **Username enumeration is residual.** The username-first login flow answers differently for an unknown user and a known one (and shows the WebAuthn prompt only for users with a passkey). Not fixable by configuration; bounded by registration off, temporary lockouts, identical failure messages. Pinned by `idp-hardening.spec.ts`; see `keycloak/README.md` section 4.
+- **No per-IP sign-up throttle (REG-06).** The stock Caddy 2.10 image has no rate-limit module, Keycloak has none for registration, and no backend `forward_auth` check exists. A bot with a WebAuthn emulator can create accounts at Keycloak's speed. Mitigations: purge of never-verified accounts, optional reCAPTCHA (unvalidated), closing sign-up. Watch `purge-unverified.sh` output.
+- **Recovery only works for accounts with a `users` row.** The row is created by the first authenticated API call (the app makes it on the redirect landing); a user who aborted sign-up before that cannot recover.
+- **`users.email_verified_at` backfill:** migration 0011 grandfathers every existing user as verified (stamped `now()` when the column is created). A push-built database that already had the column keeps NULLs. Check the count before enabling the gate.
+- **Keep registration closed until ready.** Production default is `registration_allowed = false`; open it only after the owner actions below (host name, Gmail, recovery secret) and the Actions run of the extended `keycloak-flow.yml` is seen. That run, real passkeys on the `.ts.net` rpId, real Gmail and reCAPTCHA are all unvalidated.
+- **Gmail limit (~500 mails/day)** is shared by login OTP, verification and recovery codes; every sign-up costs one mail. Per-address and per-user code limits exist, a global ceiling does not.
+- **Minor:** the backend never sends `attemptsLeft`, so the wrong-code message is generic; recovery's `weak_password.reason` is not shown by the UI; the e-mail code goes to the token address (keep realm "edit email" off).
 - **Informational, not ours: the owner's existing Tailscale Funnel on port 8443 (Home Assistant) is public** (the owner's statement). The kit leaves it, and the existing `:8081` entry, untouched and uses 443 only. Worth the owner reviewing what is reachable from the internet on that machine.
 - **Rate limits are per process.** On Workers each isolate counts separately until a shared store or WAF rules exist; the geocode gate and cache are also per process. A typo in `ALLOWED_ORIGINS` silently locks the SPA out (logged as `cors.invalid_allowed_origins`).
 - **Old Worker on a migrated schema degrades to 500s** for date-rule and email-conflict writes; roll forward, never roll the schema back.
@@ -143,5 +159,5 @@ Full log in PROJECT.md Key Decisions table. v3.2 decisions that affect how the c
 ## Session Continuity
 
 Last session: 2026-10-08
-Stopped at: Planning docs updated for the PR #24 batch (REQUIREMENTS, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX). `PR-DESCRIPTION.md` still describes PR #23 only.
+Stopped at: Planning docs updated for the registration batch (REQUIREMENTS REG-01..07, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX, PR-DESCRIPTION).
 Resume: Read the PR #24 checks, merge, validate on the owner's server, then update PROD-01, SEC-17 and QA-01. Run `/gsd-complete-milestone` only after owner actions are done or consciously deferred.
