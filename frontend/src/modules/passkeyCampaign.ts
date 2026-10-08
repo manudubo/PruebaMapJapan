@@ -1,4 +1,4 @@
-import { keycloak } from '@/auth/keycloak';
+import { keycloak, loginRedirectUri } from '@/auth/keycloak';
 
 export function checkPasskeyCampaign(userId: string): void {
   // WebAuthn capability check (D-12)
@@ -14,6 +14,6 @@ export function checkPasskeyCampaign(userId: string): void {
   // Redirect to passkey registration AIA (D-15)
   void keycloak.login({
     action: 'webauthn-register-passwordless',
-    redirectUri: window.location.href,
+    redirectUri: loginRedirectUri(),
   });
 }

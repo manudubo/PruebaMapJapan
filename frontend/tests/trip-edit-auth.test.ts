@@ -7,6 +7,8 @@ import { resolve } from 'path';
 const h = vi.hoisted(() => ({
   nextInit: [] as Array<() => Promise<boolean>>,
   inits: 0,
+  logins: [] as string[],
+  loginFails: false,
 }));
 
 vi.mock('keycloak-js', () => ({
@@ -27,7 +29,10 @@ vi.mock('keycloak-js', () => ({
         return auth;
       });
     });
-    login = vi.fn(async () => {});
+    login = vi.fn(async (opts: { redirectUri: string }) => {
+      if (h.loginFails) throw new Error('adapter failed');
+      h.logins.push(opts.redirectUri);
+    });
     isTokenExpired = vi.fn(() => false);
     updateToken = vi.fn(async () => true);
   },
@@ -72,6 +77,9 @@ beforeEach(() => {
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, get: () => true });
   h.nextInit.length = 0;
   h.inits = 0;
+  h.logins.length = 0;
+  h.loginFails = false;
+  window.sessionStorage.clear();
   redirects = [];
   api.getTrip.mockReset().mockResolvedValue({ id: 7, name: 'Trip', destinations: [] });
   sections.initMetadataSection.mockReset();
@@ -129,14 +137,35 @@ describe('trip-edit auth handling (S1)', () => {
     expect(h.inits).toBe(2);
   });
 
-  it('genuinely signed out: redirects to the dashboard, no API call', async () => {
+  it('genuinely signed out: starts sign-in that comes back to this trip, no API call', async () => {
+    h.nextInit.push(() => Promise.resolve(false));
+    await loadPage();
+    await vi.advanceTimersByTimeAsync(0);
+    // Keycloak gets a registered page (no query string); the editor URL waits in sessionStorage.
+    expect(h.logins).toHaveLength(1);
+    expect(h.logins[0]).toMatch(/\/dashboard\.html$/);
+    expect(window.sessionStorage.getItem('travelmap.auth.returnTo')).toContain('trip-edit.html?tripId=7');
+    expect(redirects).toEqual([]);
+    expect(api.getTrip).not.toHaveBeenCalled();
+    expect(document.getElementById('auth-unavailable')).toBeNull();
+  });
+
+  it('signed out and the login redirect cannot start: falls back to the dashboard', async () => {
+    h.loginFails = true;
     h.nextInit.push(() => Promise.resolve(false));
     await loadPage();
     await vi.advanceTimersByTimeAsync(0);
     expect(redirects).toHaveLength(1);
     expect(redirects[0]).toMatch(/dashboard\.html$/);
-    expect(api.getTrip).not.toHaveBeenCalled();
-    expect(document.getElementById('auth-unavailable')).toBeNull();
+  });
+
+  it('signed out without a tripId: the dashboard (nothing to come back to)', async () => {
+    h.nextInit.push(() => Promise.resolve(false));
+    await loadPage('');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.logins).toEqual([]);
+    expect(redirects).toHaveLength(1);
+    expect(redirects[0]).toMatch(/dashboard\.html$/);
   });
 
   it('signed in without a tripId: redirects to the dashboard', async () => {

@@ -8,6 +8,7 @@ import {
   logout,
   keycloak,
   keycloakBaseUrl,
+  loginRedirectUri,
 } from '@/auth/keycloak';
 import { watchAuth, showAuthUnavailableState, clearAuthUnavailableState } from '@/auth/authStatusUI';
 import { getMe } from '@/api/client';
@@ -90,7 +91,7 @@ async function registerPasskey(): Promise<void> {
   try {
     await keycloak.login({
       action: 'webauthn-register-passwordless',
-      redirectUri: window.location.href,
+      redirectUri: loginRedirectUri(),
     });
   } catch {
     showStatus('passkey-status', 'Error starting passkey registration.', 'error');
@@ -105,7 +106,7 @@ async function changePassword(): Promise<void> {
   try {
     await keycloak.login({
       action: 'UPDATE_PASSWORD',
-      redirectUri: window.location.href,
+      redirectUri: loginRedirectUri(),
     });
   } catch {
     showStatus('passkey-status', 'Error starting password change.', 'error');
@@ -188,7 +189,7 @@ function openDeleteConfirm(credentialId: string): void {
     guardBtn.addEventListener('click', () => {
       keycloak.login({
         action: 'webauthn-register-passwordless',
-        redirectUri: window.location.href,
+        redirectUri: loginRedirectUri(),
       }).catch(() => { /* non-fatal if KC unavailable */ });
     }, { once: true });
   } else {
@@ -199,7 +200,7 @@ function openDeleteConfirm(credentialId: string): void {
       freshConfirm.textContent = 'Deleting…';
       keycloak.login({
         action: `delete_credential:${credentialId}`,
-        redirectUri: window.location.href,
+        redirectUri: loginRedirectUri(),
       }).catch(() => {
         freshConfirm.disabled = false;
         freshConfirm.textContent = 'Delete';

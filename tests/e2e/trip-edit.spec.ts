@@ -70,13 +70,16 @@ async function openEditor(page: Page, options: Parameters<typeof mockApi>[1] = {
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('Trip editor access', () => {
-  test('a guest is sent back to the dashboard', async ({ page }) => {
+  test('a guest is sent to sign in, with a registered redirect_uri (return covered by auth-return-to.spec.ts)', async ({ page }) => {
     await mockKeycloakLoggedOut(page);
     await mockApi(page);
 
     await page.goto('trip-edit.html?tripId=1');
 
-    await page.waitForURL(/dashboard\.html$/);
+    await page.waitForURL(/\/protocol\/openid-connect\/auth\?/);
+    const redirectUri = new URL(new URL(page.url()).searchParams.get('redirect_uri')!);
+    expect(redirectUri.pathname).toBe('/PruebaMapJapan/dashboard.html');
+    expect(redirectUri.search).toBe('');
   });
 
   test('a signed-in user without a tripId is sent back to the dashboard', async ({ page }) => {
