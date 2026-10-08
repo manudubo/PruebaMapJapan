@@ -180,6 +180,12 @@ out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@g
   "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
 expect_eq "keycloak-apply.sh: half a reCAPTCHA key pair refused" 1 "$rc"
 expect_has "  and says why" "RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY" "$out"
+for bad_origin in https://localhost:5173 http://localhost:5173 https://127.0.0.1 http://manudubo.github.io; do
+  out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@gmail.com FRONTEND_ORIGIN=$bad_origin \
+    "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+  expect_eq "keycloak-apply.sh: FRONTEND_ORIGIN=$bad_origin refused" 1 "$rc"
+  expect_has "  and says why" "Back to application" "$out"
+done
 grep -q 'printf .  "registration_allowed": %s' "$SCRIPTS/keycloak-apply.sh" \
   && grep -q -- '-e TF_VAR_recaptcha_secret_key' "$SCRIPTS/keycloak-apply.sh" \
   && ! grep -q 'recaptcha_secret_key"' "$SCRIPTS/keycloak-apply.sh" \

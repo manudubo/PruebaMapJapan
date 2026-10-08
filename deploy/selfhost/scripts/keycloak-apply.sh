@@ -85,6 +85,14 @@ if { [ -n "$recaptcha_site_key" ] && [ -z "${RECAPTCHA_SECRET_KEY:-}" ]; } \
   die "Set both RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY in .env, or neither."
 fi
 
+# --- Client URLs: the production realm must never point at localhost -----------------
+# The client's base URL feeds Keycloak's "Back to application" link (e.g. on the
+# "Registration not allowed" page) and the login footer.
+case "$FRONTEND_ORIGIN" in
+  https://localhost*|https://127.*|https://\[::1\]*|http://*)
+    die "FRONTEND_ORIGIN must be the public https origin of the app (got '$FRONTEND_ORIGIN'), never localhost or plain http: Keycloak's \"Back to application\" link is built from it." ;;
+esac
+
 # --- Terraform runner -------------------------------------------------------------
 tf() {
   if command -v terraform >/dev/null 2>&1 && [ "${USE_TERRAFORM_IMAGE:-0}" != 1 ]; then

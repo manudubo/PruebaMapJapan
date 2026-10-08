@@ -270,3 +270,88 @@ run "local_without_test_passwords_fails" {
   }
   expect_failures = [keycloak_realm.japan_trip]
 }
+
+# --- Client root/base URL: the "Back to application" link (error pages, login footer) ---
+# Bug: "Registration not allowed" linked to http://localhost:5173/PruebaMapJapan/ in production.
+
+run "production_client_urls_come_from_deploy_defaults" {
+  command = plan
+
+  assert {
+    condition     = keycloak_openid_client.japan_trip_frontend.base_url == "https://manudubo.github.io/PruebaMapJapan/"
+    error_message = "production base_url must be pagesOrigin + appBasePath from config/deploy-defaults.json"
+  }
+  assert {
+    condition     = keycloak_openid_client.japan_trip_frontend.root_url == keycloak_openid_client.japan_trip_frontend.base_url
+    error_message = "root_url must match base_url"
+  }
+  assert {
+    condition = !anytrue([
+      for u in concat(
+        [keycloak_openid_client.japan_trip_frontend.base_url, keycloak_openid_client.japan_trip_frontend.root_url],
+        tolist(keycloak_openid_client.japan_trip_frontend.valid_redirect_uris),
+        tolist(keycloak_openid_client.japan_trip_frontend.valid_post_logout_redirect_uris),
+        tolist(keycloak_openid_client.japan_trip_frontend.web_origins),
+      ) : can(regex("localhost|127\\.0\\.0\\.1", u))
+    ])
+    error_message = "production must never emit localhost in base/root URL, redirect URIs, post-logout URIs or web origins"
+  }
+}
+
+run "production_client_urls_follow_app_origins" {
+  command = plan
+  variables {
+    app_origins   = ["https://app.example.org"]
+    app_base_path = "/trips/"
+  }
+
+  assert {
+    condition     = keycloak_openid_client.japan_trip_frontend.base_url == "https://app.example.org/trips/"
+    error_message = "base_url must follow app_origins[0] + app_base_path"
+  }
+  assert {
+    condition     = contains(tolist(keycloak_openid_client.japan_trip_frontend.web_origins), "https://app.example.org")
+    error_message = "web origin must follow app_origins"
+  }
+}
+
+run "production_loopback_origin_fails_the_plan" {
+  command = plan
+  variables {
+    app_origins = ["https://127.0.0.1"]
+  }
+  expect_failures = [keycloak_openid_client.japan_trip_frontend]
+}
+
+run "production_localhost_origin_fails_validation" {
+  command = plan
+  variables {
+    app_origins = ["https://localhost"]
+  }
+  expect_failures = [var.app_origins]
+}
+
+run "local_profile_keeps_localhost_client_urls" {
+  command = plan
+  variables {
+    profile                      = "local"
+    kc_url                       = "http://localhost:8080"
+    ssl_required                 = "external"
+    webauthn_rp_id               = "localhost"
+    smtp_host                    = "mailpit"
+    smtp_port                    = 1025
+    smtp_starttls                = false
+    smtp_user                    = ""
+    e2e_test_password            = "x-Local-Test-1!"
+    e2e_otp_password             = "x-Local-Test-1!"
+    testuser_password            = "x-Local-Test-1!"
+    new_user_test_password       = "x-Local-Test-1!"
+    trip_edit_test_user_password = "x-Local-Test-1!"
+    e2e_session_password         = "x-Local-Test-1!"
+  }
+
+  assert {
+    condition     = keycloak_openid_client.japan_trip_frontend.base_url == "http://localhost:5173/PruebaMapJapan/"
+    error_message = "local profile keeps the Vite dev origin as base_url"
+  }
+}
