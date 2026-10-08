@@ -6,7 +6,8 @@
 - ✅ **v3.0 Quality, Polish & DevX** — Phases 10–14 (shipped 2026-06-15)
 - ✅ **v3.1 E2E Stabilization** — Phases 15–19 (shipped 2026-07-23)
 - ✅ **v3.2 Security & Code Health Hardening** — Phases 20–26 (executed 2026-07-24 → 2026-10-04; merged to `main` as PR #23, green on Actions; leftovers: DEP-02 and SEC-17 Partial)
-- 🔄 **Production readiness (post-v3.2)** — third batch (self-registration, REG-01..07) added on top, 53 commits after `d2dd404`; second batch on `claude/focused-lovelace-cryssy`, PR #24 open (89 commits, 2026-10-04 → 2026-10-08); self-hosting kit, internet hardening, A11Y-04/05, SEC-18; validation on the owner's real server pending
+- 🔄 **v3.3 UX & Product Polish** — Phases 27–31 (started 2026-10-08; seven owner-reported items UX-*, agents implementing in parallel; all In progress)
+- 🔄 **Production readiness (post-v3.2)** — third batch (self-registration, REG-01..07) added on top, 53 commits after `d2dd404`; second batch PR #24 (89 commits, 2026-10-04 → 2026-10-08), merged as `d2dd404`; the registration batch is merged as PR #25 (`41f43d4`), docs PR #26 (`6d4c4f1`); self-hosting kit, internet hardening, A11Y-04/05, SEC-18; validation on the owner's real server pending
 
 ## Phases
 
@@ -61,6 +62,18 @@ Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `cod
 - [x] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03) — executed 2026-09-30 → 2026-10-03; ARCH-09 Complete (e2e job green on PR #23 head 2200c6e and on main)
 - [x] **Phase 25: Business Logic & Demo Parity** — timezone date-shift bug (BIZ-11), cross-level date coherence (BIZ-07), expose is_optional/is_generic/maps_url/time/zoom_level through editor (BIZ-01..05), date-order validation (BIZ-06/08/09), remaining parity items (BIZ-10) — executed 2026-09-30 → 2026-10-03; BIZ-07 shipped as DB triggers in the follow-up
 - [x] **Phase 26: Remaining Security Hardening & IdP Flow** — KC passkey flow restructure (KC-01, SEC-12), JWKS/JWT/OTP atomicity (SEC-05/06/07), remaining low-severity security findings (SEC-08..11/13/17..25) — executed 2026-09-30 → 2026-10-03; SEC-17 **Partial**; SEC-18 Complete in the PR #24 batch
+
+### v3.3 UX & Product Polish
+
+Owner-reported on 2026-10-08, after the registration batch (PR #25) merged. Requirements: UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01 (`REQUIREMENTS.md`, section "v3.3"). Acceptance criteria per item are in the same file. Status of every item: **In progress** (parallel agents, one worktree each; whoever merges updates the final statuses). Design doc for the trip flow: `docs/design/TRIP-CREATION-UX.md` (written by an agent). Phases are grouped for traceability; there are no PLAN.md files.
+
+- [ ] **Phase 27: Keycloak Screens** — redesign of every realm screen (login, passkey, OTP, verify-email, register, webauthn-register, update-password, info, error, logout) on the site/demo tokens, light/dark, mobile; no nested boxes on login (UX-KC-01); device-derived passkey labels (UX-KC-02); the error / "back to application" link returns to the production app (UX-KC-03)
+- [ ] **Phase 28: Navigation & Search Scope** — Home button on `dashboard.html` reaches the landing page for logged-in users (UX-NAV-01); the search magnifier searches the user's own trips on authenticated pages and demo data only on demo/static city pages (UX-SEARCH-01). Depends on the API client
+- [ ] **Phase 29: Trip Creation Flow** — guided steps, place search, map with dashed route, day/activity editing, live preview, autosave, so a user who has seen the demo can build the same trip (UX-TRIP-01, the most critical objective of v3.3). Shares data adapters with Phase 30
+- [ ] **Phase 30: Trip View Parity** — saved trips shown like the demo (overview map with dashed line and selectable cities, itinerary cards linking to city views), modern dashboard trip cards, loading / error / API-down states (UX-TRIP-02). Shares data adapters with Phase 29
+- [ ] **Phase 31: Cross-cutting Validation** — unit, e2e, edge-case and visual validation (light/dark x 375/1280) of all seven items on the integrated tree; report in `qa/UX-*.md` (QA entry placeholder in `qa/QA-INDEX.md`)
+
+Dependencies: UX-TRIP-01 and UX-TRIP-02 share the trip data adapters (API shape to editor/view model); UX-SEARCH-01 depends on the API client; UX-KC-01..03 touch the Keycloak theme and Terraform/deploy config only; UX-NAV-01 is independent.
 
 ## Phase Details
 
@@ -189,6 +202,11 @@ Plans:
 | 24. Architecture Debt & Test Coverage | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 15/15 Complete (ARCH-09 once e2e was green on Actions) | 2026-10-03 |
 | 25. Business Logic & Demo Parity | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 11/11 Complete (BIZ-07 in follow-up) | 2026-10-03 |
 | 26. Remaining Security Hardening & IdP Flow | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 18/19 Complete, SEC-17 Partial (SEC-18 in the PR #24 batch) | 2026-10-03 |
+| 27. Keycloak Screens | v3.3 | n/a | In progress (UX-KC-01..03) | - |
+| 28. Navigation & Search Scope | v3.3 | n/a | In progress (UX-NAV-01, UX-SEARCH-01) | - |
+| 29. Trip Creation Flow | v3.3 | n/a | In progress (UX-TRIP-01) | - |
+| 30. Trip View Parity | v3.3 | n/a | In progress (UX-TRIP-02) | - |
+| 31. Cross-cutting Validation | v3.3 | n/a | Planned | - |
 
 ## Post-phase work (v3.2, outside the original requirements)
 

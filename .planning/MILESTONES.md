@@ -1,8 +1,30 @@
 # Milestones
 
+## v3.3 UX & Product Polish (Phases 27-31)
+
+**Status:** In progress (started 2026-10-08). Seven owner-reported items implemented by parallel agents in separate worktrees; none merged when this was written, so every status is In progress. Whoever merges updates `REQUIREMENTS.md`, `phases/TRACEABILITY.md` and this entry.
+**Requirements:** UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01 (`REQUIREMENTS.md`, section "v3.3")
+**Design doc:** `docs/design/TRIP-CREATION-UX.md` (UX-TRIP-01)
+
+### Goal
+
+Make the product feel finished: modern Keycloak screens that match the site, device-named passkeys, a production-correct "back to application" link, a landing page logged-in users can reach, search that matches the page you are on, and above all a trip creation flow as simple as the demo makes it look, with saved trips viewed the same way.
+
+### Scope and dependencies
+
+- Phase 27 (UX-KC-01..03): Keycloak theme, Terraform and deploy defaults
+- Phase 28 (UX-NAV-01, UX-SEARCH-01): navigation and search scope; search depends on the API client
+- Phases 29-30 (UX-TRIP-01, UX-TRIP-02): creation flow and view parity; share the trip data adapters
+- Phase 31: cross-cutting validation: unit, e2e, edge cases, visual light/dark at 375 and 1280
+
+### Known Gaps (at time of writing)
+
+- Nothing is merged or verified; no test counts yet. QA entry is a placeholder in `qa/QA-INDEX.md`
+- Production Keycloak keeps the old theme until the owner redeploys the image (the prod image has no theme today, see `STATE.md` blockers)
+
 ## Post-v3.2 batch 3 — Self-registration (REG-01..07)
 
-**Status:** 53 commits on `claude/focused-lovelace-cryssy` after `d2dd404` (PR #24 as merged), no PR yet; sandbox-validated, real-host validation pending. Not a numbered milestone.
+**Status:** 53 commits after `d2dd404` (PR #24 as merged); merged to `main` as PR #25 (`41f43d4`), with its planning docs in PR #26 (`6d4c4f1`); sandbox-validated, real-host validation pending. Not a numbered milestone.
 **Timeline:** 2026-10-08
 **Stats (`git log origin/main..HEAD`):** 53 commits (49 non-merge, 4 merges), four tracks (IdP, backend, UI, integration)
 **Tests as reported (not re-run for these docs):** backend 70 files / 2161 tests x3, frontend 69 files / 1488 tests, `terraform test` 23/23, `purge-unverified.test.sh` 34/34, `scripts.test.sh` 57/57, `idp-registration` 9/9 + `registration-integration` 7/7 on the real stack, self-host `stack-e2e.sh` 67/67, mocked UI Playwright 96/96 (`qa/REGISTRATION-*.md`)
