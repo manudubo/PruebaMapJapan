@@ -23,7 +23,7 @@ import {
   requestEmailVerification,
   type AuthFlowResult,
 } from '@/api/authFlows';
-import { EMAIL_NOT_VERIFIED_EVENT } from '@/api/client';
+import { EMAIL_NOT_VERIFIED_EVENT } from './emailEvent';
 import { createCodeInput } from '@/modules/codeInput';
 import { createCooldown } from '@/modules/cooldown';
 import { showToast } from '@/modules/toast';

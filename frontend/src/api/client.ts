@@ -7,6 +7,9 @@
 
 import { getToken, isAuthenticated, login } from '@/auth/keycloak';
 import { showToast } from '@/modules/toast';
+import { EMAIL_NOT_VERIFIED_EVENT } from '@/auth/emailEvent';
+
+export { EMAIL_NOT_VERIFIED_EVENT };
 import type {
   ApiTrip,
   ApiDestination,
@@ -89,13 +92,6 @@ export class ApiError extends Error {
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
-
-/**
- * Dispatched on `window` when any call answers 403 `email_not_verified`: the account's
- * address is not verified yet, so the verification screen (src/auth/verifyEmail.ts) takes
- * over instead of every caller showing its own error.
- */
-export const EMAIL_NOT_VERIFIED_EVENT = 'travelmap:email-not-verified';
 
 /**
  * True once a 401 has triggered the session-expired toast + login redirect,
