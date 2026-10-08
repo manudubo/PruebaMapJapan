@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 # Create or update the japan-trip realm on the self-hosted Keycloak with
-# Terraform (terraform/keycloak + the production overrides in
-# deploy/selfhost/terraform). Safe to re-run: no changes = nothing applied.
+# Terraform: terraform/keycloak with profile = "production" (its
+# preconditions refuse any local-only setting). Safe to re-run: no
+# changes = nothing applied.
 #
 #   ./scripts/keycloak-apply.sh            # plan, ask, apply
 #   ./scripts/keycloak-apply.sh --yes      # apply without asking
 #   ./scripts/keycloak-apply.sh --dry-run  # plan only, change nothing
 #
-# Production settings applied on top of terraform/keycloak:
-#   - redirect URIs  FRONTEND_ORIGIN/FRONTEND_BASE_PATH/*, web origin FRONTEND_ORIGIN
-#   - ssl_required = all, passkey rpId = the Keycloak host name
-#   - Keycloak emails through SMTP_* from .env
-#   - NO test users
+# Values passed from .env (everything else is the production profile:
+# brute-force lockouts, password policy, no test users, no registration):
+#   - app_origins [FRONTEND_ORIGIN], app_base_path FRONTEND_BASE_PATH/ (exact
+#     redirect pages, no wildcards)
+#   - ssl_required = all, webauthn_rp_id = the Keycloak host name
+#   - Keycloak emails through SMTP_* / EMAIL_FROM from .env
 #
 # Talks to Keycloak on http://127.0.0.1:KC_ADMIN_PORT/auth (never through the
 # public URL, where the admin API is blocked). Uses `terraform` if installed,
 # otherwise the official Terraform image. State lives in
-# deploy/selfhost/state/terraform (back it up; backup.sh does).
+# deploy/selfhost/state/terraform/keycloak (back it up; backup.sh does).
 set -euo pipefail
 # shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
@@ -35,8 +37,9 @@ load_config
 require_secrets
 
 TF_SRC="$REPO_DIR/terraform/keycloak"
-TF_OVERRIDES="$SELFHOST_DIR/terraform"
-WORK="${SELFHOST_STATE_DIR:-$SELFHOST_DIR/state}/terraform"
+STATE_DIR="${SELFHOST_STATE_DIR:-$SELFHOST_DIR/state}"
+# Same layout as the repo (terraform/keycloak reads ../../config/deploy-defaults.json).
+WORK="$STATE_DIR/terraform/keycloak"
 KC_LOCAL_URL="http://127.0.0.1:${KC_ADMIN_PORT}/auth"
 TERRAFORM_IMAGE="${TERRAFORM_IMAGE:-public.ecr.aws/hashicorp/terraform:1.9.8}"
 REALM="$KEYCLOAK_REALM"
@@ -62,9 +65,9 @@ smtp_from_name="${smtp_from_name:-TravelMap}"
 case "$smtp_secure" in
   tls) smtp_ssl=true; smtp_starttls=false ;;
   starttls) smtp_ssl=false; smtp_starttls=true ;;
-  none) smtp_ssl=false; smtp_starttls=false ;;
-  *) die "SMTP_SECURE must be starttls, tls or none (got '$smtp_secure')." ;;
+  *) die "SMTP_SECURE must be starttls or tls for Keycloak in production (got '$smtp_secure')." ;;
 esac
+[[ "$smtp_port" =~ ^[0-9]{1,5}$ ]] || die "SMTP_PORT must be a number (got '$smtp_port')."
 
 # --- Terraform runner -------------------------------------------------------------
 tf() {
@@ -75,12 +78,10 @@ tf() {
       -u KEYCLOAK_CLIENT_SECRET -u KEYCLOAK_USER -u KEYCLOAK_PASSWORD terraform "$@")
   else
     docker run --rm -i --network host --user "$(id -u):$(id -g)" \
-      -v "$WORK:/work" -w /work -e HOME=/work \
+      -v "$STATE_DIR:/state" -w /state/terraform/keycloak -e HOME=/state/terraform/keycloak \
       -e TF_IN_AUTOMATION=1 \
       -e TF_VAR_kc_url -e TF_VAR_kc_admin_user -e TF_VAR_kc_admin_pass \
-      -e TF_VAR_e2e_test_password -e TF_VAR_e2e_otp_password -e TF_VAR_testuser_password \
-      -e TF_VAR_new_user_test_password -e TF_VAR_trip_edit_test_user_password -e TF_VAR_e2e_session_password \
-      -e TF_VAR_selfhost_smtp_password \
+      -e TF_VAR_smtp_password \
       "$TERRAFORM_IMAGE" "$@"
   fi
 }
@@ -100,40 +101,49 @@ ok "Keycloak answers"
 
 # --- Work directory ----------------------------------------------------------------
 step "Preparing Terraform work directory $WORK"
-mkdir -p "$WORK"
-chmod 700 "$WORK"
+mkdir -p "$WORK" "$STATE_DIR/config"
+chmod 700 "$STATE_DIR" "$STATE_DIR/terraform" "$WORK"
+# Older versions kept the state one level up (state/terraform): move it once.
+legacy="$STATE_DIR/terraform"
+if [ -f "$legacy/terraform.tfstate" ] && [ ! -f "$WORK/terraform.tfstate" ]; then
+  say "  moving Terraform state from $legacy to $WORK"
+  for f in terraform.tfstate terraform.tfstate.backup .terraform .terraform.lock.hcl; do
+    [ -e "$legacy/$f" ] && mv "$legacy/$f" "$WORK/"
+  done
+  rm -f "$legacy"/*.tf "$legacy"/*.tfvars.json "$legacy"/plan.txt "$legacy"/*.tfplan
+fi
 # Refresh the .tf files (repo may have changed); keep state and provider cache.
+# (This also removes the selfhost_*.tf override files older versions copied here.)
 find "$WORK" -maxdepth 1 -name '*.tf' -delete
+rm -f "$WORK/selfhost.auto.tfvars.json"
 cp "$TF_SRC"/*.tf "$WORK"/
 [ -f "$TF_SRC/.terraform.lock.hcl" ] && cp "$TF_SRC/.terraform.lock.hcl" "$WORK"/
-cp "$TF_OVERRIDES/selfhost_variables.tf" "$TF_OVERRIDES/selfhost_override.tf" "$WORK"/
+cp "$REPO_DIR/config/deploy-defaults.json" "$STATE_DIR/config/"
 
 # Non-secret values in a file; secrets only in the environment.
 umask 077
+base_path="${FRONTEND_BASE_PATH%/}/"
 {
   printf '{\n'
+  printf '  "profile": "production",\n'
   printf '  "kc_url": %s,\n' "$(json_str "$KC_LOCAL_URL")"
   printf '  "kc_admin_user": "admin",\n'
-  printf '  "selfhost_frontend_origin": %s,\n' "$(json_str "$FRONTEND_ORIGIN")"
-  printf '  "selfhost_frontend_base_path": %s,\n' "$(json_str "$FRONTEND_BASE_PATH")"
-  printf '  "selfhost_passkey_rp_id": %s,\n' "$(json_str "$PASSKEY_RP_ID")"
-  printf '  "selfhost_smtp_host": %s,\n' "$(json_str "$smtp_host")"
-  printf '  "selfhost_smtp_port": %s,\n' "$(json_str "$smtp_port")"
-  printf '  "selfhost_smtp_from": %s,\n' "$(json_str "$smtp_from")"
-  printf '  "selfhost_smtp_from_display_name": %s,\n' "$(json_str "$smtp_from_name")"
-  printf '  "selfhost_smtp_user": %s,\n' "$(json_str "$smtp_user")"
-  printf '  "selfhost_smtp_ssl": %s,\n' "$smtp_ssl"
-  printf '  "selfhost_smtp_starttls": %s\n' "$smtp_starttls"
+  printf '  "ssl_required": "all",\n'
+  printf '  "app_origins": [%s],\n' "$(json_str "$FRONTEND_ORIGIN")"
+  printf '  "app_base_path": %s,\n' "$(json_str "$base_path")"
+  printf '  "webauthn_rp_id": %s,\n' "$(json_str "$PASSKEY_RP_ID")"
+  printf '  "smtp_host": %s,\n' "$(json_str "$smtp_host")"
+  printf '  "smtp_port": %s,\n' "$smtp_port"
+  printf '  "smtp_from": %s,\n' "$(json_str "$smtp_from")"
+  printf '  "smtp_from_display_name": %s,\n' "$(json_str "$smtp_from_name")"
+  printf '  "smtp_user": %s,\n' "$(json_str "$smtp_user")"
+  printf '  "smtp_ssl": %s,\n' "$smtp_ssl"
+  printf '  "smtp_starttls": %s\n' "$smtp_starttls"
   printf '}\n'
-} > "$WORK/selfhost.auto.tfvars.json"
+} > "$WORK/production.auto.tfvars.json"
 
 export TF_VAR_kc_url="$KC_LOCAL_URL" TF_VAR_kc_admin_user=admin TF_VAR_kc_admin_pass="$KC_ADMIN_PASSWORD"
-export TF_VAR_selfhost_smtp_password="$smtp_pass"
-# terraform/keycloak declares test-user passwords without defaults; the
-# override removes those users (count = 0), so these values are never used.
-unused="Unused-$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')-1!"
-export TF_VAR_e2e_test_password="$unused" TF_VAR_e2e_otp_password="$unused" TF_VAR_testuser_password="$unused"
-export TF_VAR_new_user_test_password="$unused" TF_VAR_trip_edit_test_user_password="$unused" TF_VAR_e2e_session_password="$unused"
+export TF_VAR_smtp_password="$smtp_pass"
 
 step "terraform init"
 tf init -input=false -no-color >/dev/null
