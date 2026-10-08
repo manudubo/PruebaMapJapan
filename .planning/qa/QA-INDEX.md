@@ -1,6 +1,6 @@
 # QA index: what was checked, and what was not
 
-Read this before approving the v3.2 PR. It lists every QA artifact, what it covers, and the verification gaps. Requirement-level evidence is in `.planning/phases/TRACEABILITY.md`.
+Read this before approving the v3.2 PR or PR #24. It lists every QA artifact, what it covers, and the verification gaps. The first table is the v3.2 set (PR #23, merged); the second is the PR #24 set (added 2026-10-08). Requirement-level evidence is in `.planning/phases/TRACEABILITY.md`.
 
 ## Artifacts
 
@@ -16,6 +16,20 @@ Read this before approving the v3.2 PR. It lists every QA artifact, what it cove
 | `phases/24-arch-debt/24-E2E-SUMMARY.md` | Why the CI e2e job failed (5 root causes) and the local CI-mode runs (144 passed / 41 fixme / 0 failed x3). Lists specs that could not run | See gaps below |
 | `phases/26-idp-flow/26-IDP-SUMMARY.md` | Live Keycloak 26.6.1 checks of the new browser flow: Chromium 14/14, Firefox 10/10, 96/96 with `--repeat-each=4`, mutation run against the old flow (12/14 fail), 38 HTTP fuzz checks, Terraform upgrade path | Done once in a sandbox, not reproducible in CI |
 
+## Artifacts added by the PR #24 batch
+
+| Artifact | Covers | Not covered / status |
+|----------|--------|----------------------|
+| `QA-SYSTEM-REPORT.md` | Backend as a system, PG 16.13, 92 tests in `backend/tests/system/`: 0003 to 0010 upgrade on ugly data (hand-built, migrator-built, push-built), deploy pipeline order, a Neon HTTP emulator (production driver against real Postgres), cross-phase races on both drivers, seeded property tests. 4 findings fixed (F1 migration 0010, F2 preflight, F3 readiness, F4 pool listener); 7 design-level findings documented | Real Neon (emulator only), a copy of the real production database, old Worker on the migrated schema (analysed, not executed). Open: legacy incoherent rows cannot be edited from the UI until their dates are fixed |
+| `QA-FULLSTACK-REPORT.md` | Real-auth Playwright on a real stack (Postgres, Keycloak 26.6.1 from Terraform, Mailpit, backend, production-bundle frontend): 66/66 plus `uat-passkeys` 2/2, 3x repeats; OTP flood, parallel guesses, expired session mid-edit, Keycloak down or restarted, passkey cancel. 6 test fixes, no app bug | Chromium only; Firefox/WebKit not run. Observations not fixed: dead sessionStorage replay, global setup misses the campaign redirect, Terraform plan keeps re-adding `VERIFY_EMAIL` on one user, an edit is lost on session expiry mid-edit |
+| `E2E-DEBT-KC-CI.md` | ARCH-07 residue (3 sleeps, 6 skips, `[404, 500]` assertion) cleared and guarded by `e2e-hygiene.test.ts`; the `Keycloak flow` workflow (S3) with local runs of 31 passed / 4 fixme, three times | The workflow on Actions (not concluded when checked), runner time, Terraform signature. Pre-existing: `qa-sw` fails 3 tests on Firefox (CI is Chromium only) |
+| `A11Y-LCP-FOLLOWUP.md` | A11Y-04 (marker declutter; axe 0 violations on 9 pages x light/dark x 375/1280; Lighthouse a11y tokyo 1.00) and A11Y-05 (landing LCP 5415 to 1304 ms, performance 0.68 to 1.00; Tokyo LCP 2749 to 2261 ms, noisy) in a sandbox with mobile emulation | Real-network LCP on GitHub Pages, slower CPUs, Lighthouse on Actions. One `qa-sw` timeout in about 14 runs under load |
+| `PROD-HARDENING.md` | 12 findings for internet exposure: origin typo, CORS, ID-token acceptance (reproduced with real tokens), rate limits and client IP, SMTP, log leaks, headers, geocode proxy, Keycloak production profile, lockout oracle, username enumeration, SEC-17. Backend 60 files / 1856 tests at that point; production-profile realm on a real Keycloak 26.6.1 with `idp-hardening.spec.ts` 18/18 | Real Funnel to Caddy to backend chain, real Gmail, Firefox/WebKit for the new spec, Workers behaviour of the memory limiter, the full e2e suite with Mailpit. Residual: username enumeration, per-process limits |
+| `SELFHOST-REPORT.md` | The self-hosting kit on a sandbox stack: `stack-e2e.sh` 32 passed at the time (40 after integration), `scripts.test.sh` 45 (52 after), shellcheck; deploy from empty volumes, realm apply, OIDC code + PKCE login through the public URL, CORS, admin paths blocked, backup/restore drill, DB kill and recovery. 5 findings fixed (S1 to S5) | Tailscale Funnel itself (stub only: CLI shape on 1.102, `serve status --json`, real client IP in `X-Forwarded-For`, bandwidth limits), Cloudflare Tunnel and Let's Encrypt modes (config level), real email, passkeys on the `.ts.net` rpId, Ubuntu 26.04 specifics, `update.sh` end to end |
+| `INTEGRATION-REPORT.md` | Merge of the three tracks: e2e-hygiene failure, geocoder test flake, startup wiring (`NOMINATIM_USER_AGENT`, `prepareServer()`), one `/api/health/ready`, login `redirect_uri` fix (PROD-03), self-host proof on the integrated tree (override file removed, loopback admin URL, `add-user.sh`, CI job missing `deploy-defaults.json`). Backend 64 files / 1928 tests x3, frontend 53 files / 1148 tests, `stack-e2e.sh` 40/40, mocked Playwright 286 passed | Real Funnel, Gmail, passkeys; legacy state move; production-profile brute-force tests (no admin client); the `Keycloak flow` workflow on Actions; Firefox/WebKit for `auth-return-to`. 2 mocked tests flaked under load (`qa-sw` offline city, `trips` API failure) and pass alone |
+
+Counts in this table are the reports' figures; they were not re-run when this index was updated.
+
 ## Re-verified on 2026-10-04 (this consolidation)
 
 - `tsc --noEmit` backend and frontend: clean.
@@ -24,7 +38,20 @@ Read this before approving the v3.2 PR. It lists every QA artifact, what it cove
 - `vite build` with API and Keycloak origins: OK, CSP meta present in 13 of 14 pages (not in `silent-check-sso.html`).
 - Not re-run: Playwright, Terraform, Keycloak, Lighthouse/axe, `wrangler deploy --dry-run`.
 
-## What was NOT verified
+## Gap status after the PR #24 batch (2026-10-08)
+
+| Gap listed in the next section | Now |
+|--------------------------------|-----|
+| Real-auth full e2e suite | Closed on a real stack, Chromium (`QA-FULLSTACK-REPORT.md`); still not in CI (`SKIP_REAL_AUTH=true`) |
+| System / migration upgrade-path QA | Closed on test databases and an emulator (`QA-SYSTEM-REPORT.md`); not on a copy of real data |
+| CI Postgres service, ARCH-09, `security.yml` on Actions | Closed: green on PR #23 head 2200c6e and on the push to main (ed49639), read from the check-runs API |
+| CI job running Keycloak (S3) | Built; not yet seen green on Actions |
+| Production Keycloak | The production profile was applied to a real Keycloak 26.6.1 locally; the owner's realm has not been touched |
+| Neon HTTP driver | Emulator only; smoke checklist still unrun |
+| Tripbuilder / authenticated UI visually against a real backend | Real-auth specs drive these pages on a real stack, but there is still no visual review of the editor against real data |
+| Real map tiles and fonts in CI, Firefox and WebKit | Unchanged |
+
+## What was NOT verified (as of the v3.2 consolidation; see the status table above)
 
 | Gap | Why it matters | How to close it |
 |-----|----------------|-----------------|
@@ -43,8 +70,8 @@ Read this before approving the v3.2 PR. It lists every QA artifact, what it cove
 
 ## Known remaining test debt
 
-- 3 `waitForTimeout` and 6 `test.skip(` in newer specs (`idp-flow`, `idp-config`, `qa-sw`, `overview-map`, `qa-frontend`); 24 `test.fixme` in total.
-- `tests/e2e/api.spec.ts:61` still asserts `[404, 500]`.
-- `tests/e2e/trip-edit.spec.ts:260` expects a destination POST body without `zoom_level`, which `destinations.ts` always sends.
+- Cleared by the PR #24 batch: the 3 `waitForTimeout` and 6 `test.skip(` (`e2e-hygiene.test.ts` now fails the frontend suite if they return), the `api.spec.ts` `[404, 500]` assertion, and the `trip-edit.spec.ts` zoom_level expectation (2200c6e). The CI-mode Chromium suite reports 48 `test.fixme` at last count, each with a reason.
+- `qa-sw` fails 3 tests on Firefox; CI runs Chromium only.
+- Flaky under parallel load, pass alone: `qa-sw` (offline city never opened; registers and owns a build-versioned cache) and `trips` (API failure on create).
 - Backend adversarial suites log `57P01` on teardown (`DROP DATABASE ... WITH (FORCE)`); tests pass.
 - The backend suite needs a UTF8 cluster; on SQL_ASCII two multibyte-length tests fail.
