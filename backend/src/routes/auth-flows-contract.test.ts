@@ -8,6 +8,7 @@ import { join } from 'path';
 vi.mock('../middleware/auth', () => import('../test-utils/fake-auth'));
 
 import app from '../index';
+import type { Env } from '../types';
 import { closeDbPools } from '../db';
 import { call } from '../test-utils/app';
 import { closeTestPool, insertUser, resetDb, testEnv } from '../test-utils/db';
@@ -103,8 +104,8 @@ describe('auth-flows contract: e-mail verification', () => {
 });
 
 describe('auth-flows contract: recovery', () => {
-  const recoveryEnv = () => ({ ...testEnv(), KEYCLOAK_RECOVERY_CLIENT_SECRET: 'contract-test-secret' });
-  const post = (path: string, body: unknown, env = recoveryEnv()) => call('POST', `/api/auth/recovery/${path}`, { body, env });
+  const recoveryEnv = (): Env => ({ ...testEnv(), KEYCLOAK_RECOVERY_CLIENT_SECRET: 'contract-test-secret' });
+  const post = (path: string, body: unknown, env: Env = recoveryEnv()) => call('POST', `/api/auth/recovery/${path}`, { body, env });
 
   it('request is always the generic 202', async () => {
     check('recovery.request.generic', await post('request', { email: 'nobody@example.com' }));
