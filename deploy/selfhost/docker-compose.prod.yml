@@ -108,11 +108,6 @@ services:
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-}
       ALLOWED_AZP: ${ALLOWED_AZP:-}
       VALID_AUDIENCES: japan-trip-frontend
-      # E-mail recovery: admin API over the internal network only (the public
-      # proxy blocks /auth/admin). Client created by keycloak-apply.sh.
-      KEYCLOAK_ADMIN_URL: http://keycloak:8080/auth
-      KEYCLOAK_RECOVERY_CLIENT_ID: travelmap-recovery
-      KEYCLOAK_RECOVERY_CLIENT_SECRET: ${KEYCLOAK_RECOVERY_CLIENT_SECRET:-}
       OTP_SECRET: ${OTP_SECRET:?set in .env}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?run via scripts/compose.sh}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
