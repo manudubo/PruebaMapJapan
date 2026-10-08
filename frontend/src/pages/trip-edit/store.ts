@@ -32,7 +32,6 @@ import {
   type EDest,
   type EHotel,
   type ETrip,
-  type Place,
 } from './model';
 
 export type EditorApi = Pick<
@@ -219,7 +218,7 @@ export class EditorStore {
   // ---- destinations -------------------------------------------------------------
 
   /** Add a destination for a searched place; dates are suggested to follow the previous one. */
-  addDestination(place: Place, nights = 2): EDest {
+  addDestination(place: { name: string; country: string; lat: number | null; lng: number | null }, nights = 2): EDest {
     const dates = suggestDestinationDates(this.trip, this.trip.destinations, nights);
     const dest: EDest = {
       _key: newKey('c'),

@@ -124,6 +124,21 @@ export function googleMapsPointUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps/search/?api=1&query=${roundCoord(lat)}%2C${roundCoord(lng)}`;
 }
 
+/**
+ * A readable name for a pasted Google Maps link: the `/maps/place/<Name>/…`
+ * segment when there is one ("Kinkaku-ji"), otherwise a neutral fallback.
+ */
+export function placeNameFromMapsUrl(url: string, fallback = 'Pinned place'): string {
+  const m = /\/maps\/place\/([^/@?]+)/.exec(url);
+  if (!m) return fallback;
+  try {
+    const name = decodeURIComponent(m[1]!.replace(/\+/g, ' ')).trim().slice(0, LIMITS.activityName);
+    return name || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Country for a hit that has none: the one used most by the trip's destinations. */
 export function dominantCountry(destinations: Array<{ country: string }>): string {
   const counts = new Map<string, number>();
@@ -310,6 +325,18 @@ export function validateActivityFields(f: {
   const url = (f.maps_url ?? '').trim();
   if (url && !safeHttpUrl(url)) errors.maps_url = 'The link must start with http:// or https://';
   return errors;
+}
+
+/** The API rejects NUL characters anywhere in a body; drop them from typed/pasted text. */
+export function cleanText(s: string): string {
+  return s.replace(/\u0000/g, '');
+}
+
+/** Error message for a link field that must be an absolute http(s) URL, or null when fine/empty. */
+export function validateHttpUrl(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  return safeHttpUrl(v) ? null : 'The link must start with http:// or https://';
 }
 
 /** True when `errors` has no messages. */

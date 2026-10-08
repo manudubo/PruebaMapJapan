@@ -40,12 +40,8 @@ vi.mock('keycloak-js', () => ({
 
 vi.mock('@/components/Navbar', () => ({}));
 
-const sections = vi.hoisted(() => ({
-  initMetadataSection: vi.fn(),
-  initDestinationsSection: vi.fn(),
-}));
-vi.mock('@/pages/trip-edit/metadata', () => ({ initMetadataSection: sections.initMetadataSection }));
-vi.mock('@/pages/trip-edit/destinations', () => ({ initDestinationsSection: sections.initDestinationsSection }));
+const sections = vi.hoisted(() => ({ mountEditor: vi.fn() }));
+vi.mock('@/pages/trip-edit/app', () => ({ mountEditor: sections.mountEditor }));
 
 const api = vi.hoisted(() => ({
   getTrip: vi.fn(),
@@ -82,8 +78,7 @@ beforeEach(() => {
   window.sessionStorage.clear();
   redirects = [];
   api.getTrip.mockReset().mockResolvedValue({ id: 7, name: 'Trip', destinations: [] });
-  sections.initMetadataSection.mockReset();
-  sections.initDestinationsSection.mockReset();
+  sections.mountEditor.mockReset();
   document.body.innerHTML = BODY;
   document.body.className = '';
 });
@@ -117,8 +112,8 @@ describe('trip-edit auth handling (S1)', () => {
     expect(document.getElementById('auth-unavailable')).toBeNull();
     expect(api.getTrip).toHaveBeenCalledTimes(1);
     expect(api.getTrip).toHaveBeenCalledWith('7');
-    expect(sections.initMetadataSection).toHaveBeenCalledTimes(1);
-    expect(visible('destinations-section')).toBe(true);
+    expect(sections.mountEditor).toHaveBeenCalledTimes(1);
+    expect(visible('te-workspace')).toBe(true);
     expect(redirects).toEqual([]);
   });
 
@@ -177,12 +172,29 @@ describe('trip-edit auth handling (S1)', () => {
     expect(api.getTrip).not.toHaveBeenCalled();
   });
 
+  it('signed in with ?new=1: opens a blank editor, no API call', async () => {
+    h.nextInit.push(() => Promise.resolve(true));
+    await loadPage('?new=1');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sections.mountEditor).toHaveBeenCalledWith({ trip: null });
+    expect(api.getTrip).not.toHaveBeenCalled();
+    expect(redirects).toEqual([]);
+  });
+
+  it('signed out with ?new=1: sign-in that returns to the new-trip editor', async () => {
+    h.nextInit.push(() => Promise.resolve(false));
+    await loadPage('?new=1');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.logins).toHaveLength(1);
+    expect(window.sessionStorage.getItem('travelmap.auth.returnTo')).toContain('trip-edit.html?new=1');
+  });
+
   it('signed in: loads the trip once', async () => {
     h.nextInit.push(() => Promise.resolve(true));
     await loadPage();
     await vi.advanceTimersByTimeAsync(0);
     expect(api.getTrip).toHaveBeenCalledTimes(1);
-    expect(sections.initDestinationsSection).toHaveBeenCalledWith(expect.anything(), '7');
+    expect(sections.mountEditor).toHaveBeenCalledWith({ trip: expect.objectContaining({ id: 7 }) });
     expect(document.body.classList.contains('ready')).toBe(true);
     expect(redirects).toEqual([]);
   });
