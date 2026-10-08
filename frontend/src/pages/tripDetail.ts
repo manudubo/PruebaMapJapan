@@ -17,13 +17,16 @@ import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { initTheme } from '@/modules/theme';
 import { createBaseMap, switchBaseMapTheme } from '@/modules/baseMap';
-import { isAuthenticated } from '@/auth/keycloak';
+import { isAuthenticated, login } from '@/auth/keycloak';
+import { registrationEnabled, wireSignUpButton, takeSignUpOutcome } from '@/auth/registration';
 import {
   watchAuth,
   showAuthPending,
   hideAuthPending,
   showAuthUnavailableState,
   clearAuthUnavailableState,
+  showAuthNotice,
+  showSignUpNotice,
 } from '@/auth/authStatusUI';
 import { getTrip, getPublicTrip } from '@/api/client';
 import { apiTripToCityData } from '@/modules/tripAdapter';
@@ -488,7 +491,7 @@ function loadDestination(trip: ApiTrip, destIndex: number): void {
 // Error rendering
 // ---------------------------------------------------------------------------
 
-function showError(message: string): void {
+function showError(message: string, options: { signedOut?: boolean } = {}): void {
   const main = document.getElementById('main-content');
   if (!main) return;
   main.innerHTML = '';
@@ -505,6 +508,29 @@ function showError(message: string): void {
   p.style.color = 'var(--jp-text-secondary,#515154)';
   setText(p, message);
   card.appendChild(p);
+  if (options.signedOut) {
+    // Signed out: the trip may well be theirs. Offer Sign in (back to this trip) / Sign up.
+    const actions = document.createElement('div');
+    actions.className = 'auth-unavailable-actions trip-auth-actions';
+    const here = window.location.href;
+    if (registrationEnabled()) {
+      const signup = document.createElement('button');
+      signup.type = 'button';
+      signup.id = 'trip-signup-btn';
+      signup.className = 'btn btn-primary';
+      signup.textContent = 'Sign up';
+      wireSignUpButton(signup, () => showSignUpNotice('unavailable'));
+      actions.appendChild(signup);
+    }
+    const signin = document.createElement('button');
+    signin.type = 'button';
+    signin.id = 'trip-login-btn';
+    signin.className = registrationEnabled() ? 'btn btn-secondary' : 'btn btn-primary';
+    signin.textContent = 'Sign in';
+    signin.addEventListener('click', () => { void login(here).catch(() => showAuthNotice()); });
+    actions.appendChild(signin);
+    card.appendChild(actions);
+  }
   const link = document.createElement('a');
   link.href = 'dashboard.html';
   link.style.color = 'var(--jp-accent,#0071e3)';
@@ -568,7 +594,8 @@ async function init(): Promise<void> {
       clearAuthUnavailableState();
       if (handled) return;
       handled = true;
-      showError("You don't have access to this trip. Ask the owner for the public link.");
+      showError("You don't have access to this trip. Ask the owner for the public link.", { signedOut: true });
+      showSignUpNotice(takeSignUpOutcome(false));
     },
     unavailable: () => {
       if (!handled) showAuthUnavailableState();

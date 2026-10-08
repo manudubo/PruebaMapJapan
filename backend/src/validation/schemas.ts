@@ -283,3 +283,34 @@ export const UpdateUserSchema = z
 export const OtpVerifySchema = z.object({
   code: z.string().length(6).regex(/^\d{6}$/, 'code must be 6 digits'),
 });
+
+// ---------------------------------------------------------------------------
+// Account recovery (unauthenticated)
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalised so that "A@B.com " and "a@b.com" are the same account AND the
+ * same rate-limit bucket. Shape only: whether an account exists is never
+ * revealed by validation.
+ */
+const RecoveryEmail = z
+  .string()
+  .max(320)
+  .transform((v) => v.trim().toLowerCase())
+  .pipe(
+    z
+      .string()
+      .min(3)
+      .max(255)
+      .regex(/^[^\s@\u0000]+@[^\s@\u0000]+\.[^\s@\u0000]+$/, 'must be an email address'),
+  );
+
+export const RecoveryRequestSchema = z.object({ email: RecoveryEmail });
+
+export const RecoveryConfirmSchema = z.object({
+  email: RecoveryEmail,
+  code: z.string().length(6).regex(/^\d{6}$/, 'code must be 6 digits'),
+  // Length/charset policy is auth/password-policy.ts (specific error codes).
+  // Only a type and a size bound here, so a huge body never reaches it.
+  new_password: z.string().max(2048),
+});

@@ -5,6 +5,7 @@ import usersRoute from './users';
 import tripsRoute from './trips';
 import publicRoute from './public';
 import authRoute from './auth';
+import recoveryRoute from './recovery';
 import geocodeRoute from './geocode';
 
 /**
@@ -21,6 +22,9 @@ routes.route('/trips', tripsRoute);
 // Individual route handlers are responsible for not requiring auth.
 routes.route('/public', publicRoute);
 
+// Account recovery is unauthenticated. It is mounted BEFORE authRoute, whose
+// authMiddleware (use '*') would otherwise answer 401 for these paths.
+routes.route('/auth/recovery', recoveryRoute);
 routes.route('/auth', authRoute);
 
 // Nominatim proxy for the trip editor (SEC-18), authenticated.

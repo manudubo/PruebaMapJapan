@@ -12,14 +12,33 @@
 import {
   initKeycloak,
   retryAuth,
+  getUserInfo,
   getAuthStatus,
   getAuthUnavailableReason,
   onAuthStatusChange,
   type AuthStatus,
 } from './keycloak';
 import { authLocale, authText, type AuthMessageKey } from './authMessages';
+import type { SignUpOutcome } from './registration';
+import { installEmailVerificationGate } from './verifyEmail';
 
 export type AuthHandlers = Partial<Record<AuthStatus, () => void>>;
+
+let gateInstalled = false;
+
+/**
+ * Once signed in, any API call answering 403 `email_not_verified` raises the email
+ * verification screen (src/auth/verifyEmail.ts) on every auth-gated page, and the page reloads
+ * once the address is verified. Installed once per page load.
+ */
+function ensureVerificationGate(): void {
+  if (gateInstalled) return;
+  gateInstalled = true;
+  installEmailVerificationGate(() => {
+    const info = getUserInfo();
+    return info ? { email: info.email || null, userKey: info.id } : null;
+  });
+}
 
 /**
  * Start (or join) the auth check and route every status to the page's handlers.
@@ -30,6 +49,7 @@ export function watchAuth(handlers: AuthHandlers): () => void {
   const dispatch = (next: AuthStatus): void => {
     if (next === last) return;
     last = next;
+    if (next === 'authenticated') ensureVerificationGate();
     handlers[next]?.();
   };
   const off = onAuthStatusChange(dispatch);
@@ -203,6 +223,42 @@ export function showAuthNotice(): void {
 
 export function hideAuthNotice(): void {
   document.getElementById(NOTICE_ID)?.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Sign-up outcome notice (public pages and the dashboard prompt)
+// ---------------------------------------------------------------------------
+
+const SIGNUP_NOTICE_ID = 'signup-notice';
+
+const SIGNUP_NOTICE_KEYS: Partial<Record<SignUpOutcome | 'unavailable', AuthMessageKey>> = {
+  cancelled: 'signupCancelled',
+  refused: 'signupUnavailable',
+  incomplete: 'signupIncomplete',
+  unavailable: 'signupUnavailable',
+};
+
+/**
+ * Small, dismissible notice after a sign-up that did not complete (or could not start).
+ * Same look as the auth notice; nothing for 'none'/'completed'. Returns the notice or null.
+ */
+export function showSignUpNotice(outcome: SignUpOutcome | 'unavailable'): HTMLElement | null {
+  const key = SIGNUP_NOTICE_KEYS[outcome];
+  if (!key) return null;
+  document.getElementById(SIGNUP_NOTICE_ID)?.remove();
+
+  const notice = el('div', { className: 'auth-notice', id: SIGNUP_NOTICE_ID });
+  notice.setAttribute('role', 'status');
+  notice.lang = authLocale();
+  notice.dataset['outcome'] = outcome;
+  const text = el('p', { className: 'auth-notice-text', text: t(key) });
+  const dismiss = el('button', { className: 'auth-notice-dismiss', text: '×' });
+  dismiss.type = 'button';
+  dismiss.setAttribute('aria-label', t('dismiss'));
+  dismiss.addEventListener('click', () => notice.remove());
+  notice.append(text, dismiss);
+  mainEl().prepend(notice);
+  return notice;
 }
 
 /** Test-only. */

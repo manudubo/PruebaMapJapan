@@ -29,6 +29,7 @@ import { resolveActivity, resolveDay, resolveDestination, resolveTrip } from '..
 import { authMiddleware } from '../middleware/auth';
 import { dbMiddleware } from '../middleware/db';
 import { ensureUserProvisioned } from '../middleware/user';
+import { requireVerifiedEmail } from '../middleware/verified-email';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import {
   CreateTripSchema,
@@ -50,7 +51,7 @@ const tripsRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 // Apply auth + DB handle + user-provisioning to every route in this router.
 // Trip creation is the only unbounded-growth write a new account can spam.
 tripsRoute.on('POST', '/', rateLimit(POLICIES.tripCreatePerIp));
-tripsRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned);
+tripsRoute.use('*', authMiddleware, dbMiddleware, ensureUserProvisioned, requireVerifiedEmail);
 
 // Ownership checks (trip → destination → day → activity) are single-JOIN
 // queries in db/queries/ownership.ts (M-02). A resource that exists but

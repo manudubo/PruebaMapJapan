@@ -9,6 +9,7 @@ import {
 import { authMiddleware } from '../middleware/auth';
 import { dbMiddleware } from '../middleware/db';
 import { userClaimsFromJwt } from '../middleware/user';
+import { isEmailVerified, requireVerifiedEmail } from '../middleware/verified-email';
 import type { Env, ContextVariables, ApiResponse } from '../types';
 import { UpdateUserSchema } from '../validation/schemas';
 
@@ -17,6 +18,21 @@ const usersRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 // Every /users route is authenticated and DB-backed (M-01: GET /me used to
 // call getDb(undefined) with no configuration guard).
 usersRoute.use('*', authMiddleware, dbMiddleware);
+// GET/PATCH /me stay open to unverified accounts (the SPA needs them to learn
+// `email_verified` and to finish sign-up); everything else here is gated.
+usersRoute.use('/me/trips', requireVerifiedEmail);
+
+/**
+ * An account is "new" for its first week. The app user row is provisioned on
+ * the first authenticated request after sign-up, so created_at is the
+ * sign-up time to within one session.
+ */
+export const NEW_ACCOUNT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isNewAccount(createdAt: Date | string, now: number = Date.now()): boolean {
+  const created = new Date(createdAt).getTime();
+  return Number.isFinite(created) && now - created < NEW_ACCOUNT_WINDOW_MS;
+}
 
 // ===========================================================================
 // ROUTES
@@ -33,7 +49,11 @@ usersRoute.get('/me', async (c) => {
   // Race-safe auto-provision + Keycloak email/name refresh (BUG-03/BUG-08).
   const { user, created } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
 
-  const response: ApiResponse = { success: true, data: user };
+  // Derived (no column, no write): lets the frontend offer the richer
+  // new-user onboarding instead of the existing-user passkey nudge.
+  const onboarding = { is_new: created || isNewAccount(user.created_at) };
+  const email_verified = isEmailVerified(c.get('user').email_verified, user.email_verified_at);
+  const response: ApiResponse = { success: true, data: { ...user, email_verified, onboarding } };
   return c.json(response, created ? 201 : 200);
 });
 
@@ -58,7 +78,8 @@ usersRoute.patch(
     }
 
     const updated = await updateUser(db, jwtUser.sub, body);
-    const response: ApiResponse = { success: true, data: updated };
+    const email_verified = isEmailVerified(jwtUser.email_verified, updated.email_verified_at);
+    const response: ApiResponse = { success: true, data: { ...updated, email_verified } };
     return c.json(response);
   },
 );

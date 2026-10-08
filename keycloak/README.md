@@ -119,7 +119,8 @@ VITE_KEYCLOAK_CLIENT_ID=japan-trip-frontend
 **Terraform (`terraform/keycloak/`) is the only source of truth for the `japan-trip` realm**
 (SEC-13 / ARCH-08): realm settings, clients, protocol mappers, required actions, test users,
 the `browser-passkey` authentication flow, and which flow the realm uses
-(`keycloak_authentication_bindings.browser_flow` in `flows.tf`).
+(`keycloak_authentication_bindings.browser_flow` in `flows.tf`, which also binds the
+`registration-passkey` registration flow).
 
 - Do not change realm settings in the admin console or with ad-hoc Admin REST calls — the next
   `terraform apply` reverts them, and until then the live realm silently diverges from the repo.
@@ -163,21 +164,88 @@ browser-passkey
     └── passkey-or-password                      REQUIRED
         ├── passkey                              ALTERNATIVE
         │   └── passkey-if-configured            CONDITIONAL
-        │       ├── Condition - user configured  REQUIRED
-        │       └── WebAuthn Passwordless        REQUIRED
-        └── Password Form                        ALTERNATIVE
+        │       ├── WebAuthn Passwordless        REQUIRED
+        │       └── Condition - user configured  REQUIRED
+        └── password                             ALTERNATIVE
+            └── password-if-configured           CONDITIONAL
+                ├── Password Form                REQUIRED
+                └── Condition - user configured  REQUIRED
 ```
 
-- Users with a registered passkey get the WebAuthn prompt after entering their username.
-- Users without a passkey get the password form.
-- A user with neither credential, or anyone submitting only a username, is rejected.
-- Passkey users do not get a "Try another way → password" option in this flow; a user who lost
-  their passkey recovers through "Forgot password" (Keycloak's email reset-credentials flow, which
-  signs the user in on completion — not covered by E2E yet) or an admin removing the credential.
+Each credential branch only exists for a user who HAS that credential (REG-03):
 
-`tests/e2e/idp-flow.spec.ts` covers these cases against a running Keycloak, and
-`tests/e2e/idp-config.spec.ts` statically checks the flow layout (no REQUIRED+ALTERNATIVE mix,
-credential subflow after the username, WebAuthn guarded by the condition) without needing Keycloak.
+| User has | Sign-in |
+|---|---|
+| passkey only | WebAuthn step, never a password form. On a device without WebAuthn the page promotes "Can't use a passkey on this device? Get a code by email" (link to the app's `recover.html`, see below) |
+| password only | password form, nothing else |
+| passkey and password | the **preferred** credential first (Keycloak's credential priority = the one enrolled first: the passkey for accounts made by sign-up, the password for invited users who add a passkey later), the other under **Try another way**. A browser without WebAuthn uses Try another way → password |
+| neither | rejected after the username ("Invalid username or password.") |
+
+Anyone submitting only a username is rejected, whatever the user has. Two layout details matter
+and are checked by `tests/e2e/idp-config.spec.ts`: every credential authenticator is REQUIRED only
+inside a `conditional-user-configured` subflow (an unconfigured REQUIRED authenticator counts as
+passed and queues an enrolment — the KC-A takeover), and it comes **before** its condition:
+Keycloak's `AuthenticationSelectionResolver` only offers the sibling branch ("Try another way")
+when the current execution is the first of its subflow (verified on 26.6.1; with the condition
+first, passkey users had no fallback at all).
+
+`tests/e2e/idp-flow.spec.ts` covers every row above against a running Keycloak, with the Chromium
+virtual authenticator and with `window.PublicKeyCredential` removed (no-WebAuthn browser), plus
+the tampering paths (forced executions, forged assertions, passwords posted to the WebAuthn step).
+
+### E-mail recovery link on passkey steps (theme)
+
+`themes/japan-trip/login/footer.ftl` adds, on the WebAuthn sign-in, enrolment and error pages,
+a link to `<client base URL>recover.html?email=<typed address>` — the client base URL is the
+Pages origin + path from `config/deploy-defaults.json`, so production never links to localhost.
+It is a small secondary link normally and becomes the main action when the browser has no
+WebAuthn. `recover.html` (frontend) calls the backend's `POST /api/auth/recovery/request` and
+`/confirm`: a 6-digit code to the account's address, then a new password set through the
+`travelmap-recovery` client (below). Only the address is passed in the URL, never a code or token.
+
+## Registration flow (`registration-passkey`)
+
+Bound as the realm's registration flow next to the browser flow (`flows.tf`):
+
+```
+registration-passkey
+└── registration-passkey-form (form, registration-page-form)  REQUIRED
+    ├── Registration User Profile Creation     REQUIRED   (e-mail = username; names optional)
+    └── reCAPTCHA                              REQUIRED   only with recaptcha_site_key + secret
+```
+
+- **No password at sign-up**: there is no `registration-password-action`; a password smuggled
+  into the POST is ignored (tested).
+- `webauthn-register-passwordless` is a **default required action**: right after the form the
+  new user enrols a passkey, before any authorization code is issued. The resulting account has
+  exactly one credential, the passkey.
+- No WebAuthn on the device: enrolment cannot finish, no code is issued, and the page offers the
+  e-mail recovery link. The account exists without a credential until then: it cannot sign in
+  (the credential step is empty for it) and, never verified, it is deleted by
+  `deploy/selfhost/scripts/purge-unverified.sh` after the purge window.
+- **E-mail ownership is proven by the backend**, not by Keycloak's link: `verify_email = false`
+  and `VERIFY_EMAIL` is not a default action. New tokens carry `email_verified=false` and the API
+  answers `403 email_not_verified` until the user enters the 6-digit code from
+  `POST /api/auth/email-verify/request` (backend; `users.email_verified_at`).
+- Duplicate address: Keycloak's standard "Email already exists." (an enumeration oracle while
+  sign-up is open, the same information the username step already gives).
+- `registration_allowed` defaults to true locally and **false in production**; see section 4.
+
+`tests/e2e/idp-registration.spec.ts` runs these against Keycloak + Mailpit (and the backend part
+when `E2E_API_URL` is set).
+
+## Recovery client (`travelmap-recovery`)
+
+A confidential, service-account-only client (no browser flows, `full_scope_allowed = false`) with
+exactly one role, `realm-management/manage-users` — Keycloak has no narrower built-in role that can
+set a password. The backend uses it (internal URL, `KEYCLOAK_ADMIN_URL=http://keycloak:8080/auth`)
+to look a user up by e-mail and set a password after a valid e-mail code. Its secret is the
+sensitive Terraform output `recovery_client_secret`; `deploy/selfhost/scripts/keycloak-apply.sh`
+writes it to the server's `.env` (`KEYCLOAK_RECOVERY_CLIENT_SECRET`) without printing it. It is
+the only admin-API client a production plan accepts (`japan-trip-worker` fails the plan).
+**Residual risk:** whoever controls the backend process can reset any password in the realm.
+Rotate: admin console → Clients → travelmap-recovery → Credentials → Regenerate, then re-run
+`keycloak-apply.sh` (it refreshes `.env`) and restart the backend.
 
 The passwordless policy uses `authenticatorAttachment = platform` to prefer built-in
 authenticators (Touch ID, Windows Hello, Face ID). Both WebAuthn policies take their rpId from
@@ -198,11 +266,15 @@ plan **fails** (Terraform preconditions) unless:
 | `webauthn_rp_id` | the Keycloak host name, not `localhost` | see "Passkeys" below |
 | `kc_url` | `https://…`, `kc_tls_insecure_skip_verify = false` | the admin password crosses this connection |
 | realm SMTP | a real server over TLS (`smtp_starttls` or `smtp_ssl`) | verification and reset-password mail |
+| password policy | contains `length(12)` or more | applies whenever a password is set (invite, recovery, reset) |
+| `japan-trip-worker` | not created (`create_worker_client = false`) | a second `manage-users` client; only `travelmap-recovery` is allowed |
+| with `registration_allowed = true` | brute force at ≤ 10 failures, `travelmap-recovery` created | open sign-up needs lockouts and the no-WebAuthn way in |
+| `require_recaptcha = true` | both reCAPTCHA keys set | optional extra gate on the sign-up form |
 
-Production also defaults to: self-registration **off** (`registration_allowed`), no
-`japan-trip-worker` client (`create_worker_client`; the backend never uses it, and a confidential
-client with `manage-users` is a standing account-takeover credential), Terraform deletion
-protection on the realm, and the stronger password policy below.
+Production also defaults to: self-registration **off** (`registration_allowed`), Terraform
+deletion protection on the realm, and the stronger password policy below. All of these refusals
+are tested offline: `terraform -chdir=terraform/keycloak test` (`tests/guards.tftest.hcl`, mocked
+provider, 23 runs).
 
 ### Single-host mode (no domain: Tailscale Funnel)
 
@@ -272,10 +344,14 @@ With a domain you can switch the backend to Resend (`RESEND_API_KEY`) and Keyclo
 
 ### Required actions and email verification
 
-`verify_email = true` and `VERIFY_EMAIL` is a default required action: an account whose address
-is not verified is asked to verify on login. Accounts created by an admin with "Email verified"
-on pass straight through (checked live). The backend additionally refuses to send OTP codes to an
-address the token does not mark `email_verified`.
+`verify_email = false` and `VERIFY_EMAIL` is **not** a default required action (REG-02): the
+backend proves the address with a 6-digit code (`/api/auth/email-verify/*`) and refuses every
+other API call with `403 email_not_verified` until then. A user counts as verified when the
+token says `email_verified: true` (invited accounts are created verified by `add-user.sh`) or the
+backend recorded the code (`users.email_verified_at`). The `email verified` mapper puts the claim
+in the access token (`mappers.tf`, statically tested). `webauthn-register-passwordless` is a
+default action (new accounts enrol a passkey); invited accounts have their required actions
+cleared because the invite link sets a password instead.
 
 ### Username enumeration (documented residual risk)
 
@@ -284,8 +360,9 @@ step ("Invalid username or email.") and a known one with the next step (password
 WebAuthn prompt when the user has a passkey). Anyone can therefore test whether an account exists,
 and whether it has a passkey. There is no Keycloak setting that hides this in a username-first
 flow; the alternatives are a combined username+password form (loses passkey-first sign-in) or a
-custom authenticator. What bounds it here: self-registration is off in production (no
-"username taken" oracle either), lockouts are temporary, the credential-failure messages are
+custom authenticator. What bounds it here: self-registration is off in production by default
+(when it is on, the sign-up form's "Email already exists." is a second oracle with the same
+information), lockouts are temporary, the credential-failure messages are
 identical, and the reverse proxy should rate-limit `POST …/login-actions/authenticate` per client
 IP. `tests/e2e/idp-hardening.spec.ts` pins the current behaviour so a Keycloak change that removes
 the difference is noticed.

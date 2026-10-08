@@ -137,12 +137,32 @@ export function __setSmtpTlsCaForTests(ca: string | undefined): void {
   smtpTlsCaForTests = ca;
 }
 
-export async function sendOtpEmail(env: Env, toEmail: string, code: string): Promise<void> {
+/** Subject and lead-in per flow; the body always contains "code is: <6 digits>". */
+const OTP_MESSAGES: Record<'login' | 'email_verify' | 'recovery', { subject: string; lead: string }> = {
+  login: { subject: 'Your TravelMap verification code', lead: 'Your verification code is' },
+  email_verify: {
+    subject: 'Confirm your TravelMap email address',
+    lead: 'To finish creating your TravelMap account, your verification code is',
+  },
+  recovery: {
+    subject: 'Your TravelMap account recovery code',
+    lead: 'To recover your TravelMap account, your recovery code is',
+  },
+};
+
+export async function sendOtpEmail(
+  env: Env,
+  toEmail: string,
+  code: string,
+  purpose: keyof typeof OTP_MESSAGES = 'login',
+): Promise<void> {
   // The recipient comes from the token; refuse anything that is not a plain
   // address (no CR/LF, commas or display names) whatever the transport.
   if (!isSafeAddress(toEmail)) throw new Error('refusing to send OTP: recipient is not a plain email address');
-  const subject = 'Your TravelMap verification code';
-  const text = `Your verification code is: ${code}\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
+  const { subject, lead } = OTP_MESSAGES[purpose];
+  const text =
+    `${lead}: ${code}\n\nThis code expires in 10 minutes. Do not share it with anyone.` +
+    (purpose === 'login' ? '' : '\nIf you did not ask for it, you can ignore this message.');
   const config = resolveEmailConfig(env);
 
   if (config.provider === 'resend') {

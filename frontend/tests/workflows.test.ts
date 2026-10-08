@@ -311,12 +311,76 @@ describe('keycloak-flow: KC-01 regression tests against a real Keycloak (S3)', (
     expect(apply).toBeGreaterThan(start);
     expect(pw).toBeGreaterThan(apply);
     const run = steps[pw]!.run!;
-    for (const part of ['e2e/idp-flow.spec.ts', 'e2e/idp-config.spec.ts', 'e2e/idp-hardening.spec.ts', '--project=chromium', '--project=firefox']) {
+    for (const part of ['e2e/idp-flow.spec.ts', 'e2e/idp-config.spec.ts', 'e2e/idp-hardening.spec.ts', 'e2e/idp-registration.spec.ts', '--project=chromium', '--project=firefox']) {
       expect(run).toContain(part);
     }
     // A missing Keycloak or credential must fail the job, not mark the tests fixme.
     expect(steps[pw]!.env?.['CI_KEYCLOAK']).toBe('1');
     expect(script).toContain('KC_IMAGE="quay.io/keycloak/keycloak:26.6.1"');
+  });
+
+  it('runs the registration flow end to end: stack after the realm, backend specs required (CI_BACKEND=1), stack stopped before Keycloak', () => {
+    const apply = idx((s) => s.run === 'scripts/ci/keycloak-flow.sh apply');
+    const stack = idx((s) => s.run === 'scripts/ci/registration-stack.sh start');
+    const stop = idx((s) => s.run === 'scripts/ci/registration-stack.sh stop');
+    const kcStop = idx((s) => s.run === 'scripts/ci/keycloak-flow.sh stop');
+    const specs = steps.filter((s) => (s.run ?? '').includes('npx playwright test'));
+    expect(stack).toBeGreaterThan(apply);
+    expect(specs).toHaveLength(2);
+    for (const s of specs) {
+      expect(idx((x) => x === s)).toBeGreaterThan(stack);
+      // Missing backend/frontend must fail the job, not mark the tests fixme.
+      expect(s.env?.['CI_BACKEND']).toBe('1');
+      expect(s.run).toContain('--workers=1');
+    }
+    // The spec that burns the per-IP recovery limit runs after the ones that need it.
+    const integration = specs.find((s) => s.run!.includes('registration-integration.spec.ts'))!;
+    expect(integration.env?.['E2E_RATE_LIMIT']).toBe('1');
+    expect(specs.indexOf(integration)).toBe(specs.length - 1);
+    // The stack reads the Keycloak work dir, so it must stop first.
+    expect(steps[stop]!.if).toBe('always()');
+    expect(stop).toBeGreaterThan(-1);
+    expect(stop).toBeLessThan(kcStop);
+  });
+
+  describe('scripts/ci/registration-stack.sh', () => {
+    const stack = readFileSync(resolve(__dirname, '../../scripts/ci/registration-stack.sh'), 'utf8');
+
+    it('turns the verification gate on explicitly and sends mail to the Mailpit sink only', () => {
+      expect(stack).toContain('REQUIRE_VERIFIED_EMAIL=true');
+      expect(stack).toContain('SMTP_HOST=127.0.0.1');
+      expect(stack).toContain('KEYCLOAK_RECOVERY_CLIENT_ID=travelmap-recovery');
+    });
+
+    it('generates its secrets, keeps them in mode-600 files and out of argv', () => {
+      expect(stack).toMatch(/umask 077/);
+      expect(stack).toMatch(/openssl rand/);
+      expect(stack).toMatch(/--env-file "\$KC_WORK\/pg\.env"/);
+      expect(stack).not.toMatch(/set -[a-z]*x\b|xtrace/);
+    });
+
+    it('serves the frontend on the redirect URI port registered in the realm', () => {
+      expect(stack).toContain('--port 5173 --strictPort');
+    });
+  });
+
+  it('runs the offline Terraform plan guards before starting Keycloak', () => {
+    const guards = idx((s) => (s.run ?? '').includes('terraform -chdir=terraform/keycloak test'));
+    const start = idx((s) => s.run === 'scripts/ci/keycloak-flow.sh start');
+    expect(guards).toBeGreaterThan(0);
+    expect(guards).toBeLessThan(start);
+    expect(steps[guards]!.run).toContain('-lockfile=readonly');
+    // State and plugins outside the checkout.
+    expect(steps[guards]!.env?.['TF_DATA_DIR']).toContain('runner.temp');
+  });
+
+  it('starts a pinned Mailpit on loopback only and removes it with Keycloak', () => {
+    expect(script).toMatch(/MAILPIT_IMAGE="ghcr\.io\/axllent\/mailpit:v\d+\.\d+(\.\d+)?"/);
+    expect(script).toContain('MP_SMTP_BIND_ADDR="127.0.0.1:');
+    expect(script).toContain('MP_UI_BIND_ADDR="127.0.0.1:');
+    expect(script).toContain('docker rm -f "$KC_CONTAINER" "$MAILPIT_CONTAINER"');
+    // The realm sends its mail to that sink, never to a real server.
+    expect(script).toMatch(/smtp_host = "127\.0\.0\.1"/);
   });
 
   it('uploads the Playwright report on failure and always removes Keycloak', () => {
@@ -348,7 +412,7 @@ describe('keycloak-flow: KC-01 regression tests against a real Keycloak (S3)', (
     });
 
     it('only prints a secret variable inside ::add-mask:: or into a file', () => {
-      const secretVar = /\$\{?(1|admin_pass|e2e_pw|session_pw|worker_secret|token)\b/;
+      const secretVar = /\$\{?(1|admin_pass|e2e_pw|session_pw|worker_secret|recovery_secret|token)\b/;
       const lines = script.split('\n');
       // Lines inside a `{ ... } > "$file"` group are redirected as a whole.
       const inFileGroup = new Set<number>();
@@ -367,7 +431,7 @@ describe('keycloak-flow: KC-01 regression tests against a real Keycloak (S3)', (
     });
 
     it('masks every generated secret on Actions', () => {
-      for (const v of ['admin_pass', 'e2e_pw', 'session_pw', 'worker_secret']) {
+      for (const v of ['admin_pass', 'e2e_pw', 'session_pw', 'worker_secret', 'recovery_secret']) {
         expect(script).toContain(`mask "$${v}"`);
       }
     });

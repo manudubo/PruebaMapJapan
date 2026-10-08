@@ -18,9 +18,12 @@ import {
   hideAuthPending,
   showAuthUnavailableState,
   clearAuthUnavailableState,
+  showSignUpNotice,
 } from '@/auth/authStatusUI';
-import { checkPasskeyCampaign } from '@/modules/passkeyCampaign';
-import { getMyTrips, getMe, apiUrl } from '@/api/client';
+import { registrationEnabled, takeSignUpOutcome, wireSignUpButton } from '@/auth/registration';
+import { checkPasskeyCampaign, createPrefsStore, runNewUserOnboarding } from '@/modules/passkeyCampaign';
+import { showEmailVerification } from '@/auth/verifyEmail';
+import { getMyTrips, getMe, updateMe, apiUrl, ApiError } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
 import { setText, setStyle } from '@/modules/dom';
@@ -226,6 +229,12 @@ function showLoginPrompt(): void {
     promptLoginBtn.dataset['wired'] = '1';
     promptLoginBtn.addEventListener('click', () => login(window.location.href));
   }
+  const promptSignupBtn = document.getElementById('auth-signup-prompt-btn');
+  if (registrationEnabled()) {
+    wireSignUpButton(promptSignupBtn, () => showSignUpNotice('unavailable'));
+  } else {
+    promptSignupBtn?.setAttribute('hidden', '');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -406,6 +415,22 @@ function buildOtpBanner(): void {
 // Main init
 // ---------------------------------------------------------------------------
 
+/**
+ * Passkey/password prompts after sign-in. A just-registered account (onboarding.is_new) gets the
+ * onboarding dialog; everyone else keeps the old behavior (passkey nudge on capable devices,
+ * OTP banner on the rest).
+ */
+function startCampaigns(userKey: string, user: ApiUser | null): void {
+  if (user?.onboarding?.is_new) {
+    const store = createPrefsStore(userKey, user.preferences, (preferences) => updateMe({ preferences }));
+    void runNewUserOnboarding({ isNew: true, userKey, store });
+  } else if (webauthnCapable) {
+    checkPasskeyCampaign(userKey);
+  } else {
+    buildOtpBanner();
+  }
+}
+
 /** Signed in: load the user's profile and trips (runs once, even if auth resolves late). */
 async function loadAuthenticated(): Promise<void> {
   document.getElementById('dashboard-login-prompt')?.setAttribute('hidden', '');
@@ -417,14 +442,6 @@ async function loadAuthenticated(): Promise<void> {
 
   webauthnCapable = typeof PublicKeyCredential !== 'undefined';
   const info = getUserInfo();
-  if (info) {
-    if (webauthnCapable) {
-      checkPasskeyCampaign(info.id);
-    } else {
-      buildOtpBanner();
-    }
-  }
-
   // Load real user profile and trips
   const grid = document.getElementById('trips-grid');
   if (grid) {
@@ -435,9 +452,22 @@ async function loadAuthenticated(): Promise<void> {
   let user: ApiUser | null = null;
   try {
     user = await getMe();
-  } catch {
-    // Non-critical — greeting will fall back to token data
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 403 && err.code === 'email_not_verified') {
+      // The gate that watchAuth installed is already showing the verification screen
+      // (src/auth/verifyEmail.ts) and reloads the page once the address is verified.
+      return;
+    }
+    // Other failures are non-critical — greeting will fall back to token data
   }
+  if (user && user.email_verified === false && info) {
+    await showEmailVerification({ email: user.email || info.email || null, userKey: info.id });
+    user = { ...user, email_verified: true };
+  }
+
+  // The first call is handled explicitly above; any later 403 email_not_verified is handled by
+  // the gate that watchAuth installs (src/auth/authStatusUI.ts).
+  if (info) startCampaigns(info.id, user);
   renderUserGreeting(user);
 
   try {
@@ -478,6 +508,7 @@ function init(): void {
       clearAuthUnavailableState();
       showLoginPrompt();
       renderUserGreeting(null);
+      showSignUpNotice(takeSignUpOutcome(false));
     },
     // Distinct from "please sign in": we don't know yet whether the user is signed in.
     unavailable: () => {

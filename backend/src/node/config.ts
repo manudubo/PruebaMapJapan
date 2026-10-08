@@ -13,6 +13,7 @@ import { resolveEnvironment, type AppEnvironment } from '../config/environment';
 import { assertEmailConfig, OtpEmailConfigError } from '../auth/otp-email';
 import { CLIENT_IP_HEADERS, MAX_TRUSTED_PROXY_HOPS } from '../middleware/client-ip';
 import { normaliseConfiguredOrigin } from '../middleware/cors';
+import { isValidVerifiedEmailSetting } from '../config/verified-email';
 import { parseLogLevel, type LogLevel } from '../observability/logger';
 import { userAgentProduct } from '../routes/geocode';
 import type { Env } from '../types';
@@ -31,6 +32,8 @@ export const SERVER_ENV_CONTRACT = [
   'OTP_SECRET', 'EMAIL_PROVIDER', 'EMAIL_FROM', 'SMTP_FROM', 'RESEND_API_KEY',
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASS',
   'ALLOWED_ORIGINS', 'TRUSTED_PROXY_HOPS', 'CLIENT_IP_HEADER',
+  'REQUIRE_VERIFIED_EMAIL',
+  'KEYCLOAK_ADMIN_URL', 'KEYCLOAK_RECOVERY_CLIENT_ID', 'KEYCLOAK_RECOVERY_CLIENT_SECRET',
   'NOMINATIM_CONTACT', 'NOMINATIM_URL', 'NOMINATIM_USER_AGENT',
   // Node server only
   'LOG_LEVEL', 'LOG_REQUESTS', 'PORT', 'HOST', 'PG_POOL_MAX', 'PG_IDLE_TIMEOUT_MS', 'PG_CONNECT_TIMEOUT_MS',
@@ -164,7 +167,9 @@ export function loadServerConfig(raw: RawEnv): ServerConfig {
   // Optional overrides read by the app's JWT verifier: the public issuer (when
   // it differs from KEYCLOAK_URL/realms/<realm>) and an internal JWKS URL so
   // the server does not hairpin through the public tunnel for signing keys.
-  for (const name of ['KEYCLOAK_ISSUER', 'KEYCLOAK_JWKS_URL']) {
+  // KEYCLOAK_ADMIN_URL: where account recovery calls the Admin API (internal
+  // address, e.g. http://keycloak:8080/auth); defaults to KEYCLOAK_URL.
+  for (const name of ['KEYCLOAK_ISSUER', 'KEYCLOAK_JWKS_URL', 'KEYCLOAK_ADMIN_URL']) {
     const value = trimmed(raw, name);
     if (value === '') continue;
     const url = parseUrl(value);
@@ -180,6 +185,10 @@ export function loadServerConfig(raw: RawEnv): ServerConfig {
   }
   if (production && trimmed(raw, 'NOMINATIM_CONTACT') === '') {
     problems.push('NOMINATIM_CONTACT is not set (an email or URL where OSM can reach you)');
+  }
+
+  if (!isValidVerifiedEmailSetting(raw['REQUIRE_VERIFIED_EMAIL'])) {
+    problems.push('REQUIRE_VERIFIED_EMAIL must be "true" or "false" (unset = true in production)');
   }
 
   // OTP.

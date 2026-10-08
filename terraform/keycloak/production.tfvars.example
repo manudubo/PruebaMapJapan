@@ -25,8 +25,17 @@ webauthn_rp_id = "REPLACE.tailnet.ts.net"
 # Defaults come from config/deploy-defaults.json (https://manudubo.github.io, /PruebaMapJapan/).
 # app_origins = ["https://manudubo.github.io"]
 
-# Self-service sign-up stays off unless you want strangers to create accounts.
+# Self-service sign-up stays off unless you want strangers to create accounts
+# (docs/SELF-HOSTING.md "Open sign-up": backend e-mail code, purge timer,
+# limits). The plan refuses it without brute-force lockouts <= 10 and the
+# travelmap-recovery client.
 # registration_allowed = false
+# Optional reCAPTCHA on the sign-up form; the secret via TF_VAR_recaptcha_secret_key.
+# recaptcha_site_key = ""
+# require_recaptcha  = true
+
+# travelmap-recovery (manage-users only) is created by default; its secret is the
+# sensitive output recovery_client_secret -> backend KEYCLOAK_RECOVERY_CLIENT_SECRET.
 
 # Realm SMTP for verification / reset-password emails. Gmail with an app password
 # (needs 2-Step Verification on the Google account; ~500 messages/day):

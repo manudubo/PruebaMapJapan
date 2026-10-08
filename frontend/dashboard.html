@@ -149,6 +149,30 @@
       color: var(--jp-text-secondary, #515154);
     }
 
+    .login-prompt .login-prompt-help {
+      margin: 20px 0 0;
+      font-size: 14px;
+    }
+
+    .login-prompt-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .login-prompt-actions .btn {
+      min-height: 44px;
+      min-width: 96px;
+    }
+
+    /* Sign-up off in this build (build/signupGatePlugin.ts): Sign in is the primary action. */
+    .login-prompt-actions:has(> [data-signup][hidden]) #auth-login-prompt-btn {
+      background: var(--jp-accent-solid);
+      border-color: var(--jp-accent-solid);
+      color: var(--jp-white);
+    }
+
     @media (max-width: 768px) {
       .page-card > .dashboard-header,
       .trips-grid,
@@ -183,8 +207,12 @@
 
         <!-- Login prompt shown to unauthenticated users (managed by dashboard.ts) -->
         <div id="dashboard-login-prompt" class="login-prompt" hidden>
-          <p>Sign in to view and manage your trips.</p>
-          <button id="auth-login-prompt-btn" class="btn btn-primary" type="button">Sign in</button>
+          <p>Sign in to view and manage your trips, or sign up to start planning.</p>
+          <div class="login-prompt-actions">
+            <button id="auth-signup-prompt-btn" class="btn btn-primary" type="button" data-signup>Sign up</button>
+            <button id="auth-login-prompt-btn" class="btn btn-secondary" type="button">Sign in</button>
+          </div>
+          <p class="login-prompt-help" data-signup><a id="auth-recover-link" href="recover.html">Can't use your passkey? Recover your account</a></p>
         </div>
 
         <div class="trips-grid" id="trips-grid" hidden>

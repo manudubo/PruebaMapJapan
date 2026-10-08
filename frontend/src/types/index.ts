@@ -154,6 +154,10 @@ export interface ApiUser {
   name: string;
   avatar_url: string | null;
   preferences: Record<string, unknown> | null;
+  /** Absent on older backends: treat as verified. */
+  email_verified?: boolean;
+  /** Derived by GET /users/me: true for a just-registered account. */
+  onboarding?: { is_new: boolean };
 }
 
 declare global {

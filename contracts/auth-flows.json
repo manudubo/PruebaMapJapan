@@ -1,0 +1,33 @@
+{
+  "_comment": "Wire contract of the e-mail code flows. Backend (backend/src/routes/auth-flows-contract.test.ts) proves the real routes answer exactly this; frontend (frontend/tests/auth-flows-contract.test.ts) proves api/authFlows.ts reads it. Change one side and the other test fails. \"<number>\" matches any non-negative number (frontend tests substitute 42). body is a subset match.",
+  "cases": [
+    { "id": "verify.request.sent", "endpoint": "email-verify/request", "status": 201, "body": { "success": true },
+      "frontend": { "ok": true, "error": null, "retryAfter": null, "problem": null } },
+    { "id": "verify.request.pending", "endpoint": "email-verify/request", "status": 429, "body": { "success": false, "error": "otp_pending", "retryAfter": "<number>" },
+      "frontend": { "ok": false, "error": "otp_pending", "retryAfter": 42, "problem": "rateLimited" } },
+    { "id": "verify.request.already", "endpoint": "email-verify/request", "status": 200, "body": { "success": true, "data": { "email_verified": true } },
+      "frontend": { "ok": true, "error": null, "retryAfter": null, "problem": null } },
+    { "id": "verify.confirm.ok", "endpoint": "email-verify/confirm", "status": 200, "body": { "success": true, "data": { "email_verified": true } },
+      "frontend": { "ok": true, "error": null, "retryAfter": null, "problem": null } },
+    { "id": "verify.confirm.wrong", "endpoint": "email-verify/confirm", "status": 400, "body": { "success": false, "error": "invalid_code" },
+      "frontend": { "ok": false, "error": "invalid_code", "retryAfter": null, "problem": "wrong" } },
+    { "id": "verify.confirm.expired", "endpoint": "email-verify/confirm", "status": 400, "body": { "success": false, "error": "otp_not_found" },
+      "frontend": { "ok": false, "error": "otp_not_found", "retryAfter": null, "problem": "expired" } },
+    { "id": "verify.confirm.locked", "endpoint": "email-verify/confirm", "status": 429, "body": { "success": false, "error": "max_attempts" },
+      "frontend": { "ok": false, "error": "max_attempts", "retryAfter": null, "problem": "locked" } },
+    { "id": "gate.email_not_verified", "endpoint": "trips", "status": 403, "body": { "success": false, "error": "email_not_verified", "code": "email_not_verified" },
+      "frontend": { "ok": false, "error": "email_not_verified", "retryAfter": null, "problem": "other" } },
+    { "id": "recovery.request.generic", "endpoint": "recovery/request", "status": 202, "body": { "success": true },
+      "frontend": { "ok": true, "error": null, "retryAfter": null, "problem": null } },
+    { "id": "recovery.request.rate_limited", "endpoint": "recovery/request", "status": 429, "headers": { "Retry-After": "<number>" }, "body": { "success": false, "error": "rate_limited", "retryAfter": "<number>" },
+      "frontend": { "ok": false, "error": "rate_limited", "retryAfter": 42, "problem": "rateLimited" } },
+    { "id": "recovery.confirm.invalid", "endpoint": "recovery/confirm", "status": 400, "body": { "success": false, "error": "invalid_code" },
+      "frontend": { "ok": false, "error": "invalid_code", "retryAfter": null, "problem": "wrong" } },
+    { "id": "recovery.confirm.weak_password", "endpoint": "recovery/confirm", "status": 422, "body": { "success": false, "error": "weak_password", "code": "weak_password", "reason": "too_short" },
+      "frontend": { "ok": false, "error": "weak_password", "retryAfter": null, "problem": "password" } },
+    { "id": "recovery.confirm.unavailable", "endpoint": "recovery/confirm", "status": 503, "body": { "success": false, "error": "try_again_later", "code": "service_unavailable" },
+      "frontend": { "ok": false, "error": "service_unavailable", "retryAfter": null, "problem": "unavailable" } },
+    { "id": "recovery.confirm.account_unusable", "endpoint": "recovery/confirm", "status": 422, "body": { "success": false, "error": "recovery_unavailable", "code": "recovery_unavailable" },
+      "frontend": { "ok": false, "error": "recovery_unavailable", "retryAfter": null, "problem": "other" } }
+  ]
+}

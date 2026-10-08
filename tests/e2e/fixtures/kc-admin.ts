@@ -73,6 +73,33 @@ export async function removeCredentials(username: string, types: string[]): Prom
   }
 }
 
+/**
+ * Make the user's first credential of `type` the preferred one (Keycloak's credential
+ * priority decides which alternative the browser flow offers first). Accounts created by
+ * the registration flow get their passkey first; this reproduces that order for users
+ * the tests create with a password.
+ */
+export async function moveCredentialFirst(username: string, type: string): Promise<void> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) throw new Error(`User not found: ${username}`);
+  const cred = (await client.users.getCredentials({ id: user.id })).find((c) => c.type === type);
+  if (!cred?.id) throw new Error(`${username} has no ${type} credential`);
+  const res = await fetch(
+    `${client.baseUrl}/admin/realms/${client.realmName}/users/${user.id}/credentials/${cred.id}/moveToFirst`,
+    { method: 'POST', headers: { Authorization: `Bearer ${await client.getAccessToken()}` } },
+  );
+  if (!res.ok) throw new Error(`moveToFirst failed: ${res.status}`);
+}
+
+/** Credential types the user has, in priority order. */
+export async function credentialTypes(username: string): Promise<string[]> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) throw new Error(`User not found: ${username}`);
+  return (await client.users.getCredentials({ id: user.id })).map((c) => c.type ?? '');
+}
+
 export async function setUserEnabled(username: string, enabled: boolean): Promise<void> {
   const client = await buildAdminClient();
   const [user] = await client.users.find({ username, exact: true });
@@ -150,10 +177,12 @@ export const test = base.extend<{
     logoutUser: typeof logoutUser;
     removeCredentials: typeof removeCredentials;
     setUserEnabled: typeof setUserEnabled;
+    moveCredentialFirst: typeof moveCredentialFirst;
+    credentialTypes: typeof credentialTypes;
   };
 }>({
   kcAdmin: async ({}, use) => {
-    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, clearRequiredActions, createUser, deleteUser, getUserSessions, logoutUser, removeCredentials, setUserEnabled });
+    await use({ resetCredentials, clearOtpCodes, expireOtpCodes, clearRequiredActions, createUser, deleteUser, getUserSessions, logoutUser, removeCredentials, setUserEnabled, moveCredentialFirst, credentialTypes });
   },
 });
 

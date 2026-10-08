@@ -30,3 +30,6 @@ backend/src/index.test.ts:generic-api-key:14
 backend/src/routes/public.test.ts:generic-api-key:12
 backend/tests/adversarial/harness.ts:generic-api-key:166
 backend/src/test-utils/db.ts:generic-api-key:27
+# Google's documented public reCAPTCHA v2 TEST site key, used as a Terraform test fixture (not a secret)
+terraform/keycloak/tests/guards.tftest.hcl:generic-api-key:58
+terraform/keycloak/tests/guards.tftest.hcl:generic-api-key:130
