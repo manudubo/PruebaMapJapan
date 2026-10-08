@@ -73,6 +73,35 @@ describe('GET /api/users/me', () => {
   });
 });
 
+describe('GET /api/users/me onboarding.is_new (new-user passkey campaign)', () => {
+  const isNew = (body: Record<string, unknown>) =>
+    (body['data'] as { onboarding?: { is_new?: unknown } }).onboarding?.is_new;
+
+  it('true on the provisioning call and while the account is younger than the window', async () => {
+    const first = await call('GET', '/api/users/me', { sub: 'kc-new' });
+    expect(first.status).toBe(201);
+    expect(isNew(first.body)).toBe(true);
+    const again = await call('GET', '/api/users/me', { sub: 'kc-new' });
+    expect(again.status).toBe(200);
+    expect(isNew(again.body)).toBe(true);
+  });
+
+  it('false for an account older than the window', async () => {
+    const created_at = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    await insertUser({ keycloak_id: 'kc-old-user', created_at });
+    const res = await call('GET', '/api/users/me', { sub: 'kc-old-user' });
+    expect(res.status).toBe(200);
+    expect(isNew(res.body)).toBe(false);
+  });
+
+  it('is derived, never stored: no column and no preferences write', async () => {
+    await call('GET', '/api/users/me', { sub: 'kc-derived' });
+    const [row] = await userRow('kc-derived');
+    expect(row).not.toHaveProperty('onboarding');
+    expect(row.preferences).toEqual({});
+  });
+});
+
 describe('email conflicts (DATA-02)', () => {
   it('GET /me for a new subject whose email another account owns → 409 email_conflict, no row', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
