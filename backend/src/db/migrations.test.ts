@@ -235,3 +235,76 @@ describe('0008 date coherence triggers (BIZ-07)', () => {
     ]);
   });
 });
+
+describe('0011 email verification + OTP purposes', () => {
+  const issue6 = (userId: number, purpose: string) =>
+    q(`SELECT * FROM otp_issue($1::integer, 'h'::text, 600, 5, 3600, $2::text)`, [userId, purpose]);
+
+  it('backfills every existing user as verified; later users start unverified', async () => {
+    db = await scratchDbAt('0010_reconcile_push_built_schema');
+    await seedUser('a@example.com');
+    await seedUser('', 'no-email');
+    await db.migrateToLatest();
+
+    const rows = await q('SELECT id, email_verified_at FROM users ORDER BY id');
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.email_verified_at instanceof Date)).toBe(true);
+
+    const b = await seedUser('b@example.com');
+    const [fresh] = await q('SELECT email_verified_at FROM users WHERE id = $1', [b]);
+    expect(fresh.email_verified_at).toBeNull();
+  });
+
+  it('existing OTP rows become purpose=login and keep their state; the 5-arg function still works', async () => {
+    db = await scratchDbAt('0010_reconcile_push_built_schema');
+    const u = await seedUser('a@example.com');
+    await q(
+      `INSERT INTO email_otp_codes (user_id, code_hash, expires_at, attempts) VALUES ($1, 'old', now() + interval '5 minutes', 3)`,
+      [u],
+    );
+    await db.migrateToLatest();
+
+    expect(await q('SELECT purpose, attempts, code_hash FROM email_otp_codes')).toEqual([
+      { purpose: 'login', attempts: 3, code_hash: 'old' },
+    ]);
+    // The legacy pending login code still blocks a new login code through the old signature...
+    const [legacy] = await q(`SELECT * FROM otp_issue($1::integer, 'x'::text, 600, 5, 3600)`, [u]);
+    expect(legacy.status).toBe('otp_pending');
+    // ...and issues one with the 'login' purpose for a user without one.
+    const v = await seedUser('v@example.com');
+    const [issued] = await q(`SELECT * FROM otp_issue($1::integer, 'x'::text, 600, 5, 3600)`, [v]);
+    expect(issued.status).toBe('issued');
+    expect(await q('SELECT purpose FROM email_otp_codes WHERE id = $1', [issued.otp_id])).toEqual([{ purpose: 'login' }]);
+  });
+
+  it('pending code and hourly cap are per (user, purpose); unknown purposes are rejected by the CHECK', async () => {
+    db = await scratchDbAt('0011_email_verification');
+    const u = await seedUser('a@example.com');
+    expect((await issue6(u, 'login'))[0].status).toBe('issued');
+    expect((await issue6(u, 'login'))[0].status).toBe('otp_pending');
+    expect((await issue6(u, 'email_verify'))[0].status).toBe('issued');
+    expect((await issue6(u, 'recovery'))[0].status).toBe('issued');
+
+    // Cap: burn 5 recovery codes, the 6th is rate limited, other purposes are not.
+    const v = await seedUser('v@example.com');
+    for (let i = 0; i < 5; i++) {
+      const [r] = await issue6(v, 'recovery');
+      expect(r.status).toBe('issued');
+      await q('UPDATE email_otp_codes SET used_at = now() WHERE id = $1', [r.otp_id]);
+    }
+    expect((await issue6(v, 'recovery'))[0].status).toBe('otp_rate_limited');
+    expect((await issue6(v, 'email_verify'))[0].status).toBe('issued');
+
+    await expect(issue6(v, 'nope')).rejects.toSatisfy((e: unknown) => pgErrorCode(e) === '23514');
+  });
+
+  it('a database built by drizzle-kit push from the new schema keeps its NULLs (no re-stamp)', async () => {
+    db = await scratchDbAt('0010_reconcile_push_built_schema');
+    await q('ALTER TABLE users ADD COLUMN email_verified_at timestamptz');
+    await q(`ALTER TABLE email_otp_codes ADD COLUMN purpose text NOT NULL DEFAULT 'login'`);
+    await seedUser('a@example.com');
+    await db.migrateToLatest();
+    expect(await q('SELECT email_verified_at FROM users')).toEqual([{ email_verified_at: null }]);
+    await db.migrateToLatest();
+  });
+});

@@ -21,7 +21,10 @@ export const REQUIRED_SCHEMA_OBJECTS = [
   'trigger trips_biz07_date_coherence', // 0008
   'trigger destinations_biz07_date_coherence', // 0008
   'trigger days_biz07_date_coherence', // 0008
-  'function otp_issue()', // 0009 — called with 5 integer/text args
+  'function otp_issue()', // 0009 — called with 5 integer/text args (kept as a wrapper by 0011)
+  'column users.email_verified_at', // 0011
+  'column email_otp_codes.purpose', // 0011
+  'function otp_issue(purpose)', // 0011 — 6th arg: the OTP purpose
 ] as const;
 
 /** Stable error code for clients and logs. */
@@ -35,6 +38,9 @@ interface CatalogRow extends Record<string, unknown> {
   destinations_trigger: boolean;
   days_trigger: boolean;
   otp_issue: boolean;
+  email_verified_at: boolean;
+  otp_purpose: boolean;
+  otp_issue_purpose: boolean;
 }
 
 /** One round-trip; returns the names of required objects that are absent. */
@@ -53,7 +59,14 @@ export async function findMissingSchemaObjects(db: Db): Promise<string[]> {
       ${trigger('trips', 'trips_biz07_date_coherence')} AS trips_trigger,
       ${trigger('destinations', 'destinations_biz07_date_coherence')} AS destinations_trigger,
       ${trigger('days', 'days_biz07_date_coherence')} AS days_trigger,
-      to_regprocedure('otp_issue(integer, text, integer, integer, integer)') IS NOT NULL AS otp_issue`);
+      to_regprocedure('otp_issue(integer, text, integer, integer, integer)') IS NOT NULL AS otp_issue,
+      EXISTS (SELECT 1 FROM pg_attribute a
+               WHERE a.attrelid = to_regclass('users') AND a.attname = 'email_verified_at'
+                 AND NOT a.attisdropped) AS email_verified_at,
+      EXISTS (SELECT 1 FROM pg_attribute a
+               WHERE a.attrelid = to_regclass('email_otp_codes') AND a.attname = 'purpose'
+                 AND NOT a.attisdropped) AS otp_purpose,
+      to_regprocedure('otp_issue(integer, text, integer, integer, integer, text)') IS NOT NULL AS otp_issue_purpose`);
   const row = rows[0];
   if (!row) throw new Error('schema guard: catalog query returned no row');
   const present = [
@@ -62,6 +75,9 @@ export async function findMissingSchemaObjects(db: Db): Promise<string[]> {
     row.destinations_trigger,
     row.days_trigger,
     row.otp_issue,
+    row.email_verified_at,
+    row.otp_purpose,
+    row.otp_issue_purpose,
   ];
   return REQUIRED_SCHEMA_OBJECTS.filter((_, i) => present[i] !== true);
 }

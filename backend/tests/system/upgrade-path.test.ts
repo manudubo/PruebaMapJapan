@@ -259,6 +259,11 @@ describe.each(['hand', 'migrator'] as const)('upgrade 0003 → 0009 with ugly le
     expect(counts).toEqual([{ users: 5, trips: 2, destinations: 3, activities: 2, otps: 7 }]);
   });
 
+  it('0011 grandfathered every legacy user as email-verified and typed every legacy OTP row as login', async () => {
+    expect(await db.q(`SELECT count(*)::int AS n FROM users WHERE email_verified_at IS NULL`)).toEqual([{ n: 0 }]);
+    expect(await db.q(`SELECT DISTINCT purpose FROM email_otp_codes`)).toEqual([{ purpose: 'login' }]);
+  });
+
   it('re-running the migrator is a no-op (journal, data and schema unchanged)', async () => {
     const before = await snapshot(db);
     const print = await schemaFingerprint(db);
