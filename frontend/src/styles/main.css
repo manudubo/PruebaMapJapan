@@ -2269,3 +2269,39 @@ travel-nav:not(:defined) {
 .btn-link:hover {
   color: var(--jp-text);
 }
+
+/* ============================================
+   New-user passkey onboarding dialog (src/modules/passkeyCampaign.ts)
+   ============================================ */
+.onboarding-dialog h2 {
+  margin-bottom: 12px;
+}
+
+.onboarding-body {
+  margin: 0 0 24px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-actions .btn {
+  width: 100%;
+  min-height: 44px;
+  white-space: normal;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .onboarding-overlay {
+    animation: onboarding-fade 0.18s ease-out;
+  }
+
+  @keyframes onboarding-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}

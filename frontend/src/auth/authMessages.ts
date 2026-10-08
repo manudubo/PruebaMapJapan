@@ -52,6 +52,10 @@ const MESSAGES = {
     onboardCreate: 'Create a passkey',
     onboardLater: 'Not now',
     onboardNever: "Don't ask again",
+    onboardPwTitle: 'Set a password as a backup',
+    onboardPwBody:
+      "This device can't create a passkey, so a password is how you'll sign in here next time. Set one now, it takes a moment.",
+    onboardPwAction: 'Set a password',
     onboardStartFailed: "Couldn't open passkey setup. Please try again.",
     passkeyNotCreated: 'No passkey was created. You can add one anytime from your profile.',
     passkeyCreated: 'Passkey created. Use it next time you sign in.',
@@ -134,6 +138,10 @@ const MESSAGES = {
     onboardCreate: 'Crear una passkey',
     onboardLater: 'Ahora no',
     onboardNever: 'No volver a preguntar',
+    onboardPwTitle: 'Crea una contraseña de respaldo',
+    onboardPwBody:
+      'Este dispositivo no puede crear una passkey, así que una contraseña es la forma de entrar aquí la próxima vez. Créala ahora, solo toma un momento.',
+    onboardPwAction: 'Crear una contraseña',
     onboardStartFailed: 'No se pudo abrir la configuración de la passkey. Inténtalo de nuevo.',
     passkeyNotCreated: 'No se creó ninguna passkey. Puedes crear una cuando quieras desde tu perfil.',
     passkeyCreated: 'Passkey creada. Úsala la próxima vez que inicies sesión.',

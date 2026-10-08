@@ -10,7 +10,7 @@ export function keycloakBaseUrl(raw: string | undefined): string {
 }
 
 export const KEYCLOAK_URL = keycloakBaseUrl(import.meta.env['VITE_KEYCLOAK_URL'] as string | undefined);
-const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string | undefined ?? 'japan-trip';
+export const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string | undefined ?? 'japan-trip';
 const KEYCLOAK_CLIENT_ID = import.meta.env['VITE_KEYCLOAK_CLIENT_ID'] as string | undefined ?? 'japan-trip-frontend';
 
 // ---------------------------------------------------------------------------
