@@ -115,3 +115,56 @@ time, flags, move/delete), the "add a place" search, and the hotel.
 * `cover_image_url` is a plain URL field; there is no upload endpoint.
 * Place details (opening hours, photos) are out of scope: the geocoder returns
   only `{lat, lon, display_name}`.
+
+## Screens (Playwright chromium, mocked API, blank map tiles)
+
+`docs/design/trip-creation-screens/`: `route-*`, `city-*`, `share-*`, `trip-*`,
+`new-*` at 375 and 1280 px, light and dark (`*-375-plan` / `*-375-map` are the
+two phone tabs), plus `s-*` for search results, empty route, undo snackbar and
+the save-failure banner. The map is grey/purple only because tile requests are
+stubbed in the harness.
+
+### Honest critique and what changed
+
+Compared with the demo, the right pane is recognisably the same product:
+red/orange/yellow numbered squares, dashed route, "Cities" cards, day chips,
+dashed-purple options, the orange H. Round 1 findings, fixed:
+
+* time field clipped to "09:00 A" -> wider; step label "Route & places"
+  wrapped on phones -> "Route"; arrival/departure stacked on phones -> two
+  columns; "General area" markers looked disabled like unpinned ones -> only
+  genuinely unlocated places are dimmed.
+* free-text "Add without a map location" was offered while a search was still
+  loading and could be clicked by mistake -> only after the search settles.
+* save indicator stayed "idle" during the debounce -> "Saving…" immediately.
+* Back/forward on a phone left the Map tab open over the new screen -> the
+  Plan tab is restored on navigation.
+
+Round 2 findings, fixed: the failure banner scrolled out of sight and, once
+sticky, let text show through (alpha background) -> sticky with an opaque base.
+
+Still different from the demo: no real tiles in these captures; the demo's
+page is a single card, the editor is two panes by necessity; the legend's
+action buttons go full width on phones (the demo's own mobile rule).
+
+## Tests
+
+* unit (`frontend/tests/trip-edit-*.test.ts`): model, save queue, place
+  search, store (ids, debounce, undo, reorder, failures), nav/sortable/
+  reconcile/h(), views in jsdom, status wording, auth bootstrap.
+* e2e (`tests/e2e/trip-edit.spec.ts`, `trip-edit-resilience.spec.ts`, with the
+  stateful `fixtures/mockTripStore.ts`): the full journey with reload
+  persistence and the "break it" scenarios listed in the brief.
+* `trip-edit-integration.spec.ts` and `new-user-trip-creation.spec.ts` follow
+  the new selectors but need a live backend + Keycloak (fixme'd in CI).
+
+## Known gaps
+
+* The dashboard "New trip" modal still creates the trip itself and sends the
+  user to the trip view; `trip-edit.html?new=1` is the new first step and is
+  ready to be linked from there (dashboard is another owner's file).
+* Deleting then closing the tab within the 7 s undo window relies on a
+  best-effort flush at `pagehide`; a `keepalive` fetch would make it exact.
+* No pointer-drag of pins on touch (Leaflet marker dragging works, but there
+  is no equivalent keyboard way to nudge a pin; use "Change location").
+* Moving a place to another day is not offered (delete and re-add).

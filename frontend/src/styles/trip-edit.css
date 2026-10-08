@@ -54,6 +54,7 @@
 
 /* ---- Banners / snackbar --------------------------------------------------------- */
 .te-banners:empty { display: none; }
+.te-banners { position: sticky; top: 0; z-index: 60; }
 .te-banner {
   display: flex;
   align-items: center;
@@ -68,9 +69,9 @@
 }
 .te-banner-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .te-banner-text span { color: var(--jp-text-secondary); }
-.te-banner--error { border-color: color-mix(in srgb, var(--jp-danger) 45%, transparent); background: var(--jp-danger-subtle); }
-.te-banner--offline { border-color: var(--jp-hotel-border); background: var(--jp-hotel-subtle); }
-.te-banner--issues { border-color: color-mix(in srgb, var(--jp-danger) 45%, transparent); background: var(--jp-danger-subtle); }
+.te-banner--error { border-color: color-mix(in srgb, var(--jp-danger) 45%, transparent); background: linear-gradient(var(--jp-danger-subtle), var(--jp-danger-subtle)), var(--jp-surface); }
+.te-banner--offline { border-color: var(--jp-hotel-border); background: linear-gradient(var(--jp-hotel-subtle), var(--jp-hotel-subtle)), var(--jp-surface); }
+.te-banner--issues { border-color: color-mix(in srgb, var(--jp-danger) 45%, transparent); background: linear-gradient(var(--jp-danger-subtle), var(--jp-danger-subtle)), var(--jp-surface); }
 .te-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .te-snackbar {
