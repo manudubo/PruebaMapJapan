@@ -13,6 +13,12 @@
 #   idempotent second deploy.sh changes nothing
 #   postgres   kill Postgres: ready=503; start it: ready=200 again
 #   restart    restart every container: data and login still work
+#   mail       (opt-in, needs TEST_MAILPIT_PORT: tests/compose.test.yml's SMTP
+#              sink) OTP request -> mail delivered over STARTTLS + AUTH, the
+#              code never appears in the backend log
+#   invite     (opt-in, needs TEST_MAILPIT_PORT) scripts/add-user.sh -> Keycloak
+#              mails the invite over STARTTLS + AUTH -> password set from the
+#              link -> that person logs in and calls the API
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=SCRIPTDIR/../scripts/lib/common.sh
@@ -134,6 +140,34 @@ for phase in "${PHASES[@]}"; do
       out="$(login)"; rc=$?
       check "login after restarting everything" 0 "$rc"
       check "trips kept across restart" "$before" "$(trip_count)" ;;
+    mail)
+      [ -n "${TEST_MAILPIT_PORT:-}" ] || { flunk "mail phase needs TEST_MAILPIT_PORT (the test SMTP sink)"; continue; }
+      [ -s "$TMP/token" ] || login >/dev/null
+      sink="http://127.0.0.1:$TEST_MAILPIT_PORT/api/v1"
+      "${CURL[@]}" -X DELETE "$sink/messages" -o /dev/null
+      check "OTP request (code issued)" 201 "$(api -o /dev/null -w '%{http_code}' -X POST "$API/auth/otp-request" -d '{}')"
+      n=0; got=""
+      until [ -n "$got" ] || [ $n -ge 15 ]; do
+        sleep 1; n=$((n + 1))
+        got="$("${CURL[@]}" "$sink/search?query=to:$USER_NAME" | python3 -c 'import json,sys; m=json.load(sys.stdin)["messages"]; print(m[0]["ID"] if m else "")' 2>/dev/null)"
+      done
+      check "OTP mail delivered to the user" true "$([ -n "$got" ] && echo true || echo false)"
+      code6="$("${CURL[@]}" "$sink/message/$got" | python3 -c 'import json,re,sys; print((re.findall(r"\b\d{6}\b", json.load(sys.stdin)["Text"]) or [""])[0])' 2>/dev/null)"
+      check "mail carries a 6-digit code" 6 "${#code6}"
+      check "code not in the backend log" 0 "$(docker logs "$COMPOSE_PROJECT_NAME-backend" 2>&1 | grep -c "${code6:-nocode}")"
+      check "OTP verify with the mailed code" 200 "$(api -o /dev/null -w '%{http_code}' -X POST "$API/auth/otp-verify" -d "{\"code\":\"$code6\"}")" ;;
+    invite)
+      [ -n "${TEST_MAILPIT_PORT:-}" ] || { flunk "invite phase needs TEST_MAILPIT_PORT (the test SMTP sink)"; continue; }
+      invitee="invite-$(date +%s)@travelmap.test"; invitee_pass="Invited-$(date +%s)-Pw!"
+      "$SELFHOST_DIR/scripts/add-user.sh" "$invitee" "Invited Person" >/dev/null && pass "add-user.sh $invitee" || flunk "add-user.sh failed"
+      sleep 2
+      python3 -I "$HERE/invite-flow.py" "http://127.0.0.1:$TEST_MAILPIT_PORT/api/v1" "$invitee" "https://$AUTH_HOST" "$invitee_pass" \
+        && pass "invite email -> password chosen from the link" || flunk "invite link flow"
+      out="$(NODE_EXTRA_CA_CERTS="${TEST_CA_FILE:-}" PUBLIC_URL="https://$AUTH_HOST" API_URL="$API" \
+        REALM="$KEYCLOAK_REALM" USERNAME="$invitee" PASSWORD="$invitee_pass" ORIGIN="$FRONTEND_ORIGIN" \
+        REDIRECT_URI="$FRONTEND_ORIGIN$FRONTEND_BASE_PATH/dashboard.html" TOKEN_FILE="$TMP/invitee-token" \
+        node "$HERE/oidc-login.mjs")"; rc=$?
+      check "invited person logs in and calls the API (exit code)" 0 "$rc" ;;
     *) flunk "unknown phase $phase" ;;
   esac
 done

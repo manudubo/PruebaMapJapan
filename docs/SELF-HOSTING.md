@@ -17,7 +17,8 @@ The kit lives in `deploy/selfhost/`:
 | `.env.example` | Every setting, explained. Your copy is `.env` (secret, never committed) |
 | `scripts/bootstrap.sh` | Checks the server; prepares `.env`. Changes nothing unless you pass a flag |
 | `scripts/deploy.sh` | Build, migrate the database, start, wait until ready. Safe to re-run |
-| `scripts/keycloak-apply.sh` | Create/update the login realm with Terraform |
+| `scripts/keycloak-apply.sh` | Create/update the login realm with Terraform (production profile) |
+| `scripts/add-user.sh` | Create an account and email the person a link to choose a password |
 | `scripts/funnel.sh` | Publish the server with Tailscale Funnel (port 443 only) |
 | `scripts/status.sh` | One-screen health report |
 | `scripts/backup.sh`, `restore.sh`, `backup-timer.sh` | Backups, restore, restore drill, daily timer |
@@ -99,7 +100,8 @@ stops working** (see [Passkeys](#passkeys-and-the-host-name)).
 > - Memory: limits are postgres 512 MB, backend 256 MB, Keycloak 1 GB (Java heap
 >   256–768 MB), proxy 128 MB: about **1.9 GB worst case**, ~0.6 GB typical.
 > - All state lives in the checkout: `deploy/selfhost/.env`, `state/`
->   (Terraform), `backups/`, plus the Docker volumes `travelmap_pgdata`,
+>   (Terraform: `state/terraform/keycloak`; an older `state/terraform` layout is
+>   moved there automatically), `backups/`, plus the Docker volumes `travelmap_pgdata`,
 >   `travelmap_caddy_data`, `travelmap_caddy_config`.
 
 ---
@@ -113,10 +115,15 @@ stops working** (see [Passkeys](#passkeys-and-the-host-name)).
 - **An email account to send sign-in emails** (verification codes, password
   resets). Pick one:
   - **Gmail (no domain needed)**: turn on 2-step verification, then create an
-    *App password* (Google Account → Security → App passwords). Limit ~500
-    emails/day. Settings: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`,
-    `SMTP_SECURE=starttls`, `SMTP_USER=you@gmail.com`, `SMTP_PASS=<app password>`,
-    `EMAIL_FROM=TravelMap <you@gmail.com>`, `EMAIL_PROVIDER=smtp`.
+    *App password* (Google Account → Security → App passwords; Google shows 16
+    letters, paste them as shown, spaces or not). Limit ~500 emails/day; Gmail
+    sends as your address whatever `EMAIL_FROM` says. Settings:
+    `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=starttls`,
+    `SMTP_USER=you@gmail.com`, `SMTP_PASS=<app password>`,
+    `EMAIL_FROM=TravelMap <you@gmail.com>`, `EMAIL_PROVIDER=smtp`. The same
+    account sends both the app's sign-in codes and Keycloak's emails (invites,
+    password resets). Plain SMTP (`SMTP_SECURE=none`) is refused: both the
+    backend and the production realm require TLS.
   - **Resend** (needs your own domain verified in Resend; without one it only
     delivers to your own address): `EMAIL_PROVIDER=resend`,
     `RESEND_API_KEY=re_...`, `EMAIL_FROM=TravelMap <login@yourdomain>`; Keycloak
@@ -206,6 +213,15 @@ the database checks and migrations, starts everything and waits until ready.
 
 It shows what it will create (about 25 items) and asks; type `y`.
 
+It applies `terraform/keycloak` with `profile = "production"`: exact redirect
+pages for `FRONTEND_ORIGIN` (no wildcards), HTTPS required, the passkey rpId
+`PUBLIC_HOST`, temporary lockouts after 10 wrong passwords, a 12-character
+password minimum, email through your `SMTP_*`, **no test users and no
+self-registration** (you invite people in step 9). Terraform itself refuses to
+apply if one of these production rules is not met (for example SMTP without
+TLS). It talks to Keycloak on `http://127.0.0.1:28081/auth`, which never
+leaves the machine.
+
 **Verify:** the last line is
 `[ OK ] Realm 'japan-trip' applied. Issuer: https://legion-server.tailad4a36.ts.net/auth/realms/japan-trip`.
 Running it again prints `No changes`.
@@ -251,9 +267,19 @@ login page is served from `legion-server.tailad4a36.ts.net/auth/...`.
 
 ### 9. First account
 
-On the login page choose **Register**, fill the form, open the verification
-email, click the link. You land back in the app signed in. Register a passkey
-from the profile page if you want.
+Self-registration is off (strangers on the internet cannot create accounts).
+Invite yourself, and later anyone else, from the server:
+
+```bash
+./scripts/add-user.sh you@gmail.com "Your Name"
+```
+
+It prints `[ OK ] Email sent to you@gmail.com`. Open that email (subject
+*Update Your Account*, from your Gmail address) within 12 hours, click the
+link, choose a password (at least 12 characters, not your email), and you see
+*Your account has been updated*. Click **Back to application**, press
+**Sign in** and use your email and that password. Register a passkey from the
+profile page if you want. Link expired or lost: `./scripts/add-user.sh --resend you@gmail.com`.
 
 **Verify:** the dashboard shows your name; `./scripts/status.sh` ends with
 `All checks passed.`
@@ -429,7 +455,7 @@ Caddy → backend = 1.
 - [ ] Only 127.0.0.1 ports are published (`./scripts/status.sh` "Conflicts" section; `docker ps` shows `127.0.0.1:` for travelmap containers).
 - [ ] `https://<host>/auth/admin/` and `https://<host>/auth/realms/master` answer 404 from outside.
 - [ ] Keycloak admin password is the generated one (64 hex chars) and only used through the SSH tunnel.
-- [ ] No test users in the realm (the production override removes them).
+- [ ] No test users and registration off in the realm (production profile; Terraform refuses otherwise).
 - [ ] SSH: key login only (`PasswordAuthentication no`), consider `./scripts/bootstrap.sh --fail2ban`.
 - [ ] Automatic security updates: `./scripts/bootstrap.sh --unattended-upgrades` (if not already handled).
 - [ ] Daily backups + monthly `restore.sh --drill` + an off-site copy.
@@ -441,7 +467,7 @@ Caddy → backend = 1.
 - [ ] `./scripts/status.sh` → `All checks passed.`
 - [ ] From mobile data: `https://<host>/api/health/ready` → `{"status":"ready"}`.
 - [ ] GitHub secrets set (4), Pages redeployed, sign-in redirects to `<host>/auth`.
-- [ ] Registration email arrives; verification link works; you land signed in.
+- [ ] `add-user.sh` invite email arrives; the link sets your password; you sign in.
 - [ ] Create a trip, reload, it is still there; sign out and in again.
 - [ ] Optional: register a passkey and sign in with it.
 - [ ] Backup timer installed (`./scripts/backup-timer.sh status`), drill passed.
@@ -458,13 +484,18 @@ Caddy → backend = 1.
 scripts (or `./scripts/compose.sh`) must be used instead of plain
 `docker compose`.
 
-**Backend environment** (validated at start-up by `backend/src/server.ts`; the
-process exits listing every problem): `ENVIRONMENT`, `DATABASE_URL`,
+**Backend environment** (validated at start-up by `backend/src/node/bootstrap.ts`,
+with the same rules the app uses at run time; the process exits listing every
+problem; the list is `SERVER_ENV_CONTRACT` in `backend/src/node/config.ts`, and
+a test checks that compose forwards it): `ENVIRONMENT`, `DATABASE_URL`,
 `DB_DRIVER=pg`, `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `VALID_AUDIENCES`,
-`KEYCLOAK_JWKS_URL` (internal, set by compose), `OTP_SECRET` (≥32 chars),
-`EMAIL_PROVIDER`/`EMAIL_FROM` + `RESEND_API_KEY` or `SMTP_*`, `ALLOWED_ORIGINS`
-(exact https origins), `NOMINATIM_USER_AGENT`, `NOMINATIM_CONTACT`,
-`TRUSTED_PROXY_HOPS`, `CLIENT_IP_HEADER`, optional `PG_POOL_MAX` (10),
+`KEYCLOAK_JWKS_URL` (internal, set by compose), optional `KEYCLOAK_ISSUER` and
+`ALLOWED_AZP`, `OTP_SECRET` (≥32 chars), `EMAIL_PROVIDER`, `EMAIL_FROM` (alias
+`SMTP_FROM`) + `RESEND_API_KEY` or `SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`
+(`starttls`/`tls`)/`SMTP_USER`/`SMTP_PASS`, `ALLOWED_ORIGINS` (exact https
+origins), `NOMINATIM_CONTACT`, optional `NOMINATIM_USER_AGENT` and
+`NOMINATIM_URL`, `TRUSTED_PROXY_HOPS`, `CLIENT_IP_HEADER`, `LOG_LEVEL`
+(`info`; `warn` hides the per-request lines), optional `PG_POOL_MAX` (10),
 `PG_IDLE_TIMEOUT_MS`, `PG_CONNECT_TIMEOUT_MS`, `SHUTDOWN_TIMEOUT_MS`,
 `LOG_REQUESTS`. Every other variable is passed to the app unchanged.
 

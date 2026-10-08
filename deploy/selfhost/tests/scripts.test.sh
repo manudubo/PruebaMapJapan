@@ -162,6 +162,29 @@ printf '{}' > "$TS_SERVE_JSON"; : > "$TS_LOG"
 funnel enable --dry-run >/dev/null
 grep -q -- '--bg' "$TS_LOG" && t_fail "--dry-run runs nothing" || t_ok "--dry-run runs nothing"
 
+# --- keycloak-apply.sh / add-user.sh refuse bad input before contacting Keycloak ------------
+base_env
+"$SCRIPTS/gen-secrets.sh" >/dev/null 2>&1
+out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x SMTP_SECURE=none \
+  "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+expect_eq "keycloak-apply.sh: plain SMTP refused (production realm needs TLS)" 1 "$rc"
+expect_has "  and says why" "starttls or tls" "$out"
+out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x SMTP_PORT=abc \
+  "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+expect_eq "keycloak-apply.sh: non-numeric SMTP_PORT refused" 1 "$rc"
+for bad in 'not-an-email' 'a b@example.com' 'x@y' '"><@example.com'; do
+  out="$("$SCRIPTS/add-user.sh" "$bad" 2>&1)"; rc=$?
+  expect_eq "add-user.sh refuses '$bad'" 1 "$rc"
+done
+expect_has "  and says why" "must be an email address" "$out"
+if [ -d "$HERE/../terraform" ]; then
+  t_fail "deploy/selfhost/terraform override files are gone (the production profile replaces them)"
+else
+  t_ok "no Terraform override files: keycloak-apply.sh uses profile=production"
+fi
+grep -q '"profile": "production"' "$SCRIPTS/keycloak-apply.sh" \
+  && t_ok "keycloak-apply.sh applies profile=production" || t_fail "keycloak-apply.sh applies profile=production"
+
 # --- docker compose config for every mode --------------------------------------------------
 if docker compose version >/dev/null 2>&1; then
   check_compose() { # <label> <expected services> KEY=VAL...
