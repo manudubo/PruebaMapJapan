@@ -143,11 +143,13 @@ test.describe('Keycloak config invariants (static)', () => {
       /!local\.production \|\| var\.ssl_required == "all"/,
       /!local\.production \|\| !local\.create_test_users/,
       /!local\.production \|\| var\.webauthn_rp_id != "localhost"/,
-      /!local\.production \|\| \(startswith\(var\.kc_url, "https:\/\/"\) && !var\.kc_tls_insecure_skip_verify\)/,
+      /!local\.production \|\| \(\(startswith\(var\.kc_url, "https:\/\/"\) \|\| local\.kc_url_loopback\) && !var\.kc_tls_insecure_skip_verify\)/,
       /!local\.production \|\| \(var\.smtp_host != "mailpit"/,
     ]) {
       expect(realm.body, String(guard)).toMatch(guard);
     }
+    // Plain http only for a loopback admin URL (self-host admin port), never a remote one.
+    expect(main).toMatch(/kc_url_loopback = can\(regex\("\^http:\/\/\(127\\\\\.0\\\\\.0\\\\\.1\|localhost\|/);
     // TLS verification of the admin connection is never hard-coded off.
     expect(read('terraform/keycloak/versions.tf')).toMatch(/tls_insecure_skip_verify\s*=\s*var\.kc_tls_insecure_skip_verify/);
   });
