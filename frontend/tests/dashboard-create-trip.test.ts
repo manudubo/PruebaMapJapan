@@ -36,12 +36,21 @@ vi.mock('keycloak-js', () => ({
 
 vi.mock('@/components/Navbar', () => ({}));
 vi.mock('@/components/SearchBar', () => ({}));
-vi.mock('@/modules/passkeyCampaign', () => ({ checkPasskeyCampaign: vi.fn() }));
+vi.mock('@/modules/passkeyCampaign', () => ({
+  checkPasskeyCampaign: vi.fn(),
+  createPrefsStore: vi.fn(),
+  runNewUserOnboarding: vi.fn(),
+}));
 
 const api = vi.hoisted(() => ({
   getMe: vi.fn(),
   getMyTrips: vi.fn(),
   createTrip: vi.fn(),
+  updateMe: vi.fn(),
+  EMAIL_NOT_VERIFIED_EVENT: 'travelmap:email-not-verified',
+  ApiError: class ApiError extends Error {
+    constructor(public status: number, public code: string) { super(code); }
+  },
   apiUrl: (p: string) => `http://localhost:8787/api${p}`,
 }));
 vi.mock('@/api/client', () => api);

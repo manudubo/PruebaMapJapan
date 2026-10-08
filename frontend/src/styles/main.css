@@ -2186,3 +2186,255 @@ travel-nav:not(:defined) {
     min-height: 55px;
   }
 }
+
+/* Sign-up outcome notice (src/auth/authStatusUI.ts showSignUpNotice): text + dismiss only */
+#signup-notice {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* Signed-out trip view: Sign up / Sign in above the "Back to dashboard" link */
+.trip-auth-actions {
+  margin: 4px 0 20px;
+}
+
+/* ============================================
+   One-time code input + email verification (src/modules/codeInput.ts, src/auth/verifyEmail.ts)
+   ============================================ */
+.code-input {
+  margin: 0 auto 16px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.code-input-legend {
+  margin: 0 auto 10px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
+}
+
+.code-input-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.code-input-digit {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 52px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--jp-text-tertiary);
+  border-radius: var(--jp-radius);
+  background: var(--jp-surface);
+  color: var(--jp-text);
+  font: inherit;
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-input-digit[aria-invalid="true"] {
+  border-color: var(--jp-danger);
+}
+
+.code-input-digit:disabled {
+  opacity: 0.6;
+}
+
+.code-error {
+  min-height: 1.5em;
+  margin: 0 0 12px;
+  color: var(--jp-danger);
+  font-size: 14px;
+}
+
+.verify-email .verify-email-hint {
+  margin: 20px 0 12px;
+  color: var(--jp-text-secondary);
+  font-size: 14px;
+}
+
+.btn-link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--jp-accent-text);
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: var(--jp-text);
+}
+
+/* ============================================
+   Account recovery (recover.html, src/pages/recoverView.ts)
+   ============================================ */
+.recover-card {
+  max-width: 520px;
+  margin: 24px auto 0;
+  padding: 32px;
+}
+
+@media (max-width: 600px) {
+  .recover-card {
+    padding: 24px 20px;
+  }
+}
+
+.recover-card .code-input {
+  margin-inline: 0;
+}
+
+.recover-card .code-input-row {
+  justify-content: flex-start;
+}
+
+.recover-card .code-input-legend {
+  margin-inline: 0;
+}
+
+.recover-card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(20px, 4vw, 26px);
+  font-weight: 700;
+  color: var(--jp-text);
+}
+
+.recover-card h1:focus {
+  outline: none;
+}
+
+.recover-intro {
+  margin: 0 0 20px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.recover-form .btn-primary {
+  width: 100%;
+  min-height: 44px;
+}
+
+.recover-toggle {
+  margin: -8px 0 12px;
+  min-height: 44px;
+  padding-inline: 0;
+}
+
+.recover-actions {
+  margin-top: 16px;
+}
+
+.pw-rules {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--jp-border-strong);
+  background: var(--jp-surface);
+}
+
+.pw-rules-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jp-text-secondary);
+}
+
+#recover-rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pw-rule {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 14px;
+  color: var(--jp-text-secondary);
+}
+
+.pw-rule-icon {
+  width: 1em;
+  text-align: center;
+}
+
+.pw-rule--met {
+  color: var(--jp-text);
+}
+
+.pw-rule--met .pw-rule-icon {
+  color: var(--jp-text);
+  font-weight: 700;
+}
+
+/* Profile: "Add a password as a backup" (src/modules/passwordBackup.ts) */
+.password-backup {
+  margin: 0 0 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--jp-accent-border);
+  background: var(--jp-accent-subtle);
+}
+
+.password-backup-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--jp-text);
+}
+
+.password-backup-body {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.password-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.password-backup-actions .btn {
+  min-height: 44px;
+}
+
+/* ============================================
+   New-user passkey onboarding dialog (src/modules/passkeyCampaign.ts)
+   ============================================ */
+.onboarding-dialog h2 {
+  margin-bottom: 12px;
+}
+
+.onboarding-body {
+  margin: 0 0 24px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-actions .btn {
+  width: 100%;
+  min-height: 44px;
+  white-space: normal;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .onboarding-overlay {
+    animation: onboarding-fade 0.18s ease-out;
+  }
+
+  @keyframes onboarding-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}

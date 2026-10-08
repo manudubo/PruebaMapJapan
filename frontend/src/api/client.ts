@@ -7,6 +7,9 @@
 
 import { getToken, isAuthenticated, login } from '@/auth/keycloak';
 import { showToast } from '@/modules/toast';
+import { EMAIL_NOT_VERIFIED_EVENT } from '@/auth/emailEvent';
+
+export { EMAIL_NOT_VERIFIED_EVENT };
 import type {
   ApiTrip,
   ApiDestination,
@@ -136,6 +139,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const envelope = await response.json().catch(() => null) as
       | { code?: string; error?: string; issues?: ApiValidationIssue[] }
       | null;
+    if (response.status === 403 && envelope?.code === 'email_not_verified') {
+      window.dispatchEvent(new Event(EMAIL_NOT_VERIFIED_EVENT));
+    }
     throw new ApiError(
       response.status,
       envelope?.code ?? 'unknown',

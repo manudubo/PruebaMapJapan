@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Recover access to your Travel Planner account with a code sent by email.">
+  <!-- The page carries an email address in its query string at most; keep it out of referrers. -->
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Non-blocking web font (A11Y-05): was a render-blocking CSS @import -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <title>Recover your account</title>
+
+  <style>
+    html { background: #f5f5f7; }
+    html[data-theme="dark"] { background: #000; }
+  </style>
+  <script>
+    (function() {
+      var theme = localStorage.getItem('theme');
+      if (theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <div class="container">
+    <travel-nav></travel-nav>
+    <search-bar></search-bar>
+
+    <main id="main-content">
+      <!-- Built by src/pages/recoverView.ts (email -> code + new password -> done) -->
+      <div class="page-card recover-card" id="recover-root"></div>
+    </main>
+  </div>
+
+  <script type="module" src="/src/pages/recover.ts"></script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 import { toggleTheme, getTheme } from '@/modules/theme';
 import { initKeycloak, isAuthenticated, getUserInfo, login, logout, onAuthStatusChange } from '@/auth/keycloak';
+import { registrationEnabled, wireSignUpButton } from '@/auth/registration';
+import { showSignUpNotice } from '@/auth/authStatusUI';
 
 export interface NavDestination {
   id: string | number;
@@ -63,11 +65,15 @@ class TravelNav extends HTMLElement {
   private updateAuthUI(): void {
     const authed = isAuthenticated();
     const loginBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-login');
+    const signupBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-signup');
     const logoutBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-logout');
     const userLabel = this.shadow.querySelector<HTMLAnchorElement>('.nav-auth-user');
 
     if (loginBtn) {
       loginBtn.hidden = authed;
+    }
+    if (signupBtn) {
+      signupBtn.hidden = authed || !registrationEnabled();
     }
     if (logoutBtn) {
       logoutBtn.hidden = !authed;
@@ -213,6 +219,7 @@ class TravelNav extends HTMLElement {
 
         .nav-auth-user[hidden],
         .nav-auth-login[hidden],
+        .nav-auth-signup[hidden],
         .nav-auth-logout[hidden] {
           display: none !important;
         }
@@ -243,15 +250,35 @@ class TravelNav extends HTMLElement {
           flex-shrink: 0;
         }
 
-        .nav-auth-login {
+        .nav-auth-btn {
+          min-height: 44px;
+          justify-content: center;
+        }
+
+        .nav-auth-primary {
           background: var(--jp-accent-solid, #0071e3);
           color: var(--jp-white, #fff);
           border: 1px solid var(--jp-accent-solid, #0071e3);
         }
 
-        .nav-auth-login:hover {
+        .nav-auth-primary:hover {
           background: var(--jp-accent-solid-hover, #0066cc);
           border-color: var(--jp-accent-solid-hover, #0066cc);
+        }
+
+        .nav-auth-outline {
+          background: transparent;
+          color: var(--jp-text, #1d1d1f);
+          border: 1px solid var(--jp-border-strong, rgba(0,0,0,0.25));
+        }
+
+        .nav-auth-outline:hover {
+          border-color: var(--jp-text-secondary, #515154);
+        }
+
+        @media (max-width: 400px) {
+          .nav-inner { gap: 6px; padding: 0 8px; }
+          .nav-auth-btn { padding: 6px 10px; }
         }
 
         .nav-auth-logout {
@@ -313,7 +340,8 @@ class TravelNav extends HTMLElement {
           <div class="top-nav" role="tablist" aria-label="Navigation">${this.renderNavLinks(currentPage)}</div>
           <div class="nav-auth">
             <a class="nav-auth-user" hidden></a>
-            <button type="button" class="nav-auth-btn nav-auth-login" hidden>Sign in</button>
+            <button type="button" class="nav-auth-btn nav-auth-login ${registrationEnabled() ? 'nav-auth-outline' : 'nav-auth-primary'}" hidden>Sign in</button>
+            <button type="button" class="nav-auth-btn nav-auth-signup nav-auth-primary" hidden>Sign up</button>
             <button type="button" class="nav-auth-btn nav-auth-logout" hidden>Sign out</button>
           </div>
           <button class="theme-toggle" type="button" aria-label="Toggle theme">${this.getThemeIcon(theme)}<span>${theme === 'dark' ? 'Light' : 'Dark'}</span></button>
@@ -377,6 +405,12 @@ class TravelNav extends HTMLElement {
         login(new URL('dashboard.html', window.location.href).href);
       });
     }
+
+    wireSignUpButton(
+      this.shadow.querySelector<HTMLButtonElement>('.nav-auth-signup'),
+      () => showSignUpNotice('unavailable'),
+      new URL('dashboard.html', window.location.href).href,
+    );
 
     const logoutBtn = this.shadow.querySelector<HTMLButtonElement>('.nav-auth-logout');
     if (logoutBtn) {

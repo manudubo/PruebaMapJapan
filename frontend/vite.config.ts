@@ -2,11 +2,12 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { swVersionPlugin } from './build/swVersionPlugin';
 import { cspPlugin } from './build/cspPlugin';
+import { signupGatePlugin } from './build/signupGatePlugin';
 
 export default defineConfig({
   // Base URL para GitHub Pages
   base: '/PruebaMapJapan/',
-  plugins: [cspPlugin(), swVersionPlugin()],
+  plugins: [cspPlugin(), signupGatePlugin(), swVersionPlugin()],
 
   resolve: {
     alias: {
@@ -35,6 +36,7 @@ export default defineConfig({
         dashboard: resolve(__dirname, 'dashboard.html'),
         trip: resolve(__dirname, 'trip.html'),
         profile: resolve(__dirname, 'profile.html'),
+        recover: resolve(__dirname, 'recover.html'),
         'trip-edit': resolve(__dirname, 'trip-edit.html'),
       },
       output: {
