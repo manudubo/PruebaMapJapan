@@ -146,19 +146,36 @@ async function mailCount(request: APIRequestContext, email: string): Promise<num
 }
 
 /** Mailpit: the 6-digit code in the latest message to `email` (polls, no sleeps). */
-async function latestCode(request: APIRequestContext, email: string): Promise<string> {
+async function latestCode(request: APIRequestContext, email: string, subject?: RegExp): Promise<string> {
   let code = '';
   await expect
     .poll(async () => {
       const res = await request.get(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
-      const list = (await res.json()) as { messages: Array<{ ID: string }> };
-      if (!list.messages?.length) return '';
-      const msg = (await (await request.get(`${MAILPIT_URL}/api/v1/message/${list.messages[0]!.ID}`)).json()) as { Text: string };
+      const list = (await res.json()) as { messages: Array<{ ID: string; Subject: string }> };
+      // Newest first; `subject` tells the sign-up code from the recovery one.
+      const hit = list.messages?.find((m) => !subject || subject.test(m.Subject));
+      if (!hit) return '';
+      const msg = (await (await request.get(`${MAILPIT_URL}/api/v1/message/${hit.ID}`)).json()) as { Text: string };
       code = msg.Text.match(/\b(\d{6})\b/)?.[1] ?? '';
       return code;
     }, { message: `a 6-digit code mailed to ${email}`, timeout: 20_000 })
     .toMatch(/^\d{6}$/);
   return code;
+}
+
+/** Passkey step → "Try another way" → password, on a browser without WebAuthn; ends with an auth code. */
+async function signInWithPasswordOnOldDevice(old: BrowserContext, email: string, password: string): Promise<void> {
+  const page = await old.newPage();
+  const codes = trackCodes(page);
+  await page.goto(authUrl(pkce().challenge));
+  await page.locator('input[name="username"]').fill(email);
+  await submitForm(page, '#kc-login, [type="submit"]');
+  await expect(page.locator('#jp-passkey-recovery')).toHaveClass(/jp-passkey-recovery--primary/);
+  await submitForm(page, '#try-another-way');
+  await submitForm(page, '#kc-select-credential-form button:not(:has-text("Passkey"))');
+  await page.locator('input[name="password"]').fill(password);
+  await submitForm(page, '#kc-login, [type="submit"]');
+  await expect.poll(() => codes.length).toBe(1);
 }
 
 /** Master-realm admin token of the throwaway Keycloak, for realm toggles only. */
@@ -194,6 +211,25 @@ test.describe('Self-registration (REG-01..07)', () => {
   });
 
   test.describe('Keycloak', () => {
+    test('travelmap-recovery token carries manage-users and can look an account up (backend recovery depends on it)', async ({ request }) => {
+      test.fixme(!process.env.KC_RECOVERY_CLIENT_SECRET && !REQUIRE_KC, 'needs KC_RECOVERY_CLIENT_ID/SECRET (keycloak-flow.sh apply writes them)');
+      const tokenRes = await request.post(`${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token`, {
+        form: {
+          grant_type: 'client_credentials',
+          client_id: process.env.KC_RECOVERY_CLIENT_ID ?? 'travelmap-recovery',
+          client_secret: process.env.KC_RECOVERY_CLIENT_SECRET ?? '',
+        },
+      });
+      expect(tokenRes.status()).toBe(200);
+      const token = (await tokenRes.json()) as { access_token: string };
+      const roles = (claims(token.access_token)['resource_access'] as Record<string, { roles: string[] }> | undefined)?.['realm-management']?.roles;
+      expect(roles).toEqual(['manage-users']);
+      const find = await request.get(`${KEYCLOAK_URL}/admin/realms/${REALM}/users?email=nobody%40example.test&exact=true`, {
+        headers: { Authorization: `Bearer ${token.access_token}` },
+      });
+      expect(find.status()).toBe(200);
+    });
+
     test('passkey sign-up: no password asked, passkey enrolled, no Keycloak mail, email_verified=false', async ({ page, request, kcAdmin, browserName }) => {
       test.fixme(browserName !== 'chromium', 'CDP virtual authenticator is Chromium-only');
       const email = uniqueEmail('reg-passkey');
@@ -362,7 +398,7 @@ test.describe('Self-registration (REG-01..07)', () => {
         expect(JSON.stringify(await trips.json())).toContain('email_not_verified');
 
         expect((await request.post(`${API_URL}/api/auth/email-verify/request`, { headers: auth })).ok()).toBe(true);
-        const code = await latestCode(request, email);
+        const code = await latestCode(request, email, /confirm/i);
         const confirm = await request.post(`${API_URL}/api/auth/email-verify/confirm`, { headers: auth, data: { code } });
         expect(confirm.ok(), await confirm.text()).toBe(true);
         // Single use.
@@ -388,11 +424,22 @@ test.describe('Self-registration (REG-01..07)', () => {
         const p = await phone.newPage();
         const { cdp } = await addVirtualAuthenticator(p);
         const phoneCodes = trackCodes(p);
-        await p.goto(registrationUrl(pkce().challenge));
+        const signup = pkce();
+        await p.goto(registrationUrl(signup.challenge));
         await fillRegistration(p, email);
         await p.locator('#registerWebAuthn').click();
         await expect.poll(() => phoneCodes.length).toBe(1);
         await cdp.detach();
+        // What the app does on the redirect landing: the first authenticated call provisions the
+        // users row, which recovery needs (an account the backend has never seen gets no mail).
+        const token = (await exchangeCode(request, phoneCodes[0]!, signup.verifier))['access_token'] as string;
+        const auth = { Authorization: `Bearer ${token}` };
+        expect((await request.get(`${API_URL}/api/users/me`, { headers: auth })).ok()).toBe(true);
+        // They proved the address on the phone first (otherwise recovery treats the account as a
+        // possible squat and removes the passkey: see the squatting test below).
+        expect((await request.post(`${API_URL}/api/auth/email-verify/request`, { headers: auth })).ok()).toBe(true);
+        const verifyCode = await latestCode(request, email, /confirm/i);
+        expect((await request.post(`${API_URL}/api/auth/email-verify/confirm`, { headers: auth, data: { code: verifyCode } })).ok()).toBe(true);
         expect(await kcAdmin.credentialTypes(email)).toEqual(['webauthn-passwordless']);
 
         // Unknown and known addresses get the same answer (anti-enumeration).
@@ -402,26 +449,68 @@ test.describe('Self-registration (REG-01..07)', () => {
         expect(unknown.status()).toBe(202);
         expect(await unknown.text()).toBe(await known.text());
 
-        const code = await latestCode(request, email);
+        const code = await latestCode(request, email, /recovery/i);
         const confirm = await request.post(`${API_URL}/api/auth/recovery/confirm`, { data: { email, code, new_password: newPassword } });
         expect(confirm.ok(), await confirm.text()).toBe(true);
+        // Verified owner: the passkey they enrolled stays next to the new password.
         expect((await kcAdmin.credentialTypes(email)).sort()).toEqual(['password', 'webauthn-passwordless']);
 
-        // The old device: passkey step → "Try another way" → password.
-        const page = await old.newPage();
-        const codes = trackCodes(page);
-        await page.goto(authUrl(pkce().challenge));
-        await page.locator('input[name="username"]').fill(email);
-        await submitForm(page, '#kc-login, [type="submit"]');
-        await expect(page.locator('#jp-passkey-recovery')).toHaveClass(/jp-passkey-recovery--primary/);
-        await submitForm(page, '#try-another-way');
-        await submitForm(page, '#kc-select-credential-form button:not(:has-text("Passkey"))');
-        await page.locator('input[name="password"]').fill(newPassword);
-        await submitForm(page, '#kc-login, [type="submit"]');
-        await expect.poll(() => codes.length).toBe(1);
+        await signInWithPasswordOnOldDevice(old, email, newPassword);
       } finally {
         await phone.close();
         await old.close();
+        await kcAdmin.deleteUser(email);
+      }
+    });
+
+    test('squatting: someone registers a stranger\'s address; the real owner recovers it and the squatter\'s passkey is gone', async ({ browser, request, kcAdmin, browserName }) => {
+      test.fixme(browserName !== 'chromium', 'CDP virtual authenticator is Chromium-only');
+      const email = uniqueEmail('reg-squat');
+      const newPassword = `Owner-${crypto.randomBytes(6).toString('hex')}`;
+      const squatter = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+      const owner = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+      await withoutWebAuthn(owner);
+      try {
+        const p = await squatter.newPage();
+        const { cdp } = await addVirtualAuthenticator(p);
+        const codes = trackCodes(p);
+        const signup = pkce();
+        await p.goto(registrationUrl(signup.challenge));
+        await fillRegistration(p, email);
+        await p.locator('#registerWebAuthn').click();
+        await expect.poll(() => codes.length).toBe(1);
+        await cdp.detach();
+        const token = (await exchangeCode(request, codes[0]!, signup.verifier))['access_token'] as string;
+        const auth = { Authorization: `Bearer ${token}` };
+        // The squatter has a working session but the gate keeps the account unusable.
+        expect((await request.get(`${API_URL}/api/users/me`, { headers: auth })).ok()).toBe(true);
+        expect((await request.get(`${API_URL}/api/trips`, { headers: auth })).status()).toBe(403);
+        // They cannot read the owner's mailbox: a guess is refused.
+        expect((await request.post(`${API_URL}/api/auth/email-verify/request`, { headers: auth })).ok()).toBe(true);
+        const guess = await request.post(`${API_URL}/api/auth/email-verify/confirm`, { headers: auth, data: { code: '000000' } });
+        expect(guess.status()).toBe(400);
+        expect(await kcAdmin.credentialTypes(email)).toEqual(['webauthn-passwordless']);
+
+        // The real owner (mailbox access) uses recovery.
+        expect((await request.post(`${API_URL}/api/auth/recovery/request`, { data: { email } })).status()).toBe(202);
+        const code = await latestCode(request, email, /recovery/i);
+        const confirm = await request.post(`${API_URL}/api/auth/recovery/confirm`, { data: { email, code, new_password: newPassword } });
+        expect(confirm.ok(), await confirm.text()).toBe(true);
+        // The squatter's passkey is deleted; only the owner's password remains.
+        expect(await kcAdmin.credentialTypes(email)).toEqual(['password']);
+
+        // The owner signs in with the password only.
+        const page = await owner.newPage();
+        const ownerCodes = trackCodes(page);
+        await page.goto(authUrl(pkce().challenge));
+        await page.locator('input[name="username"]').fill(email);
+        await submitForm(page, '#kc-login, [type="submit"]');
+        await page.locator('input[name="password"]').fill(newPassword);
+        await submitForm(page, '#kc-login, [type="submit"]');
+        await expect.poll(() => ownerCodes.length).toBe(1);
+      } finally {
+        await squatter.close();
+        await owner.close();
         await kcAdmin.deleteUser(email);
       }
     });

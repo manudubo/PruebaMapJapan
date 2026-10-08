@@ -175,6 +175,12 @@ test.describe('Keycloak config invariants (static)', () => {
     expect(roles.map((r) => attr(r.body, 'role'))).toEqual(['manage-users']);
     expect(resources(main).filter((b) => b.type === 'keycloak_openid_client_service_account_realm_role')).toHaveLength(0);
     expect(main).toMatch(/!local\.production \|\| !local\.create_worker_client/);
+    // full_scope_allowed=false: the token carries only roles on the client's Scope tab, so the
+    // manage-users role must also be scope-mapped or every Admin API call answers 403.
+    const scope = resources(main).find((b) => b.type === 'keycloak_generic_role_mapper' && b.name === 'recovery_scope_manage_users');
+    expect(scope, 'scope mapping for travelmap-recovery').toBeTruthy();
+    expect(scope!.body).toMatch(/keycloak_openid_client\.travelmap_recovery\[0\]\.id/);
+    expect(main).toMatch(/data "keycloak_role" "realm_management_manage_users"[\s\S]*?name\s+= "manage-users"/);
     // The secret is only ever a sensitive output.
     expect(main).toMatch(/output "recovery_client_secret" \{\n\s+value\s+= one\(keycloak_openid_client\.travelmap_recovery\[\*\]\.client_secret\)\n\s+sensitive = true/);
   });

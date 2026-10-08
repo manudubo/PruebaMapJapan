@@ -8,9 +8,15 @@ name: Keycloak flow
 # "CI" (workflow_run), so a red run here never blocks a deploy. Make it a required
 # check once it has a record of green runs on Actions (see .planning/qa/E2E-DEBT-KC-CI.md).
 #
-# Needs no repository secrets: the Keycloak admin password, the test-user passwords and
-# the worker client secret are generated per run by scripts/ci/keycloak-flow.sh and
-# only ever written to mode-600 files under $RUNNER_TEMP.
+# Also runs the registration flow end to end: scripts/ci/registration-stack.sh starts Postgres 16,
+# the migrated backend (REQUIRE_VERIFIED_EMAIL=true, Mailpit as SMTP sink, travelmap-recovery) and
+# the built frontend (vite preview on :5173), and CI_BACKEND=1 turns the backend-dependent specs
+# from "fixme" into required.
+#
+# Needs no repository secrets: the Keycloak admin password, the test-user passwords, the worker
+# and recovery client secrets, the Postgres password and the OTP secret are generated per run by
+# scripts/ci/keycloak-flow.sh / registration-stack.sh and only ever written to mode-600 files
+# under $RUNNER_TEMP.
 
 on:
   push:
@@ -29,7 +35,7 @@ concurrency:
 jobs:
   idp-flow:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -38,7 +44,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: tests/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            tests/package-lock.json
 
       - name: Install Terraform
         env:
@@ -55,6 +63,8 @@ jobs:
 
       - run: npm ci
         working-directory: tests
+      # Workspaces (backend + frontend) for the registration stack.
+      - run: npm ci
       - run: npx playwright install --with-deps chromium firefox
         working-directory: tests
 
@@ -72,12 +82,16 @@ jobs:
       - name: Apply terraform/keycloak (throwaway secrets)
         run: scripts/ci/keycloak-flow.sh apply
 
+      - name: Start Postgres, the backend and the built frontend
+        run: scripts/ci/registration-stack.sh start
+
       - name: Run KC-01 / registration tests (chromium + firefox)
         working-directory: tests
         env:
-          # Fail (not fixme) when Keycloak or its credentials are missing.
+          # Fail (not fixme) when Keycloak, the backend or their credentials are missing.
           CI_KEYCLOAK: '1'
-          # No app under test: the specs drive Keycloak directly.
+          CI_BACKEND: '1'
+          # No Playwright-owned app: the stack above serves the frontend on :5173.
           SKIP_REAL_AUTH: 'true'
           PW_NO_WEBSERVER: '1'
         run: |
@@ -86,17 +100,39 @@ jobs:
           set +a
           npx playwright test e2e/idp-flow.spec.ts e2e/idp-config.spec.ts e2e/idp-hardening.spec.ts \
             e2e/idp-registration.spec.ts \
-            --project=chromium --project=firefox --retries=0
+            --project=chromium --project=firefox --retries=0 --workers=1
 
-      - name: Keycloak log (on failure)
+      # After the other recovery specs: it exhausts the backend's per-IP recovery limit on purpose.
+      - name: Run registration through the built frontend (chromium)
+        working-directory: tests
+        env:
+          CI_KEYCLOAK: '1'
+          CI_BACKEND: '1'
+          E2E_RATE_LIMIT: '1'
+          SKIP_REAL_AUTH: 'true'
+          PW_NO_WEBSERVER: '1'
+        run: |
+          set -a
+          . "$RUNNER_TEMP/keycloak-flow/e2e.env"
+          set +a
+          npx playwright test e2e/registration-integration.spec.ts --project=chromium --retries=0 --workers=1
+
+      - name: Keycloak and backend logs (on failure)
         if: failure()
-        run: docker logs --tail 200 kc-flow
+        run: |
+          docker logs --tail 200 kc-flow
+          # The backend log holds request ids and event names only (log-hygiene tests): no codes,
+          # passwords, tokens or addresses.
+          tail -n 200 "$RUNNER_TEMP/keycloak-flow/backend.log" || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: keycloak-flow-playwright-report
           path: tests/playwright-report/
           retention-days: 7
+      - name: Stop the registration stack
+        if: always()
+        run: scripts/ci/registration-stack.sh stop
       - name: Remove Keycloak and generated secrets
         if: always()
         run: scripts/ci/keycloak-flow.sh stop

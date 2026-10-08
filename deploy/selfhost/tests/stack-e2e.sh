@@ -19,6 +19,19 @@
 #   invite     (opt-in, needs TEST_MAILPIT_PORT) scripts/add-user.sh -> Keycloak
 #              mails the invite over STARTTLS + AUTH -> password set from the
 #              link -> that person logs in and calls the API
+#   register   realm side of self-registration through the proxy at /auth:
+#              the registration endpoint is open (REGISTRATION_ENABLED=true) or
+#              refused (false), the form asks for no password, and the
+#              travelmap-recovery secret is in the .env
+#   verify     (opt-in, needs TEST_MAILPIT_PORT) e-mail verification gate through
+#              /auth + /api: unverified user -> 403 email_not_verified on data
+#              routes, /users/me still works, code mailed, wrong code refused,
+#              right code unlocks the API (REQUIRE_VERIFIED_EMAIL default = on)
+#   recover    (opt-in, needs TEST_MAILPIT_PORT) e-mail recovery through the proxy:
+#              anonymous request -> same 202 for unknown addresses, mailed code,
+#              weak password / wrong code refused, new password set through the
+#              backend -> Keycloak Admin API (travelmap-recovery) -> the person
+#              logs in with it and the old password is dead
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=SCRIPTDIR/../scripts/lib/common.sh
@@ -59,6 +72,35 @@ trip_count() {
 import json, sys
 d = json.load(sys.stdin)
 print(len(d["data"]) if isinstance(d, dict) and d.get("success") else "error:" + json.dumps(d)[:120])' 2>/dev/null || echo "?"
+}
+
+# Newest 6-digit code mailed to $1 whose subject matches $2 (extended regex), via the test SMTP sink.
+mail_code() { # <to> <subject regex>
+  local sink="http://127.0.0.1:$TEST_MAILPIT_PORT/api/v1" n=0 got=""
+  until [ -n "$got" ] || [ $n -ge 20 ]; do
+    got="$("${CURL[@]}" "$sink/search?query=to:$1" | SUBJ="$2" python3 -c '
+import json, os, re, sys
+for m in json.load(sys.stdin).get("messages") or []:
+    if re.search(os.environ["SUBJ"], m.get("Subject", ""), re.I):
+        print(m["ID"]); break' 2>/dev/null)"
+    [ -n "$got" ] || { sleep 1; n=$((n + 1)); }
+  done
+  [ -n "$got" ] || return 1
+  "${CURL[@]}" "$sink/message/$got" | python3 -c 'import json,re,sys; print((re.findall(r"code is: (\d{6})", json.load(sys.stdin)["Text"]) or [""])[0])'
+}
+# Log in as $1 / $2 (token to $TMP/<name>); exit code of oidc-login.mjs.
+login_as() { # <user> <pass> <token file>
+  NODE_EXTRA_CA_CERTS="${TEST_CA_FILE:-}" PUBLIC_URL="https://$AUTH_HOST" API_URL="$API" \
+    REALM="$KEYCLOAK_REALM" USERNAME="$1" PASSWORD="$2" ORIGIN="$FRONTEND_ORIGIN" \
+    REDIRECT_URI="$FRONTEND_ORIGIN$FRONTEND_BASE_PATH/dashboard.html" TOKEN_FILE="$3" \
+    node "$HERE/oidc-login.mjs" >/dev/null 2>&1
+}
+apit() { # <token file> curl args...  (Bearer from a given token file)
+  local tf="$1"; shift
+  "${CURL[@]}" -H "Authorization: Bearer $(cat "$tf")" -H 'Content-Type: application/json' "$@"
+}
+json_field() { # <python expr over d> from stdin JSON
+  python3 -c "import json,sys; d=json.load(sys.stdin); print($1)" 2>/dev/null
 }
 
 for phase in "${PHASES[@]}"; do
@@ -168,6 +210,61 @@ for phase in "${PHASES[@]}"; do
         REDIRECT_URI="$FRONTEND_ORIGIN$FRONTEND_BASE_PATH/dashboard.html" TOKEN_FILE="$TMP/invitee-token" \
         node "$HERE/oidc-login.mjs")"; rc=$?
       check "invited person logs in and calls the API (exit code)" 0 "$rc" ;;
+    register)
+      reg_url="$KC_PUBLIC_URL/realms/$KEYCLOAK_REALM/protocol/openid-connect/registrations?client_id=japan-trip-frontend&response_type=code&scope=openid&redirect_uri=$FRONTEND_ORIGIN$FRONTEND_BASE_PATH/dashboard.html&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256"
+      # The endpoint redirects to the registration form (login-actions/registration), with cookies.
+      "${CURL[@]}" -L -c "$TMP/reg.jar" -b "$TMP/reg.jar" -o "$TMP/register.html" -w '%{http_code}' "$reg_url" > "$TMP/register.code" || true
+      if [ "${REGISTRATION_ENABLED:-false}" = true ]; then
+        check "registration endpoint is open (REGISTRATION_ENABLED=true)" 200 "$(cat "$TMP/register.code")"
+        check "form asks for the e-mail" 1 "$(grep -c 'name="email"' "$TMP/register.html")"
+        check "form asks for no password (passkey is enrolled right after)" 0 "$(grep -c 'type="password"' "$TMP/register.html")"
+        check "KEYCLOAK_RECOVERY_CLIENT_SECRET was written by keycloak-apply.sh" true \
+          "$([ -n "${KEYCLOAK_RECOVERY_CLIENT_SECRET:-}" ] && [ "${KEYCLOAK_RECOVERY_CLIENT_SECRET:-}" != CHANGE_ME_SECRET ] && echo true || echo false)"
+      else
+        check "registration endpoint is refused (REGISTRATION_ENABLED=false)" true \
+          "$([ "$(cat "$TMP/register.code")" != 200 ] && echo true || echo false)"
+      fi ;;
+    verify)
+      [ -n "${TEST_MAILPIT_PORT:-}" ] || { flunk "verify phase needs TEST_MAILPIT_PORT (the test SMTP sink)"; continue; }
+      vuser="verify-$(date +%s)@travelmap.test"; vpass="Verify-$(date +%s)-Pw!x"
+      KC_LOCAL_URL="$KC_LOCAL_URL" KC_ADMIN_PASSWORD="$KC_ADMIN_PASSWORD" KEYCLOAK_REALM="$KEYCLOAK_REALM" KC_USER_VERIFIED=false \
+        "$HERE/kc-user.sh" "$vuser" "$vpass" >/dev/null && pass "unverified user created" || flunk "kc-user.sh failed"
+      login_as "$vuser" "$vpass" "$TMP/vtoken"; check "unverified user signs in (exit code)" 0 "$?"
+      me="$(apit "$TMP/vtoken" "$API/users/me")"
+      check "GET /users/me still works and says email_verified=false" False "$(printf '%s' "$me" | json_field 'd["data"]["email_verified"]')"
+      gate="$(apit "$TMP/vtoken" -w '\n%{http_code}' "$API/trips")"
+      check "GET /trips is refused with 403" 403 "$(printf '%s' "$gate" | tail -1)"
+      check "  body carries email_not_verified" email_not_verified "$(printf '%s' "$gate" | head -1 | json_field 'd["code"]')"
+      check "POST /auth/email-verify/request" 201 "$(apit "$TMP/vtoken" -o /dev/null -w '%{http_code}' -X POST "$API/auth/email-verify/request")"
+      vcode="$(mail_code "$vuser" 'confirm')" || vcode=""
+      check "verification mail carries a 6-digit code" 6 "${#vcode}"
+      check "the code is not in the backend log" 0 "$(docker logs "$COMPOSE_PROJECT_NAME-backend" 2>&1 | grep -c "${vcode:-nocode}")"
+      wrong="000000"; [ "$vcode" = 000000 ] && wrong=111111
+      check "wrong code refused" 400 "$(apit "$TMP/vtoken" -o /dev/null -w '%{http_code}' -X POST "$API/auth/email-verify/confirm" -d "{\"code\":\"$wrong\"}")"
+      check "right code accepted" 200 "$(apit "$TMP/vtoken" -o /dev/null -w '%{http_code}' -X POST "$API/auth/email-verify/confirm" -d "{\"code\":\"$vcode\"}")"
+      check "same token now passes the gate" 200 "$(apit "$TMP/vtoken" -o /dev/null -w '%{http_code}' "$API/trips")" ;;
+    recover)
+      [ -n "${TEST_MAILPIT_PORT:-}" ] || { flunk "recover phase needs TEST_MAILPIT_PORT (the test SMTP sink)"; continue; }
+      ruser="recover-$(date +%s)@travelmap.test"; rpass="Recover-$(date +%s)-Old1!"; rnew="Recovered-$(date +%s)-New1!"
+      KC_LOCAL_URL="$KC_LOCAL_URL" KC_ADMIN_PASSWORD="$KC_ADMIN_PASSWORD" KEYCLOAK_REALM="$KEYCLOAK_REALM" \
+        "$HERE/kc-user.sh" "$ruser" "$rpass" >/dev/null && pass "recovery test user created" || flunk "kc-user.sh failed"
+      login_as "$ruser" "$rpass" "$TMP/rtoken"; check "first sign-in provisions the account (exit code)" 0 "$?"
+      post() { "${CURL[@]}" -w '\n%{http_code}' -H 'Content-Type: application/json' -X POST "$API/auth/recovery/$1" -d "$2"; }
+      known="$(post request "{\"email\":\"$ruser\"}")"
+      unknown="$(post request "{\"email\":\"nobody-$ruser\"}")"
+      check "recovery request answers 202 through the proxy" 202 "$(printf '%s' "$known" | tail -1)"
+      check "  unknown address gets the identical answer (anti-enumeration)" "$known" "$unknown"
+      rcode="$(mail_code "$ruser" 'recovery')" || rcode=""
+      check "recovery mail carries a 6-digit code" 6 "${#rcode}"
+      check "no mail for the unknown address" 0 "$("${CURL[@]}" "http://127.0.0.1:$TEST_MAILPIT_PORT/api/v1/search?query=to:nobody-$ruser" | json_field 'd["messages_count"]')"
+      check "weak password refused before any state change" 422 "$(post confirm "{\"email\":\"$ruser\",\"code\":\"$rcode\",\"new_password\":\"short\"}" | tail -1)"
+      wrong="000000"; [ "$rcode" = 000000 ] && wrong=111111
+      check "wrong code refused" 400 "$(post confirm "{\"email\":\"$ruser\",\"code\":\"$wrong\",\"new_password\":\"$rnew\"}" | tail -1)"
+      check "right code sets the password (backend -> Keycloak Admin API)" 200 "$(post confirm "{\"email\":\"$ruser\",\"code\":\"$rcode\",\"new_password\":\"$rnew\"}" | tail -1)"
+      check "the code is single use" 400 "$(post confirm "{\"email\":\"$ruser\",\"code\":\"$rcode\",\"new_password\":\"$rnew\"}" | tail -1)"
+      login_as "$ruser" "$rnew" "$TMP/rtoken2"; check "signs in with the new password (exit code)" 0 "$?"
+      if login_as "$ruser" "$rpass" "$TMP/rtoken3"; then old_works=true; else old_works=false; fi
+      check "the old password no longer works" false "$old_works" ;;
     *) flunk "unknown phase $phase" ;;
   esac
 done

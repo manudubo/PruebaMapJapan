@@ -270,8 +270,20 @@ login page is served from `legion-server.tailad4a36.ts.net/auth/...`.
 
 ### 9. First account
 
-Self-registration is off (strangers on the internet cannot create accounts).
-Invite yourself, and later anyone else, from the server:
+There are two ways to get your first account. Pick one.
+
+**A. Sign up on the website** (needs `REGISTRATION_ENABLED=true` in `.env`, see
+[Open sign-up](#open-sign-up); with the default `false` the button is not shown
+and the realm refuses registration). Open
+`https://manudubo.github.io/PruebaMapJapan/`, press **Sign up**, type your email
+(it becomes your username) and let the browser create a **passkey** (Face ID,
+Touch ID, Windows Hello, Android). You land on the dashboard, which asks for a
+**6-digit code** emailed to that address; type it and the app opens. No password
+is created. If the device cannot do passkeys, use the *"Can't use a passkey?
+Get a code by email"* link on that page to set a password instead.
+
+**B. Invite yourself from the server** (works with sign-up closed, and is the
+way to add other people while it stays closed):
 
 ```bash
 ./scripts/add-user.sh you@gmail.com "Your Name"
@@ -283,6 +295,7 @@ link, choose a password (at least 12 characters, not your email), and you see
 *Your account has been updated*. Click **Back to application**, press
 **Sign in** and use your email and that password. Register a passkey from the
 profile page if you want. Link expired or lost: `./scripts/add-user.sh --resend you@gmail.com`.
+Invited accounts are already verified, so there is no code step.
 
 **Verify:** the dashboard shows your name; `./scripts/status.sh` ends with
 `All checks passed.`
@@ -353,7 +366,7 @@ register a new passkey. Pick the final name before inviting people.
 
 By default only people you invite (`add-user.sh`) have accounts. Setting
 `REGISTRATION_ENABLED=true` lets **anyone on the internet** create one from the
-app's "Create account" button. Read this section before turning it on.
+app's **Sign up** button. Read this section before turning it on.
 
 **How a sign-up works**
 
@@ -405,7 +418,7 @@ stops above 50 candidates (`--max`). The timer runs it hourly; logs:
 `journalctl -u travelmap-purge-unverified.service`.
 
 **Closing it again.** Set `REGISTRATION_ENABLED=false` and re-run
-`./scripts/keycloak-apply.sh`: the "Register" link disappears and the
+`./scripts/keycloak-apply.sh`: the **Sign up** buttons and the Keycloak "Register" link disappear and the
 registration endpoint answers "Registration not allowed". Existing accounts keep
 working. Leave the purge timer installed until the last unverified sign-ups are
 gone, then `./scripts/purge-timer.sh remove`. To remove a specific account:
@@ -446,7 +459,7 @@ is created by the realm setup, not here):
 | Variable | Meaning |
 |---|---|
 | `REQUIRE_VERIFIED_EMAIL` | Empty = `true` in production. Accounts must confirm their e-mail with a 6-digit code before using the API (everything except `GET/PATCH /api/users/me`, `POST /api/auth/email-verify/*` and health answers `403 email_not_verified`). Existing users are marked verified by migration 0011. `false` only for a closed, invite-only deployment. Any other value is read as `true`. |
-| `KEYCLOAK_RECOVERY_CLIENT_ID` | Confidential service-account client used to reset a password (default `travelmap-recovery`). It needs only the realm-management roles `view-users` and `manage-users`. |
+| `KEYCLOAK_RECOVERY_CLIENT_ID` | Confidential service-account client used to reset a password (default `travelmap-recovery`). It holds exactly one role, realm-management `manage-users`, scope-mapped onto the client (without that mapping its token carries no roles and every call is a 403). |
 | `KEYCLOAK_RECOVERY_CLIENT_SECRET` | That client's secret. **Treat it like a database password**: whoever holds it can set any user's password. Keep it only in `.env` (mode 600), never in the frontend or the repo. Empty = account recovery is switched off (the endpoints answer 503). |
 | `KEYCLOAK_ADMIN_URL` | Where the backend reaches Keycloak for that call. Default in the compose file `http://keycloak:8080/auth` (inside the compose network, not through the tunnel). On the Worker/standalone it defaults to `KEYCLOAK_URL`. Keep the `/auth` prefix if Keycloak runs with `KC_HTTP_RELATIVE_PATH=/auth`. |
 
@@ -560,7 +573,8 @@ Caddy → backend = 1.
 - [ ] `./scripts/status.sh` → `All checks passed.`
 - [ ] From mobile data: `https://<host>/api/health/ready` → `{"status":"ready"}`.
 - [ ] GitHub secrets set (4), Pages redeployed, sign-in redirects to `<host>/auth`.
-- [ ] `add-user.sh` invite email arrives; the link sets your password; you sign in.
+- [ ] First account works: **Sign up** (passkey, then the emailed 6-digit code) or the `add-user.sh` invite email (the link sets your password; you sign in).
+- [ ] With sign-up open: `tests/stack-e2e.sh register verify recover` on a staging copy passes (needs the test SMTP sink, see `tests/compose.test.yml`).
 - [ ] Create a trip, reload, it is still there; sign out and in again.
 - [ ] Optional: register a passkey and sign in with it.
 - [ ] Backup timer installed (`./scripts/backup-timer.sh status`), drill passed.

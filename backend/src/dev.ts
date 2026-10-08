@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.dev.vars' });
 import { serve } from '@hono/node-server';
 import app from './index';
+import { SERVER_ENV_CONTRACT } from './node/config';
 
 const PORT = Number(process.env.PORT) || 8787;
 
@@ -38,6 +39,15 @@ const env = {
   // This entry point only ever runs locally, so default to development.
   ENVIRONMENT: process.env.ENVIRONMENT ?? 'development',
 };
+
+// Everything else the app reads (SMTP_*, EMAIL_*, REQUIRE_VERIFIED_EMAIL, KEYCLOAK_RECOVERY_*,
+// ALLOWED_ORIGINS, ...): without this the sign-up e-mail verification and recovery flows
+// cannot be run (or end-to-end tested) against the dev server.
+const bindings: Record<string, string | undefined> = env;
+for (const key of SERVER_ENV_CONTRACT) {
+  const value = process.env[key];
+  if (bindings[key] === undefined && value !== undefined) bindings[key] = value;
+}
 
 serve(
   {

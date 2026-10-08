@@ -6,11 +6,12 @@
  * Only a network failure throws (AuthFlowNetworkError).
  *
  * Contract (backend, see .planning/qa/REGISTRATION-UI-REPORT.md):
- *   POST /auth/email-verify/request                     -> 2xx | 429 {retryAfter}
- *   POST /auth/email-verify/confirm {code}              -> 2xx | 400 invalid_code {attemptsLeft?} | 400/410 expired | 429
- *   POST /auth/recovery/request {email}                 -> 2xx always (anti-enumeration) | 429
+ *   Pinned by contracts/auth-flows.json (checked against the real routes by the backend tests).
+ *   POST /auth/email-verify/request                     -> 201 | 200 already verified | 429 otp_pending|otp_rate_limited|rate_limited {retryAfter}
+ *   POST /auth/email-verify/confirm {code}              -> 200 | 400 invalid_code|otp_not_found | 429 max_attempts (code burned) | 429 rate_limited
+ *   POST /auth/recovery/request {email}                 -> 202 always (anti-enumeration) | 429 rate_limited | 503
  *   POST /auth/recovery/confirm {email, code, new_password}
- *                                                       -> 2xx | 400 invalid_code | 422 weak_password | 429 | 503
+ *                                                       -> 200 | 400 invalid_code | 422 weak_password {reason} | 422 recovery_unavailable | 429 | 503
  */
 
 import { apiUrl } from '@/api/client';
@@ -104,6 +105,9 @@ export type CodeProblem =
 /** What went wrong with a code request/confirmation, for the message to show. */
 export function classifyCodeProblem(result: AuthFlowResult): CodeProblem {
   const e = result.error ?? '';
+  // The backend answers a burned code (5 wrong guesses) with 429 max_attempts: that is not
+  // "wait a few seconds", the user needs a new code (contracts/auth-flows.json).
+  if (/max_attempts|too_many|locked/.test(e)) return 'locked';
   if (result.status === 429) return 'rateLimited';
   if (result.status === 503) return 'unavailable';
   if (result.status === 410) return 'expired';
