@@ -1,49 +1,11 @@
-import { test, expect, type Page } from '@playwright/test';
-import { mockTripStore, emptyTrip, type TripStore, type StoreOptions } from './fixtures/mockTripStore';
+import { test, expect } from '@playwright/test';
+import { mockTripStore, emptyTrip } from './fixtures/mockTripStore';
+import { openEditor, openNew, addCity, addPlace, saved } from './fixtures/editorHelpers';
 import { mockKeycloakLoggedIn, mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
-import { stubMapThirdParty } from './fixtures/mockThirdParty';
 import { mockApi } from './fixtures/mockApi';
 
 // Every spec starts signed-out and signs in through the Keycloak mock.
 test.use({ storageState: { cookies: [], origins: [] } });
-
-export async function openEditor(
-  page: Page,
-  trip: unknown = emptyTrip(),
-  options: StoreOptions = {},
-  hash = '',
-): Promise<TripStore> {
-  await mockKeycloakLoggedIn(page);
-  await stubMapThirdParty(page);
-  const store = await mockTripStore(page, { trips: trip ? [trip] : [], ...options });
-  await page.goto(`trip-edit.html?tripId=1${hash}`);
-  await expect(page.locator('#te-workspace')).toBeVisible();
-  return store;
-}
-
-export async function openNew(page: Page, options: StoreOptions = {}): Promise<TripStore> {
-  await mockKeycloakLoggedIn(page);
-  await stubMapThirdParty(page);
-  const store = await mockTripStore(page, options);
-  await page.goto('trip-edit.html?new=1');
-  await expect(page.locator('#metadata-form')).toBeVisible();
-  return store;
-}
-
-export async function addCity(page: Page, query: string, pick = 0): Promise<void> {
-  await page.locator('#dest-search').fill(query);
-  const opt = page.locator('#dest-search-list .place-option').nth(pick);
-  await expect(opt).toBeVisible();
-  await opt.click();
-}
-
-export async function addPlace(page: Page, query: string): Promise<void> {
-  await page.locator('#act-search').fill(query);
-  await expect(page.locator('#act-search-list .place-option').first()).toBeVisible();
-  await page.locator('#act-search-list .place-option').first().click();
-}
-
-export const saved = (page: Page) => expect(page.locator('#save-status')).toHaveAttribute('data-state', /saved|idle/);
 
 test.describe('Access', () => {
   test('a guest is sent to sign in with a registered redirect_uri', async ({ page }) => {

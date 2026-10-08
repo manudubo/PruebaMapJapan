@@ -81,7 +81,7 @@ test('P2-V1: trip-edit page loads; metadata form pre-fills from API @integration
   const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
-  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
+  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}#trip`);
   await page.waitForSelector('#metadata-form', { timeout: 10000 });
 
   const nameVal = await page.inputValue('#trip-name');
@@ -93,6 +93,7 @@ test('P2-V1: trip-edit page loads; metadata form pre-fills from API @integration
   const endVal = await page.inputValue('#trip-end-date');
   expect(endVal).toBe('2026-08-15');
 
+  await page.click('.te-step[data-step="share"]');
   const isPublicChecked = await page.isChecked('#trip-public');
   expect(isPublicChecked).toBe(false);
 });
@@ -111,8 +112,8 @@ test('P2-V2: is_public checkbox sends PATCH with is_public:true @integration', a
   const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
-  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
-  await page.waitForSelector('#metadata-form', { timeout: 10000 });
+  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}#share`);
+  await page.waitForSelector('#trip-public', { timeout: 10000 });
 
   const patchBodies: Record<string, unknown>[] = [];
   page.on('request', (req) => {
@@ -121,12 +122,13 @@ test('P2-V2: is_public checkbox sends PATCH with is_public:true @integration', a
     }
   });
 
-  await page.check('#trip-public');
-  await page.click('#metadata-save-btn');
-  await page.waitForResponse(
+  // Autosave: toggling visibility saves at once, there is no Save button.
+  const patched = page.waitForResponse(
     (r) => r.url().includes(`/trips/${tripId}`) && r.request().method() === 'PATCH',
     { timeout: 8000 }
   );
+  await page.check('#trip-public');
+  await patched;
 
   expect(patchBodies.length).toBeGreaterThan(0);
   expect(patchBodies[patchBodies.length - 1]).toMatchObject({ is_public: true });
@@ -146,36 +148,28 @@ test('P2-V3: add destination via modal; POST to /destinations succeeds @integrat
   const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
-  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
-  await page.waitForSelector('#destinations-section', { timeout: 10000 });
+  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}#route`);
+  await page.waitForSelector('#dest-search', { timeout: 10000 });
 
-  // Click Add destination button
-  await page.click('#add-dest-btn');
-  await page.waitForSelector('#dest-modal-overlay:not([hidden])', { timeout: 5000 });
+  // A pasted Google Maps link carries coordinates and (in /place/<Name>/) the city name,
+  // so no live geocoder is needed.
+  await page.fill('#dest-search', 'https://www.google.com/maps/place/Kioto/@35.0116,135.7681,13z');
 
-  // Fill city and country; use Google Maps URL for coordinates
-  await page.fill('#dest-city', 'Kioto');
-  await page.fill('#dest-country', 'Japón');
-  // Paste a Google Maps URL into the geocoder input — extractCoordsFromGoogleMapsUrl handles it
-  await page.fill('#dest-geocoder-input', 'https://www.google.com/maps/@35.0116,135.7681,13z');
-
-  // Wait for POST /destinations response
   const destRespPromise = page.waitForResponse(
     (r) => r.url().includes('/destinations') && r.request().method() === 'POST',
     { timeout: 8000 }
   );
-  await page.click('#dest-save-btn');
+  await page.locator('#dest-search-list .place-option').first().click();
   const resp = await destRespPromise;
   expect(resp.status()).toBe(201);
 
-  // City name appears in the destination list
-  await page.waitForSelector(':text("Kioto")', { timeout: 5000 });
+  await expect(page.locator('#destinations-list .te-dest-name')).toHaveText(['Kioto']);
 });
 
 // ---------------------------------------------------------------------------
-// P2-V4: Hotel URL rendered as plain text, not an anchor
+// P2-V4: hotel is set from a place search/link and shown as text in an input, not a link
 // ---------------------------------------------------------------------------
-test('P2-V4: hotel URL renders as plain text, not an <a> tag @integration', async ({ page }) => {
+test('P2-V4: hotel set from a pasted link is saved with PUT and shown in an input @integration', async ({ page }) => {
   const [req] = await Promise.all([
     page.waitForRequest(r =>
       r.url().includes('/api/') &&
@@ -186,7 +180,6 @@ test('P2-V4: hotel URL renders as plain text, not an <a> tag @integration', asyn
   const token = req.headers()['authorization'].slice('Bearer '.length);
   const tripId = await createTrip(page, token);
 
-  // Create destination via API
   const destId: string = await page.evaluate(async (args) => {
     const [apiBase, tId, tok] = args as [string, string, string];
     const resp = await fetch(`${apiBase}/trips/${tId}/destinations`, {
@@ -199,28 +192,19 @@ test('P2-V4: hotel URL renders as plain text, not an <a> tag @integration', asyn
     return String(data.data.id);
   }, [API_BASE, tripId, token]);
 
-  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
-  await page.waitForSelector('#destinations-section', { timeout: 10000 });
+  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}#city/${destId}`);
+  await page.waitForSelector('#hotel-search', { timeout: 10000 });
 
-  // Open hotel modal (hotel section should render under each destination)
-  await page.waitForSelector('button:has-text("Add hotel")', { timeout: 5000 });
-  await page.locator('button:has-text("Add hotel")').first().click();
-  await page.waitForSelector('#hotel-modal-overlay:not([hidden])', { timeout: 5000 });
-
-  await page.fill('#hotel-name', 'Hotel Osaka');
-  await page.fill('#hotel-url', 'https://hotel.example.com');
-  await page.click('#hotel-save-btn');
-
-  await page.waitForResponse(
+  const put = page.waitForResponse(
     (r) => r.url().includes('/hotel') && r.request().method() === 'PUT',
     { timeout: 8000 }
   );
+  await page.fill('#hotel-search', 'https://www.google.com/maps/place/Hotel+Osaka/@34.69,135.50,17z');
+  await page.locator('#hotel-search-list .place-option').first().click();
+  expect((await put).status()).toBe(200);
 
-  // URL should not be an anchor — find any element containing the URL text
-  await page.waitForSelector(':text("https://hotel.example.com")', { timeout: 5000 });
-  const urlEl = page.locator(':text("https://hotel.example.com")').first();
-  const tagName = await urlEl.evaluate((el) => el.tagName.toLowerCase());
-  expect(tagName).not.toBe('a');
+  await expect(page.locator('#hotel-name')).toHaveValue('Hotel Osaka');
+  expect(await page.locator('#hotel-section a').count()).toBe(0);
 });
 
 // ---------------------------------------------------------------------------
@@ -273,13 +257,12 @@ test('P2-V5: activity time input saved; reorder POST sends ordered_ids @integrat
     });
   }, [API_BASE, tripId, ids.destId, ids.dayId, token]);
 
-  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
-  await page.waitForSelector('#destinations-section', { timeout: 10000 });
+  await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}#city/${ids.destId}/2026-08-05`);
+  await expect(page.locator('#activity-list > li')).toHaveCount(2, { timeout: 8000 });
 
-  // Activities should render with time values
-  await page.waitForSelector(':text("Actividad A")', { timeout: 8000 });
-  await page.waitForSelector(':text("09:00")', { timeout: 5000 });
-  await page.waitForSelector(':text("14:00")', { timeout: 5000 });
+  // Activities render with their time values (in inputs)
+  await expect(page.locator('#activity-list [data-role="time"]').first()).toHaveValue('09:00');
+  await expect(page.locator('#activity-list [data-role="time"]').last()).toHaveValue('14:00');
 
   // Capture the reorder POST
   let reorderBody: Record<string, unknown> | null = null;
@@ -290,9 +273,7 @@ test('P2-V5: activity time input saved; reorder POST sends ordered_ids @integrat
   });
 
   // Click ▲ on second activity (move up)
-  const upBtns = page.locator('button[title="Move up"]');
-  const count = await upBtns.count();
-  expect(count).toBeGreaterThan(0);
+  const upBtns = page.locator('#activity-list [data-role="up"]');
   await upBtns.last().click();
 
   await page.waitForResponse(

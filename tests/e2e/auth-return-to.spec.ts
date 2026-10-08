@@ -42,7 +42,7 @@ test.describe('@qa-noauth sign-in returns to the page it started from', () => {
     await completeMockLogin(page, authorizeUrl);
 
     await expect(page).toHaveURL(/\/PruebaMapJapan\/trip-edit\.html\?tripId=42$/);
-    await expect(page.locator('#destinations-section')).toBeVisible();
+    await expect(page.locator('#te-workspace')).toBeVisible();
   });
 
   test('a registered page is sent as is (no detour, nothing to restore)', async ({ page }) => {

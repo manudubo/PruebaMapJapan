@@ -188,7 +188,10 @@ export class EditorStore {
       enqueue([...entry.fields]);
     };
     if (immediate) fire();
-    else p.timer = setTimeout(fire, this.debounceMs);
+    else {
+      p.timer = setTimeout(fire, this.debounceMs);
+      this.emit('field'); // lets the save indicator show "Saving…" while the edit waits
+    }
   }
 
   private op(op: QueueOp): void {

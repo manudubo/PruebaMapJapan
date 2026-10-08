@@ -166,7 +166,7 @@ export function createPlaceBox(opts: PlaceBoxOptions): PlaceBox {
       message = 'Keep typing, or press Enter to search.';
     }
 
-    if (opts.onFreeText && text.length >= 1 && s.status !== 'idle' && s.status !== 'link' && s.status !== 'badlink') {
+    if (opts.onFreeText && text.length >= 1 && s.status !== 'idle' && s.status !== 'loading' && s.status !== 'link' && s.status !== 'badlink') {
       const labelFn = opts.freeTextLabel ?? ((t: string) => `Add “${t}” without a map location`);
       addOption(
         h('li', { class: 'place-option place-option--free' }, icon('plus', 16), h('span', { class: 'place-option-text' }, h('strong', { text: labelFn(text) }))),
