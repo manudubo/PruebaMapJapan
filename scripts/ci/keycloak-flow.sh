@@ -197,6 +197,9 @@ cmd_apply() {
     printf 'KC_RECOVERY_CLIENT_ID=travelmap-recovery\n'
     printf 'KC_RECOVERY_CLIENT_SECRET=%s\n' "$recovery_secret"
     printf 'MAILPIT_URL=http://127.0.0.1:%s\n' "$MAILPIT_HTTP_PORT"
+    # Path (not the value) of this throwaway Keycloak's master admin password, for the
+    # one registration test that closes and reopens sign-up on the realm.
+    printf 'KC_MASTER_ADMIN_PASSWORD_FILE=%s\n' "$KC_WORK/admin-pass"
   } > "$KC_WORK/e2e.env"
   wait_http_200 "$KC_URL/realms/japan-trip" 15 || die "realm japan-trip not served after apply"
   echo "Realm japan-trip applied; Playwright env written to $KC_WORK/e2e.env"
