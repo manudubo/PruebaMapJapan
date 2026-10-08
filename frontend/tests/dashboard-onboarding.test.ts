@@ -105,14 +105,16 @@ describe('dashboard after sign-in', () => {
     expect(h.order.indexOf('verify')).toBeLessThan(h.order.indexOf('trips'));
   });
 
-  it('403 email_not_verified from GET /users/me shows the screen and then re-reads the user', async () => {
-    api.getMe
-      .mockRejectedValueOnce(new api.ApiError(403, 'email_not_verified'))
-      .mockResolvedValueOnce({ ...USER, onboarding: { is_new: true } });
-    await loadDashboard();
-    expect(h.show).toHaveBeenCalledTimes(1);
-    expect(api.getMe).toHaveBeenCalledTimes(2);
-    expect(h.onboarding).toHaveBeenCalledWith(expect.objectContaining({ isNew: true, userKey: 'kc-user-1' }));
+  it('403 email_not_verified from GET /users/me leaves the screen (and the reload) to the gate', async () => {
+    api.getMe.mockRejectedValue(new api.ApiError(403, 'email_not_verified'));
+    vi.resetModules();
+    await import('@/pages/dashboard');
+    await vi.waitFor(() => expect(api.getMe).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(h.show).not.toHaveBeenCalled(); // no second screen, no double reload
+    expect(api.getMyTrips).not.toHaveBeenCalled(); // nothing is fetched behind the screen
+    expect(h.onboarding).not.toHaveBeenCalled();
+    expect(h.nudge).not.toHaveBeenCalled();
   });
 
   it('other /users/me failures are not an unverified account', async () => {

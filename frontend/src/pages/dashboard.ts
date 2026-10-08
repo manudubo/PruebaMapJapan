@@ -453,13 +453,10 @@ async function loadAuthenticated(): Promise<void> {
   try {
     user = await getMe();
   } catch (err) {
-    if (err instanceof ApiError && err.status === 403 && err.code === 'email_not_verified' && info) {
-      await showEmailVerification({ email: info.email || null, userKey: info.id });
-      try {
-        user = await getMe();
-      } catch {
-        // Non-critical — greeting will fall back to token data
-      }
+    if (err instanceof ApiError && err.status === 403 && err.code === 'email_not_verified') {
+      // The gate that watchAuth installed is already showing the verification screen
+      // (src/auth/verifyEmail.ts) and reloads the page once the address is verified.
+      return;
     }
     // Other failures are non-critical — greeting will fall back to token data
   }
