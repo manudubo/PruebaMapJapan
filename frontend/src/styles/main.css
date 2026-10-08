@@ -2275,7 +2275,26 @@ travel-nav:not(:defined) {
    ============================================ */
 .recover-card {
   max-width: 520px;
-  margin-inline: auto;
+  margin: 24px auto 0;
+  padding: 32px;
+}
+
+@media (max-width: 600px) {
+  .recover-card {
+    padding: 24px 20px;
+  }
+}
+
+.recover-card .code-input {
+  margin-inline: 0;
+}
+
+.recover-card .code-input-row {
+  justify-content: flex-start;
+}
+
+.recover-card .code-input-legend {
+  margin-inline: 0;
 }
 
 .recover-card h1 {
