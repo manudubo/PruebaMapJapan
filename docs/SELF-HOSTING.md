@@ -19,6 +19,7 @@ The kit lives in `deploy/selfhost/`:
 | `scripts/deploy.sh` | Build, migrate the database, start, wait until ready. Safe to re-run |
 | `scripts/keycloak-apply.sh` | Create/update the login realm with Terraform (production profile) |
 | `scripts/add-user.sh` | Create an account and email the person a link to choose a password |
+| `scripts/purge-unverified.sh`, `purge-timer.sh` | Open sign-up only: delete never-verified accounts (dry run by default), hourly timer |
 | `scripts/funnel.sh` | Publish the server with Tailscale Funnel (port 443 only) |
 | `scripts/status.sh` | One-screen health report |
 | `scripts/backup.sh`, `restore.sh`, `backup-timer.sh` | Backups, restore, restore drill, daily timer |
@@ -217,7 +218,9 @@ It applies `terraform/keycloak` with `profile = "production"`: exact redirect
 pages for `FRONTEND_ORIGIN` (no wildcards), HTTPS required, the passkey rpId
 `PUBLIC_HOST`, temporary lockouts after 10 wrong passwords, a 12-character
 password minimum, email through your `SMTP_*`, **no test users and no
-self-registration** (you invite people in step 9). Terraform itself refuses to
+self-registration** unless you opt in (you invite people in step 9; see
+[Open sign-up](#open-sign-up)), and the `travelmap-recovery` client whose
+secret it writes to `.env` for the backend. Terraform itself refuses to
 apply if one of these production rules is not met (for example SMTP without
 TLS). It talks to Keycloak on `http://127.0.0.1:28081/auth`, which never
 leaves the machine.
@@ -346,6 +349,74 @@ register a new passkey. Pick the final name before inviting people.
 
 ---
 
+## Open sign-up
+
+By default only people you invite (`add-user.sh`) have accounts. Setting
+`REGISTRATION_ENABLED=true` lets **anyone on the internet** create one from the
+app's "Create account" button. Read this section before turning it on.
+
+**How a sign-up works**
+
+1. The Keycloak form asks only for an e-mail address (it becomes the username)
+   and, optionally, a name. No password.
+2. Right after, the browser registers a **passkey** (Face ID, Touch ID, Windows
+   Hello, Android). The account is usable only once that succeeds.
+3. On the first visit the app asks for a **6-digit code** sent to that address.
+   Until it is entered, the API answers `403 email_not_verified` to everything
+   except the verification itself (backend; `users.email_verified_at`).
+4. **No passkey possible** (old browser, shared PC) — at sign-up or later: the
+   passkey page shows *"Can't use a passkey on this device? Get a code by email"*.
+   It opens the app's `recover.html`; a code to the address sets a **password**
+   (12+ characters, not the address) through the `travelmap-recovery` client.
+   Users with both a passkey and a password get the other one under
+   *Try another way* when one does not work.
+
+**Risks and what limits them**
+
+| Risk | Limit |
+|---|---|
+| Strangers use your server and your Gmail quota (~500 mails/day) | every sign-up costs a passkey or a mailed code; the backend's per-user/per-IP/per-address limits on code requests; optional reCAPTCHA (below). **There is no per-IP sign-up throttle**: Keycloak has none and the stock Caddy image has no rate-limit module, so a bot with a WebAuthn emulator can create accounts at Keycloak's speed. Watch `./scripts/purge-unverified.sh` output and close sign-up if numbers jump |
+| Someone registers **your** address first ("squatting") | they cannot use the API (no code), and `purge-unverified.sh` deletes never-verified accounts after `PURGE_UNVERIFIED_AFTER_HOURS` (24); the owner can also take the address back through e-mail recovery |
+| Checking whether an address has an account | the sign-up form says "Email already exists." — the same information the sign-in page already gives (keycloak/README.md, "Username enumeration"). Recovery always answers the same |
+| Password guessing | lockouts after 10 failures (Terraform refuses open sign-up with a laxer setting), 12-character minimum |
+| The backend can set passwords | `travelmap-recovery` holds `manage-users`: whoever controls the backend can reset any password. Its secret lives only in `.env` (mode 600) and the backend reaches Keycloak on the internal network; the public URL blocks `/auth/admin` |
+
+**Turning it on**
+
+```bash
+nano .env                      # REGISTRATION_ENABLED=true
+                               # optional: RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY
+                               #   (Google reCAPTCHA admin console, domain = PUBLIC_HOST)
+./scripts/keycloak-apply.sh    # plan shows registration_allowed = true
+./scripts/deploy.sh            # restarts the backend with the recovery secret
+./scripts/purge-timer.sh install
+./scripts/purge-unverified.sh  # dry run: lists what the hourly timer would delete
+```
+
+Terraform refuses the change if brute-force lockouts are above 10 failures or
+the recovery client is disabled. `RECAPTCHA_SECRET_KEY` only reaches Terraform
+through the environment, never a file in the repository.
+
+**Purging never-verified accounts.** `purge-unverified.sh` lists Keycloak
+accounts older than 24 h that are neither verified in Keycloak (invited
+accounts are) nor in the app database, and with `--apply` deletes them and
+their empty app row. It never deletes when it cannot ask the database, and
+stops above 50 candidates (`--max`). The timer runs it hourly; logs:
+`journalctl -u travelmap-purge-unverified.service`.
+
+**Closing it again.** Set `REGISTRATION_ENABLED=false` and re-run
+`./scripts/keycloak-apply.sh`: the "Register" link disappears and the
+registration endpoint answers "Registration not allowed". Existing accounts keep
+working. Leave the purge timer installed until the last unverified sign-ups are
+gone, then `./scripts/purge-timer.sh remove`. To remove a specific account:
+admin console (SSH tunnel) → Users.
+
+**Rotating the recovery secret.** Admin console → Clients →
+`travelmap-recovery` → Credentials → Regenerate, then `./scripts/keycloak-apply.sh`
+(it copies the new secret into `.env`) and `./scripts/deploy.sh`.
+
+---
+
 ## Rotating secrets
 
 All secrets live only in `.env`. After any change run `./scripts/deploy.sh --no-build`.
@@ -455,7 +526,8 @@ Caddy → backend = 1.
 - [ ] Only 127.0.0.1 ports are published (`./scripts/status.sh` "Conflicts" section; `docker ps` shows `127.0.0.1:` for travelmap containers).
 - [ ] `https://<host>/auth/admin/` and `https://<host>/auth/realms/master` answer 404 from outside.
 - [ ] Keycloak admin password is the generated one (64 hex chars) and only used through the SSH tunnel.
-- [ ] No test users and registration off in the realm (production profile; Terraform refuses otherwise).
+- [ ] No test users in the realm (production profile; Terraform refuses otherwise). Registration off, or on deliberately with the purge timer installed ([Open sign-up](#open-sign-up)).
+- [ ] `KEYCLOAK_RECOVERY_CLIENT_SECRET` only in `.env`; no `japan-trip-worker` client in the realm.
 - [ ] SSH: key login only (`PasswordAuthentication no`), consider `./scripts/bootstrap.sh --fail2ban`.
 - [ ] Automatic security updates: `./scripts/bootstrap.sh --unattended-upgrades` (if not already handled).
 - [ ] Daily backups + monthly `restore.sh --drill` + an off-site copy.
