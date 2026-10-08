@@ -14,11 +14,7 @@
  */
 
 import { register, getLoginCallbackError, appPageUrl } from './keycloak';
-
-export interface RegistrationEnv {
-  flag: string | undefined;
-  keycloakUrl: string | undefined;
-}
+import { isRegistrationEnabled, type RegistrationEnv } from './registrationFlag';
 
 export function registrationEnabled(
   env: RegistrationEnv = {
@@ -26,10 +22,7 @@ export function registrationEnabled(
     keycloakUrl: import.meta.env['VITE_KEYCLOAK_URL'] as string | undefined,
   },
 ): boolean {
-  const flag = (env.flag ?? '').trim().toLowerCase();
-  if (flag === 'false' || flag === '0' || flag === 'off') return false;
-  if (flag === 'true' || flag === '1' || flag === 'on') return true;
-  return (env.keycloakUrl ?? '').trim() !== '';
+  return isRegistrationEnabled(env);
 }
 
 export const SIGNUP_PENDING_KEY = 'travelmap.auth.signupPending';

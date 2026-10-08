@@ -2,11 +2,12 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { swVersionPlugin } from './build/swVersionPlugin';
 import { cspPlugin } from './build/cspPlugin';
+import { signupGatePlugin } from './build/signupGatePlugin';
 
 export default defineConfig({
   // Base URL para GitHub Pages
   base: '/PruebaMapJapan/',
-  plugins: [cspPlugin(), swVersionPlugin()],
+  plugins: [cspPlugin(), signupGatePlugin(), swVersionPlugin()],
 
   resolve: {
     alias: {

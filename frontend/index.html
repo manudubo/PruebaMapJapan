@@ -160,6 +160,7 @@
       align-items: center;
       justify-content: center;
       gap: 7px;
+      min-height: 44px;
       padding: 11px 22px;
       font-size: 14px;
       font-weight: 600;
@@ -191,6 +192,24 @@
 
     .landing-btn--secondary:hover {
       border-color: var(--jp-text-secondary);
+    }
+
+    .landing-btn--link {
+      background: transparent;
+      color: var(--jp-text, #1d1d1f);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .landing-btn--link:hover {
+      color: var(--jp-accent-text, var(--jp-accent));
+    }
+
+    /* Sign-up off in this build (build/signupGatePlugin.ts): Sign in is the primary action. */
+    .landing-actions:has(> [data-signup][hidden]) #landing-login-btn {
+      background: var(--jp-accent-solid);
+      color: var(--jp-white);
+      border-color: var(--jp-accent-solid);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -295,10 +314,13 @@
         <h1 class="landing-title">Your next trip,<br>perfectly planned.</h1>
         <p class="landing-tagline">Plan your next trip. Days, destinations, and activities, all on an interactive map.</p>
         <div class="landing-actions">
-          <button id="landing-login-btn" class="landing-btn landing-btn--primary" type="button">
+          <button id="landing-signup-btn" class="landing-btn landing-btn--primary" type="button" data-signup>
+            Sign up
+          </button>
+          <button id="landing-login-btn" class="landing-btn landing-btn--secondary" type="button">
             Sign in
           </button>
-          <a href="#demo" class="landing-btn landing-btn--secondary">
+          <a href="#demo" class="landing-btn landing-btn--link">
             View demo
           </a>
         </div>

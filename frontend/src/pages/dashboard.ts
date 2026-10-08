@@ -18,7 +18,9 @@ import {
   hideAuthPending,
   showAuthUnavailableState,
   clearAuthUnavailableState,
+  showSignUpNotice,
 } from '@/auth/authStatusUI';
+import { registrationEnabled, takeSignUpOutcome, wireSignUpButton } from '@/auth/registration';
 import { checkPasskeyCampaign } from '@/modules/passkeyCampaign';
 import { getMyTrips, getMe, apiUrl } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
@@ -225,6 +227,12 @@ function showLoginPrompt(): void {
   if (promptLoginBtn && !promptLoginBtn.dataset['wired']) {
     promptLoginBtn.dataset['wired'] = '1';
     promptLoginBtn.addEventListener('click', () => login(window.location.href));
+  }
+  const promptSignupBtn = document.getElementById('auth-signup-prompt-btn');
+  if (registrationEnabled()) {
+    wireSignUpButton(promptSignupBtn, () => showSignUpNotice('unavailable'));
+  } else {
+    promptSignupBtn?.setAttribute('hidden', '');
   }
 }
 
@@ -478,6 +486,7 @@ function init(): void {
       clearAuthUnavailableState();
       showLoginPrompt();
       renderUserGreeting(null);
+      showSignUpNotice(takeSignUpOutcome(false));
     },
     // Distinct from "please sign in": we don't know yet whether the user is signed in.
     unavailable: () => {

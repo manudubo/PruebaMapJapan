@@ -2191,3 +2191,8 @@ travel-nav:not(:defined) {
 #signup-notice {
   grid-template-columns: minmax(0, 1fr) auto;
 }
+
+/* Signed-out trip view: Sign up / Sign in above the "Back to dashboard" link */
+.trip-auth-actions {
+  margin: 4px 0 20px;
+}
