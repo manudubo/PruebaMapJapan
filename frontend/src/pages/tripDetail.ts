@@ -1,15 +1,21 @@
 /**
- * Trip Detail Page
+ * Trip page (trip.html): a saved trip, shown the way the demo is.
  *
- * Dynamic, data-driven trip view that replaces the 8 static city pages.
- * Reads `tripId` from the URL query string, loads the trip from the API,
- * converts it to the legacy CityData format, and initialises the map/legend.
+ * Two views over the same loaded trip, switched without a reload:
+ *  - overview (no `destIndex`): trip header with dates/countdown/stats, a map with every city
+ *    numbered in visiting order and joined by a dashed line, and one card per city;
+ *  - city (`destIndex=n`): that city's day filter, map, activities by day and hotel.
  *
- * URL format: trip.html?tripId=<uuid>
- * Optionally: trip.html?tripId=<uuid>&destIndex=<number>
+ * URL format: trip.html?tripId=<id>[&destIndex=<n>]   (owner)
+ *             trip.html?slug=<public slug>[&destIndex=<n>]   (shared, no sign-in)
+ *
+ * The pure logic (summary, stops, URLs, error wording) lives in modules/tripView.ts; the data is
+ * adapted from the API by modules/tripAdapter.ts; maps come from modules/baseMap.ts (OSM tiles,
+ * attribution), modules/overviewMap.ts and modules/declutter.ts, like the demo pages.
  */
 
 import '@/styles/main.css';
+import '@/styles/trip-view.css';
 import '@/components/Navbar';
 import '@/components/SearchBar';
 
@@ -17,7 +23,10 @@ import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { initTheme } from '@/modules/theme';
 import { createBaseMap, switchBaseMapTheme } from '@/modules/baseMap';
-import { isAuthenticated, login } from '@/auth/keycloak';
+import { createOverviewMap, type OverviewMap, type OverviewStop } from '@/modules/overviewMap';
+import { DeclutteredMarker, declutterMarkers } from '@/modules/declutter';
+import { initCountdown } from '@/modules/countdown';
+import { login } from '@/auth/keycloak';
 import { registrationEnabled, wireSignUpButton, takeSignUpOutcome } from '@/auth/registration';
 import {
   watchAuth,
@@ -29,99 +38,41 @@ import {
   showSignUpNotice,
 } from '@/auth/authStatusUI';
 import { getTrip, getPublicTrip } from '@/api/client';
-import { apiTripToCityData } from '@/modules/tripAdapter';
+import { apiDestinationToCityData, safeHttpUrl, toCoords } from '@/modules/tripAdapter';
+import {
+  buildTripStops,
+  describeCounts,
+  describeTripError,
+  destinationCoords,
+  parseTripLocation,
+  resolveDestIndex,
+  summarizeTrip,
+  tripDateSpan,
+  tripHref,
+  type TripProblem,
+  type TripRef,
+  type TripStop,
+} from '@/modules/tripView';
 import { getMapsUrl } from '@/data/maps';
-import { createDirectionsUrl, createPlaceUrl, announceToScreenReader } from '@/modules/utils';
-import type { ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
+import { createDirectionsUrl, createPlaceUrl, announceToScreenReader, escapeHtml } from '@/modules/utils';
+import type { ApiDestination, ApiHotel, ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
 import { installGlobalErrorHandler } from '@/modules/toast';
 
-// ---------------------------------------------------------------------------
-// URL params
-// ---------------------------------------------------------------------------
+/** After this long without an answer the page says so and offers "Try again" (the request keeps going). */
+export const SLOW_LOAD_MS = 3000;
 
-function getUrlParams(): { tripId: string | null; slug: string | null; destIndex: number } {
-  const params = new URLSearchParams(window.location.search);
-  return {
-    tripId: params.get('tripId'),
-    slug: params.get('slug'),
-    destIndex: parseInt(params.get('destIndex') ?? '0', 10) || 0,
-  };
-}
+const byId = <T extends HTMLElement = HTMLElement>(id: string): T | null => document.getElementById(id) as T | null;
 
 // ---------------------------------------------------------------------------
-// Destination tab rendering
+// Popups and legend items (exported for tests)
 // ---------------------------------------------------------------------------
 
-function buildDestTabs(trip: ApiTrip, activeIndex: number): void {
-  const tabsEl = document.getElementById('dest-tabs');
-  if (!tabsEl) return;
-
-  tabsEl.setAttribute('role', 'tablist');
-  tabsEl.setAttribute('aria-label', 'Trip destinations');
-
-  const sorted = trip.destinations.slice().sort((a, b) => a.order_index - b.order_index);
-
-  tabsEl.innerHTML = '';
-  sorted.forEach((dest, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'dest-tab' + (i === activeIndex ? ' is-active' : '');
-    btn.dataset.destIndex = String(i);
-    btn.setAttribute('role', 'tab');
-    btn.setAttribute('aria-selected', String(i === activeIndex));
-    setText(btn, dest.city_name);
-    tabsEl.appendChild(btn);
-  });
-
-  tabsEl.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('.dest-tab') as HTMLElement | null;
-    if (!btn) return;
-    const idx = parseInt(btn.dataset.destIndex ?? '0', 10);
-    const url = new URL(window.location.href);
-    url.searchParams.set('destIndex', String(idx));
-    window.history.pushState({}, '', url.toString());
-    loadDestination(trip, idx);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Map initialisation (mirrors map.ts logic but fully self-contained)
-// ---------------------------------------------------------------------------
-
-let currentMap: L.Map | null = null;
-let currentTileLayer: L.TileLayer | null = null;
-
-function destroyMap(): void {
-  if (currentMap) {
-    currentMap.remove();
-    currentMap = null;
-    currentTileLayer = null;
-  }
-}
-
-function createMarkerIcon(label: string | number, color: string, isOptional = false): L.DivIcon {
-  const cls = isOptional ? 'numbered-marker optional' : 'numbered-marker';
-  const div = document.createElement('div');
-  div.className = cls;
-  setStyle(div, 'background', color);
-  div.textContent = String(label);
-  return L.divIcon({
-    className: 'custom-marker',
-    html: div,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
-}
-
-function createHotelIcon(): L.DivIcon {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: '<div class="hotel-marker">H</div>',
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-  });
-}
+const PIN_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+const ARROW_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
 
 /**
  * "View on Maps" target for an activity (BIZ-03): the link saved in the
@@ -136,221 +87,48 @@ export function resolveActivityMapsUrl(activity: Activity): string | null {
   );
 }
 
-export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): string {
-  const badge = activity.optional ? `<span class="optional-badge">Option ${activity.optional}</span>` : '';
-  const time = activity.time ? ` · <time class="popup-time">${activity.time}</time>` : '';
-  let html = `<div class="day-label">${day.label}${time}${badge}</div><h4>${activity.name}</h4>`;
-  if (activity.notes) html += `<p>${activity.notes}</p>`;
-  if (!activity.isGeneric && mapsUrl && activity.coords) {
-    const dirUrl = createDirectionsUrl(activity.coords);
-    html += `<div class="popup-links">
-      <a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        <span>View on Maps</span>
-      </a>
-      <a href="${dirUrl}" target="_blank" rel="noopener" class="popup-link directions">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-        <span>Directions</span>
-      </a>
+function popupLinks(mapsUrl: string, coords: [number, number]): string {
+  return `<div class="popup-links">
+      <a href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" class="popup-link">${PIN_ICON}<span>View on Maps</span></a>
+      <a href="${escapeHtml(createDirectionsUrl(coords))}" target="_blank" rel="noopener" class="popup-link directions">${ARROW_ICON}<span>Directions</span></a>
     </div>`;
-  }
+}
+
+export function buildPopup(activity: Activity, day: Day, mapsUrl: string | null): string {
+  const badge = activity.optional ? `<span class="optional-badge">Option ${escapeHtml(activity.optional)}</span>` : '';
+  const time = activity.time ? ` · <time class="popup-time">${escapeHtml(activity.time)}</time>` : '';
+  let html = `<div class="day-label">${escapeHtml(day.label)}${time}${badge}</div><h4>${escapeHtml(activity.name)}</h4>`;
+  if (activity.notes) html += `<p>${escapeHtml(activity.notes)}</p>`;
+  if (!activity.isGeneric && mapsUrl && activity.coords) html += popupLinks(mapsUrl, activity.coords);
   return DOMPurify.sanitize(html);
 }
 
 export function buildHotelPopup(hotel: Hotel, mapsUrl: string | null): string {
-  let html = `<h4>${hotel.name}</h4><p>Accommodation</p>`;
-  if (mapsUrl && hotel.coords) {
-    const dirUrl = createDirectionsUrl(hotel.coords);
-    html += `<div class="popup-links">
-      <a href="${mapsUrl}" target="_blank" rel="noopener" class="popup-link">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        <span>View on Maps</span>
-      </a>
-      <a href="${dirUrl}" target="_blank" rel="noopener" class="popup-link directions">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-        <span>Directions</span>
-      </a>
-    </div>`;
-  }
+  let html = `<h4>${escapeHtml(hotel.name)}</h4><p>Accommodation</p>`;
+  if (mapsUrl && hotel.coords) html += popupLinks(mapsUrl, hotel.coords);
   return DOMPurify.sanitize(html);
 }
 
-function initMap(data: CityData): void {
-  destroyMap();
-
-  const { map, tileLayer } = createBaseMap('map', data.center, data.zoom);
-  currentTileLayer = tileLayer;
-  currentMap = map;
-  window.currentMap = map;
-  window.currentTileLayer = currentTileLayer;
-
-  const markersByDay: Record<string, L.Marker[]> = {};
-  const allMarkers: L.Marker[] = [];
-  const daySelector = document.getElementById('day-selector');
-
-  if (daySelector) {
-    daySelector.setAttribute('role', 'tablist');
-    daySelector.setAttribute('aria-label', 'Filter by day');
-    daySelector.innerHTML = '';
-
-    Object.entries(data.days).forEach(([dateKey, day]) => {
-      const btn = document.createElement('button');
-      btn.className = 'day-btn' + (day.hasOptions ? ' has-options' : '');
-      btn.textContent = day.label;
-      btn.dataset.day = dateKey;
-      btn.setAttribute('role', 'tab');
-      btn.setAttribute('aria-selected', 'false');
-      if (day.hasOptions) btn.title = 'This day has alternative options';
-      daySelector.appendChild(btn);
-
-      markersByDay[dateKey] = [];
-      day.activities.forEach((activity, idx) => {
-        if (!activity.coords) return;
-        const isOptional = !!activity.optional;
-        const markerLabel = isOptional ? activity.optional! : idx + 1;
-        const markerColor = isOptional ? '#af52de' : day.color;
-        const marker = L.marker(activity.coords, {
-          icon: createMarkerIcon(markerLabel, markerColor, isOptional),
-          alt: activity.name,
-        });
-        marker.bindPopup(buildPopup(activity, day, resolveActivityMapsUrl(activity)));
-        markersByDay[dateKey].push(marker);
-        allMarkers.push(marker);
-      });
-    });
-  }
-
-  if (data.hotel?.coords) {
-    const hotelMapsUrl = getMapsUrl(data.hotel.name);
-    L.marker(data.hotel.coords, { icon: createHotelIcon(), alt: data.hotel.name })
-      .bindPopup(buildHotelPopup(data.hotel, hotelMapsUrl))
-      .addTo(map);
-  }
-
-  allMarkers.forEach((m) => m.addTo(map));
-  setupDayFilter(daySelector, map, data, markersByDay, allMarkers);
-
-  const hotelBtn = document.getElementById('hotel-btn');
-  const hotelCoords = data.hotel?.coords;
-  if (hotelBtn && hotelCoords) {
-    hotelBtn.setAttribute('aria-label', 'Center map on hotel');
-    hotelBtn.onclick = () => map.setView(hotelCoords, 15);
-  }
-
-  generateLegend(data);
-
-  window.addEventListener('theme-changed', () => {
-    if (!currentMap || !currentTileLayer) return;
-    currentTileLayer = switchBaseMapTheme(currentTileLayer);
-    window.currentTileLayer = currentTileLayer;
-  });
-
-  announceToScreenReader(`Map of ${data.name} loaded with ${allMarkers.length} locations`);
+function actionLink(href: string, className: string, title: string, icon: string): HTMLAnchorElement {
+  const a = document.createElement('a');
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.className = className;
+  a.title = title;
+  a.setAttribute('aria-label', title);
+  a.innerHTML = icon.replace('width="14" height="14"', '');
+  return a;
 }
 
-// ---------------------------------------------------------------------------
-// Day filter (mirrors map.ts setupDayFilter)
-// ---------------------------------------------------------------------------
-
-function setupDayFilter(
-  daySelector: HTMLElement | null,
-  map: L.Map,
-  data: CityData,
-  markersByDay: Record<string, L.Marker[]>,
-  allMarkers: L.Marker[]
-): void {
-  if (!daySelector) return;
-  let activeDay: string | null = null;
-
-  daySelector.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    if (!target.classList.contains('day-btn')) return;
-    const selectedDay = target.dataset.day!;
-
-    if (activeDay === selectedDay) {
-      activeDay = null;
-      daySelector.querySelectorAll('.day-btn').forEach((b) => {
-        b.classList.remove('active');
-        b.setAttribute('aria-selected', 'false');
-      });
-      allMarkers.forEach((m) => m.addTo(map));
-      map.setView(data.center, data.zoom);
-      document.querySelectorAll('.day-group').forEach((g) => {
-        (g as HTMLElement).style.display = 'block';
-      });
-      announceToScreenReader('Showing all days');
-      return;
-    }
-
-    activeDay = selectedDay;
-    daySelector.querySelectorAll('.day-btn').forEach((b) => {
-      b.classList.remove('active');
-      b.setAttribute('aria-selected', 'false');
-    });
-    target.classList.add('active');
-    target.setAttribute('aria-selected', 'true');
-    allMarkers.forEach((m) => map.removeLayer(m));
-    markersByDay[selectedDay].forEach((m) => m.addTo(map));
-
-    if (markersByDay[selectedDay].length > 0) {
-      const bounds = L.featureGroup(markersByDay[selectedDay]).getBounds();
-      map.fitBounds(bounds.pad(0.3));
-    }
-
-    document.querySelectorAll('.day-group').forEach((g) => {
-      (g as HTMLElement).style.display =
-        (g as HTMLElement).dataset.day === selectedDay ? 'block' : 'none';
-    });
-    const dayData = data.days[selectedDay];
-    if (!dayData) return;
-    announceToScreenReader(
-      `Showing ${dayData.label}: ${markersByDay[selectedDay].length} locations`
-    );
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Legend (mirrors map.ts generateLegendByDay)
-// ---------------------------------------------------------------------------
-
-function generateLegend(data: CityData): void {
-  const legendGrid = document.getElementById('legend-grid');
-  if (!legendGrid) return;
-  legendGrid.innerHTML = '';
-  legendGrid.setAttribute('role', 'region');
-  legendGrid.setAttribute('aria-label', 'Activity list by day');
-
-  Object.entries(data.days).forEach(([dateKey, day]) => {
-    const dayGroup = document.createElement('div');
-    dayGroup.className = 'day-group' + (day.hasOptions ? ' has-options' : '');
-    dayGroup.dataset.day = dateKey;
-    dayGroup.id = `day-${dateKey}`;
-    const header = document.createElement('div');
-    header.className = 'day-group-header';
-    const colorDot = document.createElement('div');
-    colorDot.className = 'day-group-color';
-    setStyle(colorDot, 'background', day.color);
-    header.appendChild(colorDot);
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'day-group-label';
-    setText(labelSpan, day.label);
-    header.appendChild(labelSpan);
-    if (day.hasOptions) {
-      const badge = document.createElement('span');
-      badge.className = 'day-group-badge';
-      badge.textContent = 'Options';
-      header.appendChild(badge);
-    }
-    dayGroup.appendChild(header);
-    const list = document.createElement('ul');
-    list.className = 'day-activities';
-    list.setAttribute('role', 'list');
-    day.activities.forEach((act, idx) => list.appendChild(buildLegendItem(act, idx, day)));
-    dayGroup.appendChild(list);
-    legendGrid.appendChild(dayGroup);
-  });
-
-  updateHotelInfo(data.hotel);
+function buildActions(mapsUrl: string, coords: [number, number], subject: string): HTMLElement {
+  const actions = document.createElement('div');
+  actions.className = 'legend-actions';
+  actions.appendChild(actionLink(mapsUrl, 'legend-action-btn', `View ${subject} on Google Maps`, PIN_ICON));
+  actions.appendChild(
+    actionLink(createDirectionsUrl(coords), 'legend-action-btn directions', `Directions to ${subject}`, ARROW_ICON),
+  );
+  return actions;
 }
 
 export function buildLegendItem(activity: Activity, idx: number, day: Day): HTMLElement {
@@ -391,127 +169,627 @@ export function buildLegendItem(activity: Activity, idx: number, day: Day): HTML
   item.appendChild(contentDiv);
 
   if (!activity.isGeneric && mapsUrl && activity.coords) {
-    const dirUrl = createDirectionsUrl(activity.coords);
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'legend-actions';
-    const mapsLink = document.createElement('a');
-    mapsLink.href = mapsUrl;
-    mapsLink.target = '_blank';
-    mapsLink.rel = 'noopener';
-    mapsLink.className = 'legend-action-btn';
-    mapsLink.title = 'View on Google Maps';
-    mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
-    actionsDiv.appendChild(mapsLink);
-    const dirLink = document.createElement('a');
-    dirLink.href = dirUrl;
-    dirLink.target = '_blank';
-    dirLink.rel = 'noopener';
-    dirLink.className = 'legend-action-btn directions';
-    dirLink.title = 'Directions';
-    dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
-    actionsDiv.appendChild(dirLink);
-    item.appendChild(actionsDiv);
+    item.appendChild(buildActions(mapsUrl, activity.coords, activity.name));
   }
-
   return item;
 }
 
-function updateHotelInfo(hotel: Hotel): void {
-  const hotelInfo = document.getElementById('hotel-info');
-  if (!hotelInfo || !hotel) return;
-  const mapsUrl = getMapsUrl(hotel.name);
+// ---------------------------------------------------------------------------
+// Page state
+// ---------------------------------------------------------------------------
 
+type Mode = 'owner' | 'public';
+
+let mode: Mode = 'owner';
+let ref: TripRef = {};
+let trip: ApiTrip | null = null;
+let destinations: ApiDestination[] = [];
+let stops: TripStop[] = [];
+
+let overviewMap: OverviewMap | null = null;
+let cityMap: L.Map | null = null;
+let cityTileLayer: L.TileLayer | null = null;
+let stopCountdown: (() => void) | null = null;
+
+let loadSeq = 0;
+let slowTimer: ReturnType<typeof setTimeout> | undefined;
+
+function teardownMaps(): void {
+  overviewMap?.destroy();
+  overviewMap = null;
+  cityMap?.remove();
+  cityMap = null;
+  cityTileLayer = null;
+  window.currentMap = null;
+  window.currentTileLayer = null;
+  stopCountdown?.();
+  stopCountdown = null;
+}
+
+function mountMapElement(slot: HTMLElement, label: string, describedBy?: string): HTMLElement {
+  // One static #map in trip.html (role + name for the a11y audit), moved into whichever view is shown.
+  const el = byId('map') ?? Object.assign(document.createElement('div'), { id: 'map' });
+  el.className = '';
+  el.innerHTML = '';
+  el.removeAttribute('tabindex');
+  el.setAttribute('role', 'application');
+  el.setAttribute('aria-label', label);
+  if (describedBy) el.setAttribute('aria-describedby', describedBy);
+  else el.removeAttribute('aria-describedby');
+  slot.prepend(el);
+  return el;
+}
+
+function setNote(id: string, text: string | null): void {
+  const note = byId(id);
+  if (!note) return;
+  note.hidden = text === null;
+  note.textContent = text ?? '';
+}
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+
+interface HeaderContent {
+  title: string;
+  subtitle: string;
+  chip?: string;
+  chipPhase?: string;
+  description?: string | null;
+  stats?: string[];
+  back?: { href: string; text: string };
+}
+
+function renderHeader(h: HeaderContent): void {
+  const title = byId('trip-title');
+  if (title) {
+    setText(title, h.title);
+    title.tabIndex = -1;
+  }
+  const subtitle = byId('trip-subtitle');
+  if (subtitle) {
+    setText(subtitle, h.subtitle);
+    subtitle.hidden = !h.subtitle;
+  }
+
+  const chip = byId('trip-chip');
+  if (chip) {
+    chip.hidden = !h.chip;
+    setText(chip, h.chip ?? '');
+    chip.dataset['phase'] = h.chipPhase ?? '';
+  }
+
+  const description = byId('trip-description');
+  if (description) {
+    description.hidden = !h.description;
+    setText(description, h.description ?? '');
+  }
+
+  const statsEl = byId('trip-stats');
+  if (statsEl) {
+    statsEl.innerHTML = '';
+    for (const text of h.stats ?? []) {
+      const li = document.createElement('li');
+      setText(li, text);
+      statsEl.appendChild(li);
+    }
+    statsEl.hidden = !h.stats?.length;
+  }
+
+  const back = byId<HTMLAnchorElement>('trip-back');
+  if (back) {
+    back.hidden = !h.back;
+    if (h.back) {
+      back.setAttribute('href', h.back.href);
+      setText(back, h.back.text);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Overview
+// ---------------------------------------------------------------------------
+
+function overviewStop(stop: TripStop): OverviewStop {
+  return {
+    key: stop.key,
+    number: stop.number,
+    name: stop.label,
+    label: stop.label,
+    dates: stop.dates,
+    coords: stop.coords!,
+    color: stop.color,
+    link: tripHref(ref, stop.index),
+  };
+}
+
+function cityCountsText(stop: TripStop): string {
+  const parts = [stop.dates];
+  if (stop.dayCount) parts.push(`${stop.dayCount} ${stop.dayCount === 1 ? 'day' : 'days'}`);
+  if (stop.placeCount) parts.push(`${stop.placeCount} ${stop.placeCount === 1 ? 'place' : 'places'}`);
+  return parts.filter(Boolean).join(' · ') || 'No dates yet';
+}
+
+export function buildCityCard(stop: TripStop, href: string): HTMLAnchorElement {
+  const card = document.createElement('a');
+  card.className = 'city-card';
+  card.href = href;
+  card.dataset['city'] = stop.key;
+
+  const marker = document.createElement('span');
+  marker.className = 'city-marker' + (stop.coords ? '' : ' is-unlocated');
+  marker.setAttribute('aria-hidden', 'true');
+  if (stop.coords) setStyle(marker, 'background', stop.color);
+  setText(marker, String(stop.number));
+  card.appendChild(marker);
+
+  const info = document.createElement('div');
+  info.className = 'city-info';
+  const name = document.createElement('strong');
+  setText(name, stop.label);
+  info.appendChild(name);
+  const small = document.createElement('small');
+  setText(small, cityCountsText(stop));
+  info.appendChild(small);
+  if (!stop.coords) {
+    const tag = document.createElement('span');
+    tag.className = 'city-nopin';
+    tag.textContent = 'No location yet';
+    info.appendChild(tag);
+  }
+  card.appendChild(info);
+  return card;
+}
+
+function renderOverview(): void {
+  if (!trip) return;
+  const sum = summarizeTrip(trip);
+  const owner = mode === 'owner';
+
+  const chipParts: string[] = [];
+  if (mode === 'public') chipParts.push('Shared trip');
+  if (sum.phase !== 'undated') chipParts.push(sum.phaseLabel);
+  renderHeader({
+    title: trip.name,
+    subtitle: sum.dateRange || 'Dates not set yet',
+    chip: chipParts.join(' · '),
+    chipPhase: sum.phase,
+    description: trip.description,
+    stats: stops.length ? describeCounts(sum) : [],
+    back: owner ? { href: 'dashboard.html', text: 'My trips' } : undefined,
+  });
+  document.title = `${trip.name} – Itinerary`;
+
+  byId('view-city')!.hidden = true;
+  byId('view-overview')!.hidden = false;
+
+  // Countdown while the trip is ahead; progress while it is under way.
+  const wrap = byId('demo-countdown-wrap');
+  const span = tripDateSpan(trip);
+  if (wrap) {
+    if (sum.phase === 'upcoming' && span.start) {
+      wrap.dataset['tripStart'] = span.start;
+      wrap.hidden = false;
+      stopCountdown = initCountdown();
+    } else {
+      wrap.hidden = true;
+    }
+  }
+  const progress = byId('trip-progress');
+  if (progress) {
+    progress.hidden = sum.phase !== 'active';
+    if (sum.phase === 'active') {
+      const bar = progress.querySelector<HTMLElement>('[role="progressbar"]')!;
+      bar.setAttribute('aria-valuenow', String(sum.progress ?? 0));
+      bar.setAttribute('aria-valuetext', sum.phaseLabel);
+      setStyle(byId('trip-progress-fill')!, 'width', `${sum.progress ?? 0}%`);
+      setText(byId('trip-progress-label')!, `${sum.phaseLabel} · ${sum.progress ?? 0}% of the trip`);
+    }
+  }
+
+  const list = byId('overview-cities')!;
+  const empty = byId('trip-empty')!;
+  list.innerHTML = '';
+  const slot = byId('overview-map-slot')!;
+  const located = stops.filter((s) => s.coords);
+
+  if (stops.length === 0) {
+    slot.hidden = true;
+    setNote('overview-map-note', null);
+    list.hidden = true;
+    empty.hidden = false;
+    empty.innerHTML = '';
+    const p = document.createElement('p');
+    p.textContent = owner
+      ? 'This trip has no cities yet. Add the first one to see it on the map.'
+      : 'The owner has not added any cities to this trip yet.';
+    empty.appendChild(p);
+    if (owner) {
+      const edit = document.createElement('a');
+      edit.className = 'btn btn-primary';
+      edit.href = `trip-edit.html?tripId=${encodeURIComponent(trip.id)}`;
+      edit.textContent = 'Add a city';
+      empty.appendChild(edit);
+    }
+    announceToScreenReader(`${trip.name}: no cities yet`);
+    return;
+  }
+
+  empty.hidden = true;
+  list.hidden = false;
+  stops.forEach((s) => list.appendChild(buildCityCard(s, tripHref(ref, s.index))));
+
+  if (located.length === 0) {
+    slot.hidden = true;
+    setNote('overview-map-note', 'None of the cities has a location yet, so there is no map to show.');
+    return;
+  }
+  slot.hidden = false;
+  const missing = stops.length - located.length;
+  setNote(
+    'overview-map-note',
+    missing > 0
+      ? `${missing} of ${stops.length} ${stops.length === 1 ? 'city has' : 'cities have'} no location yet and ${missing === 1 ? 'is' : 'are'} not on the map.`
+      : null,
+  );
+
+  const mapEl = mountMapElement(slot, `Map of ${trip.name}`, 'overview-map-help');
+  overviewMap = createOverviewMap(located.map(overviewStop), mapEl, list, { view: 'fit', declutter: true });
+}
+
+// ---------------------------------------------------------------------------
+// City view
+// ---------------------------------------------------------------------------
+
+function createMarkerIcon(label: string | number, color: string, isOptional = false): L.DivIcon {
+  const div = document.createElement('div');
+  div.className = isOptional ? 'numbered-marker optional' : 'numbered-marker';
+  setStyle(div, 'background', color);
+  div.textContent = String(label);
+  return L.divIcon({ className: 'custom-marker', html: div, iconSize: [28, 28], iconAnchor: [14, 14] });
+}
+
+function createHotelIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: '<div class="hotel-marker">H</div>',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+function hotelView(hotel: ApiHotel): { hotel: Hotel; mapsUrl: string | null } {
+  const coords = toCoords(hotel.lat, hotel.lng);
+  const view: Hotel = { name: hotel.name, coords };
+  const mapsUrl = safeHttpUrl(hotel.url) ?? getMapsUrl(hotel.name) ?? (coords ? createPlaceUrl(coords) : null);
+  return { hotel: view, mapsUrl };
+}
+
+function renderCity(index: number): void {
+  if (!trip) return;
+  const stop = stops[index]!;
+  const dest = destinations[index]!;
+  const data = apiDestinationToCityData(dest);
+  const dayCount = Object.keys(data.days).length;
+
+  renderHeader({
+    title: stop.name,
+    subtitle: [stop.dates, `${dayCount} ${dayCount === 1 ? 'day' : 'days'}`, stop.placeCount ? `${stop.placeCount} ${stop.placeCount === 1 ? 'place' : 'places'}` : '']
+      .filter(Boolean)
+      .join(' · '),
+    back: { href: tripHref(ref), text: trip.name },
+  });
+  document.title = `${stop.label} · ${trip.name} – Itinerary`;
+
+  byId('view-overview')!.hidden = true;
+  byId('view-city')!.hidden = false;
+  buildCityTabs(index);
+
+  const hotelInfo = dest.hotel ? hotelView(dest.hotel) : null;
+  const hasLocation =
+    destinationCoords(dest) !== null ||
+    Object.values(data.days).some((d) => d.activities.some((a) => a.coords));
+  const slot = byId('city-map-slot')!;
+  const hotelBtn = byId<HTMLButtonElement>('hotel-btn')!;
+  const daySelector = byId('day-selector')!;
+
+  generateLegend(data, hotelInfo);
+
+  if (!hasLocation) {
+    slot.hidden = true;
+    daySelector.hidden = true;
+    daySelector.innerHTML = '';
+    setNote('city-map-note', `No locations have been added for ${stop.name} yet, so there is no map to show.`);
+    return;
+  }
+  slot.hidden = false;
+  daySelector.hidden = false;
+  setNote('city-map-note', null);
+
+  const mapEl = mountMapElement(slot, `Map of ${stop.name}`);
+  const { map, tileLayer } = createBaseMap(mapEl, data.center, data.zoom);
+  cityMap = map;
+  cityTileLayer = tileLayer;
+  window.currentMap = map;
+  window.currentTileLayer = tileLayer;
+
+  const markersByDay: Record<string, DeclutteredMarker[]> = {};
+  const allMarkers: DeclutteredMarker[] = [];
+  daySelector.innerHTML = '';
+
+  Object.entries(data.days).forEach(([dateKey, day]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'day-btn' + (day.hasOptions ? ' has-options' : '');
+    btn.textContent = day.label;
+    btn.dataset['day'] = dateKey;
+    btn.setAttribute('aria-pressed', 'false');
+    if (day.hasOptions) btn.title = 'This day has alternative options';
+    daySelector.appendChild(btn);
+
+    markersByDay[dateKey] = [];
+    day.activities.forEach((activity, idx) => {
+      if (!activity.coords) return;
+      const isOptional = !!activity.optional;
+      const marker = new DeclutteredMarker(activity.coords, {
+        icon: createMarkerIcon(isOptional ? activity.optional! : idx + 1, isOptional ? '#af52de' : day.color, isOptional),
+        alt: activity.name,
+      });
+      marker.bindPopup(buildPopup(activity, day, resolveActivityMapsUrl(activity)));
+      markersByDay[dateKey]!.push(marker);
+      allMarkers.push(marker);
+    });
+  });
+
+  let hotelMarker: DeclutteredMarker | null = null;
+  if (hotelInfo?.hotel.coords) {
+    hotelMarker = new DeclutteredMarker(hotelInfo.hotel.coords, { icon: createHotelIcon(), alt: hotelInfo.hotel.name });
+    hotelMarker.bindPopup(buildHotelPopup(hotelInfo.hotel, hotelInfo.mapsUrl)).addTo(map);
+  }
+  allMarkers.forEach((m) => m.addTo(map));
+  // Overlapping markers are nudged apart (A11Y-04 target size); redone on zoom and day changes.
+  const declutter = (): void => {
+    declutterMarkers(map, hotelMarker ? [hotelMarker, ...allMarkers] : allMarkers);
+  };
+  declutter();
+  map.on('zoomend', declutter);
+  setupDayFilter(daySelector, map, data, markersByDay, allMarkers, declutter);
+
+  const hotelCoords = hotelInfo?.hotel.coords;
+  hotelBtn.hidden = !hotelCoords;
+  hotelBtn.onclick = hotelCoords ? () => map.setView(hotelCoords, 15) : null;
+
+  announceToScreenReader(`Map of ${stop.name} loaded with ${allMarkers.length} locations`);
+}
+
+function buildCityTabs(activeIndex: number): void {
+  const tabs = byId('dest-tabs');
+  if (!tabs) return;
+  tabs.innerHTML = '';
+  tabs.hidden = stops.length < 2;
+  stops.forEach((s) => {
+    const a = document.createElement('a');
+    a.className = 'dest-tab' + (s.index === activeIndex ? ' is-active' : '');
+    a.href = tripHref(ref, s.index);
+    a.title = s.label;
+    setText(a, s.label);
+    if (s.index === activeIndex) a.setAttribute('aria-current', 'page');
+    tabs.appendChild(a);
+  });
+}
+
+function setupDayFilter(
+  daySelector: HTMLElement,
+  map: L.Map,
+  data: CityData,
+  markersByDay: Record<string, L.Marker[]>,
+  allMarkers: L.Marker[],
+  onMarkersChanged: () => void,
+): void {
+  let activeDay: string | null = null;
+  const groups = (): NodeListOf<HTMLElement> => document.querySelectorAll<HTMLElement>('#legend-grid .day-group');
+  const clearPressed = (): void => {
+    daySelector.querySelectorAll('.day-btn').forEach((b) => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+  };
+
+  // onclick (not addEventListener): the selector element is reused across city switches.
+  daySelector.onclick = (e) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('.day-btn');
+    if (!target) return;
+    const selectedDay = target.dataset['day']!;
+
+    if (activeDay === selectedDay) {
+      activeDay = null;
+      clearPressed();
+      allMarkers.forEach((m) => m.addTo(map));
+      map.setView(data.center, data.zoom);
+      onMarkersChanged();
+      groups().forEach((g) => { g.hidden = false; });
+      announceToScreenReader('Showing all days');
+      return;
+    }
+
+    activeDay = selectedDay;
+    clearPressed();
+    target.classList.add('active');
+    target.setAttribute('aria-pressed', 'true');
+    allMarkers.forEach((m) => map.removeLayer(m));
+    const dayMarkers = markersByDay[selectedDay] ?? [];
+    dayMarkers.forEach((m) => m.addTo(map));
+    onMarkersChanged();
+    if (dayMarkers.length > 0) map.fitBounds(L.featureGroup(dayMarkers).getBounds().pad(0.3));
+    groups().forEach((g) => { g.hidden = g.dataset['day'] !== selectedDay; });
+    announceToScreenReader(`Showing ${data.days[selectedDay]?.label ?? 'day'}: ${dayMarkers.length} locations`);
+  };
+}
+
+function generateLegend(data: CityData, hotelInfo: { hotel: Hotel; mapsUrl: string | null } | null): void {
+  const legendGrid = byId('legend-grid');
+  if (!legendGrid) return;
+  legendGrid.innerHTML = '';
+  legendGrid.setAttribute('role', 'region');
+  legendGrid.setAttribute('aria-label', 'Activity list by day');
+
+  const entries = Object.entries(data.days);
+  if (entries.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'trip-empty-note';
+    p.textContent = `No days have been planned for ${data.name} yet.`;
+    legendGrid.appendChild(p);
+  }
+
+  entries.forEach(([dateKey, day]) => {
+    const dayGroup = document.createElement('div');
+    dayGroup.className = 'day-group' + (day.hasOptions ? ' has-options' : '');
+    dayGroup.dataset['day'] = dateKey;
+    dayGroup.id = `day-${dateKey}`;
+    const header = document.createElement('div');
+    header.className = 'day-group-header';
+    const colorDot = document.createElement('div');
+    colorDot.className = 'day-group-color';
+    setStyle(colorDot, 'background', day.color);
+    header.appendChild(colorDot);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'day-group-label';
+    setText(labelSpan, day.label);
+    header.appendChild(labelSpan);
+    if (day.hasOptions) {
+      const badge = document.createElement('span');
+      badge.className = 'day-group-badge';
+      badge.textContent = 'Options';
+      header.appendChild(badge);
+    }
+    dayGroup.appendChild(header);
+    const list = document.createElement('ul');
+    list.className = 'day-activities';
+    if (day.activities.length === 0) {
+      const none = document.createElement('li');
+      none.className = 'legend-empty';
+      none.textContent = 'Nothing planned for this day yet.';
+      list.appendChild(none);
+    }
+    day.activities.forEach((act, idx) => list.appendChild(buildLegendItem(act, idx, day)));
+    dayGroup.appendChild(list);
+    legendGrid.appendChild(dayGroup);
+  });
+
+  updateHotelInfo(hotelInfo);
+}
+
+function updateHotelInfo(info: { hotel: Hotel; mapsUrl: string | null } | null): void {
+  const hotelInfo = byId('hotel-info');
+  if (!hotelInfo) return;
   hotelInfo.innerHTML = '';
+  hotelInfo.hidden = !info;
+  if (!info) return;
+
   const markerDiv = document.createElement('div');
   markerDiv.className = 'marker';
   markerDiv.textContent = 'H';
   hotelInfo.appendChild(markerDiv);
 
   const nameSpan = document.createElement('span');
-  setText(nameSpan, hotel.name);
+  setText(nameSpan, info.hotel.name);
   hotelInfo.appendChild(nameSpan);
 
-  if (mapsUrl && hotel.coords) {
-    const dirUrl = createDirectionsUrl(hotel.coords);
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'legend-actions';
-    const mapsLink = document.createElement('a');
-    mapsLink.href = mapsUrl;
-    mapsLink.target = '_blank';
-    mapsLink.rel = 'noopener';
-    mapsLink.className = 'legend-action-btn';
-    mapsLink.title = 'View on Google Maps';
-    mapsLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
-    actionsDiv.appendChild(mapsLink);
-    const dirLink = document.createElement('a');
-    dirLink.href = dirUrl;
-    dirLink.target = '_blank';
-    dirLink.rel = 'noopener';
-    dirLink.className = 'legend-action-btn directions';
-    dirLink.title = 'Directions';
-    dirLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>';
-    actionsDiv.appendChild(dirLink);
-    hotelInfo.appendChild(actionsDiv);
+  if (info.mapsUrl && info.hotel.coords) {
+    hotelInfo.appendChild(buildActions(info.mapsUrl, info.hotel.coords, info.hotel.name));
   }
-
   const legend = document.querySelector('.legend');
-  if (legend) legend.insertBefore(hotelInfo, legend.firstChild);
+  if (legend && hotelInfo.parentElement === legend) legend.insertBefore(hotelInfo, legend.firstChild);
 }
 
 // ---------------------------------------------------------------------------
-// Load destination
+// Routing between the two views (no reload)
 // ---------------------------------------------------------------------------
 
-function loadDestination(trip: ApiTrip, destIndex: number): void {
-  // Header must reflect the trip regardless of whether it has any destinations yet —
-  // a trip can legitimately have zero destinations (e.g. right after creation), and the
-  // title placeholder must not be left stuck on "Loading trip…" in that case.
-  const titleEl = document.getElementById('trip-title');
-  if (titleEl) titleEl.textContent = trip.name;
+function showView(requested: number | null, userInitiated: boolean): void {
+  if (!trip) return;
+  teardownMaps();
+  const index = resolveDestIndex(requested, stops.length);
+  if (index === null) renderOverview();
+  else renderCity(index);
 
-  const cities = apiTripToCityData(trip);
-  const data = cities[destIndex] ?? cities[0];
-  if (!data) return;
+  if (userInitiated) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    byId('trip-header')?.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
+    byId('trip-title')?.focus({ preventScroll: true });
+  }
+}
 
-  const subtitleEl = document.getElementById('trip-subtitle');
-  if (subtitleEl) subtitleEl.textContent = `${data.name} · ${data.dates}`;
+function navigate(destIndex: number | null): void {
+  const url = new URL(window.location.href);
+  if (destIndex === null) url.searchParams.delete('destIndex');
+  else url.searchParams.set('destIndex', String(destIndex));
+  window.history.pushState({}, '', url.toString());
+  showView(destIndex, true);
+}
 
-  // Activate tab
-  document.querySelectorAll('.dest-tab').forEach((btn, i) => {
-    const active = i === destIndex;
-    btn.classList.toggle('is-active', active);
-    btn.setAttribute('aria-selected', String(active));
-  });
-
-  // Init map for this destination's CityData
-  initMap(data);
+function onCardClick(e: MouseEvent): void {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = (e.target as Element | null)?.closest?.('a');
+  if (!a || (a.target && a.target !== '_self')) return;
+  const raw = a.getAttribute('href') ?? '';
+  if (!raw.startsWith('trip.html?')) return;
+  const loc = parseTripLocation(raw.slice('trip.html'.length));
+  if ((loc.slug ?? loc.tripId) !== (ref.slug ?? ref.tripId)) return;
+  e.preventDefault();
+  navigate(loc.destIndex);
 }
 
 // ---------------------------------------------------------------------------
-// Error rendering
+// Loading, problems
 // ---------------------------------------------------------------------------
 
-function showError(message: string, options: { signedOut?: boolean } = {}): void {
-  const main = document.getElementById('main-content');
+function setLoading(on: boolean): void {
+  clearTimeout(slowTimer);
+  const card = byId('trip-card');
+  card?.setAttribute('aria-busy', String(on));
+  byId('trip-skeleton')!.hidden = !on;
+  byId('trip-slow')!.hidden = true;
+  if (on) slowTimer = setTimeout(() => { byId('trip-slow')!.hidden = false; }, SLOW_LOAD_MS);
+}
+
+function clearProblem(): void {
+  byId('trip-problem')?.remove();
+  const card = byId('trip-card');
+  if (card) card.hidden = false;
+}
+
+interface ProblemOptions {
+  signedOut?: boolean;
+  onRetry?: () => void;
+}
+
+function showError(problem: Pick<TripProblem, 'title' | 'message' | 'retryable'>, options: ProblemOptions = {}): void {
+  const main = byId('main-content');
   if (!main) return;
-  main.innerHTML = '';
-  const card = document.createElement('div');
-  card.className = 'page-card';
-  card.style.padding = '32px';
-  card.style.textAlign = 'center';
+  setLoading(false);
+  clearProblem();
+  const card = byId('trip-card');
+  if (card) card.hidden = true;
+
+  const panel = document.createElement('div');
+  panel.id = 'trip-problem';
+  panel.className = 'page-card trip-problem';
+  const alert = document.createElement('div');
+  alert.setAttribute('role', 'alert');
   const heading = document.createElement('h1');
-  heading.textContent = 'Trip unavailable';
-  heading.style.fontSize = '1.5rem';
-  heading.style.marginBottom = '12px';
-  card.appendChild(heading);
+  heading.textContent = problem.title;
+  heading.tabIndex = -1;
   const p = document.createElement('p');
-  p.style.color = 'var(--jp-text-secondary,#515154)';
-  setText(p, message);
-  card.appendChild(p);
+  setText(p, problem.message);
+  alert.append(heading, p);
+  panel.appendChild(alert);
+
+  const actions = document.createElement('div');
+  actions.className = 'trip-problem-actions';
   if (options.signedOut) {
     // Signed out: the trip may well be theirs. Offer Sign in (back to this trip) / Sign up.
-    const actions = document.createElement('div');
-    actions.className = 'auth-unavailable-actions trip-auth-actions';
     const here = window.location.href;
     if (registrationEnabled()) {
       const signup = document.createElement('button');
@@ -529,115 +807,80 @@ function showError(message: string, options: { signedOut?: boolean } = {}): void
     signin.textContent = 'Sign in';
     signin.addEventListener('click', () => { void login(here).catch(() => showAuthNotice()); });
     actions.appendChild(signin);
-    card.appendChild(actions);
   }
-  const link = document.createElement('a');
-  link.href = 'dashboard.html';
-  link.style.color = 'var(--jp-accent,#0071e3)';
-  link.textContent = 'Back to dashboard';
-  card.appendChild(link);
-  main.appendChild(card);
-}
-
-// ---------------------------------------------------------------------------
-// Main init
-// ---------------------------------------------------------------------------
-
-async function init(): Promise<void> {
-  initTheme();
-  installGlobalErrorHandler();
-
-  const { tripId, slug, destIndex } = getUrlParams();
-
-  // Public slug mode: skip auth entirely, load via slug directly
-  if (slug) {
-    let slugTrip: ApiTrip | null = null;
-    try {
-      slugTrip = await getPublicTrip(slug);
-    } catch (err) {
-      showError(`Could not load trip: ${(err as Error).message}`);
-      document.body.classList.add('ready');
-      return;
-    }
-    buildDestTabs(slugTrip, destIndex);
-    loadDestination(slugTrip, destIndex);
-    // Hide all owner-only controls — this is a public guest view.
-    // Do NOT call navbar.setDestinations() here — its links use tripId= which
-    // would produce broken URLs for guests. Guest view uses the default navbar.
-    document.querySelectorAll('[data-owner-only]').forEach((el) => {
-      (el as HTMLElement).setAttribute('hidden', '');
-    });
-    document.body.classList.add('ready');
-    return;
+  if (problem.retryable && options.onRetry) {
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.id = 'trip-retry-btn';
+    retry.className = 'btn btn-primary';
+    retry.textContent = 'Try again';
+    retry.addEventListener('click', options.onRetry);
+    actions.appendChild(retry);
   }
+  const back = document.createElement('a');
+  back.className = 'btn btn-secondary';
+  back.href = mode === 'owner' ? 'dashboard.html' : 'index.html';
+  back.textContent = mode === 'owner' ? 'Back to dashboard' : 'Back to home';
+  actions.appendChild(back);
+  panel.appendChild(actions);
 
-  if (!tripId) {
-    showError('No trip specified. Check the URL.');
-    document.body.classList.add('ready');
-    return;
-  }
-
-  // Owner view needs auth. Bounded: 'unavailable' after a few seconds at most, and a late
-  // answer (or Retry) still lands here exactly once.
-  showAuthPending();
-  let handled = false;
-  watchAuth({
-    authenticated: () => {
-      hideAuthPending();
-      clearAuthUnavailableState();
-      if (handled) return;
-      handled = true;
-      void loadOwnedTrip(tripId, destIndex);
-    },
-    anonymous: () => {
-      hideAuthPending();
-      clearAuthUnavailableState();
-      if (handled) return;
-      handled = true;
-      showError("You don't have access to this trip. Ask the owner for the public link.", { signedOut: true });
-      showSignUpNotice(takeSignUpOutcome(false));
-    },
-    unavailable: () => {
-      if (!handled) showAuthUnavailableState();
-    },
-  });
+  main.prepend(panel);
+  document.title = `${problem.title} – Itinerary`;
   document.body.classList.add('ready');
 }
 
-async function loadOwnedTrip(tripId: string, destIndex: number): Promise<void> {
-  let trip: ApiTrip | null = null;
-  if (isAuthenticated()) {
-    try {
-      trip = await getTrip(tripId);
-    } catch {
-      // Shown as "no access" below
-    }
+async function loadTrip(): Promise<void> {
+  const seq = ++loadSeq;
+  clearProblem();
+  setLoading(true);
+  try {
+    const loaded = mode === 'public' ? await getPublicTrip(ref.slug!) : await getTrip(ref.tripId!);
+    if (trip) return; // another attempt already answered
+    onLoaded(loaded);
+  } catch (err) {
+    if (trip || seq !== loadSeq) return; // superseded by a retry, or already shown
+    showError(describeTripError(err, mode), { onRetry: () => { void loadTrip(); } });
   }
+}
 
-  if (!trip) {
-    showError("You don't have access to this trip. Ask the owner for the public link.");
-    return;
+function onLoaded(loaded: ApiTrip): void {
+  trip = loaded;
+  destinations = loaded.destinations.slice().sort((a, b) => a.order_index - b.order_index);
+  stops = buildTripStops(loaded);
+  setLoading(false);
+  clearProblem();
+
+  if (mode === 'public') {
+    // Do NOT call navbar.setDestinations() here — its links use tripId= which would be broken
+    // URLs for guests. The guest view uses the default navbar.
+    document.querySelectorAll('[data-owner-only]').forEach((el) => el.setAttribute('hidden', ''));
+  } else {
+    wireOwnerControls(loaded);
   }
+  showView(parseTripLocation(window.location.search).destIndex, false);
+}
 
-  buildDestTabs(trip, destIndex);
-  loadDestination(trip, destIndex);
-
-  // Reveal the edit link for authenticated owners
-  const editLink = document.getElementById('trip-edit-link') as HTMLAnchorElement | null;
+function wireOwnerControls(t: ApiTrip): void {
+  const editLink = byId<HTMLAnchorElement>('trip-edit-link');
   if (editLink) {
-    editLink.href = `trip-edit.html?tripId=${trip.id}`;
+    editLink.href = `trip-edit.html?tripId=${encodeURIComponent(t.id)}`;
     editLink.removeAttribute('hidden');
   }
 
-  // Reveal copy-link button only for public trips with a slug
-  const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement | null;
-  if (copyLinkBtn && trip.is_public && trip.public_slug) {
+  // Copy-link button only for public trips with a slug
+  const copyLinkBtn = byId<HTMLButtonElement>('copy-link-btn');
+  if (copyLinkBtn && t.is_public && t.public_slug) {
     copyLinkBtn.removeAttribute('hidden');
-    const slugForCopy = trip.public_slug;
+    const url = `${window.location.origin}${window.location.pathname}?slug=${encodeURIComponent(t.public_slug)}`;
     copyLinkBtn.addEventListener('click', async () => {
-      const url = `${window.location.origin}${window.location.pathname}?slug=${slugForCopy}`;
-      await navigator.clipboard.writeText(url);
-      setText(copyLinkBtn, 'Copied!');
+      let label = 'Copied!';
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        label = 'Could not copy';
+      }
+      setText(copyLinkBtn, label);
+      announceToScreenReader(label);
       setTimeout(() => { setText(copyLinkBtn, 'Copy public link'); }, 2000);
     });
   }
@@ -645,18 +888,76 @@ async function loadOwnedTrip(tripId: string, destIndex: number): Promise<void> {
   // Update navbar with this trip's destinations
   const navbar = document.querySelector('travel-nav');
   if (navbar && 'setDestinations' in navbar) {
-    (navbar as any).setDestinations(
-      trip.destinations
-        .slice()
-        .sort((a, b) => a.order_index - b.order_index)
-        .map((d, i) => ({
-          id: d.id,
-          label: d.city_name,
-          tripId: trip.id,
-          index: i,
-        }))
+    (navbar as unknown as { setDestinations(d: unknown[]): void }).setDestinations(
+      destinations.map((d, i) => ({ id: d.id, label: d.city_name, tripId: t.id, index: i })),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Main init
+// ---------------------------------------------------------------------------
+
+function init(): void {
+  initTheme();
+  installGlobalErrorHandler();
+
+  window.addEventListener('theme-changed', () => {
+    if (cityTileLayer) {
+      cityTileLayer = switchBaseMapTheme(cityTileLayer);
+      window.currentTileLayer = cityTileLayer;
+    }
+  });
+  window.addEventListener('popstate', () => {
+    showView(parseTripLocation(window.location.search).destIndex, false);
+  });
+  byId('trip-card')?.addEventListener('click', onCardClick);
+  byId('trip-slow-retry')?.addEventListener('click', () => { void loadTrip(); });
+
+  const loc = parseTripLocation(window.location.search);
+  ref = { tripId: loc.tripId, slug: loc.slug };
+
+  // Public slug mode: skip auth entirely, load via slug directly.
+  if (loc.slug) {
+    mode = 'public';
+    void loadTrip();
+    document.body.classList.add('ready');
+    return;
+  }
+
+  if (!loc.tripId) {
+    showError({ title: 'No trip specified', message: 'No trip specified. Check the URL.', retryable: false });
+    return;
+  }
+
+  // Owner view needs auth. Bounded: 'unavailable' after a few seconds at most, and a late
+  // answer (or Retry) still lands here exactly once.
+  mode = 'owner';
+  showAuthPending();
+  let started = false;
+  watchAuth({
+    authenticated: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (started) return;
+      started = true;
+      void loadTrip();
+    },
+    anonymous: () => {
+      hideAuthPending();
+      clearAuthUnavailableState();
+      if (started) return;
+      showError(
+        { title: 'Sign in to see this trip', message: "You don't have access to this trip. Ask the owner for the public link.", retryable: false },
+        { signedOut: true },
+      );
+      showSignUpNotice(takeSignUpOutcome(false));
+    },
+    unavailable: () => {
+      if (!started) showAuthUnavailableState();
+    },
+  });
+  document.body.classList.add('ready');
 }
 
 if (document.readyState === 'loading') {

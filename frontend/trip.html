@@ -33,53 +33,6 @@
       }
     })();
   </script>
-
-
-  <style>
-    /* Destination tabs */
-    .dest-tabs {
-      display: flex;
-      gap: 4px;
-      overflow-x: auto;
-      padding: 8px 0;
-      scrollbar-width: thin;
-      scrollbar-color: var(--jp-text-tertiary, #86868b) transparent;
-    }
-
-    .dest-tabs::-webkit-scrollbar {
-      height: 6px;
-    }
-
-    .dest-tabs::-webkit-scrollbar-thumb {
-      background: var(--jp-text-tertiary, #86868b);
-    }
-
-    .dest-tab {
-      padding: 8px 14px;
-      border-radius: 0;
-      border: 1px solid var(--jp-border-strong);
-      background: var(--jp-surface);
-      color: var(--jp-text-secondary, #515154);
-      font-size: 13px;
-      font-weight: 500;
-      font-family: inherit;
-      cursor: pointer;
-      white-space: nowrap;
-      flex-shrink: 0;
-      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-    }
-
-    .dest-tab:hover {
-      color: var(--jp-text, #1d1d1f);
-      border-color: var(--jp-text-secondary, #515154);
-    }
-
-    .dest-tab.is-active {
-      background: var(--jp-accent-solid);
-      color: var(--jp-white);
-      border-color: var(--jp-accent-solid);
-    }
-  </style>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -89,32 +42,77 @@
     <search-bar></search-bar>
 
     <main id="main-content">
-      <div class="page-card">
-        <header class="header">
+      <div class="page-card trip-page" id="trip-card" aria-busy="true">
+        <header class="header trip-header" id="trip-header">
+          <a class="trip-back" id="trip-back" href="dashboard.html" hidden></a>
+          <p class="trip-chip" id="trip-chip" hidden></p>
           <h1 id="trip-title">Loading trip…</h1>
           <p id="trip-subtitle"></p>
-          <button id="copy-link-btn" class="btn btn-secondary" hidden>Copy public link</button>
-          <a id="trip-edit-link" href="#" class="btn btn-secondary" data-owner-only hidden>Edit trip</a>
+          <p class="trip-description" id="trip-description" hidden></p>
+          <ul class="trip-stats" id="trip-stats" aria-label="Trip at a glance" hidden></ul>
+          <div class="trip-actions">
+            <button id="copy-link-btn" class="btn btn-secondary" type="button" hidden>Copy public link</button>
+            <a id="trip-edit-link" href="#" class="btn btn-secondary" data-owner-only hidden>Edit trip</a>
+          </div>
         </header>
 
-        <!-- Destination tabs (rendered by tripDetail.ts) -->
-        <div class="dest-tabs" id="dest-tabs" role="tablist" aria-label="Destination tabs"></div>
-
-        <!-- Day selector (populated by tripDetail.ts via initMap) -->
-        <div class="day-selector" id="day-selector" role="tablist" aria-label="Day selector"></div>
-
-        <!-- Map -->
-        <div class="map-container">
-          <div id="map" role="application" aria-label="Map"></div>
-          <button class="hotel-btn" id="hotel-btn" title="Go to hotel" aria-label="Center map on hotel">H</button>
+        <!-- Shown while the trip loads (and kept if the API is slow): a calm placeholder, not a bare "Loading…" -->
+        <div class="trip-skeleton" id="trip-skeleton" aria-hidden="true">
+          <div class="skeleton skeleton-map"></div>
+          <div class="skeleton-row">
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+          </div>
+        </div>
+        <div class="trip-slow" id="trip-slow" role="status" hidden>
+          <p>This is taking longer than usual. The trip will appear as soon as the server answers.</p>
+          <button type="button" class="btn btn-secondary" id="trip-slow-retry">Try again</button>
         </div>
 
-        <!-- Legend -->
-        <div class="legend" aria-label="Legend">
-          <h2>Activities</h2>
-          <div class="legend-grid" id="legend-grid" role="list"></div>
-          <div class="hotel-info" id="hotel-info"></div>
-        </div>
+        <!-- Overview: the whole trip, like the demo (numbered cities joined by a dashed line + a card per city) -->
+        <section class="trip-view" id="view-overview" aria-labelledby="overview-cities-title" hidden>
+          <div class="trip-countdown-wrap" id="demo-countdown-wrap" hidden>
+            <p class="trip-countdown-title" id="demo-countdown-title">Until the trip</p>
+            <div class="trip-countdown" id="demo-countdown" role="timer" aria-live="off" aria-atomic="true" aria-labelledby="demo-countdown-title cd-sr">
+              <span class="sr-only" id="cd-sr"></span>
+              <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-days">--</span><span class="countdown-label">days</span></div>
+              <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-hours">--</span><span class="countdown-label">hours</span></div>
+              <div class="countdown-unit" aria-hidden="true"><span class="countdown-value" id="cd-mins">--</span><span class="countdown-label">min</span></div>
+            </div>
+          </div>
+          <div class="trip-progress" id="trip-progress" hidden>
+            <div class="trip-progress-bar" role="progressbar" aria-labelledby="trip-progress-label" aria-valuemin="0" aria-valuemax="100"><span id="trip-progress-fill"></span></div>
+            <p id="trip-progress-label"></p>
+          </div>
+
+          <p class="sr-only" id="overview-map-help">Numbered markers follow the visiting order. Tab to a marker and press Enter for its dates and a link. The same cities are listed below.</p>
+          <div class="map-container" id="overview-map-slot">
+            <div id="map" role="application" aria-label="Map of the trip" aria-describedby="overview-map-help"></div>
+          </div>
+          <p class="trip-map-note" id="overview-map-note" role="status" hidden></p>
+
+          <section class="quick-links" aria-labelledby="overview-cities-title">
+            <h2 id="overview-cities-title">Cities</h2>
+            <div class="cities-grid" id="overview-cities"></div>
+            <div class="trip-empty" id="trip-empty" hidden></div>
+          </section>
+        </section>
+
+        <!-- One city: day filter, map, activities by day -->
+        <section class="trip-view" id="view-city" aria-label="City itinerary" hidden>
+          <nav class="dest-tabs" id="dest-tabs" aria-label="Cities in this trip"></nav>
+          <div class="day-selector" id="day-selector" role="group" aria-label="Filter by day"></div>
+          <div class="map-container" id="city-map-slot">
+            <button class="hotel-btn" id="hotel-btn" type="button" title="Go to hotel" aria-label="Center map on hotel">H</button>
+          </div>
+          <p class="trip-map-note" id="city-map-note" role="status" hidden></p>
+          <div class="legend" aria-label="Legend">
+            <h2>Activities</h2>
+            <div class="legend-grid" id="legend-grid"></div>
+            <div class="hotel-info" id="hotel-info"></div>
+          </div>
+        </section>
       </div>
     </main>
   </div>
