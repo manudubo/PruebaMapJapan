@@ -16,6 +16,7 @@ import {
   getAuthStatus,
   getAuthUnavailableReason,
   onAuthStatusChange,
+  HOME_HREF,
   type AuthStatus,
 } from './keycloak';
 import { authLocale, authText, type AuthMessageKey } from './authMessages';
@@ -82,7 +83,7 @@ function unavailableBody(): string {
 }
 
 function homeHref(): string {
-  return new URL('index.html', window.location.href).href;
+  return new URL(HOME_HREF, window.location.href).href;
 }
 
 /**

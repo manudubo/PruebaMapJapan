@@ -208,3 +208,12 @@ describe('every Keycloak redirect in the app goes through loginRedirectUri', () 
     expect(offenders).toEqual([]);
   });
 });
+
+describe('Home link vs. post-login redirect', () => {
+  it('login from the landing still targets the registered, query-free index page', () => {
+    expect(auth.loginRedirectUri(page('index.html'))).toBe(page('index.html'));
+    // index.html?home is not registered with a query: registered page + remembered target.
+    expect(auth.loginRedirectUri(page('index.html?home'))).toBe(page('index.html'));
+    expect(stored()).not.toBeNull();
+  });
+});
