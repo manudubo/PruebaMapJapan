@@ -2271,6 +2271,88 @@ travel-nav:not(:defined) {
 }
 
 /* ============================================
+   Account recovery (recover.html, src/pages/recoverView.ts)
+   ============================================ */
+.recover-card {
+  max-width: 520px;
+  margin-inline: auto;
+}
+
+.recover-card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(20px, 4vw, 26px);
+  font-weight: 700;
+  color: var(--jp-text);
+}
+
+.recover-card h1:focus {
+  outline: none;
+}
+
+.recover-intro {
+  margin: 0 0 20px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.recover-form .btn-primary {
+  width: 100%;
+  min-height: 44px;
+}
+
+.recover-toggle {
+  margin: -8px 0 12px;
+  min-height: 44px;
+  padding-inline: 0;
+}
+
+.recover-actions {
+  margin-top: 16px;
+}
+
+.pw-rules {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--jp-border-strong);
+  background: var(--jp-surface);
+}
+
+.pw-rules-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jp-text-secondary);
+}
+
+#recover-rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pw-rule {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 14px;
+  color: var(--jp-text-secondary);
+}
+
+.pw-rule-icon {
+  width: 1em;
+  text-align: center;
+}
+
+.pw-rule--met {
+  color: var(--jp-text);
+}
+
+.pw-rule--met .pw-rule-icon {
+  color: var(--jp-text);
+  font-weight: 700;
+}
+
+/* ============================================
    New-user passkey onboarding dialog (src/modules/passkeyCampaign.ts)
    ============================================ */
 .onboarding-dialog h2 {

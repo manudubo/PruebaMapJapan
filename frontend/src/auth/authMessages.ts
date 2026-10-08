@@ -65,6 +65,8 @@ const MESSAGES = {
     emailLabel: 'Email address',
     sendCode: 'Send code',
     sending: 'Sending…',
+    sendCodeIn: 'Send code in {s}s',
+    retryIn: 'Try again in {s}s',
     recoverSent:
       'If an account exists for {email}, we sent a 6-digit code to it. Enter it below with your new password.',
     differentEmail: 'Use a different email',
@@ -150,6 +152,8 @@ const MESSAGES = {
     emailLabel: 'Correo electrónico',
     sendCode: 'Enviar código',
     sending: 'Enviando…',
+    sendCodeIn: 'Enviar código en {s} s',
+    retryIn: 'Inténtalo de nuevo en {s} s',
     recoverSent:
       'Si existe una cuenta para {email}, le enviamos un código de 6 dígitos. Escríbelo abajo junto con tu nueva contraseña.',
     differentEmail: 'Usar otro correo',

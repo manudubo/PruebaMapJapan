@@ -149,6 +149,11 @@
       color: var(--jp-text-secondary, #515154);
     }
 
+    .login-prompt .login-prompt-help {
+      margin: 20px 0 0;
+      font-size: 14px;
+    }
+
     .login-prompt-actions {
       display: flex;
       flex-wrap: wrap;
@@ -207,6 +212,7 @@
             <button id="auth-signup-prompt-btn" class="btn btn-primary" type="button" data-signup>Sign up</button>
             <button id="auth-login-prompt-btn" class="btn btn-secondary" type="button">Sign in</button>
           </div>
+          <p class="login-prompt-help" data-signup><a id="auth-recover-link" href="recover.html">Can't use your passkey? Recover your account</a></p>
         </div>
 
         <div class="trips-grid" id="trips-grid" hidden>
