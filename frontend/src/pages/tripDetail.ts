@@ -889,7 +889,8 @@ function wireOwnerControls(t: ApiTrip): void {
   const navbar = document.querySelector('travel-nav');
   if (navbar && 'setDestinations' in navbar) {
     (navbar as unknown as { setDestinations(d: unknown[]): void }).setDestinations(
-      destinations.map((d, i) => ({ id: d.id, label: d.city_name, tripId: t.id, index: i })),
+      // Navbar.ts interpolates `label` into innerHTML, so hand it escaped text (city names are user input).
+      destinations.map((d, i) => ({ id: d.id, label: escapeHtml(d.city_name), tripId: t.id, index: i })),
     );
   }
 }

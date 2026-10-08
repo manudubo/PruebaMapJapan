@@ -259,7 +259,7 @@
 }
 
 .city-nopin {
-  display: inline-block;
+  display: block;
   margin-top: 4px;
   color: var(--jp-text-secondary);
   font-size: 12px;
