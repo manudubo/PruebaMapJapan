@@ -94,21 +94,89 @@ test.describe('Keycloak config invariants (static)', () => {
       const credential = siblings.find((n) => n.kind === 'subflow' && n.requirement === 'REQUIRED');
       expect(credential, `"${uf.parent}" has no REQUIRED credential subflow after the username`).toBeTruthy();
       const credentialKids = nodes.filter((n) => n.parent === credential!.id);
-      expect(credentialKids.map((n) => n.id)).toContain('auth-password-form');
+      expect(credentialKids.length).toBeGreaterThanOrEqual(2);
       expect(credentialKids.every((n) => n.requirement === 'ALTERNATIVE')).toBe(true);
+      // Both credentials are reachable somewhere below the credential step.
+      const below = (alias: string): string[] =>
+        nodes.filter((n) => n.parent === alias).flatMap((n) => (n.kind === 'subflow' ? below(n.id) : [n.id]));
+      expect(below(credential!.id)).toEqual(expect.arrayContaining(['auth-password-form', 'webauthn-authenticator-passwordless']));
     }
   });
 
-  test('KC-01: REQUIRED WebAuthn only inside a conditional-user-configured subflow', () => {
+  test('KC-01 / REG-03: every REQUIRED credential authenticator sits first in a conditional-user-configured subflow', () => {
     const { nodes } = flows();
-    const webauthn = nodes.filter((n) => n.id.startsWith('webauthn-authenticator'));
-    expect(webauthn.length).toBeGreaterThan(0);
-    for (const w of webauthn.filter((n) => n.requirement === 'REQUIRED')) {
-      const parent = nodes.find((n) => n.kind === 'subflow' && n.id === w.parent);
-      expect(parent?.requirement, `webauthn parent "${w.parent}" must be CONDITIONAL`).toBe('CONDITIONAL');
-      const conditions = nodes.filter((n) => n.parent === w.parent && n.id === 'conditional-user-configured');
-      expect(conditions, `"${w.parent}" needs conditional-user-configured`).toHaveLength(1);
+    const credentials = nodes.filter(
+      (n) => n.parent !== 'registration-passkey-form' && (n.id.startsWith('webauthn-authenticator') || n.id === 'auth-password-form'),
+    );
+    expect(credentials.map((n) => n.id).sort()).toEqual(['auth-password-form', 'webauthn-authenticator-passwordless']);
+    const hcl = fs.readFileSync(path.join(TF_DIR, 'flows.tf'), 'utf-8');
+    const priorityOf = (authenticator: string, parent: string) =>
+      resources(hcl)
+        .filter((b) => b.type === 'keycloak_authentication_execution' && attr(b.body, 'authenticator') === authenticator)
+        .map((b) => ({ b, parent: attr(b.body, 'parent_flow_alias')! }))
+        .filter(({ parent: p }) => {
+          const sub = resources(hcl).find((s) => `keycloak_authentication_subflow.${s.name}.alias` === p);
+          return sub && attr(sub.body, 'alias') === parent;
+        })
+        .map(({ b }) => Number(attr(b.body, 'priority')));
+    for (const c of credentials) {
+      // Not ALTERNATIVE/REQUIRED directly: an unconfigured REQUIRED authenticator is
+      // "SETUP_REQUIRED" (counted as passed).
+      expect(c.requirement, `${c.id} must be REQUIRED inside its conditional subflow`).toBe('REQUIRED');
+      const parent = nodes.find((n) => n.kind === 'subflow' && n.id === c.parent);
+      expect(parent?.requirement, `${c.id} parent "${c.parent}" must be CONDITIONAL`).toBe('CONDITIONAL');
+      const conditions = nodes.filter((n) => n.parent === c.parent && n.id === 'conditional-user-configured');
+      expect(conditions, `"${c.parent}" needs conditional-user-configured`).toHaveLength(1);
+      // Authenticator first, condition second: "Try another way" depends on it.
+      const [authPrio] = priorityOf(c.id, c.parent);
+      const [condPrio] = priorityOf('conditional-user-configured', c.parent);
+      expect(authPrio, `${c.id} must come before the condition in "${c.parent}"`).toBeLessThan(condPrio);
     }
+  });
+
+  test('REG-01: registration flow asks for no password, is bound, and new users must enrol a passkey', () => {
+    const { nodes } = flows();
+    const formKids = nodes.filter((n) => n.parent === 'registration-passkey-form');
+    expect(formKids.map((n) => n.id)).toContain('registration-user-creation');
+    expect(formKids.map((n) => n.id)).not.toContain('registration-password-action');
+    const hcl = fs.readFileSync(path.join(TF_DIR, 'flows.tf'), 'utf-8');
+    const bindings = resources(hcl).find((b) => b.type === 'keycloak_authentication_bindings')!;
+    expect(attr(bindings.body, 'registration_flow')).toBe('keycloak_authentication_flow.registration_passkey.alias');
+    const webauthnRa = resources(hcl).find((b) => b.name === 'webauthn_register_passwordless')!;
+    expect(attr(webauthnRa.body, 'default_action')).toBe('true');
+    // reCAPTCHA only with both keys; the secret is a sensitive variable without default.
+    expect(read('terraform/keycloak/main.tf')).toMatch(/recaptcha_enabled = var\.recaptcha_site_key != "" && var\.recaptcha_secret_key != null/);
+  });
+
+  test('REG-02: e-mail is verified by the backend code, not by Keycloak link; the access token carries email_verified', () => {
+    const main = read('terraform/keycloak/main.tf');
+    const realm = resources(main).find((b) => b.type === 'keycloak_realm')!;
+    expect(attr(realm.body, 'verify_email')).toBe('false');
+    expect(attr(realm.body, 'registration_email_as_username')).toBe('true');
+    const verifyEmail = resources(main).find((b) => b.name === 'verify_email')!;
+    expect(attr(verifyEmail.body, 'default_action')).toBe('false');
+    const mapper = resources(read('terraform/keycloak/mappers.tf')).find((b) => b.name === 'email_verified')!;
+    expect(attr(mapper.body, 'claim_name')).toBe('email_verified');
+    expect(attr(mapper.body, 'claim_value_type')).toBe('boolean');
+    expect(attr(mapper.body, 'add_to_access_token')).toBe('true');
+  });
+
+  test('REG-06: travelmap-recovery is the only admin-API client allowed in production, with manage-users only', () => {
+    const main = read('terraform/keycloak/main.tf');
+    const client = resources(main).find((b) => b.name === 'travelmap_recovery')!;
+    expect(attr(client.body, 'client_id')).toBe('travelmap-recovery');
+    expect(attr(client.body, 'access_type')).toBe('CONFIDENTIAL');
+    expect(attr(client.body, 'standard_flow_enabled')).toBe('false');
+    expect(attr(client.body, 'direct_access_grants_enabled')).toBe('false');
+    expect(attr(client.body, 'full_scope_allowed')).toBe('false');
+    const roles = resources(main).filter(
+      (b) => b.type === 'keycloak_openid_client_service_account_role' && b.body.includes('travelmap_recovery'),
+    );
+    expect(roles.map((r) => attr(r.body, 'role'))).toEqual(['manage-users']);
+    expect(resources(main).filter((b) => b.type === 'keycloak_openid_client_service_account_realm_role')).toHaveLength(0);
+    expect(main).toMatch(/!local\.production \|\| !local\.create_worker_client/);
+    // The secret is only ever a sensitive output.
+    expect(main).toMatch(/output "recovery_client_secret" \{\n\s+value\s+= one\(keycloak_openid_client\.travelmap_recovery\[\*\]\.client_secret\)\n\s+sensitive = true/);
   });
 
   test('SEC-13: browser flow is bound only by keycloak_authentication_bindings', () => {
@@ -159,7 +227,6 @@ test.describe('Keycloak config invariants (static)', () => {
     expect(realm.body).toMatch(/brute_force_detection\s*\{/);
     expect(attr(realm.body, 'permanent_lockout')).toBe('false');
     expect(realm.body.match(/relying_party_id\s*=\s*var\.webauthn_rp_id/g)).toHaveLength(2);
-    expect(attr(realm.body, 'verify_email')).toBe('true');
   });
 
   test('PROD: frontend client has exact redirect URIs (no wildcards) and explicit web origins', () => {
