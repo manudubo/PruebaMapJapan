@@ -34,18 +34,6 @@ function isNewAccount(createdAt: Date | string, now: number = Date.now()): boole
   return Number.isFinite(created) && now - created < NEW_ACCOUNT_WINDOW_MS;
 }
 
-/**
- * An account is "new" for its first week. The app user row is provisioned on
- * the first authenticated request after sign-up, so created_at is the
- * sign-up time to within one session.
- */
-export const NEW_ACCOUNT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-
-function isNewAccount(createdAt: Date | string, now: number = Date.now()): boolean {
-  const created = new Date(createdAt).getTime();
-  return Number.isFinite(created) && now - created < NEW_ACCOUNT_WINDOW_MS;
-}
-
 // ===========================================================================
 // ROUTES
 // ===========================================================================
