@@ -115,14 +115,44 @@ resource "keycloak_authentication_execution" "webauthn_passwordless" {
   depends_on = [keycloak_authentication_execution.passkey_condition]
 }
 
-resource "keycloak_authentication_execution" "password_form" {
+resource "keycloak_authentication_subflow" "password" {
   realm_id          = keycloak_realm.japan_trip.id
+  alias             = "password"
+  description       = "Password branch — empty (fails) for users without a password"
   parent_flow_alias = keycloak_authentication_subflow.credential.alias
-  authenticator     = "auth-password-form"
+  provider_id       = "basic-flow"
   requirement       = "ALTERNATIVE"
   priority          = 20
 
   depends_on = [keycloak_authentication_subflow.passkey]
+}
+
+resource "keycloak_authentication_subflow" "password_if_configured" {
+  realm_id          = keycloak_realm.japan_trip.id
+  alias             = "password-if-configured"
+  description       = "Runs the password form only when the user has a password"
+  parent_flow_alias = keycloak_authentication_subflow.password.alias
+  provider_id       = "basic-flow"
+  requirement       = "CONDITIONAL"
+  priority          = 10
+}
+
+resource "keycloak_authentication_execution" "password_condition" {
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.password_if_configured.alias
+  authenticator     = "conditional-user-configured"
+  requirement       = "REQUIRED"
+  priority          = 10
+}
+
+resource "keycloak_authentication_execution" "password_form" {
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.password_if_configured.alias
+  authenticator     = "auth-password-form"
+  requirement       = "REQUIRED"
+  priority          = 20
+
+  depends_on = [keycloak_authentication_execution.password_condition]
 }
 
 # SEC-13 / ARCH-08: Terraform is the single source of truth for which flow the realm
@@ -130,21 +160,102 @@ resource "keycloak_authentication_execution" "password_form" {
 # creates the flow before binding it — setting browser_flow on the realm resource made
 # the realm POST fail with a 500 (flow does not exist yet) on an empty Keycloak.
 resource "keycloak_authentication_bindings" "browser_flow" {
-  realm_id     = keycloak_realm.japan_trip.id
-  browser_flow = keycloak_authentication_flow.browser_passkey.alias
+  realm_id          = keycloak_realm.japan_trip.id
+  browser_flow      = keycloak_authentication_flow.browser_passkey.alias
+  registration_flow = keycloak_authentication_flow.registration_passkey.alias
 
   depends_on = [
     keycloak_authentication_execution.cookie,
     keycloak_authentication_execution.username_form,
     keycloak_authentication_execution.webauthn_passwordless,
     keycloak_authentication_execution.password_form,
+    keycloak_authentication_execution.registration_user_creation,
+    keycloak_authentication_execution_config.registration_recaptcha,
   ]
 }
 
+# ---------------------------------------------------------------------------
+# REG-01: self-registration, passkey first, no password at sign-up.
+#
+#   registration-passkey (basic-flow)                 bound as the realm registration flow
+#   └── registration-passkey-form (form-flow, registration-page-form)  REQUIRED
+#       ├── registration-user-creation       REQUIRED  (email = username, names optional)
+#       └── registration-recaptcha-action    REQUIRED  only when recaptcha_site_key is set
+#
+# There is deliberately no registration-password-action: the form asks for no password.
+# The account is created when the form is posted, and the default required action
+# webauthn-register-passwordless (below) makes the user enrol a passkey in the same
+# browser session before any authorization code is issued. A device without WebAuthn
+# cannot finish that step; the theme then links to the app's e-mail recovery page,
+# where the backend proves the address with a 6-digit code and sets a password (and
+# drops the pending passkey action) through the dedicated travelmap-recovery client.
+#
+# Until one of those two credentials exists the account cannot sign in (both
+# credential branches of browser-passkey are empty for it), and it is never
+# e-mail-verified, so scripts/purge-unverified.sh removes it after the purge window.
+# ---------------------------------------------------------------------------
+resource "keycloak_authentication_flow" "registration_passkey" {
+  realm_id    = keycloak_realm.japan_trip.id
+  alias       = "registration-passkey"
+  description = "Self-registration without a password; a passkey is enrolled right after (REG-01)"
+  provider_id = "basic-flow"
+}
+
+resource "keycloak_authentication_subflow" "registration_form" {
+  realm_id          = keycloak_realm.japan_trip.id
+  alias             = "registration-passkey-form"
+  description       = "Registration form: profile fields only (no password)"
+  parent_flow_alias = keycloak_authentication_flow.registration_passkey.alias
+  provider_id       = "form-flow"
+  authenticator     = "registration-page-form"
+  requirement       = "REQUIRED"
+  priority          = 10
+}
+
+resource "keycloak_authentication_execution" "registration_user_creation" {
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.registration_form.alias
+  authenticator     = "registration-user-creation"
+  requirement       = "REQUIRED"
+  priority          = 10
+}
+
+# REG-04 (optional): Google reCAPTCHA on the registration form. Off unless both keys
+# are provided (TF_VAR_recaptcha_site_key / TF_VAR_recaptcha_secret_key).
+resource "keycloak_authentication_execution" "registration_recaptcha" {
+  count = local.recaptcha_enabled ? 1 : 0
+
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.registration_form.alias
+  authenticator     = "registration-recaptcha-action"
+  requirement       = "REQUIRED"
+  priority          = 20
+
+  depends_on = [keycloak_authentication_execution.registration_user_creation]
+}
+
+resource "keycloak_authentication_execution_config" "registration_recaptcha" {
+  count = local.recaptcha_enabled ? 1 : 0
+
+  realm_id     = keycloak_realm.japan_trip.id
+  execution_id = keycloak_authentication_execution.registration_recaptcha[0].id
+  alias        = "registration-recaptcha"
+  config = {
+    "site.key"        = var.recaptcha_site_key
+    "secret.key"      = var.recaptcha_secret_key
+    "action"          = "register"
+    "useRecaptchaNet" = "false"
+  }
+}
+
+# Every account created by the registration form must enrol a passkey before its first
+# sign-in completes. Accounts made by scripts/add-user.sh have their required actions
+# cleared (the invite link sets a password instead), and the Terraform test users set
+# required_actions = [].
 resource "keycloak_required_action" "webauthn_register_passwordless" {
   realm_id       = keycloak_realm.japan_trip.realm
   alias          = "webauthn-register-passwordless"
   enabled        = true
-  default_action = false
+  default_action = true
   name           = "Webauthn Register Passwordless"
 }

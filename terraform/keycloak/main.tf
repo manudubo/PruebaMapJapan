@@ -23,6 +23,12 @@ locals {
   create_test_users    = coalesce(var.create_test_users, !local.production)
   create_worker_client = coalesce(var.create_worker_client, !local.production)
   registration_allowed = coalesce(var.registration_allowed, !local.production)
+  # REG-04: reCAPTCHA on the registration form only when both keys are provided.
+  recaptcha_enabled = var.recaptcha_site_key != "" && var.recaptcha_secret_key != null
+  # REG-06: the e-mail recovery client (backend "password campaign"). Default on.
+  create_recovery_client = coalesce(var.create_recovery_client, true)
+  # Minimum length in the effective password policy, 0 when the policy has none.
+  password_min_length = try(tonumber(regex("length\\(([0-9]+)\\)", local.password_policy)[0]), 0)
 
   # Local: the historical policy every seeded test password satisfies.
   # Production: NIST 800-63B style — long, no composition rules, not the
@@ -50,14 +56,18 @@ resource "keycloak_realm" "japan_trip" {
   display_name = "Japan Trip"
   login_theme  = "japan-trip"
 
-  registration_allowed     = local.registration_allowed
-  login_with_email_allowed = true
-  duplicate_emails_allowed = false
-  reset_password_allowed   = true
-  edit_username_allowed    = false
-  # New accounts must prove they own their address before anything uses it (the
-  # backend also refuses OTP mail to unverified addresses).
-  verify_email = true
+  registration_allowed           = local.registration_allowed
+  registration_email_as_username = true
+  login_with_email_allowed       = true
+  duplicate_emails_allowed       = false
+  reset_password_allowed         = true
+  edit_username_allowed          = false
+  # REG-02: e-mail ownership is proven by the BACKEND with a 6-digit code
+  # (POST /api/auth/email-verify/*), not by Keycloak's link: the API answers
+  # 403 email_not_verified until then. Keycloak's own VERIFY_EMAIL link flow is
+  # therefore off (it would send a second, different email on every login).
+  # Invited accounts (scripts/add-user.sh) are created with emailVerified=true.
+  verify_email = false
   remember_me  = false
 
   ssl_required = var.ssl_required # SEC-17: "all" in production (enforced below)
@@ -177,7 +187,144 @@ resource "keycloak_realm" "japan_trip" {
       condition     = !local.create_test_users || alltrue([for p in local.test_passwords : p != null])
       error_message = "create_test_users needs all six test-user passwords (SEC-19: set them in local.tfvars)."
     }
+    precondition {
+      condition     = !local.production || local.password_min_length >= 12
+      error_message = "profile=production needs a password policy with length(12) or more."
+    }
+    # REG-06: the only admin-API client allowed in production is travelmap-recovery
+    # (manage-users, used by the backend for e-mail recovery). The E2E worker client
+    # is local only.
+    precondition {
+      condition     = !local.production || !local.create_worker_client
+      error_message = "profile=production must not create the japan-trip-worker client (create_worker_client = false); the backend uses only travelmap-recovery."
+    }
+    # REG-05: open sign-up on an internet-facing realm only with its abuse controls.
+    precondition {
+      condition     = !(local.production && local.registration_allowed) || local.max_login_failures <= 10
+      error_message = "registration_allowed in production needs brute-force protection at 10 failures or fewer (brute_force_max_login_failures)."
+    }
+    precondition {
+      condition     = !(local.production && local.registration_allowed) || local.create_recovery_client
+      error_message = "registration_allowed in production needs the travelmap-recovery client (users without WebAuthn get a password through it)."
+    }
+    precondition {
+      condition     = !var.require_recaptcha || local.recaptcha_enabled
+      error_message = "require_recaptcha = true needs recaptcha_site_key and recaptcha_secret_key (TF_VAR_recaptcha_secret_key)."
+    }
+    precondition {
+      condition     = (var.recaptcha_site_key == "") == (var.recaptcha_secret_key == null)
+      error_message = "Set both recaptcha_site_key and recaptcha_secret_key, or neither."
+    }
   }
+}
+
+# REG-01: first and last name are optional (the registration form asks only for the
+# e-mail address, which is also the username). Everything else is Keycloak 26's
+# default user profile, written out because this resource replaces the whole profile.
+resource "keycloak_realm_user_profile" "japan_trip" {
+  realm_id = keycloak_realm.japan_trip.id
+
+  attribute {
+    name         = "username"
+    display_name = "$${username}"
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+    validator {
+      name   = "length"
+      config = { min = "3", max = "255" }
+    }
+    validator { name = "username-prohibited-characters" }
+    validator { name = "up-username-not-idn-homograph" }
+  }
+
+  attribute {
+    name               = "email"
+    display_name       = "$${email}"
+    required_for_roles = ["user"]
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+    validator { name = "email" }
+    validator {
+      name   = "length"
+      config = { max = "255" }
+    }
+  }
+
+  attribute {
+    name         = "firstName"
+    display_name = "$${firstName}"
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+    validator {
+      name   = "length"
+      config = { max = "255" }
+    }
+    validator { name = "person-name-prohibited-characters" }
+  }
+
+  attribute {
+    name         = "lastName"
+    display_name = "$${lastName}"
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+    validator {
+      name   = "length"
+      config = { max = "255" }
+    }
+    validator { name = "person-name-prohibited-characters" }
+  }
+
+  group {
+    name                = "user-metadata"
+    display_header      = "User metadata"
+    display_description = "Attributes, which refer to user metadata"
+  }
+}
+
+# REG-06: least-privilege client for the backend's e-mail recovery ("password
+# campaign"): look a user up by e-mail, set a password, drop the pending passkey
+# action and other credentials of an unverified (squatted) account. It holds exactly
+# one role, realm-management/manage-users — Keycloak has no narrower built-in role that
+# can reset a password. Its secret lives only in the backend .env
+# (KC_RECOVERY_CLIENT_SECRET) and the backend reaches Keycloak on the internal URL;
+# the public proxy blocks /auth/admin. Residual risk: whoever controls the backend can
+# reset any password in this realm (docs/SELF-HOSTING.md, "Open sign-up").
+resource "keycloak_openid_client" "travelmap_recovery" {
+  count = local.create_recovery_client ? 1 : 0
+
+  realm_id  = keycloak_realm.japan_trip.id
+  client_id = "travelmap-recovery"
+  name      = "TravelMap e-mail recovery (backend)"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+  full_scope_allowed           = false
+}
+
+resource "keycloak_openid_client_service_account_role" "recovery_manage_users" {
+  count = local.create_recovery_client ? 1 : 0
+
+  realm_id                = keycloak_realm.japan_trip.id
+  service_account_user_id = keycloak_openid_client.travelmap_recovery[0].service_account_user_id
+  client_id               = data.keycloak_openid_client.realm_management.id
+  role                    = "manage-users"
+}
+
+output "recovery_client_secret" {
+  value     = one(keycloak_openid_client.travelmap_recovery[*].client_secret)
+  sensitive = true
 }
 
 resource "keycloak_openid_client" "japan_trip_frontend" {
@@ -260,12 +407,14 @@ resource "keycloak_openid_client_service_account_role" "worker_manage_users" {
   role                    = "manage-users"
 }
 
-# KC-01: VERIFY_EMAIL required action with default_action = true
+# REG-02: VERIFY_EMAIL stays available (an admin can still send the link) but is no
+# longer a default action: new accounts verify their address with the backend's
+# 6-digit code instead (see verify_email on the realm).
 resource "keycloak_required_action" "verify_email" {
   realm_id       = keycloak_realm.japan_trip.realm
   alias          = "VERIFY_EMAIL"
   enabled        = true
-  default_action = true
+  default_action = false
   name           = "Verify Email"
 }
 
@@ -287,6 +436,8 @@ resource "keycloak_user" "e2e_test_user" {
   email_verified = true
   first_name     = "E2E"
   last_name      = "Test"
+  # No default required actions (webauthn-register-passwordless) for seeded users.
+  required_actions = []
 
   initial_password {
     value     = var.e2e_test_password
@@ -305,6 +456,8 @@ resource "keycloak_user" "otp_test_user" {
   email_verified = true
   first_name     = "OTP"
   last_name      = "Test"
+  # No default required actions (webauthn-register-passwordless) for seeded users.
+  required_actions = []
 
   initial_password {
     value     = var.e2e_otp_password
@@ -317,7 +470,7 @@ resource "keycloak_user" "testuser" {
   count = local.create_test_users ? 1 : 0
 
   realm_id         = keycloak_realm.japan_trip.id
-  username         = "testuser"
+  username         = "testuser@local" # = email: registration_email_as_username
   enabled          = true
   email            = "testuser@local"
   email_verified   = true
@@ -336,7 +489,7 @@ resource "keycloak_user" "new_user_test" {
   count = local.create_test_users ? 1 : 0
 
   realm_id         = keycloak_realm.japan_trip.id
-  username         = "new_user_test"
+  username         = "new_user_test@local" # = email: registration_email_as_username
   enabled          = true
   email            = "new_user_test@local"
   email_verified   = true
@@ -355,7 +508,7 @@ resource "keycloak_user" "trip_edit_test_user" {
   count = local.create_test_users ? 1 : 0
 
   realm_id         = keycloak_realm.japan_trip.id
-  username         = "trip_edit_test_user"
+  username         = "trip_edit_test_user@local" # = email: registration_email_as_username
   enabled          = true
   email            = "trip_edit_test_user@local"
   email_verified   = true
