@@ -75,6 +75,8 @@ const mockEnv: Env = {
   KC_ADMIN_CLIENT_ID: 'japan-trip-worker',
   KC_ADMIN_CLIENT_SECRET: 'mock-secret',
   OTP_SECRET: 'aaaabbbbccccddddeeeeffffaaaabbbbccccddddeeeeffffaaaabbbbccccddd0',
+  // This file is about request validation; the verified-email gate has its own suites.
+  REQUIRE_VERIFIED_EMAIL: 'false',
 };
 
 const TRIP = '/api/trips/1';

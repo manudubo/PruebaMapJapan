@@ -6,6 +6,8 @@ import type { ContextVariables, Env, KeycloakJwtPayload } from '../types';
  * authenticated Keycloak subject; no header → the real middleware's 401.
  * Optional `x-test-email` / `x-test-name` override the derived claims
  * (`x-test-email: ""` simulates a token without an email claim).
+ * `x-test-email-verified` sets the claim: "true" (default) | "false" |
+ * "string" (the STRING "true") | "missing" (no claim) | "1" (the number 1).
  */
 export async function authMiddleware(
   c: Context<{ Bindings: Env; Variables: ContextVariables }>,
@@ -26,6 +28,12 @@ export async function authMiddleware(
     iat: 0,
     exp: 0,
   };
+  const verified = c.req.header('x-test-email-verified');
+  if (verified !== undefined) {
+    const claim = { true: true, false: false, string: 'true', '1': 1 }[verified as 'true'];
+    if (verified === 'missing') delete (user as Partial<KeycloakJwtPayload>).email_verified;
+    else (user as unknown as Record<string, unknown>).email_verified = claim;
+  }
   c.set('user', user);
   await next();
 }

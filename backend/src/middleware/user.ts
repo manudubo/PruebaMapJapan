@@ -41,6 +41,7 @@ export async function ensureUserProvisioned(
   // answers a generic 500 — the raw DB message is never sent to the client.
   const { user } = await upsertUser(db, userClaimsFromJwt(c.get('user')));
   c.set('dbUserId', user.id);
+  c.set('emailVerifiedAt', user.email_verified_at);
 
   await next();
 }

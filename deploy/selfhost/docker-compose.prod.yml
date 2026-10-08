@@ -119,6 +119,12 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
+      # Self-registration: verified-email gate and Admin-API password reset used
+      # by account recovery (docs/SELF-HOSTING.md). Empty secret = recovery off.
+      REQUIRE_VERIFIED_EMAIL: ${REQUIRE_VERIFIED_EMAIL:-}
+      KEYCLOAK_ADMIN_URL: ${KEYCLOAK_ADMIN_URL:-http://keycloak:8080/auth}
+      KEYCLOAK_RECOVERY_CLIENT_ID: ${KEYCLOAK_RECOVERY_CLIENT_ID:-}
+      KEYCLOAK_RECOVERY_CLIENT_SECRET: ${KEYCLOAK_RECOVERY_CLIENT_SECRET:-}
       NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-}
       NOMINATIM_CONTACT: ${NOMINATIM_CONTACT:-}
       NOMINATIM_URL: ${NOMINATIM_URL:-}

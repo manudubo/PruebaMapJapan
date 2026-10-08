@@ -66,6 +66,20 @@ export interface Env {
   TRUSTED_PROXY_HOPS?: string;
   /** x-forwarded-for (default) | x-real-ip | cf-connecting-ip; read only when TRUSTED_PROXY_HOPS > 0. */
   CLIENT_IP_HEADER?: string;
+  /**
+   * Block authenticated routes (except /users/me and the e-mail verification
+   * endpoints) for accounts without a verified e-mail. Default: true in
+   * production, false in development. See config/verified-email.ts.
+   */
+  REQUIRE_VERIFIED_EMAIL?: string;
+  /**
+   * Keycloak base URL for the Admin API calls of account recovery (default
+   * KEYCLOAK_URL; may be an internal URL such as http://keycloak:8080/auth).
+   */
+  KEYCLOAK_ADMIN_URL?: string;
+  /** Confidential service-account client allowed to reset passwords (default travelmap-recovery). */
+  KEYCLOAK_RECOVERY_CLIENT_ID?: string;
+  KEYCLOAK_RECOVERY_CLIENT_SECRET?: string;
   /** Contact (email or URL) for the Nominatim User-Agent; required outside development (SEC-18). */
   NOMINATIM_CONTACT?: string;
   /** Product token(s) for the Nominatim User-Agent (default TravelMap-PruebaMapJapan/1.0). */
@@ -106,6 +120,8 @@ export interface ContextVariables {
   dbUserId: number;
   /** Typed database handle — set by dbMiddleware (M-01) */
   db: Db;
+  /** users.email_verified_at of the authenticated user — set by ensureUserProvisioned */
+  emailVerifiedAt?: Date | null;
   /** Server-generated id of this request (X-Request-Id, every log line). */
   requestId: string;
 }

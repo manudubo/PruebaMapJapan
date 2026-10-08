@@ -358,10 +358,31 @@ All secrets live only in `.env`. After any change run `./scripts/deploy.sh --no-
 | `KC_DB_PASSWORD` | Same with `--rotate KC_DB_PASSWORD` and `ALTER ROLE keycloak`. |
 | `POSTGRES_SUPERUSER_PASSWORD` | `--rotate`, then `ALTER ROLE postgres PASSWORD '...'` (only used for admin tasks). |
 | `SMTP_PASS` / `RESEND_API_KEY` | Create the new one at the provider, edit `.env`, deploy, `./scripts/keycloak-apply.sh` (Keycloak keeps its own copy), revoke the old one. |
+| `KEYCLOAK_RECOVERY_CLIENT_SECRET` | Regenerate it in the admin console (*japan-trip* realm -> Clients -> `travelmap-recovery` -> Credentials), put the new value in `.env`, deploy. Recovery answers "try again later" until both sides match. |
 | Cloudflare tunnel token | Dashboard → tunnel → refresh token, edit `.env`, deploy. |
 
 Docker only reads the Postgres passwords on the very first start; that is why
 the database passwords also need `ALTER ROLE`.
+
+---
+
+## Account recovery secrets and sign-up verification
+
+Self-registration adds two backend settings (the Keycloak side - the
+`travelmap-recovery` client, its service-account role and the sign-up theme -
+is created by the realm setup, not here):
+
+| Variable | Meaning |
+|---|---|
+| `REQUIRE_VERIFIED_EMAIL` | Empty = `true` in production. Accounts must confirm their e-mail with a 6-digit code before using the API (everything except `GET/PATCH /api/users/me`, `POST /api/auth/email-verify/*` and health answers `403 email_not_verified`). Existing users are marked verified by migration 0011. `false` only for a closed, invite-only deployment. Any other value is read as `true`. |
+| `KEYCLOAK_RECOVERY_CLIENT_ID` | Confidential service-account client used to reset a password (default `travelmap-recovery`). It needs only the realm-management roles `view-users` and `manage-users`. |
+| `KEYCLOAK_RECOVERY_CLIENT_SECRET` | That client's secret. **Treat it like a database password**: whoever holds it can set any user's password. Keep it only in `.env` (mode 600), never in the frontend or the repo. Empty = account recovery is switched off (the endpoints answer 503). |
+| `KEYCLOAK_ADMIN_URL` | Where the backend reaches Keycloak for that call. Default in the compose file `http://keycloak:8080/auth` (inside the compose network, not through the tunnel). On the Worker/standalone it defaults to `KEYCLOAK_URL`. Keep the `/auth` prefix if Keycloak runs with `KC_HTTP_RELATIVE_PATH=/auth`. |
+
+Recovery sends a code to the account's e-mail (same SMTP/Resend settings as the
+login code) and, with the code, sets a new password in Keycloak. It does not
+log or store passwords; codes are single-use, expire after 10 minutes and allow
+5 guesses.
 
 ---
 

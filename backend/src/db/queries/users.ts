@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../index';
 import { users } from '../schema';
 import { isUniqueViolation } from '../pg-errors';
@@ -83,6 +83,25 @@ export async function updateUser(
 
   if (!updated) throw new Error(`updateUser: no user found for keycloakId=${keycloakId}`);
   return updated;
+}
+
+/**
+ * Record that the user proved they own their address. First proof wins: an
+ * already-verified account keeps its original timestamp. Returns the row's
+ * resulting email_verified_at.
+ */
+export async function markEmailVerified(db: Db, userId: number): Promise<Date> {
+  // No value import from '../index' here: errors.ts loads this module before
+  // db/index.ts has finished, and a cycle would drop upsertUser from its exports.
+  const [updated] = await db
+    .update(users)
+    .set({ email_verified_at: new Date(), updated_at: new Date() })
+    .where(and(eq(users.id, userId), isNull(users.email_verified_at)))
+    .returning();
+  if (updated?.email_verified_at) return updated.email_verified_at;
+  const [row] = await db.select({ at: users.email_verified_at }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!row?.at) throw new Error('markEmailVerified: user not found');
+  return row.at;
 }
 
 /** DB-level unique index on lower(email) (DATA-02). */
