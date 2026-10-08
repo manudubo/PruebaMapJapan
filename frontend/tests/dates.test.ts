@@ -10,7 +10,7 @@ import {
 } from '@/modules/dates';
 import { formatDate } from '@/modules/utils';
 import { apiDestinationToCityData } from '@/modules/tripAdapter';
-import { extendSearchIndexWithApiTrip, search } from '@/modules/search';
+import { buildTripEntries, searchEntries } from '@/modules/search';
 import type { ApiDestination, ApiTrip } from '@/types';
 
 // Node re-reads process.env.TZ on assignment, so each case can run in its own
@@ -216,10 +216,10 @@ describe('search subtitles use the local calendar day (BIZ-11)', () => {
           }],
         }],
       } as ApiTrip;
-      extendSearchIndexWithApiTrip(trip);
-      const city = search('Zzyzxville').find((r) => r.type === 'city');
+      const entries = buildTripEntries(trip);
+      const city = searchEntries(entries, 'Zzyzxville').find((r) => r.type === 'city');
       expect(city?.subtitle).toBe('TZ Trip · Feb 22');
-      const day = search('Qwertyday').find((r) => r.type === 'day');
+      const day = searchEntries(entries, 'Qwertyday').find((r) => r.type === 'day');
       expect(day?.subtitle).toBe('Sunday, February 22');
     });
   });
