@@ -12,6 +12,7 @@
 import {
   initKeycloak,
   retryAuth,
+  getUserInfo,
   getAuthStatus,
   getAuthUnavailableReason,
   onAuthStatusChange,
@@ -19,8 +20,25 @@ import {
 } from './keycloak';
 import { authLocale, authText, type AuthMessageKey } from './authMessages';
 import type { SignUpOutcome } from './registration';
+import { installEmailVerificationGate } from './verifyEmail';
 
 export type AuthHandlers = Partial<Record<AuthStatus, () => void>>;
+
+let gateInstalled = false;
+
+/**
+ * Once signed in, any API call answering 403 `email_not_verified` raises the email
+ * verification screen (src/auth/verifyEmail.ts) on every auth-gated page, and the page reloads
+ * once the address is verified. Installed once per page load.
+ */
+function ensureVerificationGate(): void {
+  if (gateInstalled) return;
+  gateInstalled = true;
+  installEmailVerificationGate(() => {
+    const info = getUserInfo();
+    return info ? { email: info.email || null, userKey: info.id } : null;
+  });
+}
 
 /**
  * Start (or join) the auth check and route every status to the page's handlers.
@@ -31,6 +49,7 @@ export function watchAuth(handlers: AuthHandlers): () => void {
   const dispatch = (next: AuthStatus): void => {
     if (next === last) return;
     last = next;
+    if (next === 'authenticated') ensureVerificationGate();
     handlers[next]?.();
   };
   const off = onAuthStatusChange(dispatch);

@@ -92,7 +92,7 @@ describe('dashboard after sign-in', () => {
     expect(h.show).not.toHaveBeenCalled();
     expect(h.onboarding).not.toHaveBeenCalled();
     expect(h.nudge).toHaveBeenCalledWith('kc-user-1');
-    expect(h.gate).toHaveBeenCalledTimes(1);
+    expect(h.gate).toHaveBeenCalledTimes(1); // installed by watchAuth
   });
 
   it('a user with email_verified=false must verify before the trips load, then is not asked again', async () => {

@@ -15,7 +15,7 @@ import { getMe, updateMe } from '@/api/client';
 import { installGlobalErrorHandler, showToast } from '@/modules/toast';
 import { createPrefsStore } from '@/modules/passkeyCampaign';
 import { PASSWORD_BACKUP_FIELD, renderPasswordBackupCard, shouldShowPasswordBackup } from '@/modules/passwordBackup';
-import { installEmailVerificationGate, showEmailVerification } from '@/auth/verifyEmail';
+import { showEmailVerification } from '@/auth/verifyEmail';
 import {
   renderPasskeyList,
   renderPasskeyListError,
@@ -264,9 +264,6 @@ async function loadProfile(): Promise<void> {
     setText('info-email', info.email || '—');
     setText('info-username', info.preferredUsername || '—');
   }
-
-  // Any API call answering 403 email_not_verified raises the verification screen (then reloads).
-  installEmailVerificationGate(() => (info ? { email: info.email || null, userKey: info.id } : null));
 
   // Try to enrich name from API user record
   let accountPrefs: Record<string, unknown> | null = null;

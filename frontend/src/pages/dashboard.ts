@@ -22,7 +22,7 @@ import {
 } from '@/auth/authStatusUI';
 import { registrationEnabled, takeSignUpOutcome, wireSignUpButton } from '@/auth/registration';
 import { checkPasskeyCampaign, createPrefsStore, runNewUserOnboarding } from '@/modules/passkeyCampaign';
-import { showEmailVerification, installEmailVerificationGate } from '@/auth/verifyEmail';
+import { showEmailVerification } from '@/auth/verifyEmail';
 import { getMyTrips, getMe, updateMe, apiUrl, ApiError } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
@@ -468,10 +468,8 @@ async function loadAuthenticated(): Promise<void> {
     user = { ...user, email_verified: true };
   }
 
-  // Handled explicitly above for the first call; any later 403 email_not_verified raises the
-  // same screen and reloads once verified.
-  installEmailVerificationGate(() => (info ? { email: info.email || null, userKey: info.id } : null));
-
+  // The first call is handled explicitly above; any later 403 email_not_verified is handled by
+  // the gate that watchAuth installs (src/auth/authStatusUI.ts).
   if (info) startCampaigns(info.id, user);
   renderUserGreeting(user);
 
