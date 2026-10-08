@@ -96,6 +96,25 @@ async function submitPassword(page: Page, password: string): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
 }
 
+/** From a WebAuthn step: "Try another way" → the Password option of the chooser. */
+async function choosePasswordViaTryAnotherWay(page: Page): Promise<void> {
+  const tryAnother = page.locator('#try-another-way');
+  await expect(tryAnother).toBeVisible();
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/login-actions/')),
+    tryAnother.click(),
+  ]);
+  const passwordOption = page
+    .locator('#kc-select-credential-form button', { hasText: /password|contraseña/i })
+    .filter({ hasNotText: /passkey|clave de acceso/i });
+  await expect(passwordOption).toHaveCount(1);
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/login-actions/')),
+    passwordOption.click(),
+  ]);
+  await expect(page.locator('input[name="password"]')).toBeVisible();
+}
+
 /** Action URL of the form currently rendered by Keycloak. */
 async function formAction(page: Page): Promise<string> {
   const action = await page.locator('form[action*="login-actions"]').first().getAttribute('action');
@@ -138,8 +157,34 @@ async function addVirtualAuthenticator(page: Page): Promise<{ cdp: CDPSession; a
   return { cdp, authenticatorId };
 }
 
-/** Enrol a passkey for `username` (password login + application-initiated action). */
-async function enrolPasskey(page: Page, hits: URL[], username: string, password: string): Promise<void> {
+/**
+ * Simulate a browser/device without WebAuthn: every page of this context starts with
+ * `window.PublicKeyCredential` removed, which is what Keycloak's scripts (and the
+ * theme's recovery hint) test for.
+ */
+async function withoutWebAuthn(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    delete (window as { PublicKeyCredential?: unknown }).PublicKeyCredential;
+  });
+}
+
+/** App page the theme links to from passkey steps (client base URL + recover.html). */
+const RECOVER_PAGE = 'http://localhost:5173/PruebaMapJapan/recover.html';
+
+/**
+ * Enrol a passkey for `username` (password login + application-initiated action).
+ * With `passkeyFirst`, the passkey is then made the preferred credential, the order an
+ * account created by the registration flow has (passkey at sign-up, password later via
+ * e-mail recovery). Keycloak offers the preferred credential first and the other one
+ * under "Try another way".
+ */
+async function enrolPasskey(
+  page: Page,
+  hits: URL[],
+  username: string,
+  password: string,
+  passkeyFirst?: { moveCredentialFirst: (u: string, type: string) => Promise<void> },
+): Promise<void> {
   await submitUsername(page, username, '&kc_action=webauthn-register-passwordless');
   await submitPassword(page, password);
   // The redirect to the app must have committed (app page, or an error page when no
@@ -153,6 +198,7 @@ async function enrolPasskey(page: Page, hits: URL[], username: string, password:
   await expect.poll(() => issuedCode(hits)).toBe(true);
   await page.context().clearCookies(); // drop the SSO session, keep the authenticator
   hits.length = 0;
+  if (passkeyFirst) await passkeyFirst.moveCredentialFirst(username, 'webauthn-passwordless');
 }
 
 test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
@@ -350,7 +396,7 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
         const { cdp, authenticatorId } = await addVirtualAuthenticator(page);
         try {
           const hits = trackAppRedirects(page);
-          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD, kcAdmin);
 
           await submitUsername(page, username);
           expect(issuedCode(hits)).toBe(false);
@@ -374,7 +420,7 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
           await submitUsername(page, username);
           const passwordExecution = executionOf(await formAction(page));
           await page.context().clearCookies();
-          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD, kcAdmin);
 
           await submitUsername(page, username);
           await expect(page.locator('#authenticateWebAuthnButton')).toBeVisible();
@@ -401,7 +447,7 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
         const { cdp, authenticatorId } = await addVirtualAuthenticator(page);
         try {
           const hits = trackAppRedirects(page);
-          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD, kcAdmin);
           await cdp.send('WebAuthn.clearCredentials', { authenticatorId }); // "lost device"
 
           await submitUsername(page, username);
@@ -426,7 +472,7 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
         const { cdp, authenticatorId } = await addVirtualAuthenticator(page);
         try {
           const hits = trackAppRedirects(page);
-          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD, kcAdmin);
           await kcAdmin.removeCredentials(username, ['password']);
 
           await submitUsername(page, username);
@@ -439,6 +485,138 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
           await kcAdmin.deleteUser(username);
         }
       });
+
+      // REG-03: a user with BOTH credentials is offered the passkey first and can fall
+      // back to the password with "Try another way" — with WebAuthn available ...
+      test('passkey + password user: passkey first, "Try another way" leads to the password', async ({ page, kcAdmin }) => {
+        const username = await createThrowaway(kcAdmin, 'idp-flow-both', THROWAWAY_PASSWORD);
+        const { cdp, authenticatorId } = await addVirtualAuthenticator(page);
+        try {
+          const hits = trackAppRedirects(page);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD, kcAdmin);
+
+          await submitUsername(page, username);
+          await expect(page.locator('#authenticateWebAuthnButton')).toBeVisible();
+          await expect(page.locator('input[name="password"]')).toHaveCount(0);
+          // Secondary recovery hint on the passkey step (not promoted: WebAuthn exists).
+          await expect(page.locator('#jp-passkey-recovery')).not.toHaveClass(/jp-passkey-recovery--primary/);
+          await choosePasswordViaTryAnotherWay(page);
+          expect(issuedCode(hits)).toBe(false);
+          await submitPassword(page, THROWAWAY_PASSWORD);
+          await expect.poll(() => issuedCode(hits)).toBe(true);
+        } finally {
+          await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => {});
+          await kcAdmin.deleteUser(username);
+        }
+      });
+
+      // Documented trade-off: Keycloak offers the PREFERRED credential first (credential
+      // priority). A password user who adds a passkey later gets the password first and
+      // the passkey under "Try another way" — never a dead end.
+      test('password-first user with a passkey added later: password first, passkey via "Try another way"', async ({ page, kcAdmin }) => {
+        const username = await createThrowaway(kcAdmin, 'idp-flow-pwfirst', THROWAWAY_PASSWORD);
+        const { cdp, authenticatorId } = await addVirtualAuthenticator(page);
+        try {
+          const hits = trackAppRedirects(page);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD);
+          expect(await kcAdmin.credentialTypes(username)).toEqual(['password', 'webauthn-passwordless']);
+
+          await submitUsername(page, username);
+          await expect(page.locator('input[name="password"]')).toBeVisible();
+          await Promise.all([
+            page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/login-actions/')),
+            page.locator('#try-another-way').click(),
+          ]);
+          const passkeyOption = page.locator('#kc-select-credential-form button', { hasText: /passkey/i });
+          await expect(passkeyOption).toHaveCount(1);
+          await Promise.all([
+            page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/login-actions/')),
+            passkeyOption.click(),
+          ]);
+          expect(issuedCode(hits)).toBe(false);
+          await page.locator('#authenticateWebAuthnButton').click();
+          await expect.poll(() => issuedCode(hits)).toBe(true);
+        } finally {
+          await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => {});
+          await kcAdmin.deleteUser(username);
+        }
+      });
+
+      // ... and on a browser without WebAuthn (PublicKeyCredential removed).
+      test('passkey + password user on a browser without WebAuthn signs in with the password', async ({ page, kcAdmin, browser }) => {
+        const username = await createThrowaway(kcAdmin, 'idp-flow-both-nowa', THROWAWAY_PASSWORD);
+        const { cdp, authenticatorId } = await addVirtualAuthenticator(page);
+        const legacy = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+        try {
+          const hits = trackAppRedirects(page);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD, kcAdmin);
+
+          const old = await legacy.newPage();
+          await withoutWebAuthn(old);
+          const oldHits = trackAppRedirects(old);
+          await submitUsername(old, username);
+          await expect(old.locator('#authenticateWebAuthnButton')).toBeVisible();
+          await expect(old.locator('#jp-passkey-recovery')).toHaveClass(/jp-passkey-recovery--primary/);
+          await choosePasswordViaTryAnotherWay(old);
+          await submitPassword(old, THROWAWAY_PASSWORD);
+          await expect.poll(() => issuedCode(oldHits)).toBe(true);
+        } finally {
+          await legacy.close();
+          await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => {});
+          await kcAdmin.deleteUser(username);
+        }
+      });
+
+      test('passkey-only user without WebAuthn: no password form, no way in except the e-mail recovery link', async ({ page, kcAdmin, browser }) => {
+        const username = await createThrowaway(kcAdmin, 'idp-flow-pkonly-nowa', THROWAWAY_PASSWORD);
+        const { cdp, authenticatorId } = await addVirtualAuthenticator(page);
+        const legacy = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+        try {
+          const hits = trackAppRedirects(page);
+          await enrolPasskey(page, hits, username, THROWAWAY_PASSWORD, kcAdmin);
+          await kcAdmin.removeCredentials(username, ['password']);
+
+          const old = await legacy.newPage();
+          await withoutWebAuthn(old);
+          const oldHits = trackAppRedirects(old);
+          await submitUsername(old, username);
+          await expect(old.locator('input[name="password"]')).toHaveCount(0);
+          // Only one credential: nothing to switch to.
+          await expect(old.locator('#try-another-way')).toHaveCount(0);
+          const link = old.locator('#jp-passkey-recovery-link');
+          await expect(link).toBeVisible();
+          await expect(old.locator('#jp-passkey-recovery')).toHaveClass(/jp-passkey-recovery--primary/);
+          expect(await link.getAttribute('href')).toBe(`${RECOVER_PAGE}?email=${encodeURIComponent(username)}`);
+
+          // Pressing the passkey button anyway posts an error back, never a code.
+          await Promise.all([
+            old.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/login-actions/')),
+            old.locator('#authenticateWebAuthnButton').click(),
+          ]);
+          expect(issuedCode(oldHits)).toBe(false);
+          // Nor can the password execution be forced for a user without a password.
+          const action = await formAction(old);
+          expect(await postYieldsCode(old, action, { password: THROWAWAY_PASSWORD })).toBe(false);
+          expect(issuedCode(oldHits)).toBe(false);
+        } finally {
+          await legacy.close();
+          await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => {});
+          await kcAdmin.deleteUser(username);
+        }
+      });
+    });
+
+    test('password-only user: no WebAuthn step, no recovery hint, no "Try another way"', async ({ page, kcAdmin }) => {
+      const username = await createThrowaway(kcAdmin, 'idp-flow-pwonly', THROWAWAY_PASSWORD);
+      try {
+        await submitUsername(page, username);
+        await expect(page.locator('input[name="password"]')).toBeVisible();
+        await expect(page.locator('#authenticateWebAuthnButton')).toHaveCount(0);
+        await expect(page.locator('#try-another-way')).toHaveCount(0);
+        await expect(page.locator('#jp-passkey-recovery')).toHaveCount(0);
+      } finally {
+        await kcAdmin.deleteUser(username);
+      }
     });
   });
 });
