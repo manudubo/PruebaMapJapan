@@ -108,6 +108,22 @@ export function appPageUrl(page: string): string {
   return appBase() + page;
 }
 
+/**
+ * Query marker for "I deliberately want the landing page". The landing page sends signed-in
+ * visitors to the dashboard, which made every in-app Home link bounce straight back; links
+ * inside the app carry this marker so the landing skips that redirect. It is not part of any
+ * Keycloak redirect URI (those stay plain index.html).
+ */
+export const HOME_PARAM = 'home';
+
+/** Relative link to the landing page that stays there for signed-in users. */
+export const HOME_HREF = `index.html?${HOME_PARAM}`;
+
+/** True when the current URL asks to stay on the landing page. */
+export function isHomeIntent(search: string = window.location.search): boolean {
+  return new URLSearchParams(search).has(HOME_PARAM);
+}
+
 function silentCheckSsoRedirectUri(): string {
   return appPageUrl('silent-check-sso.html');
 }

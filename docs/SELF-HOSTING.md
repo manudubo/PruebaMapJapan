@@ -215,7 +215,10 @@ the database checks and migrations, starts everything and waits until ready.
 It shows what it will create (about 25 items) and asks; type `y`.
 
 It applies `terraform/keycloak` with `profile = "production"`: exact redirect
-pages for `FRONTEND_ORIGIN` (no wildcards), HTTPS required, the passkey rpId
+pages for `FRONTEND_ORIGIN` (no wildcards), the app's root/base URL
+(`FRONTEND_ORIGIN` + `FRONTEND_BASE_PATH`, defaults in `config/deploy-defaults.json`;
+it is the "Back to application" link of Keycloak's error pages and never
+localhost: the script and the plan refuse it), HTTPS required, the passkey rpId
 `PUBLIC_HOST`, temporary lockouts after 10 wrong passwords, a 12-character
 password minimum, email through your `SMTP_*`, **no test users and no
 self-registration** unless you opt in (you invite people in step 9; see
@@ -543,6 +546,7 @@ Caddy → backend = 1.
 | Browser console: *blocked by CORS policy* | `FRONTEND_ORIGIN` must be exactly `https://manudubo.github.io` (no path, no trailing slash). Check: `curl -si -X OPTIONS https://<host>/api/trips -H 'Origin: https://manudubo.github.io' -H 'Access-Control-Request-Method: GET' \| grep -i access-control-allow-origin`. |
 | Browser console: *Refused to connect ... Content Security Policy* | The Pages build has old URLs baked in. Fix the `VITE_*` secrets and re-run the Pages deploy (step 8). |
 | Login page: *Invalid parameter: redirect_uri* | Realm not applied, or `FRONTEND_ORIGIN`/`FRONTEND_BASE_PATH` wrong: fix `.env`, `./scripts/keycloak-apply.sh`. |
+| Keycloak error page (e.g. *Registration not allowed*): *Back to application* goes to `http://localhost:5173/...` | The realm was applied before the client root/base URL came from `FRONTEND_ORIGIN`. Re-run `./scripts/keycloak-apply.sh`: the plan shows the `japan-trip-frontend` client changing `root_url`/`base_url` to `https://manudubo.github.io/PruebaMapJapan/`. |
 | Login page: *HTTPS required* | Keycloak reached without `X-Forwarded-Proto: https`. Only use the public URL; the proxy adds the header. |
 | API answers 401 right after a good login | Issuer mismatch: `KEYCLOAK_URL` must equal the public `.../auth` URL (the scripts derive it from `PUBLIC_HOST`). Also check the server clock: `timedatectl` must say *System clock synchronized: yes* (tokens live 5 minutes). |
 | Passkey: *operation not allowed* / not offered | The page host differs from the passkey rpId (`PUBLIC_HOST`). Renamed machine? See [Passkeys](#passkeys-and-the-host-name). |
