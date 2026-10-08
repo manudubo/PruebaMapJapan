@@ -282,4 +282,17 @@ resource "keycloak_required_action" "webauthn_register_passwordless" {
   enabled        = true
   default_action = true
   name           = "Webauthn Register Passwordless"
+
+  # On an empty Keycloak, users created after this action became a default get it
+  # although they ask for required_actions = [] (Keycloak adds default actions on
+  # create; only a second apply removed it, and the seeded E2E users could not sign
+  # in until then). Creating the seeded users first keeps a fresh apply converged.
+  depends_on = [
+    keycloak_user.e2e_test_user,
+    keycloak_user.otp_test_user,
+    keycloak_user.testuser,
+    keycloak_user.new_user_test,
+    keycloak_user.trip_edit_test_user,
+    keycloak_user.session_test_user,
+  ]
 }
