@@ -98,7 +98,7 @@ test.describe('Auth flow — mocked Keycloak', () => {
       await expect(cards).toHaveCount(2);
       await expect(cards.nth(0).locator('.trip-card-title')).toHaveText(mockTrip.name);
       await expect(cards.nth(1).locator('.trip-card-title')).toHaveText('Second Trip');
-      await expect(cards.nth(0)).toHaveAttribute('href', `trip.html?tripId=${mockTrip.id}`);
+      await expect(cards.nth(0).locator('.trip-card-link')).toHaveAttribute('href', `trip.html?tripId=${mockTrip.id}`);
       // Only the public trip carries the badge.
       await expect(cards.nth(0).locator('.trip-card-badge--public')).toHaveCount(1);
       await expect(cards.nth(1).locator('.trip-card-badge--public')).toHaveCount(0);
@@ -116,16 +116,16 @@ test.describe('Auth flow — mocked Keycloak', () => {
       await expect(page.locator('#create-trip-overlay')).toBeVisible();
     });
 
-    test('an API outage shows an error toast instead of a blank or stuck grid', async ({ page }) => {
+    test('an API outage shows an error state with Try again instead of a blank or stuck grid', async ({ page }) => {
       await mockKeycloakLoggedIn(page);
       await mockApi(page, { failWith: 500 });
 
       await page.goto('dashboard.html');
 
-      await expect(page.locator('.toast--error')).toBeVisible();
-      await expect(page.locator('.toast--error')).toContainText('Something went wrong');
-      // The failure must be announced to assistive tech, not only painted.
-      await expect(page.getByRole('alert')).toContainText('Something went wrong');
+      // Persistent and announced to assistive tech (role=alert), not a toast that disappears.
+      await expect(page.getByRole('alert')).toContainText("We couldn't load your trips");
+      await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+      await expect(page.locator('#trips-grid .trip-card--skeleton')).toHaveCount(0);
       // Page still finished initialising (not hung on the loading state forever).
       await expect(page.locator('body')).toHaveClass(/ready/);
     });
