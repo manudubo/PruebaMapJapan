@@ -11,8 +11,11 @@ import {
   loginRedirectUri,
 } from '@/auth/keycloak';
 import { watchAuth, showAuthUnavailableState, clearAuthUnavailableState } from '@/auth/authStatusUI';
-import { getMe } from '@/api/client';
-import { installGlobalErrorHandler } from '@/modules/toast';
+import { getMe, updateMe } from '@/api/client';
+import { installGlobalErrorHandler, showToast } from '@/modules/toast';
+import { createPrefsStore } from '@/modules/passkeyCampaign';
+import { PASSWORD_BACKUP_FIELD, renderPasswordBackupCard, shouldShowPasswordBackup } from '@/modules/passwordBackup';
+import { installEmailVerificationGate, showEmailVerification } from '@/auth/verifyEmail';
 import {
   renderPasskeyList,
   renderPasskeyListError,
@@ -97,6 +100,21 @@ async function registerPasskey(): Promise<void> {
     showStatus('passkey-status', 'Error starting passkey registration.', 'error');
     if (btn) btn.disabled = false;
   }
+}
+
+/** Passkey-only account: suggest a password as a backup (throttled, see modules/passwordBackup). */
+async function offerPasswordBackup(userKey: string | null, accountPrefs: Record<string, unknown> | null): Promise<void> {
+  const card = document.querySelector<HTMLElement>('main .page-card');
+  if (!userKey || !card) return;
+  const store = createPrefsStore(userKey, accountPrefs, (preferences) => updateMe({ preferences }), PASSWORD_BACKUP_FIELD);
+  if (!(await shouldShowPasswordBackup({ store }))) return;
+  const header = card.querySelector('.profile-header');
+  const holder = document.createElement('div');
+  header?.after(holder);
+  renderPasswordBackupCard(holder, {
+    start: () => keycloak.login({ action: 'UPDATE_PASSWORD', redirectUri: loginRedirectUri() }),
+    onError: (message) => showToast(message, 'error'),
+  });
 }
 
 async function changePassword(): Promise<void> {
@@ -247,9 +265,17 @@ async function loadProfile(): Promise<void> {
     setText('info-username', info.preferredUsername || '—');
   }
 
+  // Any API call answering 403 email_not_verified raises the verification screen (then reloads).
+  installEmailVerificationGate(() => (info ? { email: info.email || null, userKey: info.id } : null));
+
   // Try to enrich name from API user record
+  let accountPrefs: Record<string, unknown> | null = null;
   try {
     const user = await getMe();
+    accountPrefs = user.preferences;
+    if (user.email_verified === false && info) {
+      await showEmailVerification({ email: user.email || info.email || null, userKey: info.id });
+    }
     if (user.name) {
       setText('profile-name', user.name.split(' ')[0] ?? user.name);
       setText('info-name', user.name);
@@ -265,6 +291,7 @@ async function loadProfile(): Promise<void> {
   // Load passkeys
   await loadPasskeys();
   buildDeleteModal();
+  void offerPasswordBackup(info?.id ?? null, accountPrefs);
 
   // Wire buttons
   document.getElementById('btn-add-passkey')?.addEventListener('click', registerPasskey);

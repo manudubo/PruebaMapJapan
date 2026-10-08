@@ -96,6 +96,7 @@ const MESSAGES = {
     pwBackupBody: 'If you ever sign in on a device without passkey support, a password still lets you in.',
     pwBackupAction: 'Add a password',
     pwBackupLater: 'Not now',
+    pwBackupStartFailed: "Couldn't open password setup. Please try again.",
   },
   es: {
     unavailableTitle: 'No se puede conectar con el servicio de inicio de sesión',
@@ -182,6 +183,7 @@ const MESSAGES = {
     pwBackupBody: 'Si alguna vez inicias sesión en un dispositivo sin passkeys, una contraseña te permitirá entrar.',
     pwBackupAction: 'Crear una contraseña',
     pwBackupLater: 'Ahora no',
+    pwBackupStartFailed: 'No se pudo abrir la configuración de la contraseña. Inténtalo de nuevo.',
   },
 } as const;
 

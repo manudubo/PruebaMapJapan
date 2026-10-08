@@ -2352,6 +2352,38 @@ travel-nav:not(:defined) {
   font-weight: 700;
 }
 
+/* Profile: "Add a password as a backup" (src/modules/passwordBackup.ts) */
+.password-backup {
+  margin: 0 0 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--jp-accent-border);
+  background: var(--jp-accent-subtle);
+}
+
+.password-backup-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--jp-text);
+}
+
+.password-backup-body {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--jp-text-secondary);
+  line-height: 1.5;
+}
+
+.password-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.password-backup-actions .btn {
+  min-height: 44px;
+}
+
 /* ============================================
    New-user passkey onboarding dialog (src/modules/passkeyCampaign.ts)
    ============================================ */

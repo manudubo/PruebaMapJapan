@@ -99,9 +99,11 @@ export function createPrefsStore(
   userKey: string,
   accountPrefs: Record<string, unknown> | null,
   patch: (preferences: Record<string, unknown>) => Promise<unknown>,
+  /** Which campaign: its field in the preferences and its localStorage key suffix. */
+  field: string = PREFS_FIELD,
 ): PrefsStore {
-  const key = LOCAL_KEY_PREFIX + userKey;
-  let current = parsePrefs(accountPrefs?.[PREFS_FIELD]);
+  const key = LOCAL_KEY_PREFIX + (field === PREFS_FIELD ? '' : `${field}.`) + userKey;
+  let current = parsePrefs(accountPrefs?.[field]);
   return {
     load() {
       let local = { ...EMPTY };
@@ -120,7 +122,7 @@ export function createPrefsStore(
         // blocked: account copy only
       }
       try {
-        await patch({ ...(accountPrefs ?? {}), [PREFS_FIELD]: current });
+        await patch({ ...(accountPrefs ?? {}), [field]: current });
       } catch {
         // API down or 403: the local copy still throttles this browser.
       }
