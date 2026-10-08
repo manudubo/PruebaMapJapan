@@ -20,6 +20,18 @@ export interface MockApiOptions {
   tripStatus?: number;
   /** Every non-GET request answers 500 (GETs still succeed) — for save-failure paths. */
   failWrites?: boolean;
+  /**
+   * Extra fields on GET /users/me (e.g. `onboarding: { is_new: true }`, `email_verified`).
+   * PATCH /users/me merges the body into it, like the backend, so a spec can read back what
+   * the UI persisted (preferences).
+   */
+  me?: Record<string, unknown>;
+  /**
+   * While `verified` is false every authenticated call answers 403 `email_not_verified`, as the
+   * backend does for an account whose address is not verified. Share the object with
+   * mockAuthFlows(), whose confirm endpoint flips it.
+   */
+  verification?: { verified: boolean };
 }
 
 const json = (status: number, body: unknown) => ({
@@ -36,6 +48,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
   const calls: ApiCall[] = [];
   const trips = options.trips ?? [mockTrip];
   const trip = options.trip ?? mockTrip;
+  let me: Record<string, unknown> = { ...(mockUserApiResponse.data as Record<string, unknown>), ...(options.me ?? {}) };
 
   await page.route('**/api/**', async (route) => {
     const request = route.request();
@@ -57,7 +70,14 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     if (options.failWrites && request.method() !== 'GET') {
       return route.fulfill(json(500, { success: false, error: 'mock_write_failure' }));
     }
-    if (path === '/users/me') return route.fulfill(json(200, mockUserApiResponse));
+    if (options.verification && !options.verification.verified && !path.startsWith('/public/') && !path.startsWith('/auth/')) {
+      return route.fulfill(json(403, { success: false, code: 'email_not_verified', error: 'Email not verified' }));
+    }
+    if (path === '/users/me') {
+      if (request.method() === 'PATCH' && body && typeof body === 'object') me = { ...me, ...(body as object) };
+      const emailVerified = options.me?.['email_verified'] ?? options.verification?.verified;
+      return route.fulfill(json(200, { success: true, data: emailVerified === undefined ? me : { ...me, email_verified: emailVerified } }));
+    }
     if (path === '/trips' && request.method() === 'POST') {
       if (options.createDelayMs) await new Promise((r) => setTimeout(r, options.createDelayMs));
       // Mirror the Worker's Zod schema: a blank name is a 422, never a created trip.
