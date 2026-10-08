@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
+import { mockKeycloakLoggedIn, mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
 import { stubMapThirdParty } from './fixtures/mockThirdParty';
+import { SPRING, WINTER, mockTripsBackend } from './fixtures/mockSearchTrips';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -44,13 +45,8 @@ test.describe('Search functionality', () => {
     await expect(page.locator('search-bar .result-title').first()).toHaveText(/^tokyo/i);
   });
 
-  // KNOWN APP BUG (24-E2E-SUMMARY.md): search.ts calculateScore() adds a per-type boost to
-  // every item, so a query that matches nothing still scores > 0 and returns 8 arbitrary
-  // results; "No results found" is unreachable. Fix in frontend/src/modules/search.ts.
-  test.fixme('a query with no match shows the empty state (search.ts typeBoost bug)', async ({ page }) => {
+  test('a query with no match shows the empty state', async ({ page }) => {
     await input(page).fill('zzzzqqqq');
-    await expect(resultsSettled(page)).toBeVisible();
-
     await expect(page.locator('search-bar .search-empty')).toContainText('No results found');
     await expect(options(page)).toHaveCount(0);
   });

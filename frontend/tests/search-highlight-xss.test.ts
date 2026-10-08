@@ -149,7 +149,7 @@ describe('<search-bar> result rendering (SEC-10)', () => {
     mocked.results = results;
     const input = shadow().querySelector('input')!;
     input.value = query;
-    (bar['performSearch'] as (q: string) => void).call(bar, query);
+    (bar['run'] as (q: string) => void).call(bar, query);
   }
 
   beforeEach(() => {
