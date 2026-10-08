@@ -172,6 +172,19 @@ expect_has "  and says why" "starttls or tls" "$out"
 out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x SMTP_PORT=abc \
   "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
 expect_eq "keycloak-apply.sh: non-numeric SMTP_PORT refused" 1 "$rc"
+out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@gmail.com REGISTRATION_ENABLED=yes \
+  "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+expect_eq "keycloak-apply.sh: REGISTRATION_ENABLED must be true/false" 1 "$rc"
+expect_has "  and says why" "REGISTRATION_ENABLED must be true or false" "$out"
+out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@gmail.com RECAPTCHA_SITE_KEY=abc \
+  "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+expect_eq "keycloak-apply.sh: half a reCAPTCHA key pair refused" 1 "$rc"
+expect_has "  and says why" "RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY" "$out"
+grep -q 'printf .  "registration_allowed": %s' "$SCRIPTS/keycloak-apply.sh" \
+  && grep -q -- '-e TF_VAR_recaptcha_secret_key' "$SCRIPTS/keycloak-apply.sh" \
+  && ! grep -q 'recaptcha_secret_key"' "$SCRIPTS/keycloak-apply.sh" \
+  && t_ok "keycloak-apply.sh: sign-up flag in the tfvars file, captcha secret only in the environment" \
+  || t_fail "keycloak-apply.sh: sign-up flag in the tfvars file, captcha secret only in the environment"
 for bad in 'not-an-email' 'a b@example.com' 'x@y' '"><@example.com'; do
   out="$("$SCRIPTS/add-user.sh" "$bad" 2>&1)"; rc=$?
   expect_eq "add-user.sh refuses '$bad'" 1 "$rc"

@@ -9,11 +9,15 @@
 #   ./scripts/keycloak-apply.sh --dry-run  # plan only, change nothing
 #
 # Values passed from .env (everything else is the production profile:
-# brute-force lockouts, password policy, no test users, no registration):
+# brute-force lockouts, password policy, no test users):
 #   - app_origins [FRONTEND_ORIGIN], app_base_path FRONTEND_BASE_PATH/ (exact
 #     redirect pages, no wildcards)
 #   - ssl_required = all, webauthn_rp_id = the Keycloak host name
 #   - Keycloak emails through SMTP_* / EMAIL_FROM from .env
+#   - registration_allowed = REGISTRATION_ENABLED (default false), optional
+#     reCAPTCHA (RECAPTCHA_SITE_KEY, secret via TF_VAR_recaptcha_secret_key)
+#   - writes the travelmap-recovery client secret to .env
+#     (KEYCLOAK_RECOVERY_CLIENT_SECRET, never printed) for the backend
 #
 # Talks to Keycloak on http://127.0.0.1:KC_ADMIN_PORT/auth (never through the
 # public URL, where the admin API is blocked). Uses `terraform` if installed,
@@ -69,6 +73,18 @@ case "$smtp_secure" in
 esac
 [[ "$smtp_port" =~ ^[0-9]{1,5}$ ]] || die "SMTP_PORT must be a number (got '$smtp_port')."
 
+# --- Open sign-up (docs/SELF-HOSTING.md "Open sign-up") ------------------------
+registration="${REGISTRATION_ENABLED:-false}"
+case "$registration" in
+  true|false) ;;
+  *) die "REGISTRATION_ENABLED must be true or false (got '$registration')." ;;
+esac
+recaptcha_site_key="${RECAPTCHA_SITE_KEY:-}"
+if { [ -n "$recaptcha_site_key" ] && [ -z "${RECAPTCHA_SECRET_KEY:-}" ]; } \
+   || { [ -z "$recaptcha_site_key" ] && [ -n "${RECAPTCHA_SECRET_KEY:-}" ]; }; then
+  die "Set both RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY in .env, or neither."
+fi
+
 # --- Terraform runner -------------------------------------------------------------
 tf() {
   if command -v terraform >/dev/null 2>&1 && [ "${USE_TERRAFORM_IMAGE:-0}" != 1 ]; then
@@ -81,7 +97,7 @@ tf() {
       -v "$STATE_DIR:/state" -w /state/terraform/keycloak -e HOME=/state/terraform/keycloak \
       -e TF_IN_AUTOMATION=1 \
       -e TF_VAR_kc_url -e TF_VAR_kc_admin_user -e TF_VAR_kc_admin_pass \
-      -e TF_VAR_smtp_password \
+      -e TF_VAR_smtp_password -e TF_VAR_recaptcha_secret_key \
       "$TERRAFORM_IMAGE" "$@"
   fi
 }
@@ -138,12 +154,16 @@ base_path="${FRONTEND_BASE_PATH%/}/"
   printf '  "smtp_from_display_name": %s,\n' "$(json_str "$smtp_from_name")"
   printf '  "smtp_user": %s,\n' "$(json_str "$smtp_user")"
   printf '  "smtp_ssl": %s,\n' "$smtp_ssl"
-  printf '  "smtp_starttls": %s\n' "$smtp_starttls"
+  printf '  "smtp_starttls": %s,\n' "$smtp_starttls"
+  printf '  "registration_allowed": %s,\n' "$registration"
+  printf '  "recaptcha_site_key": %s\n' "$(json_str "$recaptcha_site_key")"
   printf '}\n'
 } > "$WORK/production.auto.tfvars.json"
 
 export TF_VAR_kc_url="$KC_LOCAL_URL" TF_VAR_kc_admin_user=admin TF_VAR_kc_admin_pass="$KC_ADMIN_PASSWORD"
 export TF_VAR_smtp_password="$smtp_pass"
+# Terraform's null (no captcha) when unset; the secret never goes into a file.
+if [ -n "${RECAPTCHA_SECRET_KEY:-}" ]; then export TF_VAR_recaptcha_secret_key="$RECAPTCHA_SECRET_KEY"; fi
 
 step "terraform init"
 tf init -input=false -no-color >/dev/null
@@ -203,6 +223,30 @@ if [ "$DRY_RUN" != 1 ]; then
   ok "mappers in state"
 fi
 
+# The backend's travelmap-recovery secret goes from Terraform state straight into
+# .env (mode 600), never to the terminal. The backend reads it at start: if it
+# changed, ./scripts/deploy.sh (or compose up -d backend) restarts it.
+store_recovery_secret() {
+  local secret current tmp
+  secret="$(tf output -raw recovery_client_secret 2>/dev/null)" || secret=""
+  if [ -z "$secret" ]; then
+    warn "No travelmap-recovery secret in the Terraform outputs; e-mail recovery stays off."
+    return 0
+  fi
+  [[ "$secret" =~ ^[A-Za-z0-9_-]+$ ]] || die "Unexpected travelmap-recovery secret format; not written to .env."
+  current="$(sed -n 's/^KEYCLOAK_RECOVERY_CLIENT_SECRET=//p' "$ENV_FILE" | tail -n 1)"
+  if [ "$current" = "$secret" ]; then
+    ok "travelmap-recovery secret already in $ENV_FILE"
+    return 0
+  fi
+  tmp="$(mktemp "$ENV_FILE.XXXXXX")"
+  chmod 600 "$tmp"
+  grep -v '^KEYCLOAK_RECOVERY_CLIENT_SECRET=' "$ENV_FILE" > "$tmp" || true
+  printf 'KEYCLOAK_RECOVERY_CLIENT_SECRET=%s\n' "$secret" >> "$tmp"
+  mv "$tmp" "$ENV_FILE"
+  ok "travelmap-recovery secret written to $ENV_FILE (not shown). Restart the backend: ./scripts/deploy.sh"
+}
+
 # --- Plan / apply ---------------------------------------------------------------------
 step "terraform plan"
 set +e
@@ -210,7 +254,9 @@ tf plan -input=false -no-color -detailed-exitcode -out=selfhost.tfplan > "$WORK/
 plan_rc=$?
 set -e
 case "$plan_rc" in
-  0) ok "No changes: Keycloak already matches the configuration."; rm -f "$WORK/selfhost.tfplan"; exit 0 ;;
+  0) ok "No changes: Keycloak already matches the configuration."; rm -f "$WORK/selfhost.tfplan"
+     [ "$DRY_RUN" = 1 ] || store_recovery_secret
+     exit 0 ;;
   2) grep -E '^\s*(#|Plan:)' "$WORK/plan.txt" || true ;;
   *) cat "$WORK/plan.txt" >&2; die "terraform plan failed (full output above)." ;;
 esac
@@ -231,6 +277,7 @@ fi
 step "terraform apply"
 tf apply -input=false -no-color selfhost.tfplan | grep -E '^(Apply complete|Error)' || true
 rm -f "$WORK/selfhost.tfplan"
+store_recovery_secret
 
 # Verify: issuer and a production redirect.
 issuer="$(curl -fsS --max-time 10 "$KC_LOCAL_URL/realms/$REALM/.well-known/openid-configuration" \
