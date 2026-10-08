@@ -280,7 +280,15 @@ export const SEARCH_BAR_CSS = `
           background: var(--jp-surface-subtle, #f5f5f7);
           border-top: 1px solid var(--jp-border, rgba(0,0,0,0.06));
           display: flex;
-          gap: 16px;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 4px 16px;
+        }
+
+        .keyboard-hint span {
+          display: inline-flex;
+          align-items: center;
+          white-space: nowrap;
         }
         
         .keyboard-hint kbd {
