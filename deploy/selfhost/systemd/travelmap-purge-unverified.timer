@@ -1,0 +1,11 @@
+# Installed by deploy/selfhost/scripts/purge-timer.sh.
+[Unit]
+Description=Hourly TravelMap purge of never-verified accounts
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

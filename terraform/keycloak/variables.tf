@@ -112,9 +112,48 @@ variable "frontend_url" {
   }
 }
 
-# Self-service sign-up. Default: on locally, OFF in production (an internet-facing
-# personal app should not let strangers create accounts that can call the API).
+# Self-service sign-up (REG-01/05). Default: on locally, OFF in production. Turning it
+# on in production is an explicit opt-in that main.tf preconditions accept only with
+# the abuse controls in place (TLS SMTP, brute-force lockouts at <= 10 failures, the
+# recovery client, a >= 12 character password policy). The API refuses unverified
+# e-mail addresses (backend) and scripts/purge-unverified.sh removes never-verified
+# accounts. Keycloak has no sign-up rate limit of its own and stock Caddy has no rate
+# limiter: see docs/SELF-HOSTING.md "Open sign-up" for the limits and what is missing.
 variable "registration_allowed" {
+  description = "Allow self-registration (default: true for local, false for production)"
+  type        = bool
+  default     = null
+}
+
+# REG-04: optional Google reCAPTCHA (v2 checkbox or v3) on the registration form.
+# Both keys or neither; the secret only via TF_VAR_recaptcha_secret_key, never in git.
+variable "recaptcha_site_key" {
+  description = "reCAPTCHA site key for the registration form (empty = no captcha)"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]{0,100}$", var.recaptcha_site_key))
+    error_message = "recaptcha_site_key must be empty or a reCAPTCHA site key (letters, digits, _ and -)."
+  }
+}
+
+variable "recaptcha_secret_key" {
+  description = "reCAPTCHA secret key (TF_VAR_recaptcha_secret_key)"
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "require_recaptcha" {
+  description = "Fail the plan unless reCAPTCHA keys are provided (for an internet-facing sign-up)"
+  type        = bool
+  default     = false
+}
+
+# REG-06: confidential client travelmap-recovery (realm-management/manage-users only)
+# used by the backend to set a password after an e-mail code. Default: true.
+variable "create_recovery_client" {
   type    = bool
   default = null
 }

@@ -25,6 +25,8 @@ jobs:
       - run: bash deploy/selfhost/tests/scripts.test.sh
         env:
           CADDY_VALIDATE: '1'
+      # Open sign-up: purge of never-verified accounts, stub Keycloak and database.
+      - run: bash deploy/selfhost/tests/purge-unverified.test.sh
 
   typecheck-frontend:
     runs-on: ubuntu-latest

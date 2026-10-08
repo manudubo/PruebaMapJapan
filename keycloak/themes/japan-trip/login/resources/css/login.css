@@ -309,6 +309,20 @@ hr {
   text-decoration: none !important;
 }
 
+/* REG-07: e-mail recovery link on passkey steps (footer.ftl) */
+.jp-passkey-recovery {
+  margin: 16px 0 0;
+  font-size: 13px;
+  text-align: center;
+}
+
+.jp-passkey-recovery--primary {
+  padding: 12px;
+  border: 1px solid var(--jp-border-strong);
+  font-size: 15px;
+  font-weight: 600;
+}
+
 @media (prefers-color-scheme: dark) {
   .jp-idp-footer {
     border-top-color: var(--jp-border-dark) !important;

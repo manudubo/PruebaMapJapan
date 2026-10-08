@@ -6,17 +6,19 @@
 # Usage: scripts/ci/keycloak-flow.sh start|apply|stop
 #
 #   start  Generate random secrets, start quay.io/keycloak/keycloak:26.6.1 (start-dev)
-#          and wait until it serves /realms/master.
+#          plus Mailpit (the realm's SMTP sink, for registration/recovery mail)
+#          and wait until both answer.
 #   apply  terraform init (lock file read-only) + apply terraform/keycloak against it,
 #          then write the Playwright env file ($KC_WORK/e2e.env).
-#   stop   Remove the container and the work directory.
+#   stop   Remove the containers and the work directory.
 #
 # Environment (all optional):
 #   KC_WORK        directory for generated secrets, tfvars and state
 #                  (default: $RUNNER_TEMP/keycloak-flow; must be set locally)
 #   KC_PORT        HTTP port (default 8080)
 #   KC_MGMT_PORT   management port (default 9000)
-#   KC_CONTAINER   container name (default kc-flow)
+#   KC_CONTAINER   container name (default kc-flow); Mailpit is "$KC_CONTAINER-mailpit"
+#   MAILPIT_SMTP_PORT / MAILPIT_HTTP_PORT  Mailpit ports on 127.0.0.1 (default 1025 / 8025)
 #   TERRAFORM      terraform binary (default: terraform)
 #
 # Secrets (admin password, test-user passwords, worker client secret) are generated
@@ -32,6 +34,10 @@ KC_IMAGE="quay.io/keycloak/keycloak:26.6.1"
 KC_PORT="${KC_PORT:-8080}"
 KC_MGMT_PORT="${KC_MGMT_PORT:-9000}"
 KC_CONTAINER="${KC_CONTAINER:-kc-flow}"
+MAILPIT_CONTAINER="${KC_CONTAINER}-mailpit"
+MAILPIT_IMAGE="ghcr.io/axllent/mailpit:v1.29"
+MAILPIT_SMTP_PORT="${MAILPIT_SMTP_PORT:-1025}"
+MAILPIT_HTTP_PORT="${MAILPIT_HTTP_PORT:-8025}"
 TF="${TERRAFORM:-terraform}"
 if [ -z "${KC_WORK:-}" ]; then
   [ -n "${RUNNER_TEMP:-}" ] || die "set KC_WORK (or RUNNER_TEMP) to a private directory"
@@ -76,6 +82,13 @@ cmd_start() {
     --health-cmd "bash -c 'exec 3<>/dev/tcp/127.0.0.1/${KC_PORT} && printf \"GET /realms/master HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && head -1 <&3 | grep -q 200'" \
     --health-interval 5s --health-timeout 5s --health-retries 30 \
     "$KC_IMAGE" start-dev >/dev/null
+
+  # SMTP sink for the realm (registration, recovery and reset mail); loopback only.
+  docker run -d --name "$MAILPIT_CONTAINER" --network host \
+    -e MP_SMTP_BIND_ADDR="127.0.0.1:${MAILPIT_SMTP_PORT}" \
+    -e MP_UI_BIND_ADDR="127.0.0.1:${MAILPIT_HTTP_PORT}" \
+    "$MAILPIT_IMAGE" >/dev/null
+  wait_http_200 "http://127.0.0.1:${MAILPIT_HTTP_PORT}/api/v1/messages" 30 || die "Mailpit did not start"
 
   for _ in $(seq 1 60); do
     case "$(docker inspect --format '{{.State.Health.Status}}' "$KC_CONTAINER")" in
@@ -137,6 +150,7 @@ cmd_apply() {
     printf 'kc_url = "%s"\nkc_admin_user = "admin"\n' "$KC_URL"
     printf 'kc_admin_pass = "%s"\n' "$(cat "$KC_WORK/admin-pass")"
     printf 'ssl_required = "external"\n'
+    printf 'smtp_host = "127.0.0.1"\nsmtp_port = %s\n' "$MAILPIT_SMTP_PORT"
     printf 'e2e_test_password = "%s"\n' "$e2e_pw"
     printf 'e2e_session_password = "%s"\n' "$session_pw"
     for v in e2e_otp_password testuser_password new_user_test_password trip_edit_test_user_password; do
@@ -164,9 +178,11 @@ cmd_apply() {
   tf_apply
   grep -E '^Apply complete' "$KC_WORK/apply.log"
 
-  local worker_secret
+  local worker_secret recovery_secret
   worker_secret="$("$TF" -chdir="$mod" output -raw worker_client_secret)"
   mask "$worker_secret"
+  recovery_secret="$("$TF" -chdir="$mod" output -raw recovery_client_secret)"
+  mask "$recovery_secret"
   {
     printf 'KEYCLOAK_URL=%s\n' "$KC_URL"
     printf 'KEYCLOAK_REALM=japan-trip\n'
@@ -176,13 +192,21 @@ cmd_apply() {
     # (create/delete throwaway users, credentials). Its secret is generated per run.
     printf 'KC_ADMIN_CLIENT_ID=japan-trip-worker\n'
     printf 'KC_ADMIN_CLIENT_SECRET=%s\n' "$worker_secret"
+    # travelmap-recovery (manage-users only): the backend's e-mail recovery client,
+    # used by tests/e2e/idp-registration.spec.ts when it runs the backend.
+    printf 'KC_RECOVERY_CLIENT_ID=travelmap-recovery\n'
+    printf 'KC_RECOVERY_CLIENT_SECRET=%s\n' "$recovery_secret"
+    printf 'MAILPIT_URL=http://127.0.0.1:%s\n' "$MAILPIT_HTTP_PORT"
+    # Path (not the value) of this throwaway Keycloak's master admin password, for the
+    # one registration test that closes and reopens sign-up on the realm.
+    printf 'KC_MASTER_ADMIN_PASSWORD_FILE=%s\n' "$KC_WORK/admin-pass"
   } > "$KC_WORK/e2e.env"
   wait_http_200 "$KC_URL/realms/japan-trip" 15 || die "realm japan-trip not served after apply"
   echo "Realm japan-trip applied; Playwright env written to $KC_WORK/e2e.env"
 }
 
 cmd_stop() {
-  docker rm -f "$KC_CONTAINER" >/dev/null 2>&1 || true
+  docker rm -f "$KC_CONTAINER" "$MAILPIT_CONTAINER" >/dev/null 2>&1 || true
   rm -rf "$KC_WORK"
 }
 
