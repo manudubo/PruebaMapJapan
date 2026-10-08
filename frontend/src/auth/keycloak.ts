@@ -217,6 +217,22 @@ function isLoginCallback(hash: string): boolean {
   return params.has('state') && (params.has('code') || params.has('error'));
 }
 
+/** The OAuth `error` of a callback fragment (e.g. access_denied), or null. */
+function callbackError(hash: string): string | null {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  return params.has('state') ? params.get('error') : null;
+}
+
+let lastCallbackError: string | null = null;
+
+/**
+ * The OAuth error Keycloak sent back on this page load (user cancelled the
+ * sign-up/sign-in, realm refused it, ...), or null. Read it once auth settled.
+ */
+export function getLoginCallbackError(): string | null {
+  return lastCallbackError;
+}
+
 /** After the callback was processed: send the user back to where the login started. */
 function finishLoginRedirect(authenticated: boolean): void {
   const target = takeReturnTo();
@@ -230,6 +246,8 @@ function startAttempt(): Promise<boolean> {
   const kc = keycloak;
   // Read before init(): keycloak-js consumes the callback fragment.
   const callback = typeof window !== 'undefined' && isLoginCallback(window.location.hash);
+  const oauthError = callback ? callbackError(window.location.hash) : null;
+  if (callback) lastCallbackError = oauthError;
 
   kc.onTokenExpired = () => {
     if (import.meta.env.DEV) console.debug('[auth] token expired, refreshing');
@@ -264,6 +282,15 @@ function startAttempt(): Promise<boolean> {
       return authenticated;
     },
     (err: unknown) => {
+      // Keycloak answered with an OAuth error (user cancelled, sign-up refused): keycloak-js
+      // rejects init(), but the service is up and the user is simply not signed in. Showing
+      // "can't reach the sign-in service" here would be wrong.
+      if (oauthError && kc === keycloak && status !== 'authenticated' && status !== 'anonymous') {
+        bounded = Promise.resolve(false);
+        storeReturnTo(null);
+        setStatus('anonymous');
+        return false;
+      }
       // Only the latest attempt's failure matters; an older one failing after a Retry is noise.
       if (kc === keycloak && status !== 'authenticated' && status !== 'anonymous') {
         setStatus('unavailable', 'error');
@@ -356,6 +383,7 @@ export function __resetAuthForTests(): void {
   attempt = null;
   bounded = null;
   onlineRetryArmed = false;
+  lastCallbackError = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,6 +403,32 @@ export async function login(target?: string): Promise<void> {
     redirectUri: loginRedirectUri(target),
     scope: 'openid profile email',
   });
+}
+
+/**
+ * Redirect to the realm's registration page (keycloak-js register(): the
+ * `/protocol/openid-connect/registrations` endpoint). Same redirect URI rules
+ * as login(): a registered page without a query string; the real target waits
+ * in sessionStorage. The realm decides whether sign-up is allowed.
+ */
+export async function register(target?: string): Promise<void> {
+  if (!attempt) bounded = withTimeout(startAttempt());
+  await keycloak.register({
+    redirectUri: loginRedirectUri(target),
+    scope: 'openid profile email',
+  });
+}
+
+/**
+ * Force a token refresh now (e.g. right after the email was verified, so the
+ * new token carries email_verified=true). False when it could not refresh.
+ */
+export async function forceRefreshToken(): Promise<boolean> {
+  try {
+    return await keycloak.updateToken(-1);
+  } catch {
+    return false;
+  }
 }
 
 /**

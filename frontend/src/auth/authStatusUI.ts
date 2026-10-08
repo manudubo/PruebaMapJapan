@@ -18,6 +18,7 @@ import {
   type AuthStatus,
 } from './keycloak';
 import { authLocale, authText, type AuthMessageKey } from './authMessages';
+import type { SignUpOutcome } from './registration';
 
 export type AuthHandlers = Partial<Record<AuthStatus, () => void>>;
 
@@ -203,6 +204,42 @@ export function showAuthNotice(): void {
 
 export function hideAuthNotice(): void {
   document.getElementById(NOTICE_ID)?.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Sign-up outcome notice (public pages and the dashboard prompt)
+// ---------------------------------------------------------------------------
+
+const SIGNUP_NOTICE_ID = 'signup-notice';
+
+const SIGNUP_NOTICE_KEYS: Partial<Record<SignUpOutcome | 'unavailable', AuthMessageKey>> = {
+  cancelled: 'signupCancelled',
+  refused: 'signupUnavailable',
+  incomplete: 'signupIncomplete',
+  unavailable: 'signupUnavailable',
+};
+
+/**
+ * Small, dismissible notice after a sign-up that did not complete (or could not start).
+ * Same look as the auth notice; nothing for 'none'/'completed'. Returns the notice or null.
+ */
+export function showSignUpNotice(outcome: SignUpOutcome | 'unavailable'): HTMLElement | null {
+  const key = SIGNUP_NOTICE_KEYS[outcome];
+  if (!key) return null;
+  document.getElementById(SIGNUP_NOTICE_ID)?.remove();
+
+  const notice = el('div', { className: 'auth-notice', id: SIGNUP_NOTICE_ID });
+  notice.setAttribute('role', 'status');
+  notice.lang = authLocale();
+  notice.dataset['outcome'] = outcome;
+  const text = el('p', { className: 'auth-notice-text', text: t(key) });
+  const dismiss = el('button', { className: 'auth-notice-dismiss', text: '×' });
+  dismiss.type = 'button';
+  dismiss.setAttribute('aria-label', t('dismiss'));
+  dismiss.addEventListener('click', () => notice.remove());
+  notice.append(text, dismiss);
+  mainEl().prepend(notice);
+  return notice;
 }
 
 /** Test-only. */

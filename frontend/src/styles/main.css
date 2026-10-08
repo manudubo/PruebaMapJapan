@@ -2186,3 +2186,8 @@ travel-nav:not(:defined) {
     min-height: 55px;
   }
 }
+
+/* Sign-up outcome notice (src/auth/authStatusUI.ts showSignUpNotice): text + dismiss only */
+#signup-notice {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
