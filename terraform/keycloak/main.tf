@@ -322,6 +322,25 @@ resource "keycloak_openid_client_service_account_role" "recovery_manage_users" {
   role                    = "manage-users"
 }
 
+# full_scope_allowed = false means the token only carries roles listed in the client's
+# scope (Scope tab). Without this mapping the service-account token has NO roles and
+# every Admin API call answers 403 (found by the integration run: recovery/confirm 503).
+data "keycloak_role" "realm_management_manage_users" {
+  count = local.create_recovery_client ? 1 : 0
+
+  realm_id  = keycloak_realm.japan_trip.id
+  client_id = data.keycloak_openid_client.realm_management.id
+  name      = "manage-users"
+}
+
+resource "keycloak_generic_role_mapper" "recovery_scope_manage_users" {
+  count = local.create_recovery_client ? 1 : 0
+
+  realm_id  = keycloak_realm.japan_trip.id
+  client_id = keycloak_openid_client.travelmap_recovery[0].id
+  role_id   = data.keycloak_role.realm_management_manage_users[0].id
+}
+
 output "recovery_client_secret" {
   value     = one(keycloak_openid_client.travelmap_recovery[*].client_secret)
   sensitive = true
