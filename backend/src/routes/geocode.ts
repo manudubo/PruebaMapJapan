@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
+import { requireVerifiedEmail } from '../middleware/verified-email';
 import { POLICIES, rateLimit } from '../middleware/rate-limit';
 import { isDevelopment } from '../config/environment';
 import { log } from '../observability/logger';
@@ -127,7 +128,7 @@ async function takeUpstreamSlot(): Promise<boolean> {
 
 const geocode = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
-geocode.use('*', rateLimit(POLICIES.geocodePerIp), authMiddleware, rateLimit(POLICIES.geocodePerUser));
+geocode.use('*', rateLimit(POLICIES.geocodePerIp), authMiddleware, requireVerifiedEmail, rateLimit(POLICIES.geocodePerUser));
 
 geocode.get('/', async (c) => {
   const q = normaliseQuery(c.req.query('q'));

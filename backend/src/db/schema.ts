@@ -35,6 +35,9 @@ export const users = pgTable(
     name: varchar('name', { length: 255 }).notNull(),
     avatar_url: text('avatar_url'),
     preferences: jsonb('preferences').$type<Record<string, unknown>>().default({}),
+    // Set once the user proves they own `email` (sign-up OTP / recovery).
+    // NULL = not proven here; the Keycloak token may still say verified.
+    email_verified_at: timestamp('email_verified_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -223,6 +226,9 @@ export const emailOtpCodes = pgTable(
     expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
     used_at: timestamp('used_at', { withTimezone: true }),
     attempts: integer('attempts').notNull().default(0),
+    // What the code may be used for: a code issued for one flow never
+    // verifies another (CHECK in migration 0011).
+    purpose: text('purpose').$type<'login' | 'email_verify' | 'recovery'>().notNull().default('login'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

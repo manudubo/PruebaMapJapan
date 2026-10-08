@@ -4,9 +4,13 @@ import { emailOtpCodes } from '../schema';
 
 export type OtpRow = typeof emailOtpCodes.$inferSelect;
 
+/** What a code may be used for (email_otp_codes.purpose, migration 0011). */
+export type OtpPurpose = OtpRow['purpose'];
+
 export async function getLatestUnexpiredOtp(
   db: Db,
   userId: number,
+  purpose: OtpPurpose = 'login',
 ): Promise<OtpRow | undefined> {
   const now = new Date();
   const results = await db
@@ -15,6 +19,7 @@ export async function getLatestUnexpiredOtp(
     .where(
       and(
         eq(emailOtpCodes.user_id, userId),
+        eq(emailOtpCodes.purpose, purpose),
         gt(emailOtpCodes.expires_at, now),
         isNull(emailOtpCodes.used_at),
       ),
@@ -55,11 +60,16 @@ export type OtpIssueResult =
  * reached — atomically, so concurrent calls for one user issue at most one
  * code and never exceed the cap. Timestamps come from the DB clock.
  */
-export async function issueOtp(db: Db, userId: number, codeHash: string): Promise<OtpIssueResult> {
+export async function issueOtp(
+  db: Db,
+  userId: number,
+  codeHash: string,
+  purpose: OtpPurpose = 'login',
+): Promise<OtpIssueResult> {
   const { rows } = await db.execute<{ status: string; otp_id: number | null; retry_after: number | null }>(
     sql`SELECT status, otp_id, retry_after FROM otp_issue(
           ${userId}::integer, ${codeHash}::text, ${OTP_TTL_MS / 1000}::integer,
-          ${OTP_MAX_PER_HOUR}::integer, ${OTP_CAP_WINDOW_MS / 1000}::integer)`,
+          ${OTP_MAX_PER_HOUR}::integer, ${OTP_CAP_WINDOW_MS / 1000}::integer, ${purpose}::text)`,
   );
   const row = rows[0];
   if (row?.status === 'issued' && row.otp_id !== null) return { status: 'issued', otpId: row.otp_id };
@@ -107,6 +117,18 @@ export async function markOtpUsed(db: Db, otpId: number): Promise<void> {
     .update(emailOtpCodes)
     .set({ used_at: new Date() })
     .where(eq(emailOtpCodes.id, otpId));
+}
+
+/**
+ * Give a claimed code back (used_at = NULL) so the user can retry with it.
+ * Only the request that claimed it via markOtpUsedIfUnused may call this,
+ * and only when the work that needed the code failed for a reason that is
+ * not the user's fault (identity provider down). The attempt it consumed
+ * stays consumed. A code that has expired by now stays unusable: expires_at
+ * is checked on read.
+ */
+export async function releaseOtp(db: Db, otpId: number): Promise<void> {
+  await db.update(emailOtpCodes).set({ used_at: null }).where(eq(emailOtpCodes.id, otpId));
 }
 
 // ---------------------------------------------------------------------------

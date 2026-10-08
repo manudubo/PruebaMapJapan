@@ -21,6 +21,8 @@ import {
 
 let scratch: ScratchDb | undefined;
 
+const V0011 = ['column users.email_verified_at', 'column email_otp_codes.purpose', 'function otp_issue(purpose)'];
+
 beforeEach(() => resetSchemaGuardCache());
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -54,23 +56,45 @@ describe('findMissingSchemaObjects', () => {
       'trigger destinations_biz07_date_coherence',
       'trigger days_biz07_date_coherence',
       'function otp_issue()',
+      ...V0011,
     ]);
   });
 
-  it('reports only otp_issue() on a database at 0008', async () => {
+  it('reports otp_issue() and the 0011 objects on a database at 0008', async () => {
     scratch = await scratchDbAt('0008_date_coherence');
-    expect(await findMissingSchemaObjects(scratchDb())).toEqual(['function otp_issue()']);
+    expect(await findMissingSchemaObjects(scratchDb())).toEqual(['function otp_issue()', ...V0011]);
+  });
+
+  it('reports exactly the 0011 objects (verified e-mail column, OTP purpose column + function) at 0010', async () => {
+    scratch = await scratchDbAt('0010_reconcile_push_built_schema');
+    expect(await findMissingSchemaObjects(scratchDb())).toEqual(V0011);
+  });
+
+  it.each([
+    ['ALTER TABLE users DROP COLUMN email_verified_at', 'column users.email_verified_at'],
+    ['ALTER TABLE email_otp_codes DROP COLUMN purpose', 'column email_otp_codes.purpose'],
+    [
+      'DROP FUNCTION otp_issue(integer, text, integer, integer, integer, text) CASCADE',
+      'function otp_issue(purpose)',
+    ],
+  ])('a database missing one 0011 object is not ready: %s', async (ddl, name) => {
+    scratch = await scratchDbAt('0011_email_verification');
+    expect(await findMissingSchemaObjects(scratchDb())).toEqual([]);
+    await scratch.pool.query(ddl);
+    expect(await findMissingSchemaObjects(scratchDb())).toContain(name);
+    const verdict = await checkSchemaReady(scratchDb(), 'k-0011');
+    expect(verdict.ok).toBe(false);
   });
 
   it('a non-unique index with the right name does not satisfy ON CONFLICT and is reported', async () => {
-    scratch = await scratchDbAt('0009_otp_issue_atomic');
+    scratch = await scratchDbAt('0011_email_verification');
     await scratch.pool.query('DROP INDEX hotels_destination_id_idx');
     await scratch.pool.query('CREATE INDEX hotels_destination_id_idx ON hotels (destination_id)');
     expect(await findMissingSchemaObjects(scratchDb())).toEqual(['hotels_destination_id_idx (unique)']);
   });
 
   it('a trigger with the right name on the wrong table is reported', async () => {
-    scratch = await scratchDbAt('0009_otp_issue_atomic');
+    scratch = await scratchDbAt('0011_email_verification');
     await scratch.pool.query('DROP TRIGGER days_biz07_date_coherence ON days');
     await scratch.pool.query(
       `CREATE TRIGGER days_biz07_date_coherence BEFORE INSERT ON trips
@@ -80,8 +104,8 @@ describe('findMissingSchemaObjects', () => {
   });
 
   it('otp_issue with a different signature is reported (the Worker calls the 5-arg form)', async () => {
-    scratch = await scratchDbAt('0009_otp_issue_atomic');
-    await scratch.pool.query('DROP FUNCTION otp_issue(integer, text, integer, integer, integer)');
+    scratch = await scratchDbAt('0011_email_verification');
+    await scratch.pool.query('DROP FUNCTION otp_issue(integer, text, integer, integer, integer) CASCADE');
     await scratch.pool.query(`CREATE FUNCTION otp_issue(integer) RETURNS int LANGUAGE sql AS 'SELECT 1'`);
     expect(await findMissingSchemaObjects(scratchDb())).toEqual(['function otp_issue()']);
   });

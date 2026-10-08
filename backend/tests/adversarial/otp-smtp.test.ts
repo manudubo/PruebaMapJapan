@@ -112,7 +112,12 @@ describe('OTP over SMTP', () => {
 
   it('unverified email in the token → 422 email_not_verified, nothing sent, no code issued', async () => {
     const u = await makeUser(signer, { email_verified: false });
-    const r = await client(smtpEnv())('POST', '/api/auth/otp-request', { token: u.token });
+    // Production default: the verified-email gate answers first (403).
+    const gated = await client(smtpEnv())('POST', '/api/auth/otp-request', { token: u.token });
+    expect(gated.status).toBe(403);
+    expect(gated.body.error).toBe('email_not_verified');
+    // Gate off: the handler's own check still refuses to mail an unverified address.
+    const r = await client({ ...smtpEnv(), REQUIRE_VERIFIED_EMAIL: 'false' })('POST', '/api/auth/otp-request', { token: u.token });
     expect(r.status).toBe(422);
     expect(r.body.error).toBe('email_not_verified');
     expect(sink.messages).toHaveLength(0);

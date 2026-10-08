@@ -132,6 +132,27 @@ export const byUser = (c: Context): string | null => {
   return user?.sub ? `sub:${user.sub}` : null;
 };
 
+/** Count by the e-mail of the authenticated token (mount after authMiddleware). */
+export const byTokenEmail = (c: Context): string | null => {
+  const user = (c.get as (k: string) => { email?: string } | undefined)('user');
+  const email = user?.email?.trim().toLowerCase();
+  return email ? `email:${email}` : null;
+};
+
+/**
+ * Count by an e-mail address in the validated JSON body (`{ email }`), for
+ * unauthenticated endpoints. Mount AFTER the body validator; the address is
+ * normalised, so case/whitespace variants share one bucket. Whether the
+ * account exists never influences the key (anti-enumeration).
+ */
+export const byBodyEmail = (c: Context): string | null => {
+  const body = (c.req as unknown as { valid: (t: 'json') => { email?: unknown } }).valid('json');
+  return typeof body?.email === 'string' ? `email:${body.email.trim().toLowerCase()}` : null;
+};
+
+/** One shared bucket for the whole service (a global ceiling on mail sent). */
+export const globalBucket = (): string => 'global';
+
 export function rateLimitedResponse(c: Context, retryAfterS: number) {
   c.header('Retry-After', String(retryAfterS));
   c.header('Cache-Control', 'no-store');
@@ -192,6 +213,21 @@ export const POLICIES = {
   otpRequestPerUser: { name: 'otp-request-user', limit: 6, windowMs: 15 * MIN, key: byUser },
   otpVerifyPerIp: { name: 'otp-verify-ip', limit: 60, windowMs: 15 * MIN, key: byIp },
   otpVerifyPerUser: { name: 'otp-verify-user', limit: 15, windowMs: 15 * MIN, key: byUser },
+  // Sign-up e-mail verification: the one flow that mails an UNVERIFIED address
+  // (the token's), so it is capped per IP, per account and per address.
+  emailVerifyRequestPerIp: { name: 'email-verify-request-ip', limit: 20, windowMs: HOUR, key: byIp },
+  emailVerifyRequestPerUser: { name: 'email-verify-request-user', limit: 6, windowMs: 15 * MIN, key: byUser },
+  emailVerifyRequestPerEmail: { name: 'email-verify-request-email', limit: 5, windowMs: HOUR, key: byTokenEmail },
+  emailVerifyConfirmPerIp: { name: 'email-verify-confirm-ip', limit: 60, windowMs: 15 * MIN, key: byIp },
+  emailVerifyConfirmPerUser: { name: 'email-verify-confirm-user', limit: 15, windowMs: 15 * MIN, key: byUser },
+  // Account recovery (unauthenticated): per IP, per target address and a
+  // global ceiling so the endpoint cannot be used to mail-bomb at scale.
+  recoveryRequestPerIp: { name: 'recovery-request-ip', limit: 10, windowMs: HOUR, key: byIp },
+  recoveryRequestPerEmail: { name: 'recovery-request-email', limit: 3, windowMs: HOUR, key: byBodyEmail },
+  recoveryRequestGlobal: { name: 'recovery-request-global', limit: 300, windowMs: HOUR, key: globalBucket },
+  recoveryConfirmPerIp: { name: 'recovery-confirm-ip', limit: 20, windowMs: 15 * MIN, key: byIp },
+  recoveryConfirmPerEmail: { name: 'recovery-confirm-email', limit: 10, windowMs: 15 * MIN, key: byBodyEmail },
+  recoveryConfirmGlobal: { name: 'recovery-confirm-global', limit: 300, windowMs: HOUR, key: globalBucket },
   tripCreatePerIp: { name: 'trip-create-ip', limit: 60, windowMs: HOUR, key: byIp },
   tripCreatePerUser: { name: 'trip-create-user', limit: 30, windowMs: HOUR, key: byUser },
   geocodePerIp: { name: 'geocode-ip', limit: 30, windowMs: MIN, key: byIp },
