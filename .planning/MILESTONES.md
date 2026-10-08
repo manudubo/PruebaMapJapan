@@ -1,8 +1,38 @@
 # Milestones
 
+## Post-v3.2 batch — Production readiness (PR #24)
+
+**Status:** Open PR #24 on `claude/focused-lovelace-cryssy` (head `2d7a734`); sandbox-validated, real-server validation pending. Not a numbered milestone: it follows v3.2 and has no phases.
+**Timeline:** 2026-10-04 → 2026-10-08
+**Stats (`git log origin/main..HEAD`):** 89 commits (13 dated 2026-10-04, 68 on 10-07, 8 on 10-08), run as five parallel tracks plus one integration pass
+**Tests as reported (`qa/INTEGRATION-REPORT.md`, not re-run for these docs):** backend 1928 (64 files), frontend 1148 (53 files), `scripts.test.sh` 52, `stack-e2e.sh` 40 on a fresh sandbox stack, real-auth Playwright 66/66 plus `uat-passkeys` 2/2
+**Requirements:** A11Y-04, A11Y-05, SEC-18 closed; DEP-03 and ARCH-09 closed by the green Actions run of PR #23; new PROD-01..04 and QA-01 (`REQUIREMENTS.md`)
+
+### Delivered
+
+The app can be run on the owner's own server and exposed to the internet through one Tailscale Funnel host, with the API and Keycloak hardened for that exposure. The same batch fixed the two remaining accessibility items and the Nominatim leak.
+
+### Key Accomplishments
+
+1. Self-hosting kit: production Node server from the same Hono app, images, compose stack with Caddy, deploy / Keycloak-apply / funnel / backup / restore / update / add-user scripts, guide (`docs/SELF-HOSTING.md`); 40/40 stack checks in the sandbox
+2. Internet hardening: the CORS origin typo (`manud` vs `manudubo`) fixed and defined once, env-driven CORS, a verifier that rejects ID tokens (a real one was accepted before), rate limits with trusted-proxy client IP, TLS-only SMTP, log scrubbing, HSTS and API CSP, Keycloak `production` profile; Nominatim through the backend (SEC-18)
+3. Login from `trip-edit.html?tripId=N` no longer fails with an invalid `redirect_uri`; the target is restored after login
+4. System QA on a Neon HTTP emulator: migration 0010 for push-built databases, `db:preflight` and readiness fixes (4 findings fixed, 7 design-level findings documented)
+5. Real-auth e2e: 66/66 on a real stack after fixing four test bugs (none in the app); e2e hygiene guard; `Keycloak flow` CI workflow
+6. A11Y-04/05: overlapping markers spread for target-size, landing LCP 5.4 s to 1.3 s in the sandbox
+
+### Known Gaps
+
+- Not validated on the real server: Tailscale Funnel client-IP forwarding, Gmail delivery, passkeys on the `.ts.net` rpId
+- Neon is only an emulator; the smoke checklist is unrun
+- The `Keycloak flow` workflow had not concluded on Actions when checked; PR #24's `e2e`, `idp-flow`, `accessibility` and `test-backend` were still running
+- Username enumeration in the username-first flow is residual; rate limits are per process
+- Informational: the owner's existing Funnel on 8443 (Home Assistant) is public; the kit does not touch it
+- Reports: `qa/SELFHOST-REPORT.md`, `PROD-HARDENING.md`, `INTEGRATION-REPORT.md`, `QA-SYSTEM-REPORT.md`, `QA-FULLSTACK-REPORT.md`, `E2E-DEBT-KC-CI.md`, `A11Y-LCP-FOLLOWUP.md`; index in `qa/QA-INDEX.md`
+
 ## v3.2 — Security & Code Health Hardening
 
-**Status:** Executed, pending verification (not yet merged or pushed; close with `/gsd-complete-milestone` after the open items below)
+**Status:** Executed and merged to `main` as PR #23 (merge `ed49639`, all checks green on Actions); the figures below are as of the 2026-10-04 consolidation. Close with `/gsd-complete-milestone` after the owner actions in `STATE.md`
 **Phases:** 20–26
 **Plans:** 6 with PLAN.md (Phases 20–21); Phases 22–26 were executed from summaries only (9 summary documents)
 **Timeline:** 2026-07-24 → 2026-10-04 (Phases 20–21 by 2026-07-30; Phases 22–26 and QA 2026-09-30 → 2026-10-04)
@@ -26,10 +56,12 @@ Fixed the findings of the 7-pass repo audit: the backend now builds and deploys 
 
 ### Known Gaps at Close
 
-- ARCH-09 (CI e2e green) and DEP-03 (security workflow) have never run on GitHub Actions; the Postgres service in `test-backend` is also unobserved
-- Partial: DEP-02 (leaked local Keycloak secret redacted but rotation unverified), A11Y-04 (marker target size), A11Y-05 (landing LCP), SEC-17 (`ssl_required` not switched to `all`; Railway unchecked)
-- Deferred: SEC-18 (Nominatim proxy), with the reason recorded
-- No CI job runs Keycloak (S3); the Neon HTTP driver path has never run (S4)
+(Written at the 2026-10-04 consolidation. Since then: ARCH-09, DEP-03 and the `test-backend` Postgres service ran green on Actions; A11Y-04/05 and SEC-18 were closed and S3 was built in the PR #24 batch above.)
+
+- Was open at close: ARCH-09 (CI e2e green) and DEP-03 (security workflow) had never run on GitHub Actions; the Postgres service in `test-backend` was unobserved
+- Partial: DEP-02 (leaked local Keycloak secret redacted but rotation unverified), SEC-17 (still Partial: the production profile enforces `ssl_required = all`, the real proxy chain is unvalidated). Closed afterwards: A11Y-04 (marker target size), A11Y-05 (landing LCP)
+- Was deferred: SEC-18 (Nominatim proxy); delivered in the PR #24 batch
+- No CI job runs Keycloak (S3; built later, unverified on Actions); the Neon HTTP driver path has never run on real Neon (S4)
 - Production Keycloak must be re-imported with `--remove-stale-flows` and treated as exposed until then; the backend has never been deployed to production
 - Verification gaps for the PR reviewer: `.planning/qa/QA-INDEX.md`
 
