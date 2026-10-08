@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { log } from '../observability/logger';
 import type { Db } from '.';
 
 /**
@@ -106,7 +107,7 @@ async function runCheck(db: Db, key: string): Promise<SchemaVerdict> {
   try {
     missing = await findMissingSchemaObjects(db);
   } catch (err) {
-    console.warn('schema guard: readiness check failed, not cached:', (err as Error).message);
+    log.warn('db.schema_check_failed', { cached: false, error: err });
     return { ok: true, unverified: true };
   }
   if (missing.length === 0) {
@@ -114,9 +115,10 @@ async function runCheck(db: Db, key: string): Promise<SchemaVerdict> {
     return { ok: true };
   }
   cache.set(key, { ok: false, missing, checkedAt: Date.now() });
-  console.error(
-    `schema guard: ${SCHEMA_NOT_MIGRATED} — missing ${missing.join(', ')}. ` +
-      'Run `npm run db:migrate --workspace=backend` against this database.',
-  );
+  log.error('db.schema_not_migrated', {
+    code: SCHEMA_NOT_MIGRATED,
+    missing,
+    fix: 'Run `npm run db:migrate --workspace=backend` against this database.',
+  });
   return { ok: false, missing };
 }

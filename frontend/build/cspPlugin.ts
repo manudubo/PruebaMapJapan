@@ -22,9 +22,19 @@ const CONNECT_SRC_STATIC = [
   'https://api.allorigins.win', // widgets.ts news RSS proxy
   'https://corsproxy.io', // widgets.ts news RSS proxy fallback
   'https://api.open-meteo.com', // widgets.ts weather
-  'https://nominatim.openstreetmap.org', // geocoder.ts
   'https://fonts.googleapis.com', // <link rel="preconnect">
 ];
+
+/**
+ * Direct browser geocoding is only used by demo-only builds (no VITE_API_URL);
+ * with a backend the editor goes through /api/geocode (SEC-18), so Nominatim
+ * is not allowed in connect-src at all.
+ */
+export const NOMINATIM_ORIGIN = 'https://nominatim.openstreetmap.org';
+
+export function apiConfigured(apiUrl: string | undefined): boolean {
+  return apiUrl !== undefined && apiUrl.trim() !== '';
+}
 
 const IMG_SRC_STATIC = [
   // data: carries Leaflet's control/marker images, which Vite inlines from leaflet.css.
@@ -113,7 +123,7 @@ export function buildCsp({ apiUrl, keycloakUrl, target }: CspInput): string {
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     `img-src ${unique(["'self'", ...IMG_SRC_STATIC]).join(' ')}`,
-    `connect-src ${unique(["'self'", api, keycloak, ...CONNECT_SRC_STATIC]).join(' ')}`,
+    `connect-src ${unique(["'self'", api, keycloak, ...CONNECT_SRC_STATIC, apiConfigured(apiUrl) ? null : NOMINATIM_ORIGIN]).join(' ')}`,
     "font-src 'self' https://fonts.gstatic.com",
     // 'self' = silent-check-sso.html; Keycloak = its 3p-cookies check iframe.
     `frame-src ${unique(["'self'", keycloak]).join(' ')}`,

@@ -1,0 +1,68 @@
+# Shared routing for every hosting mode. Imported by the *.Caddyfile files.
+#
+# Public surface:
+#   /api/*   -> backend:8787
+#   /auth/*  -> keycloak:8080, EXCEPT the admin console/API and the master
+#               realm (admins use the SSH tunnel to 127.0.0.1:KC_ADMIN_PORT)
+# Everything else answers 404.
+
+(access_log) {
+	log {
+		output stdout
+		format json
+	}
+}
+
+(hide_server) {
+	header {
+		-Server
+		-Via
+	}
+}
+
+# HSTS only on dedicated hostnames (subdomain modes). In single-host mode the
+# Tailscale name may also serve other things over plain http on other ports
+# (e.g. a dashboard on :3000 inside the tailnet); HSTS would break them.
+(hsts) {
+	header Strict-Transport-Security "max-age=31536000"
+}
+
+# Backend. X-Forwarded-For is APPENDED to (Caddy adds the peer that reached it
+# when that peer is a trusted proxy), so the backend's TRUSTED_PROXY_HOPS
+# rightmost-N rule finds the real client.
+(backend_routes) {
+	@api path /api /api/*
+	handle @api {
+		reverse_proxy backend:8787 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {args[0]}
+		}
+	}
+}
+
+(keycloak_routes) {
+	# Admin console + admin REST API + master realm: never public.
+	@kc_admin path /auth/admin /auth/admin/* /auth/realms/master /auth/realms/master/*
+	handle @kc_admin {
+		respond "Not found" 404
+	}
+	@kc path /auth /auth/*
+	handle @kc {
+		reverse_proxy keycloak:8080 {
+			# TLS ends before this proxy; Keycloak must still see https, or
+			# ssl_required=all rejects every login and cookies lose Secure.
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {args[0]}
+			header_up X-Forwarded-Port 443
+			# Keycloak reads the LEFTMOST X-Forwarded-For entry, which a
+			# client can forge; give it only the client IP Caddy resolved.
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+}
+
+(not_found) {
+	handle {
+		respond "Not found" 404
+	}
+}

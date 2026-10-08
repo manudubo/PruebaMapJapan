@@ -70,13 +70,16 @@ async function openEditor(page: Page, options: Parameters<typeof mockApi>[1] = {
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('Trip editor access', () => {
-  test('a guest is sent back to the dashboard', async ({ page }) => {
+  test('a guest is sent to sign in, with a registered redirect_uri (return covered by auth-return-to.spec.ts)', async ({ page }) => {
     await mockKeycloakLoggedOut(page);
     await mockApi(page);
 
     await page.goto('trip-edit.html?tripId=1');
 
-    await page.waitForURL(/dashboard\.html$/);
+    await page.waitForURL(/\/protocol\/openid-connect\/auth\?/);
+    const redirectUri = new URL(new URL(page.url()).searchParams.get('redirect_uri')!);
+    expect(redirectUri.pathname).toBe('/PruebaMapJapan/dashboard.html');
+    expect(redirectUri.search).toBe('');
   });
 
   test('a signed-in user without a tripId is sent back to the dashboard', async ({ page }) => {
@@ -544,14 +547,34 @@ test.describe('TRIP-06: activities', () => {
 
 test.describe('TRIP-07: geocoder (destination modal)', () => {
   const NOMINATIM = '**/nominatim.openstreetmap.org/**';
+  const GEOCODE_PROXY = '**/api/geocode**';
+
+  /**
+   * Answers geocoding in whichever mode the build uses: the SEC-18 backend proxy
+   * (VITE_API_URL set, as in CI) or a direct Nominatim call (demo-only build).
+   * Register it AFTER openEditor so it wins over the broad catch-all API mock.
+   */
+  async function mockGeocoder(page: Page, opts: { status?: number; results?: unknown[] } = {}) {
+    const { status = 200, results = [] } = opts;
+    const state = { calls: 0 };
+    await page.route(NOMINATIM, (route) => {
+      state.calls += 1;
+      return status === 200
+        ? route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(results) })
+        : route.fulfill({ status, body: 'down' });
+    });
+    await page.route(GEOCODE_PROXY, (route) => {
+      state.calls += 1;
+      return status === 200
+        ? route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ success: true, data: results }) })
+        : route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'down' }) });
+    });
+    return state;
+  }
 
   test('a Google Maps URL is resolved locally into lat/lng without calling Nominatim', async ({ page }) => {
-    let nominatimCalls = 0;
-    await page.route(NOMINATIM, (route) => {
-      nominatimCalls += 1;
-      return route.fulfill({ status: 200, body: '[]' });
-    });
     await openEditor(page, {}, emptyTrip);
+    const geocoder = await mockGeocoder(page);
     await page.locator('#add-dest-btn').click();
 
     await page.locator('#dest-geocoder-input').fill('https://www.google.com/maps/place/Name/@35.6894875,139.6917064,17z');
@@ -560,7 +583,7 @@ test.describe('TRIP-07: geocoder (destination modal)', () => {
     await expect(page.locator('#dest-geocoder-results')).toContainText('Found');
     await expect(page.locator('#dest-lat')).toHaveValue('35.6894875');
     await expect(page.locator('#dest-lng')).toHaveValue('139.6917064');
-    expect(nominatimCalls).toBe(0);
+    expect(geocoder.calls).toBe(0);
   });
 
   for (const [label, url, lat, lng] of [
@@ -591,17 +614,13 @@ test.describe('TRIP-07: geocoder (destination modal)', () => {
   });
 
   test('Nominatim results are listed; choosing one fills coordinates and the search box', async ({ page }) => {
-    await page.route(NOMINATIM, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          { lat: '35.6894875', lon: '139.6917064', display_name: 'Tokyo, Japan' },
-          { lat: '34.6937', lon: '135.5023', display_name: 'Osaka, Japan' },
-        ]),
-      }),
-    );
     const calls = await openEditor(page, {}, emptyTrip);
+    await mockGeocoder(page, {
+      results: [
+        { lat: '35.6894875', lon: '139.6917064', display_name: 'Tokyo, Japan' },
+        { lat: '34.6937', lon: '135.5023', display_name: 'Osaka, Japan' },
+      ],
+    });
     await page.locator('#add-dest-btn').click();
 
     await page.locator('#dest-geocoder-input').fill('Tokyo');
@@ -625,8 +644,8 @@ test.describe('TRIP-07: geocoder (destination modal)', () => {
   });
 
   test('no Nominatim hits shows a disabled "No results" entry', async ({ page }) => {
-    await page.route(NOMINATIM, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await openEditor(page, {}, emptyTrip);
+    await mockGeocoder(page, { results: [] });
     await page.locator('#add-dest-btn').click();
 
     await page.locator('#dest-geocoder-input').fill('zzzzzz');
@@ -637,8 +656,8 @@ test.describe('TRIP-07: geocoder (destination modal)', () => {
   });
 
   test('a Nominatim outage shows an error and re-enables the search button', async ({ page }) => {
-    await page.route(NOMINATIM, (route) => route.fulfill({ status: 503, body: 'down' }));
     await openEditor(page, {}, emptyTrip);
+    await mockGeocoder(page, { status: 503 });
     await page.locator('#add-dest-btn').click();
 
     await page.locator('#dest-geocoder-input').fill('Tokyo');
@@ -650,33 +669,25 @@ test.describe('TRIP-07: geocoder (destination modal)', () => {
   });
 
   test('an empty query does nothing', async ({ page }) => {
-    let calls = 0;
-    await page.route(NOMINATIM, (route) => {
-      calls += 1;
-      return route.fulfill({ status: 200, body: '[]' });
-    });
     await openEditor(page, {}, emptyTrip);
+    const geocoder = await mockGeocoder(page);
     await page.locator('#add-dest-btn').click();
 
     await page.locator('#dest-geocoder-btn').click();
 
     await expect(page.locator('#dest-geocoder-results')).toBeHidden();
-    expect(calls).toBe(0);
+    expect(geocoder.calls).toBe(0);
   });
 
   test('typing never triggers a search (only the explicit button does — OSM rate limit)', async ({ page }) => {
-    let calls = 0;
-    await page.route(NOMINATIM, (route) => {
-      calls += 1;
-      return route.fulfill({ status: 200, body: '[]' });
-    });
     await openEditor(page, {}, emptyTrip);
+    const geocoder = await mockGeocoder(page);
     await page.locator('#add-dest-btn').click();
 
     await page.locator('#dest-geocoder-input').pressSequentially('Tokyo', { delay: 30 });
     await expect(page.locator('#dest-geocoder-input')).toHaveValue('Tokyo');
     // Give any (wrong) keystroke-driven request time to happen: poll a stable condition.
-    await expect.poll(() => calls, { timeout: 1500, intervals: [500] }).toBe(0);
+    await expect.poll(() => geocoder.calls, { timeout: 1500, intervals: [500] }).toBe(0);
   });
 });
 

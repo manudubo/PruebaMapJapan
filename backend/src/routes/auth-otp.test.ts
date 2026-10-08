@@ -104,7 +104,7 @@ describe('POST /api/auth/otp-request', () => {
     const res = await request();
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: 'Internal server error', code: 'internal_error' });
-    expect(JSON.stringify(log.mock.calls.map((c) => String(c[1])))).toContain('mailpit down');
+    expect(JSON.stringify(log.mock.calls.map((c) => String(c[0])))).toContain('mailpit down');
   });
 });
 

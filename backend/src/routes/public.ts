@@ -2,10 +2,13 @@ import { Hono } from 'hono';
 import { getTripBySlug } from '../db/queries/trips';
 import { dbMiddleware } from '../middleware/db';
 import type { Env, ContextVariables, ApiResponse } from '../types';
+import { POLICIES, rateLimit } from '../middleware/rate-limit';
 
 const publicRoute = new Hono<{ Bindings: Env; Variables: ContextVariables }>();
 
-publicRoute.use('*', dbMiddleware);
+// Rate limit before touching the DB: slugs are random UUIDs, so this mostly
+// bounds enumeration attempts and scraping (SEC-21 follow-up).
+publicRoute.use('*', rateLimit(POLICIES.publicPerIp), dbMiddleware);
 
 /** Canonical 8-4-4-4-12 hex UUID (public_slug is a Postgres uuid column). */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

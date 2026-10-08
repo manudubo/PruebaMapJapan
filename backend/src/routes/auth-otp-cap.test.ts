@@ -5,7 +5,7 @@ import type { Context, Next } from 'hono';
 // and the OTP queries are mocked: the unit suite has no Keycloak or real DB.
 vi.mock('../middleware/auth', () => ({
   authMiddleware: async (c: Context, next: Next) => {
-    c.set('user', { sub: 'kc-1', email: 'user@example.com', name: 'U', preferred_username: 'u' });
+    c.set('user', { sub: 'kc-1', email: 'user@example.com', email_verified: true, name: 'U', preferred_username: 'u' });
     await next();
   },
 }));
@@ -98,6 +98,7 @@ describe('POST /api/auth/otp-request — hourly cap (BUG-16)', () => {
 
     expect(res.status).toBe(201);
     expect(issueOtp).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledWith('otp-request: stale OTP cleanup failed:', expect.any(Error));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"event":"otp.cleanup_failed"'));
+    expect(String(log.mock.calls[0]?.[0])).toContain('cleanup exploded');
   });
 });

@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 /**
  * @qa-noauth — service worker behaviour. Requires a PRODUCTION build served at baseURL
- * (the SW is registered only when import.meta.env.PROD). Skipped against the dev server.
+ * (the SW is registered only when import.meta.env.PROD). Fixme against the dev server.
  */
 
 const CACHE_RE = /^japan-trip-[0-9a-f]{12}$/;
@@ -30,7 +30,11 @@ test.describe('@qa-noauth service worker', () => {
     // Keycloak absent; external hosts unreachable.
     await page.route(/:8080\//, (r) => r.abort());
     await page.route(/^https?:\/\/(?!localhost|127\.0\.0\.1)/, (r) => r.abort());
-    test.skip(!(await isProdBuild(page)), 'needs a production build (npm run build && npm run preview)');
+    // CI always serves the production build (playwright.config webServer), so there a dev
+    // build is a broken setup and must fail; locally against the dev server it is fixme.
+    const prod = await isProdBuild(page);
+    test.fixme(!prod && !process.env.CI, 'needs a production build (npm run build && npm run preview)');
+    expect(prod, 'sw.js must be the built service worker').toBe(true);
   });
 
   test('registers, activates and owns a build-versioned cache (old caches purged)', async ({ page }) => {
@@ -78,10 +82,13 @@ test.describe('@qa-noauth service worker', () => {
     await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
     await page.goto('index.html'); // only the landing page has ever been visited
     await page.evaluate(() => navigator.serviceWorker.ready);
+    // Wait for the whole precache (every build chunk, now that the map code is a lazy chunk), not a magic count.
     await page.waitForFunction(async () => {
+      const sw = await (await fetch('sw.js')).text();
+      const expected = new Set(sw.match(/\.\/assets\/[^"']+/g) ?? []).size;
       const names = await caches.keys();
       if (!names.length) return false;
-      return (await (await caches.open(names[0]!)).keys()).length > 12;
+      return (await (await caches.open(names[0]!)).keys()).length >= Math.max(13, expected);
     });
     await context.setOffline(true);
     await page.goto('tokyo.html');

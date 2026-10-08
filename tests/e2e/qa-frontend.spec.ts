@@ -158,8 +158,14 @@ test.describe('@qa-noauth search', () => {
     await expect(page.locator('search-bar .search-result').first()).toContainText(/Naoshima/i);
     await input.fill('qqqqzzzzxxxx');
     await expect(page.locator('search-bar .search-empty')).toBeVisible();
+    // Clearing shows the suggestions list (synchronously, with a "Cities" header); the
+    // debounced search for the payload then replaces it. Waiting for the header to go
+    // proves the payload was searched and rendered, without a fixed sleep.
+    await input.fill('');
+    const suggestionsHeader = page.locator('search-bar .section-header');
+    await expect(suggestionsHeader).toBeVisible();
     await input.fill('<img src=x onerror=window.__pwned=1>');
-    await page.waitForTimeout(400);
+    await expect(suggestionsHeader).toHaveCount(0);
     expect(await page.locator('search-bar img').count()).toBe(0);
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
     await input.fill('');

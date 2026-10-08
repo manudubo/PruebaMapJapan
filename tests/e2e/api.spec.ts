@@ -1,6 +1,7 @@
 import { test, expect, request } from '@playwright/test';
 
-const BACKEND_URL = 'http://localhost:8787';
+// Same variable as global-setup.ts; lets a run target a backend on another port.
+const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8787';
 
 // Check if backend is reachable before running these tests.
 // Individual tests are marked test.fixme(!backendUp, reason) when the backend is not available.
@@ -58,10 +59,12 @@ test.describe('Backend API integration tests', () => {
     const ctx = await request.newContext({ baseURL: BACKEND_URL });
     // All-zeros UUID passes regex but will never match a real trip
     const res = await ctx.get('/api/public/trips/00000000-0000-0000-0000-000000000000');
-    expect([404, 500]).toContain(res.status());
+    // A well-formed slug with no public trip is a plain 404; 500 would mean the lookup
+    // itself failed (routes/public.ts, verified against a real Postgres-backed backend).
+    expect(res.status()).toBe(404);
 
     const body = await res.json();
-    expect(body.success).toBe(false);
+    expect(body).toEqual({ success: false, error: 'Trip not found' });
     await ctx.dispose();
   });
 });

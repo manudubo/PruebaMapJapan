@@ -46,7 +46,7 @@ describe('dbMiddleware (M-01)', () => {
     const res = await call('GET', '/api/users/me', { sub: 'someone', env: testEnv({ DB_DRIVER: driver }) });
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: 'Server configuration error' });
-    expect(String(log.mock.calls[0]?.[1])).toContain('Invalid DB_DRIVER');
+    expect(String(log.mock.calls[0]?.[0])).toContain('Invalid DB_DRIVER');
   });
 
   it('DB_DRIVER=pg against the test database serves real data', async () => {

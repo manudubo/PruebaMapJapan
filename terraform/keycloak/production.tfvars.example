@@ -1,0 +1,40 @@
+# Production (internet-facing) Keycloak — copy to production.tfvars (gitignored *.tfvars)
+# and apply with:  terraform apply -var-file=production.tfvars
+# Preconditions in main.tf refuse a plan that keeps any local-only setting.
+# Secrets (kc_admin_pass, smtp_password) are better passed as TF_VAR_kc_admin_pass /
+# TF_VAR_smtp_password environment variables than written to this file.
+
+profile = "production"
+
+# Admin API URL, including the relative path in single-host mode.
+#   single host (Tailscale Funnel, KC_HTTP_RELATIVE_PATH=/auth): https://<machine>.<tailnet>.ts.net/auth
+#   split hosts:                                                  https://auth.<domain>
+kc_url        = "https://REPLACE.tailnet.ts.net/auth"
+kc_admin_user = "admin"
+# kc_admin_pass = set TF_VAR_kc_admin_pass instead
+
+ssl_required = "all"
+
+# Passkeys are bound to this value for ever: the Keycloak HOST NAME only (no scheme,
+# port or /auth path). Set it before the first passkey is registered.
+webauthn_rp_id = "REPLACE.tailnet.ts.net"
+
+# Optional: realm frontendUrl when KC_HOSTNAME is not set on the server.
+# frontend_url = "https://REPLACE.tailnet.ts.net/auth"
+
+# Defaults come from config/deploy-defaults.json (https://manudubo.github.io, /PruebaMapJapan/).
+# app_origins = ["https://manudubo.github.io"]
+
+# Self-service sign-up stays off unless you want strangers to create accounts.
+# registration_allowed = false
+
+# Realm SMTP for verification / reset-password emails. Gmail with an app password
+# (needs 2-Step Verification on the Google account; ~500 messages/day):
+smtp_host              = "smtp.gmail.com"
+smtp_port              = 587
+smtp_starttls          = true
+smtp_ssl               = false
+smtp_from              = "REPLACE@gmail.com"
+smtp_from_display_name = "TravelMap"
+smtp_user              = "REPLACE@gmail.com"
+# smtp_password = set TF_VAR_smtp_password (the 16-character app password)

@@ -12,7 +12,7 @@ app.post('/test', (c) => c.json({ ok: true }));
 
 const PROD = { ENVIRONMENT: 'production' };
 const DEV = { ENVIRONMENT: 'development' };
-const PAGES = 'https://manud.github.io';
+const PAGES = 'https://manudubo.github.io';
 
 async function acaoFor(origin: string | null, env: { ENVIRONMENT?: string } | undefined) {
   const headers: Record<string, string> = {};
@@ -102,14 +102,14 @@ describe('CORS middleware — production (SEC-23)', () => {
   it.each([
     ['unknown site', 'https://evil.example.com'],
     ['literal "null" origin (sandboxed iframe / file://)', 'null'],
-    ['http downgrade of Pages', 'http://manud.github.io'],
-    ['suffix attack', 'https://manud.github.io.evil.com'],
-    ['prefix attack', 'https://evilmanud.github.io'],
+    ['http downgrade of Pages', 'http://manudubo.github.io'],
+    ['suffix attack', 'https://manudubo.github.io.evil.com'],
+    ['prefix attack', 'https://evilmanudubo.github.io'],
     ['other github.io user', 'https://attacker.github.io'],
-    ['explicit port', 'https://manud.github.io:443'],
-    ['trailing slash', 'https://manud.github.io/'],
-    ['with path', 'https://manud.github.io/PruebaMapJapan'],
-    ['upper-case host', 'https://MANUD.github.io'],
+    ['explicit port', 'https://manudubo.github.io:443'],
+    ['trailing slash', 'https://manudubo.github.io/'],
+    ['with path', 'https://manudubo.github.io/PruebaMapJapan'],
+    ['upper-case host', 'https://MANUDUBO.github.io'],
     ['wildcard', '*'],
     ['loopback IP', 'http://127.0.0.1:5173'],
     ['very long origin', 'https://' + 'a'.repeat(10_000) + '.com'],

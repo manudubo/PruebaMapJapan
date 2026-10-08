@@ -22,11 +22,14 @@ interface Step {
 }
 interface Job {
   if?: string;
+  'runs-on'?: string;
+  'timeout-minutes'?: number;
   env?: Record<string, string>;
   steps: Step[];
   permissions?: unknown;
 }
 interface Workflow {
+  name?: string;
   on: Record<string, unknown>;
   permissions?: Record<string, string>;
   jobs: Record<string, Job>;
@@ -48,8 +51,8 @@ function andClauses(cond: string | undefined): string[] {
 }
 
 describe('workflow inventory', () => {
-  it('finds the four workflows', () => {
-    expect(ALL.sort()).toEqual(['ci.yml', 'deploy-backend.yml', 'deploy-frontend.yml', 'security.yml']);
+  it('finds the five workflows', () => {
+    expect(ALL.sort()).toEqual(['ci.yml', 'deploy-backend.yml', 'deploy-frontend.yml', 'keycloak-flow.yml', 'security.yml']);
   });
 });
 
@@ -106,7 +109,7 @@ describe('least-privilege permissions (N2)', () => {
     expect(load(file).permissions).toBeDefined();
   });
 
-  it.each(['ci.yml', 'security.yml', 'deploy-backend.yml'])('%s only reads contents', (file) => {
+  it.each(['ci.yml', 'security.yml', 'deploy-backend.yml', 'keycloak-flow.yml'])('%s only reads contents', (file) => {
     expect(load(file).permissions).toEqual({ contents: 'read' });
   });
 
@@ -245,6 +248,128 @@ describe('deploy-backend: migrate before deploy, gated on configuration (M1)', (
     it('unset variables behave like missing secrets (fail closed when deploy is configured)', () => {
       expect(runGate({}).output.trim()).toBe('deploy=false');
       expect(runGate({ HAS_CLOUDFLARE_TOKEN: 'true' }).code).toBe(1);
+    });
+  });
+});
+
+describe('keycloak-flow: KC-01 regression tests against a real Keycloak (S3)', () => {
+  const raw = readFileSync(join(WF_DIR, 'keycloak-flow.yml'), 'utf8');
+  const wf = load('keycloak-flow.yml');
+  const job = wf.jobs['idp-flow']!;
+  const steps = job?.steps ?? [];
+  const idx = (pred: (s: Step) => boolean) => steps.findIndex(pred);
+  const script = readFileSync(resolve(__dirname, '../../scripts/ci/keycloak-flow.sh'), 'utf8');
+
+  it('has the idp-flow job on a time-bounded ubuntu runner', () => {
+    expect(job).toBeDefined();
+    expect(job['runs-on']).toBe('ubuntu-latest');
+    expect(job['timeout-minutes']).toBeGreaterThan(0);
+    expect(job['timeout-minutes']).toBeLessThanOrEqual(30);
+  });
+
+  it('runs on pull requests and pushes to main', () => {
+    expect(wf.on).toMatchObject({
+      pull_request: { branches: ['main'] },
+      push: { branches: expect.arrayContaining(['main']) },
+    });
+  });
+
+  it('is informational: deploys follow only "CI", and this workflow is not "CI"', () => {
+    expect(wf.name).toBe('Keycloak flow');
+    for (const file of DEPLOYS) {
+      expect((load(file).on['workflow_run'] as { workflows: string[] }).workflows).toEqual(['CI']);
+    }
+  });
+
+  it('needs no repository secrets and never enables shell tracing', () => {
+    expect(raw).not.toMatch(/secrets\./);
+    expect(raw + script).not.toMatch(/set -[a-z]*x\b|xtrace/);
+  });
+
+  it('checks out without persisting the token', () => {
+    const checkout = steps.find((s) => s.uses?.startsWith('actions/checkout@'));
+    expect(checkout?.with?.['persist-credentials']).toBe(false);
+  });
+
+  it('installs a pinned Terraform 1.9.x, checksum-verified before unzip', () => {
+    const step = steps.find((s) => s.name === 'Install Terraform')!;
+    expect(String(step.env?.['TF_VERSION'])).toMatch(/^1\.9\.\d+$/);
+    expect(step.env?.['TF_SHA256']).toMatch(/^[0-9a-f]{64}$/);
+    const lines = step.run!.trim().split('\n');
+    const verify = lines.findIndex((l) => l.includes('sha256sum -c'));
+    const extract = lines.findIndex((l) => l.includes('unzip'));
+    expect(verify).toBeGreaterThanOrEqual(0);
+    expect(extract).toBeGreaterThan(verify);
+    expect(step.run).not.toMatch(/\|\s*(unzip|sh|bash)\b/);
+  });
+
+  it('starts Keycloak 26.6.1, applies the realm, then runs both specs on chromium and firefox', () => {
+    const start = idx((s) => s.run === 'scripts/ci/keycloak-flow.sh start');
+    const apply = idx((s) => s.run === 'scripts/ci/keycloak-flow.sh apply');
+    const pw = idx((s) => (s.run ?? '').includes('npx playwright test'));
+    expect(start).toBeGreaterThan(0);
+    expect(apply).toBeGreaterThan(start);
+    expect(pw).toBeGreaterThan(apply);
+    const run = steps[pw]!.run!;
+    for (const part of ['e2e/idp-flow.spec.ts', 'e2e/idp-config.spec.ts', 'e2e/idp-hardening.spec.ts', '--project=chromium', '--project=firefox']) {
+      expect(run).toContain(part);
+    }
+    // A missing Keycloak or credential must fail the job, not mark the tests fixme.
+    expect(steps[pw]!.env?.['CI_KEYCLOAK']).toBe('1');
+    expect(script).toContain('KC_IMAGE="quay.io/keycloak/keycloak:26.6.1"');
+  });
+
+  it('uploads the Playwright report on failure and always removes Keycloak', () => {
+    const upload = steps.find((s) => s.uses?.startsWith('actions/upload-artifact@'));
+    expect(upload?.if).toBe('failure()');
+    expect(upload?.with?.['path']).toBe('tests/playwright-report/');
+    expect(steps.at(-1)?.run).toBe('scripts/ci/keycloak-flow.sh stop');
+    expect(steps.at(-1)?.if).toBe('always()');
+  });
+
+  it('copies the module with config/deploy-defaults.json where main.tf reads it (../../config)', () => {
+    const main = readFileSync(resolve(__dirname, '../../terraform/keycloak/main.tf'), 'utf8');
+    expect(main).toContain('file("${path.module}/../../config/deploy-defaults.json")');
+    const mod = script.match(/mod="\$KC_WORK\/tf\/([^"]+)"/)?.[1];
+    expect(mod).toBe('terraform/keycloak'); // two levels below $KC_WORK/tf
+    expect(script).toMatch(/cp "\$REPO"\/config\/deploy-defaults\.json "\$KC_WORK\/tf\/config\/"/);
+  });
+
+  describe('scripts/ci/keycloak-flow.sh keeps generated secrets out of logs and argv', () => {
+    it('generates the secrets and writes them under umask 077', () => {
+      expect(script).toMatch(/openssl rand/);
+      expect(script.match(/umask 077/g)?.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('passes the admin password to docker via --env-file and to curl via a file, never argv', () => {
+      expect(script).toContain('--env-file');
+      expect(script).not.toMatch(/-e KC_BOOTSTRAP_ADMIN_PASSWORD/);
+      expect(script).toContain('password@$KC_WORK/admin-pass');
+    });
+
+    it('only prints a secret variable inside ::add-mask:: or into a file', () => {
+      const secretVar = /\$\{?(1|admin_pass|e2e_pw|session_pw|worker_secret|token)\b/;
+      const lines = script.split('\n');
+      // Lines inside a `{ ... } > "$file"` group are redirected as a whole.
+      const inFileGroup = new Set<number>();
+      lines.forEach((l, i) => {
+        if (l.trim() !== '{') return;
+        const end = lines.findIndex((m, j) => j > i && /^\s*\}/.test(m));
+        if (end > i && /^\s*\} > "\$/.test(lines[end]!)) for (let k = i + 1; k < end; k++) inFileGroup.add(k);
+      });
+      const prints = lines
+        .map((l, i) => [l, i] as const)
+        .filter(([l]) => /^\s*(echo|printf)\b/.test(l) && secretVar.test(l));
+      expect(prints.length).toBeGreaterThan(0);
+      for (const [line, i] of prints) {
+        expect(line.includes('::add-mask::') || /> "\$/.test(line) || inFileGroup.has(i), line).toBe(true);
+      }
+    });
+
+    it('masks every generated secret on Actions', () => {
+      for (const v of ['admin_pass', 'e2e_pw', 'session_pw', 'worker_secret']) {
+        expect(script).toContain(`mask "$${v}"`);
+      }
     });
   });
 });

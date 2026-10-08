@@ -1,0 +1,27 @@
+# HOST_MODE=subdomains, INGRESS=caddy. Caddy is the public edge: it listens on
+# 80/443 (forward both on the router) and gets Let's Encrypt certificates for
+# api.{$DOMAIN} and auth.{$DOMAIN} automatically.
+{
+	admin off
+	email {$ACME_EMAIL}
+	# No trusted proxies: clients connect directly, so X-Forwarded-For from
+	# the internet is discarded and replaced with the real peer address.
+}
+
+import /etc/caddy/snippets.caddy
+
+api.{$DOMAIN} {
+	import access_log
+	import hide_server
+	import hsts
+	import backend_routes api.{$DOMAIN}
+	import not_found
+}
+
+auth.{$DOMAIN} {
+	import access_log
+	import hide_server
+	import hsts
+	import keycloak_routes auth.{$DOMAIN}
+	import not_found
+}

@@ -1,0 +1,27 @@
+# HOST_MODE=single-host (Tailscale Funnel). One public name, path routing:
+#   https://{$PUBLIC_HOST}/api/*  -> backend
+#   https://{$PUBLIC_HOST}/auth/* -> Keycloak
+# Funnel terminates TLS and forwards to 127.0.0.1:PROXY_PORT (plain HTTP).
+{
+	admin off
+	auto_https off
+	servers {
+		# tailscaled reaches us through Docker's port forward, so the peer is
+		# the bridge gateway (a private address). Trust X-Forwarded-For from
+		# private peers only, and read it right-to-left (the leftmost entries
+		# are client-controlled).
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+import /etc/caddy/snippets.caddy
+
+:80 {
+	import access_log
+	import hide_server
+	import backend_routes {$PUBLIC_HOST}
+	import keycloak_routes {$PUBLIC_HOST}
+	import not_found
+}

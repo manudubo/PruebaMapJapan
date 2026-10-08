@@ -9,6 +9,7 @@ import {
   clearAuthUnavailableState,
 } from '@/auth/authStatusUI';
 import { getTrip } from '@/api/client';
+import { login } from '@/auth/keycloak';
 import { initMetadataSection } from './trip-edit/metadata';
 import { initDestinationsSection } from './trip-edit/destinations';
 
@@ -19,7 +20,10 @@ import { initDestinationsSection } from './trip-edit/destinations';
  * trip and profile: initKeycloak() gives up after AUTH_INIT_TIMEOUT_MS, and
  * that must not read as "signed out". So:
  * - authenticated -> load the trip (once, also when the answer arrives late)
- * - anonymous     -> back to the dashboard (it shows the sign-in prompt)
+ * - anonymous     -> sign in, then back to this editor (trip-edit.html?tripId=N;
+ *                    login() sends Keycloak a registered redirect URI and
+ *                    restores the query after the callback); without a
+ *                    tripId, or if the redirect cannot start, the dashboard
  * - unavailable   -> "can't reach sign-in" state with Retry; no redirect
  */
 export function initTripEdit(
@@ -47,7 +51,11 @@ export function initTripEdit(
       clearAuthUnavailableState();
       if (handled) return;
       handled = true;
-      navigate(dashboardUrl);
+      if (!tripId) {
+        navigate(dashboardUrl);
+        return;
+      }
+      login().catch(() => navigate(dashboardUrl));
     },
     unavailable: () => {
       if (handled) return;

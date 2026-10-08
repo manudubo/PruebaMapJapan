@@ -22,8 +22,8 @@ import { ITINERARY } from '@/data/itinerary';
 import { initTheme } from '@/modules/theme';
 import { initCountdown } from '@/modules/countdown';
 import { initWidgets } from '@/modules/widgets';
-import { initCityMap, updateMapTheme, centerNavOnActive } from '@/modules/map';
-import { initOverviewMap, observeOverviewMap } from '@/modules/overviewMap';
+import { centerNavOnActive } from '@/modules/nav';
+import { observeOverviewMap } from '@/modules/overviewLazy';
 
 // ============================================
 // Application Initialization
@@ -32,6 +32,9 @@ import { initOverviewMap, observeOverviewMap } from '@/modules/overviewMap';
 /**
  * Initialize the application
  */
+// Leaflet-backed map code, loaded lazily so the landing hero never waits for it.
+let mapModule: typeof import('@/modules/map') | null = null;
+
 function init(): void {
   // Initialize theme first for smooth loading
   initTheme();
@@ -48,7 +51,8 @@ function init(): void {
   registerServiceWorker();
 
   // Setup event listeners
-  window.addEventListener('theme-changed', updateMapTheme);
+  // Leaflet is loaded on demand (see initializeMap): only retheme once it is there.
+  window.addEventListener('theme-changed', () => mapModule?.updateMapTheme());
 
   // Initialize map based on current page
   initializeMap();
@@ -90,13 +94,18 @@ function initializeMap(): void {
   
   if (page === 'overview') {
     // Landing demo: below the fold, so it must not compete with the hero (LCP).
-    observeOverviewMap(mapEl, () => initOverviewMap(mapEl, document.getElementById('overview-cities')));
+    observeOverviewMap(mapEl, () => {
+      void import('@/modules/overviewMap').then((m) => m.initOverviewMap(mapEl, document.getElementById('overview-cities')));
+    });
     return;
   }
   
   if (page && page in ITINERARY) {
-    initCityMap(page);
     initWidgets(page);
+    void import('@/modules/map').then((m) => {
+      mapModule = m;
+      m.initCityMap(page);
+    });
   }
 }
 

@@ -3,7 +3,9 @@ import type { HtmlTagDescriptor } from 'vite';
 import { buildCsp, cspOrigin, cspPlugin, CspConfigError, type CspTarget } from '../build/cspPlugin';
 
 const STATIC_CONNECT =
-  'https://api.allorigins.win https://corsproxy.io https://api.open-meteo.com https://nominatim.openstreetmap.org https://fonts.googleapis.com';
+  'https://api.allorigins.win https://corsproxy.io https://api.open-meteo.com https://fonts.googleapis.com';
+/** Demo-only builds (no API) still geocode straight from the browser. */
+const STATIC_CONNECT_DEMO = `${STATIC_CONNECT} https://nominatim.openstreetmap.org`;
 
 function directives(csp: string): Record<string, string> {
   return Object.fromEntries(
@@ -25,6 +27,19 @@ function runPlugin(env: Record<string, string | undefined>, command: 'build' | '
 }
 
 describe('buildCsp', () => {
+  it('SEC-18: Nominatim is only reachable from the browser in demo-only builds', () => {
+    const withApi = directives(buildCsp({ apiUrl: 'https://box.tail1234.ts.net/api', keycloakUrl: 'https://box.tail1234.ts.net/auth', target: 'build' }));
+    expect(withApi['connect-src']).not.toContain('nominatim');
+    const demo = directives(buildCsp({ apiUrl: '  ', keycloakUrl: '', target: 'build' }));
+    expect(demo['connect-src']).toContain('https://nominatim.openstreetmap.org');
+  });
+
+  it('single-host mode: API and Keycloak paths on one origin reduce to that origin once', () => {
+    const d = directives(buildCsp({ apiUrl: 'https://box.tail1234.ts.net/api', keycloakUrl: 'https://box.tail1234.ts.net/auth', target: 'build' }));
+    expect(d['connect-src']).toBe(`'self' https://box.tail1234.ts.net ${STATIC_CONNECT}`);
+    expect(d['frame-src']).toBe("'self' https://box.tail1234.ts.net");
+  });
+
   it('produces the exact production policy for https API + Keycloak', () => {
     expect(
       buildCsp({
@@ -58,11 +73,12 @@ describe('buildCsp', () => {
   it('falls back to the same localhost defaults as the runtime when env is unset', () => {
     const d = directives(buildCsp({ apiUrl: undefined, keycloakUrl: undefined, target: 'build' }));
     expect(d['connect-src']).toContain('http://localhost:8787 http://localhost:8080 ');
+    expect(d['connect-src']).toContain('https://nominatim.openstreetmap.org');
   });
 
   it('adds nothing for an empty value (runtime then uses same-origin relative URLs)', () => {
     const d = directives(buildCsp({ apiUrl: '', keycloakUrl: '  ', target: 'build' }));
-    expect(d['connect-src']).toBe(`'self' ${STATIC_CONNECT}`);
+    expect(d['connect-src']).toBe(`'self' ${STATIC_CONNECT_DEMO}`);
     expect(d['frame-src']).toBe("'self'");
   });
 

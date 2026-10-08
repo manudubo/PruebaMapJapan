@@ -1,16 +1,16 @@
 # v3.2 Traceability: requirement -> status -> commits -> tests -> summary
 
-Rebuilt on 2026-10-04 from `git log 3c147f6..HEAD` (HEAD `33ab925`), the per-phase summaries and the code. Phases 22-26 have no PLAN.md, and most commit subjects carry no requirement ID, so IDs were matched through the files each commit touched and the summaries. Each row was checked against the current code; the full unit suites were re-run on 2026-10-04 (backend 1524, frontend 1042, both passing).
+Rebuilt on 2026-10-04 from `git log 3c147f6..HEAD` (HEAD `33ab925`), the per-phase summaries and the code. Extended on 2026-10-08 for the PR #24 batch (`git log origin/main..HEAD`, head `2d7a734`, 89 commits; section "Post-v3.2 batch" at the end) and for the Actions results of PR #23. Rows below that changed in that update are marked (updated 2026-10-08). Phases 22-26 have no PLAN.md, and most commit subjects carry no requirement ID, so IDs were matched through the files each commit touched and the summaries. Each row was checked against the current code; the full unit suites were re-run on 2026-10-04 (backend 1524, frontend 1042, both passing).
 
 Status vocabulary (same as `REQUIREMENTS.md`): **Complete** = implemented and proven by tests or a recorded manual check. **Partial** = part of the acceptance criteria met. **Deferred** = consciously not done. **Unverified** = implemented, a required verification has not happened.
 
 Path shorthand in the Tests column:
 
-- `be/` = `backend/src/`, `adv/` = `backend/tests/adversarial/`, `fe/` = `frontend/tests/`, `e2e/` = `tests/e2e/`
+- `be/` = `backend/src/`, `adv/` = `backend/tests/adversarial/`, `sys/` = `backend/tests/system/`, `fe/` = `frontend/tests/`, `e2e/` = `tests/e2e/`, `ss/` = `deploy/selfhost/tests/`
 - `e2e/` specs were NOT re-run in this consolidation; the ones marked (KC) need a live Keycloak and have never run in CI. See `.planning/qa/QA-INDEX.md`.
 - "none" = no automated test; the evidence column says what was checked instead.
 
-Summary docs: `20-0x` = `phases/20-critical-security/20-0x-SUMMARY.md`, `22` = `22-reliability-bugs/22-SUMMARY.md`, `23` = `23-supply-chain-a11y/23-SUMMARY.md`, `23-QA` = `23-QA-FOLLOWUP.md`, `24-BE` / `24-E2E` = `24-arch-debt/24-BACKEND-SUMMARY.md` / `24-E2E-SUMMARY.md`, `25` = `25-biz-parity/25-SUMMARY.md`, `25-B7` = `25-BIZ07-SEC22-OTP-SUMMARY.md`, `26-IDP` / `26-APP` = `26-idp-flow/26-IDP-SUMMARY.md` / `26-APPSEC-SUMMARY.md`, `REV` / `DEMO` / `QA-BE` / `QA-FE` = `.planning/qa/REVIEW-FIXES.md` / `QA-DEMO-FIXES.md` / `QA-BACKEND-REPORT.md` / `QA-FRONTEND-REPORT.md`.
+Summary docs: `20-0x` = `phases/20-critical-security/20-0x-SUMMARY.md`, `22` = `22-reliability-bugs/22-SUMMARY.md`, `23` = `23-supply-chain-a11y/23-SUMMARY.md`, `23-QA` = `23-QA-FOLLOWUP.md`, `24-BE` / `24-E2E` = `24-arch-debt/24-BACKEND-SUMMARY.md` / `24-E2E-SUMMARY.md`, `25` = `25-biz-parity/25-SUMMARY.md`, `25-B7` = `25-BIZ07-SEC22-OTP-SUMMARY.md`, `26-IDP` / `26-APP` = `26-idp-flow/26-IDP-SUMMARY.md` / `26-APPSEC-SUMMARY.md`, `REV` / `DEMO` / `QA-BE` / `QA-FE` = `.planning/qa/REVIEW-FIXES.md` / `QA-DEMO-FIXES.md` / `QA-BACKEND-REPORT.md` / `QA-FRONTEND-REPORT.md`. PR #24 reports: `A11Y` = `qa/A11Y-LCP-FOLLOWUP.md`, `HARD` = `qa/PROD-HARDENING.md`, `SELF` = `qa/SELFHOST-REPORT.md`, `INT` = `qa/INTEGRATION-REPORT.md`, `SYS` = `qa/QA-SYSTEM-REPORT.md`, `FULL` = `qa/QA-FULLSTACK-REPORT.md`, `DEBT` = `qa/E2E-DEBT-KC-CI.md`.
 
 ## Phase 20: Critical Security (commits predate `3c147f6`)
 
@@ -27,7 +27,7 @@ Summary docs: `20-0x` = `phases/20-critical-security/20-0x-SUMMARY.md`, `22` = `
 | ID | Status | Key commits | Tests | Summary |
 |----|--------|-------------|-------|---------|
 | INFRA-01 | Complete | d692f0f, d2434af; later 1a55beb, 16ba3a3 | fe/workflows.test.ts; live gating UAT (3c147f6, 21-HUMAN-UAT.md) | 21-02 |
-| INFRA-02 | Complete | d692f0f, d2434af | fe/workflows.test.ts; `test-backend` job (Postgres service unobserved on Actions) | 21-02 |
+| INFRA-02 | Complete | d692f0f, d2434af | fe/workflows.test.ts; `test-backend` job (with its Postgres service) success on Actions: PR #23 head 2200c6e and push to main ed49639 (updated 2026-10-08) | 21-02 |
 | INFRA-03 | Complete | 5db0cee, facc9ed | `npm run build --workspace=backend` (`wrangler deploy --dry-run`) | 21-01 |
 | INFRA-04 | Complete | d2434af | none (`wrangler` in backend/package.json devDependencies) | 21-02 |
 | INFRA-05 | Complete | 451beba | none (Docker healthcheck, 21-VERIFICATION) | 21-02 |
@@ -62,12 +62,12 @@ Summary docs: `20-0x` = `phases/20-critical-security/20-0x-SUMMARY.md`, `22` = `
 | SEC-16 | Complete | ba7bee8; d439e21, 46cbdbf, f129b67 | fe/supply-chain-a11y.test.ts, fe/sw-precache.test.ts, fe/sw-resilience.test.ts, e2e/qa-sw.spec.ts | 23, QA-FE, REV |
 | INFRA-06 | Complete | ba7bee8 | fe/supply-chain-a11y.test.ts | 23 |
 | DEP-02 | Partial | 5938fdf | none (`.gitleaksignore`, `docs/security/gitleaks-triage.md`); rotation unverified | 23 |
-| DEP-03 | Unverified | 264ee9e, 1a55beb | fe/workflows.test.ts (YAML shape only); `scripts/a11y-axe.mjs` run locally | 23, REV |
+| DEP-03 | Complete | 264ee9e, 1a55beb; 2200c6e (two fixture fingerprints in `.gitleaksignore`) | fe/workflows.test.ts (YAML shape); `scripts/a11y-axe.mjs`; Actions: `gitleaks` and `accessibility` success on 2200c6e and on the push to main ed49639 (updated 2026-10-08) | 23, REV |
 | A11Y-01 | Complete | fa14817 | fe/supply-chain-a11y.test.ts | 23 |
 | A11Y-02 | Complete | 02430a7, a4e13c6; a223eff, 9f4426b, 78c96ef | fe/css-tokens.test.ts, e2e/accessibility.spec.ts, `scripts/a11y-axe.mjs` | 23, 23-QA |
 | A11Y-03 | Complete | fa14817 | fe/supply-chain-a11y.test.ts | 23 |
-| A11Y-04 | Partial | 02430a7; 5927313 (map names) | fe/map-aria-label.test.ts; target-size not fixed | 23 |
-| A11Y-05 | Partial | a4e13c6, 59ed1d5 | fe/supply-chain-a11y.test.ts (font non-blocking only); no LCP gain measured | 23 |
+| A11Y-04 | Complete | 02430a7, 5927313 (map names); 8de5e7f (declutter), e1e2782, 944c9e1 (updated 2026-10-08) | fe/map-aria-label.test.ts, fe/declutter.test.ts, e2e/lcp-target-size.spec.ts; axe 0 violations, Lighthouse a11y tokyo 1.00 (local) | 23, A11Y |
+| A11Y-05 | Complete | a4e13c6, 59ed1d5; 1442d93 (no opacity gate, preloaded hero), edbc6b2 (lazy Leaflet), 973c9b1 (badge contrast), e1e2782 (updated 2026-10-08) | fe/lcp-budget.test.ts, fe/supply-chain-a11y.test.ts, e2e/lcp-target-size.spec.ts; LCP 5415 to 1304 ms (sandbox) | 23, A11Y |
 
 ## Phase 24: Architecture Debt & Test Coverage
 
@@ -77,10 +77,10 @@ Summary docs: `20-0x` = `phases/20-critical-security/20-0x-SUMMARY.md`, `22` = `
 | ARCH-02 | Complete | 7ef225e | be/middleware/db.test.ts, be/db/index.test.ts | 24-BE |
 | ARCH-03 | Complete | f1c16c5 | be/routes/trips.test.ts, be/db/queries/ownership.test.ts | 24-BE |
 | ARCH-05 | Complete | 10ce376, ef7325f, 4f3e784, a96c935 | be/validation/schemas.test.ts, be/routes/trips-validation.test.ts, be/routes/coordinates.test.ts | 25 |
-| ARCH-06 | Complete (Actions service unobserved) | 1d1eeb9 | whole backend suite via `be/test-utils/global-setup.ts`; be/db/migrations.test.ts | 24-BE |
+| ARCH-06 | Complete | 1d1eeb9 | whole backend suite via `be/test-utils/global-setup.ts`; be/db/migrations.test.ts; `test-backend` with the `postgres:16-alpine` service success on Actions (2200c6e, ed49639) (updated 2026-10-08) | 24-BE |
 | ARCH-07 | Complete (see residue) | ada2976, a78ced0, 06a03b8, 65fe3e7, 5216f19 | e2e/trip-edit.spec.ts, e2e/trips.spec.ts, e2e/search.spec.ts and others; residue: 3 `waitForTimeout`, 6 `test.skip(` in specs added later | 24-E2E |
 | ARCH-08 | Complete | 02aa073 | e2e/idp-config.spec.ts | 26-IDP |
-| ARCH-09 | Unverified | 2fa0560, fc45438, 3c1fadc | e2e/auth.spec.ts, trips.spec.ts, ui-consistency.spec.ts, fixtures/mockKeycloak.ts; 3 local CI-mode runs, none on Actions | 24-E2E |
+| ARCH-09 | Complete | 2fa0560, fc45438, 3c1fadc; 2200c6e (last expectation) | e2e/auth.spec.ts, trips.spec.ts, ui-consistency.spec.ts, trip-edit.spec.ts, fixtures/mockKeycloak.ts; `e2e` job success on Actions: 2200c6e and push to main ed49639 (updated 2026-10-08) | 24-E2E |
 | M-01 | Complete | 6e77f9c | be/middleware/db.test.ts, adv/concurrency.test.ts | 24-BE |
 | M-02 | Complete | b22fe08 | be/db/queries/ownership.test.ts | 24-BE |
 | M-09 | Complete | 229fdd2, 5441e5d, 9cc9efe, 0489b0a | be/middleware/errors.test.ts, adv/input-fuzz.test.ts | 24-BE, QA-BE |
@@ -119,16 +119,48 @@ Summary docs: `20-0x` = `phases/20-critical-security/20-0x-SUMMARY.md`, `22` = `
 | SEC-11 | Complete | 33362a8 | e2e/idp-config.spec.ts (static), e2e/idp-theme.spec.ts (KC) | 26-IDP |
 | SEC-12 | Complete | de2d7a6, 93ecc49, 8740a6e, 1a6f22a | e2e/idp-flow.spec.ts (KC), e2e/idp-config.spec.ts | 26-IDP |
 | SEC-13 | Complete | b6018de, 02aa073 | e2e/idp-config.spec.ts | 26-IDP |
-| SEC-17 | Partial | 9b59034 | none (variable validation; Railway not checked) | 26-IDP |
-| SEC-18 | Deferred | none | none | REQUIREMENTS.md (Out of Scope row) |
+| SEC-17 | Partial | 9b59034; 8b4c4ca (production profile requires `ssl_required = all`) (updated 2026-10-08) | e2e/idp-config.spec.ts (negative plan checks), e2e/idp-hardening.spec.ts (live); realm dump `sslRequired=all`; real Funnel chain and Railway not validated | 26-IDP, HARD |
+| SEC-18 | Complete | 7dbb9b2, 070af9c; ec2f546 (`NOMINATIM_USER_AGENT`) (updated 2026-10-08) | adv/geocode.test.ts, fe/geocoder-proxy.test.ts, fe/csp-plugin.test.ts | HARD, INT |
 | SEC-19 | Complete | bdf341d | e2e/idp-config.spec.ts | 26-IDP |
 | SEC-20 | Complete | a16b385 | be/middleware/security.test.ts, adv/cors-headers.test.ts | 26-APP |
 | SEC-21 | Complete | 53cf540 | be/db/queries/trips-public.test.ts | 26-APP |
 | SEC-22 | Complete | ea1f511 | be/routes/trips.test.ts, be/db/queries/ownership.test.ts, adv/idor.test.ts | 25-B7 |
-| SEC-23 | Complete | 0e33b25 | be/middleware/cors.test.ts, adv/cors-headers.test.ts | 26-APP |
+| SEC-23 | Complete | 0e33b25; 0325e75 (origin typo), 9417514 (env-driven allow-list) (updated 2026-10-08) | be/middleware/cors.test.ts, be/middleware/cors-allowlist.test.ts, be/config/deploy-defaults.test.ts, adv/cors-headers.test.ts | 26-APP, HARD |
 | SEC-24 | Complete | 3697b47 | be/routes/health.test.ts | 26-APP |
 | SEC-25 | Complete | 111b910 | e2e/idp-config.spec.ts | 26-IDP |
 | KC-01 | Complete | de2d7a6, b6018de, 33362a8 | e2e/idp-flow.spec.ts (KC), e2e/idp-config.spec.ts | 26-IDP |
+
+## Post-v3.2 batch (PR #24): new requirement rows
+
+Commits: `git log origin/main..HEAD` (89, 2026-10-04 to 2026-10-08). Test files below were checked to exist in the tree; counts are the reports' figures, not re-run here.
+
+| ID | Status | Key commits | Tests | Report |
+|----|--------|-------------|-------|--------|
+| PROD-01 | Partial | 95c1814 (Node entry), 0844fcc (pool limits), 9eecc99 (images), 41f4b5b (compose + proxy), 4ca3d4e (deploy / apply / backup / restore), dca90c1 (bootstrap, funnel, status, update, timer), a254a98 (SMTP provider), 334fd59 + 334b6e2 (stack check script, scripts in CI), f3d4a5b (no-op redeploys, Keycloak after DB restart), a68aacf (guide), 7c36ca1 (bootstrap wiring), 2b3e8fe, d24fd98, 8fb877f (add-user.sh) | ss/scripts.test.sh (52), ss/stack-e2e.sh (40 on a fresh stack), be/node/bootstrap.test.ts, be/node/config.test.ts; `docs/SELF-HOSTING.md`; real Funnel, Gmail, passkeys not validated | SELF, INT |
+| PROD-02 | Complete | 0325e75 (origin typo), 9417514 (CORS), cfea1b2 (access tokens only), 188529c (rate limits), a254a98 (SMTP), 5dc48ad (JSON logs), 4231f74 (HSTS, API CSP), 8b4c4ca + a01ab25 + 658502c (Keycloak production profile, login messages, operator docs), 7dbb9b2 (geocode) | be/config/deploy-defaults.test.ts, be/middleware/cors-allowlist.test.ts, be/auth/keycloak-token-type.test.ts, be/middleware/client-ip.test.ts, be/middleware/rate-limit.test.ts, adv/rate-limit.test.ts, be/email/smtp.test.ts, adv/otp-smtp.test.ts, be/observability/logger.test.ts, adv/log-hygiene.test.ts, be/middleware/security-https.test.ts, e2e/idp-hardening.spec.ts (live Keycloak), e2e/idp-config.spec.ts | HARD |
+| PROD-03 | Complete | bda9027 | fe/auth-redirect.test.ts (23), e2e/auth-return-to.spec.ts (`@qa-noauth`), fe/trip-edit-auth.test.ts | INT |
+| PROD-04 | Complete (emulator) | 297dba5 (migration 0010; test 1f8c9e0), e8b2d5a (preflight; test 4964118), ad852aa + dfd844c + 6a9896b (readiness), f2a3edb (pool listener), b4a4807 (Neon HTTP harness), 80a4951, 3ec45fd | sys/upgrade-path.test.ts, sys/deploy-pipeline.test.ts, sys/neon-http.test.ts, sys/cross-phase.test.ts, sys/property.test.ts, be/routes/health-ready.test.ts | SYS, INT |
+| QA-01 | Unverified | 253cd65 (hygiene guard), ab32953, a0ebd48, 40735a7 (pacer), d427494 (Keycloak CI job), 51a0442, 086bc43, 2777b3a (provider hashes) | fe/e2e-hygiene.test.ts, fe/workflows.test.ts (12 cases for the job); `scripts/ci/keycloak-flow.sh` local runs 51 passed / 5 fixme; `Keycloak flow` workflow not concluded on Actions | DEBT, INT |
+
+## Post-v3.2 batch: extra changes
+
+| Item | Commit | Test |
+|------|--------|------|
+| Real-auth e2e: passkeys.spec left a passkey on the seeded user | 732ff25 | e2e/passkeys.spec.ts (real stack) |
+| Real-auth e2e: Keycloak re-authentication prompt | 1e2b437 | e2e/passkeys.spec.ts |
+| Real-auth e2e: OTP test raced the passkey-campaign redirect | f62137a | e2e/otp.spec.ts |
+| Real-auth e2e: post-enrolment redirect wait | 6bac5b0 | e2e/idp-flow.spec.ts |
+| trip-edit-integration was `fixme(true)` and leaked rows | 82f166a | e2e/trip-edit-integration.spec.ts |
+| uat-passkeys runnable on a Terraform realm | 101eb29 | root `uat-passkeys.spec.ts` |
+| `.env.test` quoting warning, `frontend/.env.example` API URL | 567583e, 6224459 | none (docs) |
+| Cross-check for a missing public trip returning exactly 404 | a0ebd48 | e2e/api.spec.ts |
+| Access log opt-in | 05fc94e | be/node tests |
+| Keycloak provider hashes for linux and macOS | 2777b3a | CI job `init -lockfile=readonly` |
+| Geocoder backlog test order independence | 0567509 | adv/geocode.test.ts |
+| Reports and docs | 944c9e1, b3424c8, beb2cce, e575059, 7189eb0, 9534149, c5a301a, 77b1769, fe6cfc9, 3990641 | none |
+| Reverted: `schema_out_of_date` guard | 1919b1e, d335705 | superseded by PR #23's schema guard |
+
+Merge commits of the batch: 941e44b (A11Y), c3f4c31 (real-auth QA), eb62969 (system QA), bd38f77 (e2e hygiene and CI job), 0d99c06 (self-hosting), 0b8271b (hardening), 2d7a734 (integration).
 
 ## Extra changes not in the original requirements
 
@@ -202,3 +234,4 @@ Summary docs: `20-0x` = `phases/20-critical-security/20-0x-SUMMARY.md`, `22` = `
 - `a7a0bf6`, `89afe33`, `5788eb1`, `ebbed52`, `9e8e50f`, `13062f3`, `8733c46`: phase documentation commits.
 - `feb5f5e`: `terraform fmt` of the Keycloak module.
 - `5ad817c`: static Keycloak/theme invariant spec, also covers SEC-11/13/19/25.
+- Actions evidence for PR #23 and the push to main is from the GitHub check-runs API (checked 2026-10-08), not from a commit: head `2200c6e` had `e2e`, `accessibility`, `gitleaks`, `test-backend`, `test-frontend`, `test-scripts`, `typecheck-frontend`, `typecheck-backend`, `build-backend` and the Vercel preview comments check all successful; `ed49639` had the same plus `deploy` and `build-and-deploy`.

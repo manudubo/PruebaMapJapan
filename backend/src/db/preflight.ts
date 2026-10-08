@@ -8,10 +8,12 @@
  *  1. Migration 0005 creates a unique index on lower(users.email). Rows that
  *     share an email (case-insensitively) make it fail with 23505. We list the
  *     offending emails and user ids so they can be merged by hand.
- *  2. A database built with `drizzle-kit push` has the app tables but no
- *     Drizzle migration journal; `db:migrate` would then re-run 0000.. and
- *     break at the first statement without IF NOT EXISTS (0004). We stop and
- *     point at the baselining procedure instead.
+ *  2. A database with no Drizzle migration journal but objects from 0004+
+ *     (e.g. `drizzle-kit push` of a recent schema.ts): `db:migrate` would
+ *     re-run 0000.. and break at 0004, the first statement without IF NOT
+ *     EXISTS. We stop and point at the rebuild procedure instead. A
+ *     journal-less database still at the 0003 shape (production before the
+ *     journal existed) migrates normally and is not flagged.
  *
  * Node-only (uses `pg`); never imported by the Worker.
  */
@@ -47,12 +49,38 @@ export async function findDuplicateEmails(db: Queryable): Promise<DuplicateEmail
   return rows.map((r) => ({ email: r.email, userIds: r.user_ids }));
 }
 
-/** App tables present but no Drizzle journal rows: created by `drizzle-kit push`. */
+/**
+ * True if any object created by migration 0004 or later already exists.
+ * 0000–0003 are written with IF NOT EXISTS, so the migrator can safely re-run
+ * them over a journal-less database; 0004+ are not.
+ */
+async function hasPost0003Objects(db: Queryable): Promise<boolean> {
+  const { rows } = await db.query<{ found: boolean }>(
+    `SELECT to_regclass('public.email_otp_codes_user_id_expires_at_idx') IS NOT NULL
+         OR to_regclass('public.users_email_unique_idx') IS NOT NULL
+         OR to_regclass('public.hotels_destination_id_idx') IS NOT NULL
+         OR EXISTS (SELECT 1 FROM pg_constraint WHERE conname LIKE '%\\_lat\\_lng\\_range')
+         OR EXISTS (SELECT 1 FROM pg_trigger WHERE NOT tgisinternal AND tgname LIKE '%\\_biz07\\_date\\_coherence')
+         OR to_regprocedure('public.otp_issue(integer, text, integer, integer, integer)') IS NOT NULL AS found`,
+  );
+  return rows[0]?.found === true;
+}
+
+/**
+ * App tables present, no Drizzle journal rows, AND objects from 0004+ already
+ * there (typically `drizzle-kit push` from a post-Phase-24 schema.ts): the
+ * migrator would re-run 0004 and fail. A journal-less database at the 0003
+ * shape (production built before the journal existed, by hand or by pushing
+ * the 0003-era schema) is NOT a blocker: 0000–0003 re-run as no-ops and
+ * 0004+ apply normally (tests/system/upgrade-path.test.ts).
+ */
 export async function isPushCreatedDatabase(db: Queryable): Promise<boolean> {
   if (!(await exists(db, 'public.users'))) return false;
-  if (!(await exists(db, 'drizzle.__drizzle_migrations'))) return true;
-  const { rows } = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations');
-  return (rows[0]?.n ?? 0) === 0;
+  if (await exists(db, 'drizzle.__drizzle_migrations')) {
+    const { rows } = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations');
+    if ((rows[0]?.n ?? 0) > 0) return false;
+  }
+  return hasPost0003Objects(db);
 }
 
 async function uniqueEmailIndexExists(db: Queryable): Promise<boolean> {
@@ -83,9 +111,10 @@ export function formatProblems(problems: PreflightProblem[], opts: { showEmails:
   for (const p of problems) {
     if (p.kind === 'push_created_database') {
       lines.push(
-        'PRE-FLIGHT FAILED: this database has the app tables but no Drizzle migration journal',
-        '(drizzle.__drizzle_migrations is missing or empty). It was most likely created with',
-        '`drizzle-kit push`. `db:migrate` would re-run every migration and fail part-way.',
+        'PRE-FLIGHT FAILED: this database has no Drizzle migration journal',
+        '(drizzle.__drizzle_migrations is missing or empty) but already has objects from',
+        'migration 0004 or later; it was most likely created with `drizzle-kit push`.',
+        '`db:migrate` would re-run every migration and fail at 0004.',
         'Fix: follow "Databases created with drizzle-kit push" in backend/src/db/README.md.',
       );
     } else {

@@ -1,6 +1,7 @@
 import type { Context, Next } from 'hono';
 import type { Env, ContextVariables } from '../types';
 import { verifyJwt } from '../auth/keycloak';
+import { log } from '../observability/logger';
 
 /** Upper bound on a logged rejection reason — the reason embeds token claims. */
 const MAX_LOGGED_REASON = 300;
@@ -49,7 +50,7 @@ export async function authMiddleware(
     const payload = await verifyJwt(token, c.env);
     c.set('user', payload);
   } catch (err) {
-    console.warn(formatJwtRejection(err));
+    log.warn('auth.jwt_rejected', { request_id: c.get('requestId'), reason: formatJwtRejection(err) });
     c.header('WWW-Authenticate', 'Bearer error="invalid_token"');
     return c.json({ success: false, error: 'invalid_token' }, 401);
   }

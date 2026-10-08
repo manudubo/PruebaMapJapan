@@ -11,7 +11,7 @@ import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
 import { formatIsoDate } from '@/modules/dates';
-import { getUserInfo, login, getToken, keycloak } from '@/auth/keycloak';
+import { getUserInfo, login, getToken, keycloak, loginRedirectUri } from '@/auth/keycloak';
 import {
   watchAuth,
   showAuthPending,
@@ -359,7 +359,7 @@ export async function handleVerifyOtp(capable: boolean): Promise<void> {
       closeOtpModal();
       // D-21: force password reset only for non-WebAuthn devices
       if (!capable) {
-        await keycloak.login({ action: 'UPDATE_PASSWORD', redirectUri: window.location.href });
+        await keycloak.login({ action: 'UPDATE_PASSWORD', redirectUri: loginRedirectUri() });
       }
     } else {
       const body = await res.json() as { success: boolean; error?: string };

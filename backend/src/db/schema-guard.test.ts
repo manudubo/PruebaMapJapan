@@ -201,25 +201,4 @@ describe('Worker on an unmigrated database (dbMiddleware)', () => {
   });
 });
 
-describe('GET /api/health/ready', () => {
-  it('200 {status:"ready"} on a migrated database', async () => {
-    const res = await call('GET', '/api/health/ready');
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: 'ready' });
-  });
-
-  it('503 schema_not_migrated on a database at 0003, without naming objects', async () => {
-    scratch = await scratchDbAt('0003_add_email_otp_codes');
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await call('GET', '/api/health/ready', { env: testEnv({ DATABASE_URL: scratch.url }) });
-    expect(res.status).toBe(503);
-    expect(res.body).toEqual({ status: 'unavailable', code: 'schema_not_migrated' });
-  });
-
-  it('503 config error without DATABASE_URL', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await call('GET', '/api/health/ready', { env: testEnv({ DATABASE_URL: '' }) });
-    expect(res.status).toBe(503);
-    expect(res.body).toEqual({ status: 'unavailable', code: 'not_configured' });
-  });
-});
+// GET /api/health/ready (which uses checkSchemaReady) is covered in routes/health-ready.test.ts.

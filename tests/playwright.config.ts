@@ -32,7 +32,9 @@ export default defineConfig({
         ...devices['Desktop Firefox'],
         ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
       },
-      testIgnore: ['**/passkeys.spec.ts'],
+      // idp-config: static file checks; idp-hardening: mostly raw HTTP against Keycloak.
+      // Both are browser-independent, so they run once (chromium).
+      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts', '**/idp-hardening.spec.ts'],
     },
     {
       name: 'webkit',
@@ -40,7 +42,7 @@ export default defineConfig({
         ...devices['Desktop Safari'],
         ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
       },
-      testIgnore: ['**/passkeys.spec.ts'],
+      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts', '**/idp-hardening.spec.ts'],
     },
     {
       name: 'chromium-passkeys',
@@ -52,7 +54,9 @@ export default defineConfig({
   // CI serves the production build via `vite preview`. Letting Playwright own the server
   // guarantees it is listening before the first test (a backgrounded shell step raced the
   // test run) and is torn down afterwards. Locally, dev servers are started by hand.
-  webServer: process.env.CI
+  // PW_NO_WEBSERVER=1: specs that never load the app (keycloak-flow.yml drives Keycloak
+  // directly) skip the frontend build and preview server.
+  webServer: process.env.CI && !process.env.PW_NO_WEBSERVER
     ? {
         command: 'npm run preview:frontend',
         cwd: '..',

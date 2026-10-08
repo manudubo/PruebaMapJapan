@@ -213,6 +213,8 @@ export async function makeUser(
     sub,
     iss: ISSUER,
     aud: AUDIENCE,
+    typ: 'Bearer',
+    azp: AUDIENCE,
     email,
     name: `User ${n}`,
     preferred_username: `user${n}`,

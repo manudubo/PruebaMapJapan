@@ -5,6 +5,8 @@ vi.mock('@/auth/keycloak', () => ({
   keycloak: {
     login: vi.fn().mockResolvedValue(undefined),
   },
+  // The real one maps the page to a registered redirect URI (tests/auth-redirect.test.ts).
+  loginRedirectUri: vi.fn(() => 'https://app.test/PruebaMapJapan/dashboard.html'),
   initKeycloak: vi.fn().mockResolvedValue(true),
   retryAuth: vi.fn().mockResolvedValue(true),
   getAuthStatus: vi.fn().mockReturnValue('authenticated'),
@@ -50,7 +52,7 @@ describe('dashboard handleVerifyOtp — PASS-07 UPDATE_PASSWORD gate', () => {
     // Assert: UPDATE_PASSWORD AIA fired (D-21)
     expect(keycloak.login).toHaveBeenCalledWith({
       action: 'UPDATE_PASSWORD',
-      redirectUri: window.location.href,
+      redirectUri: 'https://app.test/PruebaMapJapan/dashboard.html',
     });
   });
 

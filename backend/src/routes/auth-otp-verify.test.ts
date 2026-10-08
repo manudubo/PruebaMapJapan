@@ -10,7 +10,7 @@ import type { Context, Next } from 'hono';
 
 vi.mock('../middleware/auth', () => ({
   authMiddleware: async (c: Context, next: Next) => {
-    c.set('user', { sub: 'kc-1', email: 'user@example.com', name: 'U', preferred_username: 'u' });
+    c.set('user', { sub: 'kc-1', email: 'user@example.com', email_verified: true, name: 'U', preferred_username: 'u' });
     await next();
   },
 }));

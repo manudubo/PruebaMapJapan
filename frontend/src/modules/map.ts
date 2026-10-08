@@ -4,21 +4,14 @@ import type { Activity, Day, Hotel, CityData } from '@/types';
 import { ITINERARY } from '@/data/itinerary';
 import { getMapsUrl } from '@/data/maps';
 import { createBaseMap, switchBaseMapTheme } from './baseMap';
+import { DeclutteredMarker, declutterMarkers } from './declutter';
 import { createDirectionsUrl, announceToScreenReader } from './utils';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
 
 let currentTileLayer: L.TileLayer | null = null;
 
-export function centerNavOnActive(): void {
-  const nav = document.querySelector('.top-nav') as HTMLElement | null;
-  const activeItem = nav?.querySelector('.is-active') as HTMLElement | null;
-  if (!nav || !activeItem) return;
-  const navRect = nav.getBoundingClientRect();
-  const activeRect = activeItem.getBoundingClientRect();
-  const scrollLeft = activeItem.offsetLeft - (navRect.width / 2) + (activeRect.width / 2);
-  nav.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
-}
+export { centerNavOnActive } from './nav';
 
 export function moveHotelInfo(): void {
   const legend = document.querySelector('.legend');
@@ -79,7 +72,7 @@ export function initCityMap(city: string): L.Map | null {
   window.currentTileLayer = currentTileLayer;
 
   const markersByDay: Record<string, L.Marker[]> = {};
-  const allMarkers: L.Marker[] = [];
+  const allMarkers: DeclutteredMarker[] = [];
   const daySelector = document.getElementById('day-selector');
 
   if (daySelector) {
@@ -102,7 +95,7 @@ export function initCityMap(city: string): L.Map | null {
         const isOptional = !!activity.optional;
         const markerLabel = isOptional ? activity.optional! : (idx + 1);
         const markerColor = isOptional ? '#af52de' : day.color;
-        const marker = L.marker(activity.coords, { icon: createMarkerIcon(markerLabel, markerColor, isOptional), alt: activity.name });
+        const marker = new DeclutteredMarker(activity.coords, { icon: createMarkerIcon(markerLabel, markerColor, isOptional), alt: activity.name });
         const mapsUrl = getMapsUrl(activity.name);
         marker.bindPopup(createPopupContent(activity, day, mapsUrl));
         markersByDay[dateKey].push(marker);
@@ -111,15 +104,19 @@ export function initCityMap(city: string): L.Map | null {
     });
   }
 
+  let hotelMarker: DeclutteredMarker | null = null;
   if (data.hotel?.coords) {
     const hotelMapsUrl = getMapsUrl(data.hotel.name);
-    L.marker(data.hotel.coords, { icon: createHotelIcon(), alt: data.hotel.name })
-      .bindPopup(createHotelPopup(data.hotel, hotelMapsUrl))
-      .addTo(map);
+    hotelMarker = new DeclutteredMarker(data.hotel.coords, { icon: createHotelIcon(), alt: data.hotel.name });
+    hotelMarker.bindPopup(createHotelPopup(data.hotel, hotelMapsUrl)).addTo(map);
   }
 
   allMarkers.forEach(m => m.addTo(map));
-  setupDayFilter(daySelector, map, data, markersByDay, allMarkers);
+  // Overlapping markers are nudged apart (A11Y-04 target-size); redo it when the zoom or the day filter changes.
+  const declutter = (): void => { declutterMarkers(map, hotelMarker ? [hotelMarker, ...allMarkers] : allMarkers); };
+  declutter();
+  map.on('zoomend', declutter);
+  setupDayFilter(daySelector, map, data, markersByDay, allMarkers, declutter);
 
   const hotelBtn = document.getElementById('hotel-btn');
   const hotelCoords = data.hotel?.coords;
@@ -185,7 +182,7 @@ function selectDayAndFocusActivity(
 
 function setupDayFilter(
   daySelector: HTMLElement | null, map: L.Map, data: CityData,
-  markersByDay: Record<string, L.Marker[]>, allMarkers: L.Marker[]
+  markersByDay: Record<string, L.Marker[]>, allMarkers: L.Marker[], onMarkersChanged: () => void
 ): void {
   if (!daySelector) return;
   let activeDay: string | null = null;
@@ -200,6 +197,7 @@ function setupDayFilter(
       document.querySelectorAll('.day-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
       allMarkers.forEach(m => m.addTo(map));
       map.setView(data.center, data.zoom);
+      onMarkersChanged();
       document.querySelectorAll('.day-group').forEach(g => { (g as HTMLElement).style.display = 'block'; });
       announceToScreenReader('Showing all days');
       return;
@@ -211,6 +209,7 @@ function setupDayFilter(
     target.setAttribute('aria-selected', 'true');
     allMarkers.forEach(m => map.removeLayer(m));
     markersByDay[selectedDay].forEach(m => m.addTo(map));
+    onMarkersChanged();
     
     if (markersByDay[selectedDay].length > 0) {
       const bounds = L.featureGroup(markersByDay[selectedDay]).getBounds();

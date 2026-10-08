@@ -1,0 +1,75 @@
+# TEST ONLY - used by tests/stack-e2e.sh through SELFHOST_COMPOSE_OVERRIDE.
+# Never use on the real server.
+#
+# - builds with the host network (sandboxes whose Docker has no NAT) and an
+#   optional proxy/CA for npm
+# - mailpit as the SMTP server for Keycloak
+# - tls-front: stands in for Tailscale Funnel. Terminates TLS for PUBLIC_HOST
+#   on :443 (Caddy internal CA) and forwards to the proxy on 127.0.0.1,
+#   appending X-Forwarded-For like `tailscale serve` does.
+services:
+  backend:
+    # Trust the SMTP sink's self-signed certificate (verification stays on).
+    environment:
+      NODE_EXTRA_CA_CERTS: /test-certs/cert.pem
+    volumes:
+      - ${TEST_SMTP_CERT_DIR:?set TEST_SMTP_CERT_DIR}:/test-certs:ro
+    build:
+      # TEST_BACKEND_CONTEXT: build from another checkout (e.g. with unmerged app changes)
+      context: ${TEST_BACKEND_CONTEXT:-../..}
+      network: host
+      args:
+        HTTPS_PROXY: ${TEST_BUILD_PROXY:-}
+        HTTP_PROXY: ${TEST_BUILD_PROXY:-}
+      secrets: [extra_ca]
+  # Keycloak sends verification/invite mail to the same sink: trust its certificate.
+  keycloak:
+    environment:
+      KC_TRUSTSTORE_PATHS: /test-certs/cert.pem
+    volumes:
+      - ${TEST_SMTP_CERT_DIR:?set TEST_SMTP_CERT_DIR}:/test-certs:ro
+  migrate:
+    build:
+      context: ${TEST_BACKEND_CONTEXT:-../..}
+      network: host
+      args:
+        HTTPS_PROXY: ${TEST_BUILD_PROXY:-}
+        HTTP_PROXY: ${TEST_BUILD_PROXY:-}
+      secrets: [extra_ca]
+
+  # SMTP sink with STARTTLS (the production Keycloak profile refuses plain SMTP
+  # and a host literally named "mailpit"). Point SMTP_HOST at smtp-sink, port
+  # 1025, SMTP_SECURE=starttls; TEST_SMTP_CERT_DIR holds cert.pem + key.pem
+  # for that name (stack-e2e's setup notes in .planning/qa/INTEGRATION-REPORT.md).
+  mailpit:
+    image: ghcr.io/axllent/mailpit:v1.29
+    container_name: ${COMPOSE_PROJECT_NAME}-mailpit
+    command: ["--smtp-auth-accept-any", "--smtp-tls-cert", "/certs/cert.pem", "--smtp-tls-key", "/certs/key.pem", "--smtp-require-starttls"]
+    volumes:
+      - ${TEST_SMTP_CERT_DIR:?set TEST_SMTP_CERT_DIR}:/certs:ro
+    networks:
+      edge:
+        aliases: [smtp-sink]
+    ports:
+      - "127.0.0.1:${TEST_MAILPIT_PORT:-38025}:8025"
+
+  tls-front:
+    image: ${CADDY_IMAGE:-public.ecr.aws/docker/library/caddy:2.10-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME}-tls-front
+    network_mode: host
+    profiles: [local-proxy]
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      TEST_TLS_PORT: ${TEST_TLS_PORT:-443}
+    volumes:
+      - ./tests/tls-front.Caddyfile:/etc/caddy/Caddyfile:ro
+      - tls_front_data:/data
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+
+secrets:
+  extra_ca:
+    file: ${TEST_EXTRA_CA:-/dev/null}
+
+volumes:
+  tls_front_data:

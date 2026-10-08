@@ -1,3 +1,4 @@
+import 'leaflet/dist/leaflet.css';
 import * as L from 'leaflet';
 import DOMPurify from 'dompurify';
 import { ITINERARY } from '@/data/itinerary';
@@ -164,21 +165,4 @@ export function initOverviewMap(container: HTMLElement, list: HTMLElement | null
   };
 }
 
-/**
- * Initialise the overview only when it is about to scroll into view, so the
- * landing hero (LCP) never waits for Leaflet layout or tile requests.
- */
-export function observeOverviewMap(el: HTMLElement, init: () => void, rootMargin = '200px'): void {
-  if (typeof IntersectionObserver === 'undefined') {
-    init();
-    return;
-  }
-  let done = false;
-  const io = new IntersectionObserver((entries) => {
-    if (done || !entries.some((e) => e.isIntersecting)) return;
-    done = true;
-    io.disconnect();
-    init();
-  }, { rootMargin });
-  io.observe(el);
-}
+export { observeOverviewMap } from './overviewLazy';

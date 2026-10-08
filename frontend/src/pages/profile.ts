@@ -7,6 +7,8 @@ import {
   getUserInfo,
   logout,
   keycloak,
+  keycloakBaseUrl,
+  loginRedirectUri,
 } from '@/auth/keycloak';
 import { watchAuth, showAuthUnavailableState, clearAuthUnavailableState } from '@/auth/authStatusUI';
 import { getMe } from '@/api/client';
@@ -17,7 +19,7 @@ import {
   type PasskeyCredential,
 } from '@/modules/passkeyList';
 
-const KEYCLOAK_URL = import.meta.env['VITE_KEYCLOAK_URL'] as string ?? 'http://localhost:8080';
+const KEYCLOAK_URL = keycloakBaseUrl(import.meta.env['VITE_KEYCLOAK_URL'] as string | undefined);
 const KEYCLOAK_REALM = import.meta.env['VITE_KEYCLOAK_REALM'] as string ?? 'japan-trip';
 
 let credentialCount = 0;
@@ -89,7 +91,7 @@ async function registerPasskey(): Promise<void> {
   try {
     await keycloak.login({
       action: 'webauthn-register-passwordless',
-      redirectUri: window.location.href,
+      redirectUri: loginRedirectUri(),
     });
   } catch {
     showStatus('passkey-status', 'Error starting passkey registration.', 'error');
@@ -104,7 +106,7 @@ async function changePassword(): Promise<void> {
   try {
     await keycloak.login({
       action: 'UPDATE_PASSWORD',
-      redirectUri: window.location.href,
+      redirectUri: loginRedirectUri(),
     });
   } catch {
     showStatus('passkey-status', 'Error starting password change.', 'error');
@@ -187,7 +189,7 @@ function openDeleteConfirm(credentialId: string): void {
     guardBtn.addEventListener('click', () => {
       keycloak.login({
         action: 'webauthn-register-passwordless',
-        redirectUri: window.location.href,
+        redirectUri: loginRedirectUri(),
       }).catch(() => { /* non-fatal if KC unavailable */ });
     }, { once: true });
   } else {
@@ -198,7 +200,7 @@ function openDeleteConfirm(credentialId: string): void {
       freshConfirm.textContent = 'Deleting…';
       keycloak.login({
         action: `delete_credential:${credentialId}`,
-        redirectUri: window.location.href,
+        redirectUri: loginRedirectUri(),
       }).catch(() => {
         freshConfirm.disabled = false;
         freshConfirm.textContent = 'Delete';

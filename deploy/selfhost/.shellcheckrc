@@ -1,0 +1,3 @@
+# ok/warn/fail/bad/say always return 0, so `test && ok || bad` is a safe if/else.
+disable=SC2015
+external-sources=true

@@ -1,6 +1,7 @@
 import { expect, test } from './fixtures/kc-admin';
 import type { CDPSession, Page } from '@playwright/test';
 import crypto from 'node:crypto';
+import { FailurePacer } from './fixtures/kc-pacing';
 
 /**
  * KC-01 / SEC-12 — browser-passkey authentication flow contract.
@@ -15,9 +16,10 @@ import crypto from 'node:crypto';
  * let a username-only visitor reach passkey registration (account takeover). The
  * negative tests below reproduce each of those paths and fail against the old flow.
  *
- * Tests that need throwaway users use the kcAdmin fixture and skip without
+ * Tests that need throwaway users use the kcAdmin fixture and are fixme without
  * KC_ADMIN_CLIENT_ID/SECRET; the others only need a reachable Keycloak with the
- * Terraform-seeded e2e-test@local user.
+ * Terraform-seeded e2e-test@local user. With CI_KEYCLOAK=1 every precondition is
+ * required instead (scripts/ci/keycloak-flow.sh provides them).
  */
 
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL ?? 'http://localhost:8080';
@@ -25,6 +27,12 @@ const REDIRECT_URI = 'http://localhost:5173/PruebaMapJapan/dashboard.html';
 const CODE_VERIFIER = 'phase26-idp-flow-negative-test-verifier-value-0000000';
 const CODE_CHALLENGE = crypto.createHash('sha256').update(CODE_VERIFIER).digest('base64url');
 const HAS_ADMIN = !!process.env.KC_ADMIN_CLIENT_ID && !!process.env.KC_ADMIN_CLIENT_SECRET;
+/**
+ * Set by .github/workflows/keycloak-flow.yml, which starts Keycloak and applies the realm.
+ * There, a missing Keycloak or missing credentials is a broken job and must FAIL; locally
+ * the same conditions only mark the test fixme (nothing to run against).
+ */
+const REQUIRE_KC = process.env.CI_KEYCLOAK === '1';
 const SEEDED_USER = process.env.E2E_TEST_USERNAME ?? 'e2e-test@local';
 
 function authUrl(extra = ''): string {
@@ -134,7 +142,14 @@ async function addVirtualAuthenticator(page: Page): Promise<{ cdp: CDPSession; a
 async function enrolPasskey(page: Page, hits: URL[], username: string, password: string): Promise<void> {
   await submitUsername(page, username, '&kc_action=webauthn-register-passwordless');
   await submitPassword(page, password);
+  // The redirect to the app must have committed (app page, or an error page when no
+  // frontend runs) before the caller navigates again; seeing the request is not enough,
+  // the still-pending redirect would interrupt the caller's next page.goto().
+  const leftKeycloak = page.waitForEvent('framenavigated', {
+    predicate: (frame) => frame === page.mainFrame() && !frame.url().startsWith(KEYCLOAK_URL),
+  });
   await page.locator('#registerWebAuthn').click();
+  await leftKeycloak;
   await expect.poll(() => issuedCode(hits)).toBe(true);
   await page.context().clearCookies(); // drop the SSO session, keep the authenticator
   hits.length = 0;
@@ -148,7 +163,9 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
     const response = await request
       .get(`${KEYCLOAK_URL}/realms/japan-trip`, { timeout: 5000 })
       .catch(() => null);
-    test.skip(!response?.ok(), 'Keycloak is not running locally');
+    const up = !!response?.ok();
+    test.fixme(!up && !REQUIRE_KC, 'needs Keycloak with the japan-trip realm (keycloak/README.md); CI runs it in keycloak-flow.yml');
+    expect(up, `realm japan-trip not reachable at ${KEYCLOAK_URL}`).toBe(true);
   });
 
   test.describe('without admin credentials (seeded user)', () => {
@@ -204,7 +221,8 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
 
     test('password fallback works for the seeded user', async ({ page, kcAdmin }) => {
       const password = process.env.E2E_TEST_PASSWORD;
-      test.skip(!password, 'E2E_TEST_PASSWORD not set');
+      test.fixme(!password && !REQUIRE_KC, 'needs E2E_TEST_PASSWORD (the Terraform e2e_test_password)');
+      expect(password, 'E2E_TEST_PASSWORD').toBeTruthy();
       if (HAS_ADMIN) await kcAdmin.resetCredentials(SEEDED_USER); // drop any passkey from other specs
       const hits = trackAppRedirects(page);
       await submitUsername(page, SEEDED_USER);
@@ -215,7 +233,8 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
 
   test.describe('with throwaway users (admin credentials)', () => {
     test.beforeEach(() => {
-      test.skip(!HAS_ADMIN, 'KC_ADMIN_CLIENT_ID/SECRET not set');
+      test.fixme(!HAS_ADMIN && !REQUIRE_KC, 'needs KC_ADMIN_CLIENT_ID/SECRET (a client with realm-management manage-users)');
+      expect(HAS_ADMIN, 'KC_ADMIN_CLIENT_ID/SECRET').toBe(true);
     });
 
     async function createThrowaway(
@@ -249,12 +268,19 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
       const username = await createThrowaway(kcAdmin, 'idp-flow-wrongpw', THROWAWAY_PASSWORD);
       try {
         const hits = trackAppRedirects(page);
+        // Brute-force detection treats two failures less than 1 s apart as a bot
+        // ("quick login" lockout, see idp-hardening.spec.ts), so pace them like a human.
+        const pacer = new FailurePacer();
         await submitUsername(page, username);
         await submitPassword(page, 'Wrong-Password-1!');
+        pacer.failed();
         expect(issuedCode(hits)).toBe(false);
+        await pacer.humanPause();
         await submitPassword(page, process.env.E2E_TEST_PASSWORD ?? 'Another-User-Pw-1!');
+        pacer.failed();
         expect(issuedCode(hits)).toBe(false);
         // The correct one still works in the same session afterwards.
+        await pacer.humanPause();
         await submitPassword(page, THROWAWAY_PASSWORD);
         await expect.poll(() => issuedCode(hits)).toBe(true);
       } finally {
@@ -314,7 +340,9 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
 
     test.describe('passkey users (Chromium virtual authenticator)', () => {
       test.beforeEach(({ browserName }) => {
-        test.skip(browserName !== 'chromium', 'CDP virtual authenticator is Chromium-only');
+        // Not a defect to fix in the app: Playwright exposes WebAuthn virtual authenticators
+        // only through Chromium's CDP. Firefox still runs every non-passkey case above.
+        test.fixme(browserName !== 'chromium', 'CDP virtual authenticator is Chromium-only');
       });
 
       test('passkey user gets the WebAuthn step and signs in with it', async ({ page, kcAdmin }) => {
@@ -377,8 +405,14 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
           await cdp.send('WebAuthn.clearCredentials', { authenticatorId }); // "lost device"
 
           await submitUsername(page, username);
-          await page.locator('#authenticateWebAuthnButton').click();
-          await page.waitForTimeout(3_000);
+          // No credential on the authenticator: navigator.credentials.get() rejects and
+          // Keycloak's page posts the error back to the WebAuthn step. Wait for that POST
+          // (the outcome) instead of sleeping.
+          await Promise.all([
+            page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('/login-actions/')),
+            page.locator('#authenticateWebAuthnButton').click(),
+          ]);
+          await page.waitForLoadState('domcontentloaded');
           expect(issuedCode(hits)).toBe(false);
           expect(page.url()).toContain(KEYCLOAK_URL);
         } finally {

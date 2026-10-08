@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/kc-admin';
+import { test, expect, resetCredentials } from './fixtures/kc-admin';
 import type { BrowserContext, Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -28,6 +28,30 @@ async function waitForProfileReady(page: Page): Promise<void> {
   await expect(page.locator('#passkey-delete-overlay')).toBeAttached({ timeout: 15000 });
 }
 
+const E2E_PASSWORD = process.env.E2E_TEST_PASSWORD ?? '';
+
+/**
+ * Click "Add passkey" and complete Keycloak's registration page. Keycloak 26 asks to
+ * re-authenticate before a credential-registering action once the login is older than
+ * the action's max auth age (5 min by default), and global setup reuses a login for up
+ * to 20 min, so answer that prompt with the password when it appears.
+ */
+async function registerPasskeyViaKc(page: Page): Promise<void> {
+  await page.locator(
+    '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
+  ).first().click();
+
+  const kcRegisterBtn = page.getByRole('button', { name: 'Register' });
+  const passwordField = page.locator('input[name="password"]');
+  await expect(kcRegisterBtn.or(passwordField)).toBeVisible({ timeout: 15000 });
+  if (await passwordField.isVisible()) {
+    await passwordField.fill(E2E_PASSWORD);
+    await page.getByRole('button', { name: /sign in/i }).click();
+  }
+  await kcRegisterBtn.waitFor({ state: 'visible', timeout: 15000 });
+  await kcRegisterBtn.click();
+}
+
 test.describe('Passkey flows', () => {
   // Guard — skip all tests in this describe when KC is not available (D-03)
   test.fixme(!!process.env.SKIP_REAL_AUTH, 'requires a live Keycloak + backend (SKIP_REAL_AUTH is set, as in CI); the mocked-Keycloak specs cover the CI-safe paths — run this locally per SETUP.md');
@@ -47,6 +71,13 @@ test.describe('Passkey flows', () => {
       }
     }
     cdpCleanups.length = 0;
+  });
+
+  // Every test leaves a passkey on the shared seeded user. browser-passkey gives passkey
+  // users no password fallback (Phase 26), so a leftover passkey breaks the next
+  // global-setup password login and the idp-flow seeded-user tests. Drop it afterwards.
+  test.afterAll(async () => {
+    await resetCredentials(E2E_USERNAME);
   });
 
   test.beforeEach(async ({ context, kcAdmin }) => {
@@ -81,15 +112,7 @@ test.describe('Passkey flows', () => {
     });
     cdpCleanups.push({ cdp, authenticatorId });
 
-    const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
-    );
-    await registerBtn.first().click();
-
-    // KC redirects to passkey registration confirmation page before the WebAuthn ceremony
-    const kcRegisterBtn = page.getByRole('button', { name: 'Register' });
-    await kcRegisterBtn.waitFor({ state: 'visible', timeout: 15000 });
-    await kcRegisterBtn.click();
+    await registerPasskeyViaKc(page);
 
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
     await page.waitForLoadState('domcontentloaded');
@@ -119,15 +142,7 @@ test.describe('Passkey flows', () => {
     });
     cdpCleanups.push({ cdp: cdpAuth, authenticatorId: authId });
 
-    const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
-    );
-    await registerBtn.first().click();
-
-    // KC redirects to passkey registration confirmation page before the WebAuthn ceremony
-    const kcRegisterBtnAuth = page.getByRole('button', { name: 'Register' });
-    await kcRegisterBtnAuth.waitFor({ state: 'visible', timeout: 15000 });
-    await kcRegisterBtnAuth.click();
+    await registerPasskeyViaKc(page);
 
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
 
@@ -216,15 +231,7 @@ test.describe('Passkey flows', () => {
     });
     cdpCleanups.push({ cdp, authenticatorId });
 
-    const registerBtn = page.locator(
-      '[data-action="register-passkey"], #register-passkey-btn, #btn-add-passkey, button:has-text("Add passkey"), button:has-text("Register passkey")'
-    );
-    await registerBtn.first().click();
-
-    // KC redirects to passkey registration confirmation page before the WebAuthn ceremony
-    const kcRegisterBtnDel = page.getByRole('button', { name: 'Register' });
-    await kcRegisterBtnDel.waitFor({ state: 'visible', timeout: 15000 });
-    await kcRegisterBtnDel.click();
+    await registerPasskeyViaKc(page);
 
     await page.waitForURL(/profile\.html/, { timeout: 30000 });
     await page.waitForLoadState('domcontentloaded');

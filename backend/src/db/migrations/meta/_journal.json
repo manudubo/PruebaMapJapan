@@ -71,6 +71,13 @@
       "when": 1790786100000,
       "tag": "0009_otp_issue_atomic",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790786200000,
+      "tag": "0010_reconcile_push_built_schema",
+      "breakpoints": true
     }
   ]
 }

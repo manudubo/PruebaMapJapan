@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { log } from '../observability/logger';
 import { drizzle as drizzleNeon, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzlePg, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
@@ -59,10 +60,31 @@ export function asPgDatabase(db: Db): PgDatabaseBase {
 // connections (each keeps idle clients open), exhausting the server.
 const pgPools = new Map<string, pg.Pool>();
 
+/** Pool sizing/timeouts for pools created from now on (Node server only). */
+export interface PgPoolOptions {
+  max?: number;
+  idleTimeoutMillis?: number;
+  connectionTimeoutMillis?: number;
+}
+let pgPoolOptions: PgPoolOptions = {};
+
+/**
+ * Set node-postgres pool limits before the first query. The self-hosted Node
+ * server calls this from its validated env; without it pg's defaults apply
+ * (10 clients, no connect timeout), which is what dev and tests use.
+ */
+export function configurePgPool(options: PgPoolOptions): void {
+  pgPoolOptions = { ...options };
+}
+
 function pgPool(databaseUrl: string): pg.Pool {
   let pool = pgPools.get(databaseUrl);
   if (!pool) {
-    pool = new Pool({ connectionString: databaseUrl });
+    pool = new Pool({ connectionString: databaseUrl, ...pgPoolOptions });
+    // An idle client dropped by the server (restart, idle timeout) emits
+    // 'error' on the pool; unhandled, that event kills the Node process.
+    // The pool discards the client and reconnects on the next query.
+    pool.on('error', (err) => log.error('db.pool_idle_client_error', { error: err }));
     pgPools.set(databaseUrl, pool);
   }
   return pool;
