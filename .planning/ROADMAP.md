@@ -6,7 +6,7 @@
 - ✅ **v3.0 Quality, Polish & DevX** — Phases 10–14 (shipped 2026-06-15)
 - ✅ **v3.1 E2E Stabilization** — Phases 15–19 (shipped 2026-07-23)
 - ✅ **v3.2 Security & Code Health Hardening** — Phases 20–26 (executed 2026-07-24 → 2026-10-04; merged to `main` as PR #23, green on Actions; leftovers: DEP-02 and SEC-17 Partial)
-- 🔄 **Production readiness (post-v3.2)** — second batch on `claude/focused-lovelace-cryssy`, PR #24 open (89 commits, 2026-10-04 → 2026-10-08); self-hosting kit, internet hardening, A11Y-04/05, SEC-18; validation on the owner's real server pending
+- 🔄 **Production readiness (post-v3.2)** — third batch (self-registration, REG-01..07) added on top, 53 commits after `d2dd404`; second batch on `claude/focused-lovelace-cryssy`, PR #24 open (89 commits, 2026-10-04 → 2026-10-08); self-hosting kit, internet hardening, A11Y-04/05, SEC-18; validation on the owner's real server pending
 
 ## Phases
 
@@ -226,6 +226,19 @@ Unvalidated gaps (none of these can be closed from a sandbox):
 - The `Keycloak flow` workflow on Actions; Firefox/WebKit for the new specs.
 - Legacy state move in `keycloak-apply.sh`, Cloudflare Tunnel and Let's Encrypt modes, `bootstrap.sh --install-*` on Ubuntu 26.04.
 - Real-network LCP on GitHub Pages.
+
+### Third batch: self-registration (REG-01..07)
+
+PR #24 is in `main` as `d2dd404`; this batch is 53 commits on the same branch (`git log --oneline origin/main..HEAD`), four tracks and one integration pass. Registration is closed in production until the owner opens it.
+
+| Track | Delivered | Status | Report |
+|-------|-----------|--------|--------|
+| IdP (REG-01, REG-05, REG-06) | Flow `registration-passkey` (no password, passkey required action), `travelmap-recovery` client, "Try another way" fix, theme link, reCAPTCHA option, production guards, purge timer | REG-01 Unverified, REG-05 Complete, REG-06 Partial (no per-IP sign-up throttle) | `qa/REGISTRATION-IDP-REPORT.md` |
+| Backend (REG-02, REG-03) | Migration 0011, e-mail code verification, `403 email_not_verified` gate, recovery endpoints | Complete (real Postgres 16; Gmail not exercised) | `qa/REGISTRATION-BACKEND-REPORT.md` |
+| UI (REG-04) | Sign up / Sign in, verify screen, passkey onboarding, `recover.html`, backup-password card | Complete (mocked IdP/API, Chromium) | `qa/REGISTRATION-UI-REPORT.md` |
+| Integration (REG-07) | `contracts/auth-flows.json`, recovery role fix, real-stack e2e, `registration-stack.sh` in `keycloak-flow.yml`, self-host `register verify recover` | Unverified: workflow not run on Actions | `qa/REGISTRATION-INTEGRATION-REPORT.md` |
+
+Unvalidated: GitHub Actions run of the extended `keycloak-flow.yml`; real Funnel, Gmail and passkeys on the `.ts.net` rpId; reCAPTCHA with real keys; the registration UI in a browser against the self-host stack; Firefox/WebKit. Open risk: no per-IP sign-up throttle.
 
 Next: owner actions in `STATE.md`, then run `stack-e2e.sh` against the real host, then decide whether the Keycloak flow job becomes a required check (after about 10 green runs).
 
