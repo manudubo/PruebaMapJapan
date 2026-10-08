@@ -75,7 +75,7 @@ jobs:
           set -a
           . "$RUNNER_TEMP/keycloak-flow/e2e.env"
           set +a
-          npx playwright test e2e/idp-flow.spec.ts e2e/idp-config.spec.ts \
+          npx playwright test e2e/idp-flow.spec.ts e2e/idp-config.spec.ts e2e/idp-hardening.spec.ts \
             --project=chromium --project=firefox --retries=0
 
       - name: Keycloak log (on failure)
