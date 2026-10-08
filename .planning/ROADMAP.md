@@ -5,7 +5,8 @@
 - ✅ **v2.0 Auth Infrastructure & Hardening** — Phases 1–9 (shipped 2026-05-28)
 - ✅ **v3.0 Quality, Polish & DevX** — Phases 10–14 (shipped 2026-06-15)
 - ✅ **v3.1 E2E Stabilization** — Phases 15–19 (shipped 2026-07-23)
-- 🔄 **v3.2 Security & Code Health Hardening** — Phases 20–26 (executed 2026-07-24 → 2026-10-04; code complete on branch `claude/focused-lovelace-cryssy`, not yet merged or pushed; 7 requirements Partial/Deferred/Unverified, see `REQUIREMENTS.md`)
+- ✅ **v3.2 Security & Code Health Hardening** — Phases 20–26 (executed 2026-07-24 → 2026-10-04; merged to `main` as PR #23, green on Actions; leftovers: DEP-02 and SEC-17 Partial)
+- 🔄 **Production readiness (post-v3.2)** — second batch on `claude/focused-lovelace-cryssy`, PR #24 open (89 commits, 2026-10-04 → 2026-10-08); self-hosting kit, internet hardening, A11Y-04/05, SEC-18; validation on the owner's real server pending
 
 ## Phases
 
@@ -50,16 +51,16 @@ Full outcome: 242 passed, 25 skipped (documented deferrals), 0 failed. See `.pla
 
 ### v3.2 Security & Code Health Hardening
 
-Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md`. Full findings and per-item verification status in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. Requirements defined: `.planning/REQUIREMENTS.md` (82 requirements, 100% mapped; final status 75 Complete, 4 Partial, 1 Deferred, 2 Unverified). Per-requirement evidence: `.planning/phases/TRACEABILITY.md`. Phases 22-26 were executed from summaries only (no PLAN.md files).
+Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `codex-review.md`. Full findings and per-item verification status in `.planning/v3.2-CANDIDATE-REQUIREMENTS.md`. Requirements defined: `.planning/REQUIREMENTS.md` (82 requirements, 100% mapped). Status after PR #23 went green on Actions and the PR #24 batch: of these 82 plus DATA-04, 81 Complete and 2 Partial (DEP-02, SEC-17); the batch adds 5 rows (below). Per-requirement evidence: `.planning/phases/TRACEABILITY.md`. Phases 22-26 were executed from summaries only (no PLAN.md files).
 
 - [x] **Phase 20: Critical Security** — OTP CSPRNG (SEC-01), widget XSS + CSP meta tag (SEC-02/03/04), remove `KC_ADMIN_CLIENT_SECRET` from prod Cloudflare env (SEC-14) — completed 2026-07-24 (CSP `connect-src` bug found and fixed later: `20-CSP-FOLLOWUP.md`)
 - [x] **Phase 21: Deploy & Build Safety** — fix broken backend build (INFRA-03), gate deploys on CI (INFRA-01/02), pin wrangler (INFRA-04), fix KC healthcheck (INFRA-05), drizzle-orm/dompurify bumps (DEP-01)
  (completed 2026-07-30)
 - [x] **Phase 22: Reliability Bugs** — all 16 confirmed bugs from the audit (BUG-01..16): drag-reorder persistence, 401 hang, first-login race, plus 13 lower-severity fixes
-- [x] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05) — DEP-02/A11Y-04/A11Y-05 **Partial**, DEP-03 **Unverified**
-- [x] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03) — executed 2026-09-30 → 2026-10-03; ARCH-09 **Unverified** (never green on Actions)
+- [x] **Phase 23: Supply Chain, Secrets & Accessibility** — Leaflet bundled first-party (SEC-15), SW cache versioning (SEC-16), dead EXTERNAL_ASSETS (INFRA-06), Gitleaks triage + CI scanning (DEP-02/03), a11y violations (A11Y-01..05) — DEP-02 **Partial**; DEP-03 Complete since the green Actions run; A11Y-04/05 Complete in the PR #24 batch
+- [x] **Phase 24: Architecture Debt & Test Coverage** — real ephemeral test DB + non-vacuous assertions (ARCH-06), CI e2e job fixed (ARCH-09), typed createDb/getDb/dbMiddleware (ARCH-01/M-01), all remaining arch/data/test debt (ARCH-02/03/05/07/08, M-02/09, PWA-01, DATA-01..03) — executed 2026-09-30 → 2026-10-03; ARCH-09 Complete (e2e job green on PR #23 head 2200c6e and on main)
 - [x] **Phase 25: Business Logic & Demo Parity** — timezone date-shift bug (BIZ-11), cross-level date coherence (BIZ-07), expose is_optional/is_generic/maps_url/time/zoom_level through editor (BIZ-01..05), date-order validation (BIZ-06/08/09), remaining parity items (BIZ-10) — executed 2026-09-30 → 2026-10-03; BIZ-07 shipped as DB triggers in the follow-up
-- [x] **Phase 26: Remaining Security Hardening & IdP Flow** — KC passkey flow restructure (KC-01, SEC-12), JWKS/JWT/OTP atomicity (SEC-05/06/07), remaining low-severity security findings (SEC-08..11/13/17..25) — executed 2026-09-30 → 2026-10-03; SEC-17 **Partial**, SEC-18 **Deferred**
+- [x] **Phase 26: Remaining Security Hardening & IdP Flow** — KC passkey flow restructure (KC-01, SEC-12), JWKS/JWT/OTP atomicity (SEC-05/06/07), remaining low-severity security findings (SEC-08..11/13/17..25) — executed 2026-09-30 → 2026-10-03; SEC-17 **Partial**; SEC-18 Complete in the PR #24 batch
 
 ## Phase Details
 
@@ -184,10 +185,10 @@ Plans:
 | 20. Critical Security | v3.2 | 4/4 | Complete | 2026-07-24 |
 | 21. Deploy & Build Safety | v3.2 | 2/2 | Complete | 2026-07-30 |
 | 22. Reliability Bugs | v3.2 | 0 plans, 1 summary | Executed (summary-only, no PLAN.md); 16/16 requirements Complete | 2026-09-30 |
-| 23. Supply Chain, Secrets & Accessibility | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 6 Complete, DEP-02/A11Y-04/A11Y-05 Partial, DEP-03 Unverified | 2026-09-30 (+ QA follow-up) |
-| 24. Architecture Debt & Test Coverage | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 14/15 Complete, ARCH-09 Unverified | 2026-10-03 |
+| 23. Supply Chain, Secrets & Accessibility | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 9/10 Complete, DEP-02 Partial (DEP-03 on the Actions run; A11Y-04/05 in the PR #24 batch) | 2026-09-30 (+ QA follow-up, 2026-10-07) |
+| 24. Architecture Debt & Test Coverage | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 15/15 Complete (ARCH-09 once e2e was green on Actions) | 2026-10-03 |
 | 25. Business Logic & Demo Parity | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 11/11 Complete (BIZ-07 in follow-up) | 2026-10-03 |
-| 26. Remaining Security Hardening & IdP Flow | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 17/19 Complete, SEC-17 Partial, SEC-18 Deferred | 2026-10-03 |
+| 26. Remaining Security Hardening & IdP Flow | v3.2 | 0 plans, 2 summaries | Executed (summary-only, no PLAN.md); 18/19 Complete, SEC-17 Partial (SEC-18 in the PR #24 batch) | 2026-10-03 |
 
 ## Post-phase work (v3.2, outside the original requirements)
 
@@ -198,7 +199,35 @@ Not part of the 82 requirements. Found by QA after Phases 22-26 and recorded in 
 - **Demo regressions** (`QA-DEMO-FIXES.md`): CartoDB now serves "API KEY REQUIRED" tiles, so maps moved to keyless OpenStreetMap tiles (dark mode by CSS filter, attribution, tile-failure notice, SW never caches tiles); the trip overview map and Cities list lost in an earlier redesign were restored; the landing countdown became minute-based and minimalist.
 - **CSP `connect-src` fix** (`20-CSP-FOLLOWUP.md`): the Phase 20 policy blocked the API origin, so every logged-in call failed in an enforcing browser. The policy is now derived from the resolved build env.
 - **Review fixes** (`REVIEW-FIXES.md`): migrations run before the Worker deploys, same-repo-only deploys with pinned actions, `db:preflight` and a 503 schema guard, trip-edit survives a slow Keycloak, production-safe `import.sh`, build fails on missing CSP origins, service worker resilience.
-- **Open from this work:** CI Keycloak job (S3) not built; Neon smoke test (S4) not run (`qa/NEON-SMOKE-CHECKLIST.md`).
+- **Open from this work:** the CI Keycloak job (S3) was built in the PR #24 batch (below); the Neon smoke test (S4) is still not run (`qa/NEON-SMOKE-CHECKLIST.md`).
+
+## Production readiness (post-v3.2)
+
+Second batch, PR #24 (`git log origin/main..HEAD`: 89 commits, head `2d7a734`). Not phased: five parallel tracks, then one integration pass. Requirement rows: PROD-01..04, QA-01, plus A11Y-04, A11Y-05, SEC-18 closed (`REQUIREMENTS.md`). Evidence per item: `phases/TRACEABILITY.md`; reports in `qa/`.
+
+Target topology: Pages frontend, and backend + Keycloak + Postgres on the owner's server `legion-server.tailad4a36.ts.net`, one Tailscale Funnel host on 443 with path routing (`/api`, `/auth`).
+
+| Track | Delivered | Status | Report |
+|-------|-----------|--------|--------|
+| Self-hosting kit (PROD-01) | Node entry from the same Hono app, backend and Keycloak images, prod compose, Caddy proxy, deploy / keycloak-apply / funnel / backup / restore / update scripts, guide | Partial: sandbox stack 40/40, real server not validated | `qa/SELFHOST-REPORT.md`, `qa/INTEGRATION-REPORT.md` |
+| Internet hardening (PROD-02, SEC-18) | CORS typo fix and allow-list, token strictness, rate limits, SMTP, scrubbed logs, headers, geocode proxy, Keycloak production profile | Complete (tests + live Keycloak production profile) | `qa/PROD-HARDENING.md` |
+| Login redirect (PROD-03) | `loginRedirectUri()` and return-to-target after login | Complete | `qa/INTEGRATION-REPORT.md` #5 |
+| System QA (PROD-04) | Migration 0010, preflight and readiness fixes, pool listener, Neon HTTP emulator suite (92 tests) | Complete on the emulator; real Neon unrun | `qa/QA-SYSTEM-REPORT.md` |
+| Real-auth e2e | 66/66 real-auth Playwright on a real stack, 2/2 uat-passkeys; four test bugs fixed, none in the app | Complete (local) | `qa/QA-FULLSTACK-REPORT.md` |
+| E2E hygiene and Keycloak CI job (QA-01) | Hygiene guard, 8 spec fixes, `keycloak-flow.yml` | Unverified: workflow not concluded on Actions | `qa/E2E-DEBT-KC-CI.md` |
+| A11Y-04 / A11Y-05 | Marker declutter, landing LCP 5.4 s to 1.3 s (sandbox), lazy Leaflet | Complete (local measurements) | `qa/A11Y-LCP-FOLLOWUP.md` |
+
+Progress: all tracks are merged into the branch and pass in the sandbox. On Actions, the checks for `2d7a734` on PR #24 were still running when this was written (`e2e`, `idp-flow`, `accessibility`, `test-backend`); `typecheck-frontend`, `typecheck-backend`, `build-backend`, `test-frontend`, `test-scripts` and `gitleaks` were green. Re-read them before merging.
+
+Unvalidated gaps (none of these can be closed from a sandbox):
+- Real Tailscale Funnel: `funnel.sh` only ran against a stub; whether `tailscale serve` adds the real client IP to `X-Forwarded-For` (so `TRUSTED_PROXY_HOPS=2` is right) is assumed.
+- Real Gmail delivery of OTP and Keycloak mail; real passkeys on the `.ts.net` rpId in a real browser.
+- Real Neon (the S4 smoke checklist); the production-profile brute-force tests (no admin client in production).
+- The `Keycloak flow` workflow on Actions; Firefox/WebKit for the new specs.
+- Legacy state move in `keycloak-apply.sh`, Cloudflare Tunnel and Let's Encrypt modes, `bootstrap.sh --install-*` on Ubuntu 26.04.
+- Real-network LCP on GitHub Pages.
+
+Next: owner actions in `STATE.md`, then run `stack-e2e.sh` against the real host, then decide whether the Keycloak flow job becomes a required check (after about 10 green runs).
 
 *Full v2.0 phase details in `.planning/milestones/v2.0-ROADMAP.md`*
 *Full v3.0 phase details in `.planning/milestones/v3.0-ROADMAP.md`*
