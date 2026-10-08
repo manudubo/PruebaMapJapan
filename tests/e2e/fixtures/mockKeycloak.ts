@@ -47,8 +47,8 @@ export const DEFAULT_MOCK_USER: MockKeycloakUser = {
   preferred_username: 'testuser',
 };
 
-async function installKeycloakMock(page: Page, user: MockKeycloakUser | null): Promise<void> {
-  let nonce = '';
+async function installKeycloakMock(page: Page, user: MockKeycloakUser | null, initialNonce = ''): Promise<void> {
+  let nonce = initialNonce;
 
   await page.route('**/realms/**', async (route: Route) => {
     const request = route.request();
@@ -133,6 +133,8 @@ export interface LoggedInOptions {
    * exercise the campaign itself.
    */
   passkeyCampaignDone?: boolean;
+  /** Nonce for the first token answer (a login started before this mock was installed). */
+  nonce?: string;
 }
 
 /** keycloak-js resolves `check-sso` as authenticated with a fake (unsigned) token. */
@@ -141,5 +143,21 @@ export async function mockKeycloakLoggedIn(page: Page, options: LoggedInOptions 
   if (options.passkeyCampaignDone ?? true) {
     await page.context().addCookies([{ name: `pnk_${user.sub}`, value: '1', domain: 'localhost', path: '/' }]);
   }
-  await installKeycloakMock(page, user);
+  await installKeycloakMock(page, user, options.nonce);
+}
+
+/**
+ * Finish a login that the app started with a top-level navigation to the
+ * authorize endpoint (`authorizeUrl`, e.g. from page.waitForRequest): from now
+ * on Keycloak answers as signed in, and the browser is sent to the request's
+ * redirect_uri with a code in the fragment, as Keycloak's 302 would do. The
+ * token carries that request's nonce, so keycloak-js accepts it.
+ */
+export async function completeMockLogin(page: Page, authorizeUrl: URL, options: LoggedInOptions = {}): Promise<void> {
+  const redirectUri = authorizeUrl.searchParams.get('redirect_uri');
+  const state = authorizeUrl.searchParams.get('state');
+  if (!redirectUri || !state) throw new Error(`not an authorize request: ${authorizeUrl.href}`);
+  await page.unroute('**/realms/**');
+  await mockKeycloakLoggedIn(page, { ...options, nonce: authorizeUrl.searchParams.get('nonce') ?? '' });
+  await page.goto(`${redirectUri}#state=${encodeURIComponent(state)}&session_state=mock-session&code=mock-code`);
 }

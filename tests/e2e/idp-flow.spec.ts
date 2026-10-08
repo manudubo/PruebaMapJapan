@@ -1,6 +1,7 @@
 import { expect, test } from './fixtures/kc-admin';
 import type { CDPSession, Page } from '@playwright/test';
 import crypto from 'node:crypto';
+import { FailurePacer } from './fixtures/kc-pacing';
 
 /**
  * KC-01 / SEC-12 — browser-passkey authentication flow contract.
@@ -120,9 +121,6 @@ function uniqueUser(prefix: string): string {
 
 // Satisfies the realm password policy: length(8) upperCase(1) digits(1) specialChars(1)
 const THROWAWAY_PASSWORD = 'Idp-Flow-Test-1!';
-
-/** Longer than the realm's quick_login_check_milli_seconds (1000). */
-const QUICK_LOGIN_GAP_MS = 1300;
 
 async function addVirtualAuthenticator(page: Page): Promise<{ cdp: CDPSession; authenticatorId: string }> {
   const cdp = await page.context().newCDPSession(page);
@@ -270,16 +268,19 @@ test.describe('Keycloak browser flow (KC-01 / SEC-12)', () => {
       const username = await createThrowaway(kcAdmin, 'idp-flow-wrongpw', THROWAWAY_PASSWORD);
       try {
         const hits = trackAppRedirects(page);
+        // Brute-force detection treats two failures less than 1 s apart as a bot
+        // ("quick login" lockout, see idp-hardening.spec.ts), so pace them like a human.
+        const pacer = new FailurePacer();
         await submitUsername(page, username);
         await submitPassword(page, 'Wrong-Password-1!');
+        pacer.failed();
         expect(issuedCode(hits)).toBe(false);
-        // Brute-force detection treats two failures less than 1 s apart as a bot
-        // ("quick login" lockout, see idp-hardening.spec.ts), so type like a human.
-        await page.waitForTimeout(QUICK_LOGIN_GAP_MS);
+        await pacer.humanPause();
         await submitPassword(page, process.env.E2E_TEST_PASSWORD ?? 'Another-User-Pw-1!');
+        pacer.failed();
         expect(issuedCode(hits)).toBe(false);
         // The correct one still works in the same session afterwards.
-        await page.waitForTimeout(QUICK_LOGIN_GAP_MS);
+        await pacer.humanPause();
         await submitPassword(page, THROWAWAY_PASSWORD);
         await expect.poll(() => issuedCode(hits)).toBe(true);
       } finally {

@@ -21,5 +21,10 @@ if [ -z "$id" ]; then
 fi
 # VERIFY_EMAIL is a default action for new users; this test user is verified.
 api -X PUT "$base/users/$id" -d '{"requiredActions":[],"emailVerified":true}'
-api -X PUT "$base/users/$id/reset-password" -d "$(jq -n --arg p "$pass" '{type:"password",value:$p,temporary:false}')"
+# Set the password on every run, but the production policy (passwordHistory(3))
+# refuses re-setting the current one with 400: that case is fine.
+set_pw="$(curl -sS --noproxy '*' -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" \
+  -H 'Content-Type: application/json' -X PUT "$base/users/$id/reset-password" \
+  -d "$(jq -n --arg p "$pass" '{type:"password",value:$p,temporary:false}')")"
+case "$set_pw" in 2*|400) ;; *) echo "kc-user.sh: reset-password answered $set_pw" >&2; exit 1 ;; esac
 printf '%s\n' "$id"

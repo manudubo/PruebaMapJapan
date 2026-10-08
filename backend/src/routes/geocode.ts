@@ -23,7 +23,10 @@ import type { ContextVariables, Env } from '../types';
  *  - the upstream answer is reduced to {lat, lon, display_name}.
  *
  * Config: NOMINATIM_CONTACT (email or URL, required outside development),
- * NOMINATIM_URL (default the public instance; https only outside development).
+ * NOMINATIM_URL (default the public instance; https only outside development),
+ * NOMINATIM_USER_AGENT (optional product token(s), e.g. "TravelMap-selfhost/1.0";
+ * default DEFAULT_USER_AGENT_PRODUCT; an invalid value falls back to the default
+ * and is refused at boot by the Node server, node/config.ts).
  */
 export const DEFAULT_NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const MIN_INTERVAL_MS = 1000;
@@ -73,8 +76,18 @@ export function acceptLanguage(raw: string | undefined): string {
     : 'es,en';
 }
 
-export function userAgent(contact: string): string {
-  return `TravelMap-PruebaMapJapan/1.0 (+${contact})`;
+export const DEFAULT_USER_AGENT_PRODUCT = 'TravelMap-PruebaMapJapan/1.0';
+const TOKEN = "[A-Za-z0-9!#$%&'*+.^_`|~-]+";
+const PRODUCTS = new RegExp(`^${TOKEN}(/${TOKEN})?( ${TOKEN}(/${TOKEN})?){0,2}$`);
+
+/** NOMINATIM_USER_AGENT as product token(s) (RFC 9110 `product`, up to 3), or null when unusable. */
+export function userAgentProduct(raw: string | undefined): string | null {
+  const v = raw?.trim() ?? '';
+  return v.length > 0 && v.length <= 100 && PRODUCTS.test(v) ? v : null;
+}
+
+export function userAgent(contact: string, product?: string): string {
+  return `${userAgentProduct(product) ?? DEFAULT_USER_AGENT_PRODUCT} (+${contact})`;
 }
 
 function upstreamUrl(env: Env): URL | null {
@@ -149,7 +162,7 @@ geocode.get('/', async (c) => {
   let results: GeocodeResult[] | null = null;
   try {
     const res = await fetch(url.href, {
-      headers: { 'User-Agent': userAgent(contact), 'Accept-Language': lang, Accept: 'application/json' },
+      headers: { 'User-Agent': userAgent(contact, c.env.NOMINATIM_USER_AGENT), 'Accept-Language': lang, Accept: 'application/json' },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       redirect: 'error',
     });

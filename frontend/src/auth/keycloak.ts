@@ -97,14 +97,139 @@ export function onAuthStatusChange(listener: AuthListener): () => void {
   return () => listeners.delete(listener);
 }
 
+/** The app's base URL with a trailing slash (Vite BASE_URL: /PruebaMapJapan/ on Pages, / in tests). */
+function appBase(): string {
+  const base = ((import.meta.env.BASE_URL as string | undefined) ?? '/').replace(/\/?$/, '/');
+  return window.location.origin + base;
+}
+
+/** Absolute URL of an app page, e.g. appPageUrl('dashboard.html'). */
+export function appPageUrl(page: string): string {
+  return appBase() + page;
+}
+
 function silentCheckSsoRedirectUri(): string {
-  // Vite's BASE_URL so it works on GitHub Pages (/PruebaMapJapan/) and on localhost (/).
-  const base = (import.meta.env.BASE_URL as string | undefined) ?? '/';
-  return window.location.origin + base.replace(/\/$/, '') + '/silent-check-sso.html';
+  return appPageUrl('silent-check-sso.html');
+}
+
+// ---------------------------------------------------------------------------
+// Login redirect URIs
+//
+// Keycloak accepts only the exact redirect URIs registered for the client
+// (terraform/keycloak/main.tf `redirect_pages`: no query strings, no
+// wildcards, which would let any page under the origin receive codes). Sending
+// window.location.href from trip-edit.html?tripId=12 got 400 "Invalid
+// redirect_uri". So every login goes to a registered page, and the real
+// target (same app, path + query + hash) waits in sessionStorage until the
+// landing page has processed Keycloak's callback, then the user is sent back.
+// ---------------------------------------------------------------------------
+
+/** Registered redirect pages (silent-check-sso.html is only for the silent iframe). */
+export const LOGIN_REDIRECT_PAGES = ['dashboard.html', 'profile.html', 'index.html'] as const;
+const DEFAULT_LANDING_PAGE = 'dashboard.html';
+export const RETURN_TO_KEY = 'travelmap.auth.returnTo';
+/** A remembered target older than this belongs to an abandoned login. */
+export const RETURN_TO_TTL_MS = 15 * 60 * 1000;
+
+let navigateTo: (url: string) => void = (url) => window.location.replace(url);
+
+/** Test-only: observe the post-login navigation (jsdom cannot navigate). */
+export function __setNavigateForTests(fn: (url: string) => void): void {
+  navigateTo = fn;
+}
+
+function storeReturnTo(path: string | null): void {
+  try {
+    if (path === null) window.sessionStorage.removeItem(RETURN_TO_KEY);
+    else window.sessionStorage.setItem(RETURN_TO_KEY, JSON.stringify({ path, at: Date.now() }));
+  } catch {
+    // Storage blocked: the login still works, the user just lands on the registered page.
+  }
+}
+
+/** A same-app path (+query+hash) for `raw`, or null for anything that could leave the app. */
+function sameAppPath(raw: string): string | null {
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return null;
+  let url: URL;
+  try {
+    url = new URL(raw, window.location.origin);
+  } catch {
+    return null;
+  }
+  const base = new URL(appBase());
+  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return null;
+  return url.pathname + url.search + url.hash;
+}
+
+/** The remembered target (once: the entry is removed), or null if absent, stale or invalid. */
+function takeReturnTo(): string | null {
+  let raw: string | null = null;
+  try {
+    raw = window.sessionStorage.getItem(RETURN_TO_KEY);
+  } catch {
+    return null;
+  }
+  storeReturnTo(null);
+  if (!raw) return null;
+  try {
+    const entry = JSON.parse(raw) as { path?: unknown; at?: unknown };
+    if (typeof entry.path !== 'string' || typeof entry.at !== 'number') return null;
+    if (Date.now() - entry.at > RETURN_TO_TTL_MS || entry.at > Date.now() + 60_000) return null;
+    return sameAppPath(entry.path);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The redirect URI to send to Keycloak for a login that should end on
+ * `target` (default: this page). A registered page without query or hash is
+ * sent as is; anything else lands on a registered page (the same page when it
+ * is registered, else the dashboard) and `target` is remembered. Targets
+ * outside the app are never remembered.
+ */
+export function loginRedirectUri(target: string = window.location.href): string {
+  let url: URL | null = null;
+  try {
+    url = new URL(target, window.location.href);
+  } catch {
+    url = null;
+  }
+  const path = url && url.origin === window.location.origin ? sameAppPath(url.pathname + url.search + url.hash) : null;
+  if (!url || path === null) {
+    storeReturnTo(null);
+    return appPageUrl(DEFAULT_LANDING_PAGE);
+  }
+  const rest = url.pathname.slice(new URL(appBase()).pathname.length);
+  const page = rest === '' ? 'index.html' : rest;
+  const registered = (LOGIN_REDIRECT_PAGES as readonly string[]).includes(page);
+  if (registered && !url.search && !url.hash) {
+    storeReturnTo(null);
+    return appPageUrl(page);
+  }
+  storeReturnTo(path);
+  return appPageUrl(registered ? page : DEFAULT_LANDING_PAGE);
+}
+
+/** keycloak-js puts the authorization response in the fragment (responseMode 'fragment'). */
+function isLoginCallback(hash: string): boolean {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  return params.has('state') && (params.has('code') || params.has('error'));
+}
+
+/** After the callback was processed: send the user back to where the login started. */
+function finishLoginRedirect(authenticated: boolean): void {
+  const target = takeReturnTo();
+  if (!authenticated || target === null) return;
+  const here = window.location.pathname + window.location.search;
+  if (target === here || target.split('#')[0] === here) return;
+  navigateTo(window.location.origin + target);
 }
 
 function startAttempt(): Promise<boolean> {
   const kc = keycloak;
+  // Read before init(): keycloak-js consumes the callback fragment.
+  const callback = typeof window !== 'undefined' && isLoginCallback(window.location.hash);
 
   kc.onTokenExpired = () => {
     if (import.meta.env.DEV) console.debug('[auth] token expired, refreshing');
@@ -132,6 +257,7 @@ function startAttempt(): Promise<boolean> {
             : 'WARN: authenticated=true but token=null — broken auth state';
         console.debug(`[auth] init: ${tokenState}`);
       }
+      if (callback) finishLoginRedirect(authenticated);
       // A late answer replaces an earlier timeout for every later caller.
       bounded = Promise.resolve(authenticated);
       setStatus(authenticated ? 'authenticated' : 'anonymous');
@@ -237,24 +363,27 @@ export function __resetAuthForTests(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Redirect to Keycloak login page with PKCE + passkey flow.
+ * Redirect to Keycloak login page with PKCE + passkey flow. After login the
+ * user comes back to `target` (default: this page, query string included);
+ * see loginRedirectUri.
  */
-export async function login(redirectUri?: string): Promise<void> {
+export async function login(target?: string): Promise<void> {
   // keycloak-js wires its redirect adapter synchronously at the start of init();
   // make sure that happened even if init was skipped (offline) so login works.
   if (!attempt) bounded = withTimeout(startAttempt());
   await keycloak.login({
-    redirectUri: redirectUri ?? window.location.href,
+    redirectUri: loginRedirectUri(target),
     scope: 'openid profile email',
   });
 }
 
 /**
- * Redirect to Keycloak logout endpoint and clear the local session.
+ * Redirect to Keycloak logout endpoint and clear the local session. The
+ * default target is a registered post-logout URI (the bare origin is not).
  */
 export async function logout(redirectUri?: string): Promise<void> {
   await keycloak.logout({
-    redirectUri: redirectUri ?? window.location.origin,
+    redirectUri: redirectUri ?? appPageUrl('index.html'),
   });
 }
 

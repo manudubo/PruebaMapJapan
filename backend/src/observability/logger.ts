@@ -101,10 +101,20 @@ let sink: Sink = consoleSink;
 const LEVEL_ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 let minLevel: LogLevel = 'info';
 
+/** A LOG_LEVEL value as a level, or null when it is not one (case and spaces ignored). */
+export function parseLogLevel(level: string | undefined): LogLevel | null {
+  const l = level?.trim().toLowerCase();
+  return l === 'debug' || l === 'info' || l === 'warn' || l === 'error' ? l : null;
+}
+
 /** Lowest level that is written (default info). Unknown values are ignored. */
 export function setMinLogLevel(level: string | undefined): void {
-  const l = level?.trim().toLowerCase();
-  if (l === 'debug' || l === 'info' || l === 'warn' || l === 'error') minLevel = l;
+  minLevel = parseLogLevel(level) ?? minLevel;
+}
+
+/** Current threshold (for startup wiring tests and the config summary). */
+export function getMinLogLevel(): LogLevel {
+  return minLevel;
 }
 
 /** Test hook: capture formatted lines. Returns a restore function. */

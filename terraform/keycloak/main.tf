@@ -3,6 +3,10 @@
 locals {
   deploy_defaults = jsondecode(file("${path.module}/../../config/deploy-defaults.json"))
   production      = var.profile == "production"
+  # Plain http to the admin API is only acceptable when it never leaves the machine
+  # (deploy/selfhost/scripts/keycloak-apply.sh uses http://127.0.0.1:<KC_ADMIN_PORT>/auth;
+  # the public URL blocks /auth/admin).
+  kc_url_loopback = can(regex("^http://(127\\.0\\.0\\.1|localhost|\\[::1\\])(:[0-9]{1,5})?(/|$)", var.kc_url))
 
   app_origins   = coalesce(var.app_origins, [local.deploy_defaults.pagesOrigin])
   app_base_path = coalesce(var.app_base_path, local.deploy_defaults.appBasePath)
@@ -158,8 +162,8 @@ resource "keycloak_realm" "japan_trip" {
       error_message = "profile=production needs webauthn_rp_id = the public Keycloak host name (set it before anyone registers a passkey)."
     }
     precondition {
-      condition     = !local.production || (startswith(var.kc_url, "https://") && !var.kc_tls_insecure_skip_verify)
-      error_message = "profile=production: kc_url must be https and kc_tls_insecure_skip_verify must be false (the admin password crosses this connection)."
+      condition     = !local.production || ((startswith(var.kc_url, "https://") || local.kc_url_loopback) && !var.kc_tls_insecure_skip_verify)
+      error_message = "profile=production: kc_url must be https (or http on 127.0.0.1/localhost, e.g. the self-host admin port) and kc_tls_insecure_skip_verify must be false (the admin password crosses this connection)."
     }
     precondition {
       condition     = !local.production || (var.smtp_host != "mailpit" && (var.smtp_starttls || var.smtp_ssl))

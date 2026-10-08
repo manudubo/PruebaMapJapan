@@ -311,7 +311,7 @@ describe('keycloak-flow: KC-01 regression tests against a real Keycloak (S3)', (
     expect(apply).toBeGreaterThan(start);
     expect(pw).toBeGreaterThan(apply);
     const run = steps[pw]!.run!;
-    for (const part of ['e2e/idp-flow.spec.ts', 'e2e/idp-config.spec.ts', '--project=chromium', '--project=firefox']) {
+    for (const part of ['e2e/idp-flow.spec.ts', 'e2e/idp-config.spec.ts', 'e2e/idp-hardening.spec.ts', '--project=chromium', '--project=firefox']) {
       expect(run).toContain(part);
     }
     // A missing Keycloak or credential must fail the job, not mark the tests fixme.
@@ -325,6 +325,14 @@ describe('keycloak-flow: KC-01 regression tests against a real Keycloak (S3)', (
     expect(upload?.with?.['path']).toBe('tests/playwright-report/');
     expect(steps.at(-1)?.run).toBe('scripts/ci/keycloak-flow.sh stop');
     expect(steps.at(-1)?.if).toBe('always()');
+  });
+
+  it('copies the module with config/deploy-defaults.json where main.tf reads it (../../config)', () => {
+    const main = readFileSync(resolve(__dirname, '../../terraform/keycloak/main.tf'), 'utf8');
+    expect(main).toContain('file("${path.module}/../../config/deploy-defaults.json")');
+    const mod = script.match(/mod="\$KC_WORK\/tf\/([^"]+)"/)?.[1];
+    expect(mod).toBe('terraform/keycloak'); // two levels below $KC_WORK/tf
+    expect(script).toMatch(/cp "\$REPO"\/config\/deploy-defaults\.json "\$KC_WORK\/tf\/config\/"/);
   });
 
   describe('scripts/ci/keycloak-flow.sh keeps generated secrets out of logs and argv', () => {

@@ -104,11 +104,15 @@ services:
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-japan-trip}
       # Fetch signing keys inside the compose network, not through the tunnel.
       KEYCLOAK_JWKS_URL: http://keycloak:8080/auth/realms/${KEYCLOAK_REALM:-japan-trip}/protocol/openid-connect/certs
+      # Empty = derived: issuer ${KC_PUBLIC_URL}/realms/<realm>, azp = VALID_AUDIENCES.
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-}
+      ALLOWED_AZP: ${ALLOWED_AZP:-}
       VALID_AUDIENCES: japan-trip-frontend
       OTP_SECRET: ${OTP_SECRET:?set in .env}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?run via scripts/compose.sh}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}
@@ -117,6 +121,9 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-}
       NOMINATIM_CONTACT: ${NOMINATIM_CONTACT:-}
+      NOMINATIM_URL: ${NOMINATIM_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_REQUESTS: ${LOG_REQUESTS:-false}
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-2}
       CLIENT_IP_HEADER: x-forwarded-for
       NODE_OPTIONS: --max-old-space-size=192

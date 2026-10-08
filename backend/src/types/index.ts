@@ -68,6 +68,8 @@ export interface Env {
   CLIENT_IP_HEADER?: string;
   /** Contact (email or URL) for the Nominatim User-Agent; required outside development (SEC-18). */
   NOMINATIM_CONTACT?: string;
+  /** Product token(s) for the Nominatim User-Agent (default TravelMap-PruebaMapJapan/1.0). */
+  NOMINATIM_USER_AGENT?: string;
   /** Upstream search endpoint (default https://nominatim.openstreetmap.org/search). */
   NOMINATIM_URL?: string;
 }

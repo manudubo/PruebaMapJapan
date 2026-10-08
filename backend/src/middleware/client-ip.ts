@@ -34,7 +34,8 @@ export interface ClientIpConfig {
   header: ClientIpHeader;
 }
 
-const MAX_HOPS = 10;
+/** Upper bound for TRUSTED_PROXY_HOPS (also enforced at boot by node/config.ts). */
+export const MAX_TRUSTED_PROXY_HOPS = 10;
 const reported = new Set<string>();
 
 function reportOnce(key: string, fields: Record<string, unknown>) {
@@ -47,7 +48,7 @@ export function clientIpConfig(env: { TRUSTED_PROXY_HOPS?: string; CLIENT_IP_HEA
   const rawHops = env?.TRUSTED_PROXY_HOPS?.trim() ?? '';
   let hops = 0;
   if (rawHops !== '') {
-    if (/^\d{1,2}$/.test(rawHops) && Number(rawHops) <= MAX_HOPS) hops = Number(rawHops);
+    if (/^\d{1,2}$/.test(rawHops) && Number(rawHops) <= MAX_TRUSTED_PROXY_HOPS) hops = Number(rawHops);
     else reportOnce(`hops:${rawHops}`, { setting: 'TRUSTED_PROXY_HOPS', value: rawHops.slice(0, 20), using: 0 });
   }
   const rawHeader = env?.CLIENT_IP_HEADER?.trim().toLowerCase() ?? '';

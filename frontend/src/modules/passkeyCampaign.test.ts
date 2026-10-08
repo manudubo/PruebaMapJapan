@@ -4,6 +4,8 @@ vi.mock('@/auth/keycloak', () => ({
   keycloak: {
     login: vi.fn().mockResolvedValue(undefined),
   },
+  // The real one maps the page to a registered redirect URI (tests/auth-redirect.test.ts).
+  loginRedirectUri: vi.fn(() => 'https://app.test/PruebaMapJapan/dashboard.html'),
 }));
 
 // Import AFTER vi.mock declarations
@@ -62,7 +64,7 @@ describe('checkPasskeyCampaign', () => {
     expect(document.cookie).toContain('pnk_user-999=');
     expect(keycloak.login).toHaveBeenCalledWith({
       action: 'webauthn-register-passwordless',
-      redirectUri: window.location.href,
+      redirectUri: 'https://app.test/PruebaMapJapan/dashboard.html',
     });
   });
 });

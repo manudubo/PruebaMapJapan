@@ -147,10 +147,12 @@ cmd_apply() {
   mask "$session_pw"
 
   # Work on a copy so state, .terraform/ and the plugin cache never land in the checkout.
-  mod="$KC_WORK/tf"
-  rm -rf "$mod"
-  mkdir -p "$mod"
+  # Same layout as the repo: main.tf reads ../../config/deploy-defaults.json.
+  rm -rf "$KC_WORK/tf"
+  mod="$KC_WORK/tf/terraform/keycloak"
+  mkdir -p "$mod" "$KC_WORK/tf/config"
   cp "$REPO"/terraform/keycloak/*.tf "$REPO"/terraform/keycloak/.terraform.lock.hcl "$mod/"
+  cp "$REPO"/config/deploy-defaults.json "$KC_WORK/tf/config/"
   "$TF" -chdir="$mod" init -input=false -lockfile=readonly -no-color >/dev/null
 
   # Fresh bootstrap: Keycloak creates the built-in profile/email scope mappers together
