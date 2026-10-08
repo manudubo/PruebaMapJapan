@@ -1,4 +1,4 @@
-# Browser flow: username first, then exactly one credential (passkey OR password).
+# Browser flow: username first, then exactly one credential the user HAS.
 #
 #   browser-passkey (top level, basic-flow)
 #   ├── auth-cookie                                ALTERNATIVE  (existing SSO session)
@@ -7,30 +7,49 @@
 #       └── passkey-or-password                    REQUIRED     (basic-flow — the credential step)
 #           ├── passkey                            ALTERNATIVE  (basic-flow)
 #           │   └── passkey-if-configured          CONDITIONAL  (basic-flow)
-#           │       ├── conditional-user-configured          REQUIRED (condition)
-#           │       └── webauthn-authenticator-passwordless  REQUIRED
-#           └── auth-password-form                 ALTERNATIVE
+#           │       ├── webauthn-authenticator-passwordless  REQUIRED
+#           │       └── conditional-user-configured          REQUIRED (condition)
+#           └── password                           ALTERNATIVE  (basic-flow)
+#               └── password-if-configured         CONDITIONAL  (basic-flow)
+#                   ├── auth-password-form                   REQUIRED
+#                   └── conditional-user-configured          REQUIRED (condition)
 #
-# KC-01 / SEC-12: the previous layout mixed REQUIRED auth-username-form with an
+# KC-01 / SEC-12: the pre-Phase-26 layout mixed REQUIRED auth-username-form with an
 # ALTERNATIVE webauthn execution at the same level. Keycloak's DefaultAuthenticationFlow
 # drops every ALTERNATIVE when a REQUIRED sibling exists ("REQUIRED and ALTERNATIVE
 # elements at same level! Those alternative executions will be ignored"), so the old
 # passkey-forms subflow reduced to "username form only" and issued an authorization
 # code for ANY existing username with no credential at all (reproduced on KC 26.6.1).
 #
-# Invariants of this layout (keep them when editing):
+# REG-03: each credential branch is conditional on the user HAVING that credential,
+# verified on Keycloak 26.6.1 (tests/e2e/idp-flow.spec.ts, virtual authenticator on/off):
+#   - passkey only        → WebAuthn step, never a password form. On a device without
+#                           WebAuthn the theme (footer.ftl) promotes the link to the app's
+#                           e-mail recovery page, which sets a password via the backend.
+#   - password only       → password form, no "Try another way".
+#   - passkey + password  → the user's PREFERRED credential first (Keycloak's credential
+#                           priority: the one enrolled first — the passkey for accounts made
+#                           by the registration flow), the other under "Try another way".
+#                           A browser without WebAuthn uses "Try another way" → password.
+#   - neither             → both branches are empty, the credential step fails.
+#
+# Invariants of this layout (keep them when editing; tests/e2e/idp-config.spec.ts checks
+# them statically):
 #   1. No level mixes REQUIRED/CONDITIONAL with ALTERNATIVE siblings (conditions such as
 #      conditional-user-configured are excluded from that check by Keycloak).
 #   2. The credential step is a single REQUIRED subflow, so passkey-forms can only
 #      succeed after one of its ALTERNATIVE credentials succeeds.
-#   3. webauthn is REQUIRED only inside a CONDITIONAL subflow guarded by
-#      conditional-user-configured. A REQUIRED authenticator the user has not configured
+#   3. Every credential authenticator is REQUIRED only inside a CONDITIONAL subflow guarded
+#      by conditional-user-configured. A REQUIRED authenticator the user has not configured
 #      is otherwise marked SETUP_REQUIRED and counted as passed (Keycloak queues the
-#      register-passkey required action instead) — i.e. an attacker knowing a username
-#      could enrol their own passkey. The condition makes the passkey branch evaporate
-#      for users without a passkey, so they fall through to auth-password-form.
-#   4. A user with neither a passkey nor a password fails the flow (both ALTERNATIVEs
-#      fail) — see tests/e2e/idp-flow.spec.ts for the negative checks.
+#      register-passkey / update-password required action instead) — i.e. an attacker
+#      knowing a username could enrol their own credential.
+#   4. The authenticator is the FIRST execution of its conditional subflow (condition
+#      second). Keycloak's AuthenticationSelectionResolver only looks at the sibling
+#      branches — and so offers "Try another way" — when the current execution is the
+#      first of its subflow; with the condition first, passkey users had no fallback.
+#   5. A user with neither a passkey nor a password fails the flow (both ALTERNATIVEs are
+#      empty) — see tests/e2e/idp-flow.spec.ts for the negative checks.
 
 resource "keycloak_authentication_flow" "browser_passkey" {
   realm_id    = keycloak_realm.japan_trip.id
@@ -97,22 +116,27 @@ resource "keycloak_authentication_subflow" "passkey_if_configured" {
   priority          = 10
 }
 
-resource "keycloak_authentication_execution" "passkey_condition" {
-  realm_id          = keycloak_realm.japan_trip.id
-  parent_flow_alias = keycloak_authentication_subflow.passkey_if_configured.alias
-  authenticator     = "conditional-user-configured"
-  requirement       = "REQUIRED"
-  priority          = 10
-}
-
+# The credential authenticator comes FIRST in its conditional subflow and the condition
+# second (Keycloak evaluates every condition of a conditional subflow before running it,
+# whatever its position). The order matters for "Try another way": Keycloak's
+# AuthenticationSelectionResolver only climbs to the parent flows (and so lists the
+# other branch) when the current execution is the first one of its subflow.
 resource "keycloak_authentication_execution" "webauthn_passwordless" {
   realm_id          = keycloak_realm.japan_trip.id
   parent_flow_alias = keycloak_authentication_subflow.passkey_if_configured.alias
   authenticator     = "webauthn-authenticator-passwordless"
   requirement       = "REQUIRED"
+  priority          = 10
+}
+
+resource "keycloak_authentication_execution" "passkey_condition" {
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.passkey_if_configured.alias
+  authenticator     = "conditional-user-configured"
+  requirement       = "REQUIRED"
   priority          = 20
 
-  depends_on = [keycloak_authentication_execution.passkey_condition]
+  depends_on = [keycloak_authentication_execution.webauthn_passwordless]
 }
 
 resource "keycloak_authentication_subflow" "password" {
@@ -137,22 +161,22 @@ resource "keycloak_authentication_subflow" "password_if_configured" {
   priority          = 10
 }
 
-resource "keycloak_authentication_execution" "password_condition" {
-  realm_id          = keycloak_realm.japan_trip.id
-  parent_flow_alias = keycloak_authentication_subflow.password_if_configured.alias
-  authenticator     = "conditional-user-configured"
-  requirement       = "REQUIRED"
-  priority          = 10
-}
-
 resource "keycloak_authentication_execution" "password_form" {
   realm_id          = keycloak_realm.japan_trip.id
   parent_flow_alias = keycloak_authentication_subflow.password_if_configured.alias
   authenticator     = "auth-password-form"
   requirement       = "REQUIRED"
+  priority          = 10
+}
+
+resource "keycloak_authentication_execution" "password_condition" {
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.password_if_configured.alias
+  authenticator     = "conditional-user-configured"
+  requirement       = "REQUIRED"
   priority          = 20
 
-  depends_on = [keycloak_authentication_execution.password_condition]
+  depends_on = [keycloak_authentication_execution.password_form]
 }
 
 # SEC-13 / ARCH-08: Terraform is the single source of truth for which flow the realm
