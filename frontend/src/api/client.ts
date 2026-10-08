@@ -91,6 +91,13 @@ export class ApiError extends Error {
 }
 
 /**
+ * Dispatched on `window` when any call answers 403 `email_not_verified`: the account's
+ * address is not verified yet, so the verification screen (src/auth/verifyEmail.ts) takes
+ * over instead of every caller showing its own error.
+ */
+export const EMAIL_NOT_VERIFIED_EVENT = 'travelmap:email-not-verified';
+
+/**
  * True once a 401 has triggered the session-expired toast + login redirect,
  * so concurrent 401s on the same page don't toast/redirect more than once.
  */
@@ -136,6 +143,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const envelope = await response.json().catch(() => null) as
       | { code?: string; error?: string; issues?: ApiValidationIssue[] }
       | null;
+    if (response.status === 403 && envelope?.code === 'email_not_verified') {
+      window.dispatchEvent(new Event(EMAIL_NOT_VERIFIED_EVENT));
+    }
     throw new ApiError(
       response.status,
       envelope?.code ?? 'unknown',

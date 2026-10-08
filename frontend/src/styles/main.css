@@ -2196,3 +2196,76 @@ travel-nav:not(:defined) {
 .trip-auth-actions {
   margin: 4px 0 20px;
 }
+
+/* ============================================
+   One-time code input + email verification (src/modules/codeInput.ts, src/auth/verifyEmail.ts)
+   ============================================ */
+.code-input {
+  margin: 0 auto 16px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.code-input-legend {
+  margin: 0 auto 10px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--jp-text-secondary);
+}
+
+.code-input-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.code-input-digit {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 52px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--jp-text-tertiary);
+  border-radius: var(--jp-radius);
+  background: var(--jp-surface);
+  color: var(--jp-text);
+  font: inherit;
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-input-digit[aria-invalid="true"] {
+  border-color: var(--jp-danger);
+}
+
+.code-input-digit:disabled {
+  opacity: 0.6;
+}
+
+.code-error {
+  min-height: 1.5em;
+  margin: 0 0 12px;
+  color: var(--jp-danger);
+  font-size: 14px;
+}
+
+.verify-email .verify-email-hint {
+  margin: 20px 0 12px;
+  color: var(--jp-text-secondary);
+  font-size: 14px;
+}
+
+.btn-link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--jp-accent-text);
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: var(--jp-text);
+}
