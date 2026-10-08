@@ -1,8 +1,35 @@
 # Milestones
 
+## Post-v3.2 batch 3 — Self-registration (REG-01..07)
+
+**Status:** 53 commits on `claude/focused-lovelace-cryssy` after `d2dd404` (PR #24 as merged), no PR yet; sandbox-validated, real-host validation pending. Not a numbered milestone.
+**Timeline:** 2026-10-08
+**Stats (`git log origin/main..HEAD`):** 53 commits (49 non-merge, 4 merges), four tracks (IdP, backend, UI, integration)
+**Tests as reported (not re-run for these docs):** backend 70 files / 2161 tests x3, frontend 69 files / 1488 tests, `terraform test` 23/23, `purge-unverified.test.sh` 34/34, `scripts.test.sh` 57/57, `idp-registration` 9/9 + `registration-integration` 7/7 on the real stack, self-host `stack-e2e.sh` 67/67, mocked UI Playwright 96/96 (`qa/REGISTRATION-*.md`)
+**Requirements:** new REG-01..07 (`REQUIREMENTS.md`)
+
+### Delivered
+
+Anyone can sign up with a passkey (no password), must prove their e-mail with a 6-digit code before the API opens, and can recover by e-mail code when a device cannot use the passkey. Registration stays closed in production until the owner opens it.
+
+### Key Accomplishments
+
+1. Keycloak: passkey-first `registration-passkey` flow, `travelmap-recovery` least-privilege client, "Try another way" fix, optional reCAPTCHA, 9 new plan-time production guards
+2. Backend: migration 0011, shared OTP core with purposes, verified-email gate over every authenticated route, recovery endpoints with anti-enumeration
+3. UI: Sign up / Sign in, verification screen, passkey onboarding, `recover.html`, profile backup-password card; axe 0 violations
+4. Integration: one wire-contract fixture used by both sides; the real stack found a recovery token with no roles (every recovery answered 503) and a `max_attempts` misread; both fixed
+5. Operations: purge timer for never-verified accounts, `registration-stack.sh` in the Keycloak flow workflow, self-host `register verify recover` phases
+
+### Known Gaps
+
+- The extended `Keycloak flow` workflow has not run on GitHub Actions
+- Not validated: real Funnel, real Gmail, real passkeys on the `.ts.net` rpId, reCAPTCHA, the UI against the self-host stack, Firefox/WebKit
+- No per-IP sign-up throttle (stock Caddy has no rate-limit module); recovery only for accounts with a `users` row
+- Reports: `qa/REGISTRATION-IDP-REPORT.md`, `REGISTRATION-BACKEND-REPORT.md`, `REGISTRATION-UI-REPORT.md`, `REGISTRATION-INTEGRATION-REPORT.md`
+
 ## Post-v3.2 batch — Production readiness (PR #24)
 
-**Status:** Open PR #24 on `claude/focused-lovelace-cryssy` (head `2d7a734`); sandbox-validated, real-server validation pending. Not a numbered milestone: it follows v3.2 and has no phases.
+**Status:** PR #24, merged to `main` as `d2dd404` (head was `2d7a734`); sandbox-validated, real-server validation pending. Not a numbered milestone: it follows v3.2 and has no phases.
 **Timeline:** 2026-10-04 → 2026-10-08
 **Stats (`git log origin/main..HEAD`):** 89 commits (13 dated 2026-10-04, 68 on 10-07, 8 on 10-08), run as five parallel tracks plus one integration pass
 **Tests as reported (`qa/INTEGRATION-REPORT.md`, not re-run for these docs):** backend 1928 (64 files), frontend 1148 (53 files), `scripts.test.sh` 52, `stack-e2e.sh` 40 on a fresh sandbox stack, real-auth Playwright 66/66 plus `uat-passkeys` 2/2

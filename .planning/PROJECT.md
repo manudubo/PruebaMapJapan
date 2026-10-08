@@ -37,7 +37,7 @@ A user can build a complete trip itinerary end-to-end from the UI — destinatio
 
 ### Validated in v3.2 (executed 2026-07-24 to 2026-10-04; merged as PR #23, green on Actions)
 
-Status per requirement is in `.planning/REQUIREMENTS.md` (after the PR #24 batch: 84 Complete, 3 Partial, 1 Unverified); evidence in `.planning/phases/TRACEABILITY.md`.
+Status per requirement is in `.planning/REQUIREMENTS.md` (after the registration batch: 88 Complete, 4 Partial, 3 Unverified); evidence in `.planning/phases/TRACEABILITY.md`.
 
 - ✓ Critical security: OTP from CSPRNG, widget XSS closed with DOM APIs, CSP meta built from the resolved build env, unused admin secret removed from the Cloudflare Terraform — Phase 20
 - ✓ Deploy and build safety: backend builds, deploys gated on CI, wrangler pinned, Keycloak healthcheck, dependency bumps — Phase 21
@@ -60,9 +60,16 @@ Rows PROD-01..04 and QA-01, plus A11Y-04, A11Y-05, SEC-18, in `.planning/REQUIRE
 - ✓ Real-auth Playwright suite green on a real stack (66/66 plus uat-passkeys), e2e hygiene guard — QA-01 (Keycloak CI job unverified)
 - ~ Self-hosting kit (Node server from the same Hono app, compose, Caddy, Tailscale Funnel scripts, backup/restore, guide) — PROD-01, Partial: real Funnel, Gmail and passkeys not validated
 
+### Validated in the registration batch (53 commits after `d2dd404`; sandbox-validated only)
+
+Rows REG-01..07 in `.planning/REQUIREMENTS.md`; evidence in `.planning/phases/TRACEABILITY.md`.
+
+- ✓ E-mail code verification and the `403 email_not_verified` gate (migration 0011), recovery by e-mail code, sign-up/verify/onboarding/recover UI, "Try another way" fix, contract fixture and real-stack e2e — REG-02..05
+- ~ Passkey-first self-registration in Keycloak — REG-01 Unverified (real passkeys on the `.ts.net` host and the Actions run not seen); abuse controls — REG-06 Partial (no per-IP sign-up throttle; reCAPTCHA unvalidated); contract tests and e2e in CI — REG-07 Unverified
+
 ### Active
 
-- [ ] Read the PR #24 checks and merge it; confirm the `Keycloak flow` workflow is green on Actions (QA-01)
+- [ ] Open a PR for the registration batch and confirm the extended `keycloak-flow.yml` is green on Actions (REG-07); keep registration closed in production until then. Earlier: PR #24 is merged (`d2dd404`); confirm the `Keycloak flow` workflow is green on Actions (QA-01)
 - [ ] Validate the self-hosting kit on the owner's server `legion-server.tailad4a36.ts.net`: Funnel client-IP forwarding (`TRUSTED_PROXY_HOPS=2`), Gmail delivery, passkeys on the `.ts.net` rpId; then close PROD-01 and SEC-17 (owner actions in `STATE.md`)
 - [ ] Owner actions before any Cloudflare/Neon deploy: `MIGRATION_DATABASE_URL` secret, Neon smoke checklist, duplicate-email check; rotate the leaked local Keycloak secret (DEP-02)
 
@@ -161,6 +168,7 @@ Source: Synthesizes `ANALISIS-REPO.md` (7 read/verification passes, 2026-07-22 �
 | Node server built from the same Hono app (PR #24) | One code path for Workers and Node; the Worker build is unchanged | ✓ Good — boot config reuses the app's validators after the copies drifted |
 | Keycloak `production` profile with plan-time guards (PR #24) | A production misconfiguration (ssl, test users, localhost rpId, Mailpit) should fail `terraform plan`, not log in | ✓ Good — 11 negative plans; applied to a real Keycloak 26.6.1 |
 | In-memory rate limiter behind a store interface (PR #24) | Exact for one Node process; no extra infrastructure | ⚠️ Revisit — per process; Workers needs a shared store or WAF rules |
+| Backend-owned e-mail code verification and passkey-first sign-up (registration batch) | Keycloak core has no e-mail OTP and its registration password cannot be optional (26.6.1); Java SPIs out of scope | ⚠️ Revisit — recovery client holds `manage-users`; no per-IP sign-up throttle |
 | Own SMTP client, TLS only (PR #24) | Gmail app password instead of Resend, which needs a domain | ⚠️ Revisit — Workers cannot use it; Gmail limits ~500/day |
 | 69 unpushed local commits backed up to `origin/backup/2026-07-22` rather than merged straight to `main` (v3.1 session) | Deploy workflows have no CI gate and the backend fails `wrangler deploy --dry-run` — a straight merge risked pushing a broken build to a prod deploy trigger | ✓ Good — no data loss, no accidental deploy; commits later merged properly after the E2E gate was green |
 
@@ -182,4 +190,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-Last updated: 2026-10-08 — v3.2 merged; PR #24 production-readiness batch consolidated
+Last updated: 2026-10-08 — v3.2 and PR #24 merged; self-registration batch consolidated
