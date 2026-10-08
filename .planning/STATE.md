@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.2
 milestone_name: Security & Code Health Hardening
-status: executed_pending_verification
-stopped_at: Phases 20-26 executed and consolidated; waiting for PR review, push, first Actions run and owner actions
-last_updated: "2026-10-04T00:00:00.000Z"
-last_activity: 2026-10-04 -- Consolidated planning docs against code and tests
+status: v3.2_merged_production_readiness_pending_validation
+stopped_at: v3.2 merged (PR #23, green on Actions); second batch (PR #24, 89 commits) consolidated in planning docs; waiting for PR #24 checks and validation on the owner's real server
+last_updated: "2026-10-08T00:00:00.000Z"
+last_activity: 2026-10-08 -- Planning docs updated for the PR #24 batch
 progress:
   total_phases: 7
   completed_phases: 7
@@ -18,21 +18,23 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-04 — v3.2 executed, pending verification)
+See: .planning/PROJECT.md (updated 2026-10-08 — v3.2 merged; production-readiness batch on PR #24)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** v3.2 is code-complete on branch `claude/focused-lovelace-cryssy` (HEAD `33ab925`, base `3c147f6` = `main`). Nothing is pushed. Next step is review of the PR, then the first GitHub Actions run of this code.
+**Current focus:** v3.2 is merged to `main` (PR #23, merge `ed49639`). The branch `claude/focused-lovelace-cryssy` carries a second batch (PR #24 open, head `2d7a734`, 89 commits ahead of `main`): self-hosting kit, internet hardening, A11Y-04/05, SEC-18, system and real-auth QA, Keycloak CI job. Next step is to read the PR #24 checks, merge, then validate on the owner's server `legion-server.tailad4a36.ts.net` (Funnel, Gmail, passkeys). Nothing of this batch is deployed.
 
 ## Current Position
 
-Phase: 26 of 26 (all v3.2 phases executed)
-Plan: n/a — Phases 22-26 ran from summaries, not PLAN.md files
-Status: Executed, pending verification (not yet "shipped")
-Last activity: 2026-10-04
+Phase: 26 of 26 (all v3.2 phases executed and merged); post-v3.2 production-readiness batch (PR #24) not phased
+Plan: n/a — Phases 22-26 ran from summaries, not PLAN.md files; the batch ran as five parallel tracks plus one integration pass
+Status: v3.2 shipped to `main` (CI green). PR #24 open, validated in the sandbox only
+Last activity: 2026-10-08
 
-Progress: [##########] 100% executed. Requirements: 75 Complete, 4 Partial, 1 Deferred, 2 Unverified (82 total, plus DATA-04 extra).
+Progress: v3.2 100%. Requirements: 84 Complete, 3 Partial (DEP-02, SEC-17, PROD-01), 1 Unverified (QA-01), 0 Deferred (88 rows: 82 audit-derived, DATA-04, and PROD-01..04, QA-01).
 
-Verification as last run (2026-10-04, this worktree, real Postgres 16, UTF8):
+GitHub Actions evidence (checked 2026-10-08 through the API): PR #23 head `2200c6e` had all 10 checks green (`e2e`, `accessibility`, `gitleaks`, `test-backend`, `test-frontend`, `test-scripts`, `typecheck-*`, `build-backend`, Vercel preview comments). The push to `main` at `ed49639` ran green (12 check runs including `e2e`, `accessibility`, `gitleaks`, `test-backend`, `build-and-deploy` and `deploy`; the `Security & Accessibility Scans`, `Deploy Frontend to GitHub Pages` and `Deploy Backend to Cloudflare Workers` runs succeeded; the backend deploy almost certainly skipped without Cloudflare secrets, cause not inspected). For PR #24 head `2d7a734`, `Keycloak flow`, `CI` and the security workflow had started; `e2e`, `idp-flow`, `accessibility` and `test-backend` were still in progress, the rest green. Re-read before merging.
+
+Verification as last run (2026-10-04, this worktree, real Postgres 16, UTF8; superseded by the integration run below for the batch):
 
 | Check | Result |
 |-------|--------|
@@ -42,7 +44,9 @@ Verification as last run (2026-10-04, this worktree, real Postgres 16, UTF8):
 | `vite build` with API and Keycloak origins | OK; CSP meta in 13 of 14 pages (all except `silent-check-sso.html`) |
 | Playwright e2e, Terraform, live Keycloak | not re-run in this consolidation (see `.planning/qa/QA-INDEX.md`) |
 
-Git range `3c147f6..HEAD`: 151 non-merge commits plus 18 merges, 303 files changed (+30,798 / -4,212).
+Git range `3c147f6..HEAD` at the v3.2 consolidation: 151 non-merge commits plus 18 merges, 303 files changed (+30,798 / -4,212).
+
+Verification as reported by the PR #24 batch (`qa/INTEGRATION-REPORT.md`, 2026-10-08, not re-run for these docs): typecheck clean on frontend, backend, `tests/adversarial` and `tests/system`; backend 64 files / 1928 tests green three times on PG 16.13; frontend 53 files / 1148 tests green, also under `America/Argentina/Buenos_Aires`; `vite build`, `build:node` and `wrangler deploy --dry-run` OK; `scripts.test.sh` 52/52; `stack-e2e.sh` 40/40 on a fresh sandbox stack; mocked Playwright 286 passed, 2 flaky under load (`qa-sw`, `trips`) that pass alone. Real-auth e2e: 66/66 plus `uat-passkeys` 2/2 (`qa/QA-FULLSTACK-REPORT.md`).
 
 ## Performance Metrics
 
@@ -57,6 +61,16 @@ Git range `3c147f6..HEAD`: 151 non-merge commits plus 18 merges, 303 files chang
 
 Full log in PROJECT.md Key Decisions table. v3.2 decisions that affect how the code must be operated:
 
+- **Production topology (PR #24):** frontend on GitHub Pages; backend, Keycloak and Postgres on the owner's server behind one Tailscale Funnel host (`legion-server.tailad4a36.ts.net`, port 443 only) with path routing `/api` and `/auth` (`KC_HTTP_RELATIVE_PATH=/auth`), Funnel to Caddy to app. Split hosts, Cloudflare Tunnel and Caddy with Let's Encrypt are supported at config level only. Choose the Keycloak host name before anyone registers a passkey (it is the WebAuthn rpId).
+- **Node server from the same Hono app:** `backend/src/server.ts` runs the app unchanged under `@hono/node-server` with the pg driver; `node/bootstrap.ts` validates env, applies the log level and pool, and builds the fetch handler; the Worker build is untouched. Boot-time config calls the app's own validators (no copies, which had drifted).
+- **Production Keycloak profile guards:** `profile = local|production` in Terraform. Production refuses at plan time: `ssl_required != all`, test users, rpId `localhost`, non-TLS or unverified admin URL (loopback http allowed for the kit), Mailpit or non-TLS SMTP. It also sets temporary brute-force lockouts (10 failures), a 12-character password policy, exact redirect URIs, registration off, verify email on, and no worker client. The kit applies it through `production.auto.tfvars.json`; the earlier override file that undid it was removed.
+- **Rate limiter is in-memory with a pluggable store:** sliding window, exact for one Node process, bounded to 50k keys, `setRateLimitStore()` for a shared store, fails open if the store fails. Per-IP limits run before JWT verification, per-user limits after. Client IP comes from `TRUSTED_PROXY_HOPS` (default 0 ignores forwarding headers; Funnel to Caddy to app is 2). A wrong hop count either merges all users into one bucket or trusts a spoofable entry.
+- **SMTP is a dependency-free client, TLS only:** STARTTLS required when configured (a stripped capability is an error), or implicit TLS; AUTH only after TLS; verified certificates; `SMTP_SECURE=none` only in development. Gmail app password. Workers cannot use it (`node:net`); use Resend there. OTP mail needs `email_verified` in the token.
+- **API accepts access tokens only:** `typ=Bearer`, `azp` in `ALLOWED_AZP`, `sub` string; a real Keycloak ID token was accepted by the earlier verifier. Tokens stay valid until `exp` (5 min) after logout; no introspection.
+- **Geocoding through the backend (SEC-18):** `GET /api/geocode` with an identifying User-Agent (`NOMINATIM_CONTACT` or `NOMINATIM_USER_AGENT`), 1 req/s gate and 24 h cache per process. Demo-only builds keep the direct call.
+- **Landing LCP and marker target size (A11Y-04/05):** pages render immediately (no opacity gate), hero served as AVIF/WebP/JPEG with preloads, Leaflet is a lazy chunk, overlapping markers are spread in screen space instead of clustered. `.day-group-badge` colour darkened for contrast.
+- **Login return-to:** Keycloak is always sent a registered `redirect_uri`; the real target is kept in sessionStorage (15 min) and restored after the callback. `logout()` defaults to the registered `index.html`.
+- **Migration 0010 and preflight:** push-built or journal-less 0003 databases upgrade with the plain migrator; `db:preflight` blocks only a journal-less database that already has 0004+ objects. Never roll the schema back (no down-migrations); prefer roll-forward.
 - **OSM tiles (QA-DEMO-FIXES):** CartoDB `basemaps.cartocdn.com` now answers every tile with a 200 "API KEY REQUIRED" placeholder. Maps use keyless `tile.openstreetmap.org`, dark mode is a CSS filter on the tile pane, attribution is visible, the service worker never caches tiles (OSM policy). `src/data/tiles.ts` is the single place to change provider; a large traffic increase needs a self-hosted or commercial source.
 - **BIZ-07 as DB triggers (migration 0008), not route checks:** production uses the Neon HTTP driver, which has no interactive transactions, so a route cannot hold a lock between check and write. Triggers raise `DC001`, mapped to 422 `date_conflict`. Advisory-lock namespaces: 7001 (OTP, per user), 7002 (BIZ-07, per trip). Shrinking a parent that would orphan children is rejected, never cascaded.
 - **OTP issuance in one SQL function (migration 0009, `otp_issue()`):** same reason (single statement works on Neon HTTP). Clock comes from the DB.
@@ -70,49 +84,64 @@ Full log in PROJECT.md Key Decisions table. v3.2 decisions that affect how the c
 
 ### Pending Todos
 
-- Push the branch and open the PR (not done: this work was told not to push).
-- First Actions run decides ARCH-06 (Postgres service), ARCH-09 (e2e), DEP-03 (security.yml). Record the result in REQUIREMENTS.md.
-- Owner actions are listed in `.planning/PR-DESCRIPTION.md`.
+- Read the PR #24 checks (`e2e`, `idp-flow`, `accessibility`, `test-backend` were in progress), merge, and record the `Keycloak flow` result against QA-01.
+- Validate on the owner's server (see Manual actions for the owner). Then update PROD-01 and SEC-17.
+- ARCH-06, ARCH-09 and DEP-03 were decided by the PR #23 run (all green); that is recorded in REQUIREMENTS.md.
+- Owner actions for v3.2 are in `.planning/PR-DESCRIPTION.md`; the ones for the batch are below.
+
+### Manual actions for the owner (from `qa/PROD-HARDENING.md` and `qa/SELFHOST-REPORT.md`)
+
+1. Choose the long-term Keycloak host name before anyone registers a passkey; set `webauthn_rp_id` to it.
+2. Create the Gmail app password; set `TF_VAR_smtp_password` (Terraform) and `SMTP_PASS` (backend). Never commit either.
+3. Run `deploy.sh`, then `keycloak-apply.sh` with the production profile (`production.tfvars` from the example); on an existing realm expect the built-in mapper and worker-role re-creation. Then `import.sh --remove-stale-flows` if the old flow ever ran in production.
+4. Set `TRUSTED_PROXY_HOPS=2`, `ALLOWED_ORIGINS=https://manudubo.github.io` and `NOMINATIM_CONTACT` (or `NOMINATIM_USER_AGENT`) on the backend; run `funnel.sh enable` and then `stack-e2e.sh xff` to confirm the client IP seen behind the real Funnel.
+5. Build the Pages frontend with `VITE_API_URL=https://<host>/api` and `VITE_KEYCLOAK_URL=https://<host>/auth`.
+6. Create the first account with `deploy/selfhost/scripts/add-user.sh` (registration is off in production).
+7. Consider a Caddy rate limit on `POST /auth/realms/japan-trip/login-actions/authenticate` (username enumeration).
+8. Run the Neon smoke checklist if the Worker/Neon path will be used; rotate the leaked local `japan-trip-worker` secret (DEP-02).
 
 ### Blockers/Concerns
 
 - **Production Keycloak may be exposed (KC-01).** The pre-Phase-26 `browser-passkey` flow let a username alone produce a token (and passkey registration for that account). Locally this was masked by `apply-local-settings.sh`, which is now deleted. Treat any production Keycloak that ran this Terraform as exposed: apply the new Terraform, run `terraform/keycloak/import.sh` with `--remove-stale-flows`, review login events for credential-less LOGINs, list WebAuthn credentials for ones the owner did not register, and sign out all sessions.
 - **Production Keycloak realm needs `import.sh --remove-stale-flows`.** Terraform does not notice stray executions or the old `password-forms` subflow. Run `KC_URL=https://<kc> bash terraform/keycloak/import.sh` (dry run), then again with `--remove-stale-flows`, then `terraform plan`.
 - **Prod Keycloak image has no theme** (`keycloak/Dockerfile` never copies `themes/`), so the SEC-11 `error.ftl` fix only applies where the theme is mounted.
-- **S3 not built: no CI job runs Keycloak.** `idp-flow.spec.ts` (the KC-01 regression tests) only ran by hand on a live Keycloak; CI uses `SKIP_REAL_AUTH=true`. The proposal is in `qa/REVIEW-FIXES.md`.
-- **S4 not run: Neon HTTP smoke test.** Tests use node-postgres. The Neon paths (`db.execute().rows` for `otp_issue()`, the `code`/`message`/`column` fields behind 422 `date_conflict` and 409, the schema-guard query) have never run on the Neon driver. Checklist: `qa/NEON-SMOKE-CHECKLIST.md`.
+- **S3 built, not yet seen green on Actions.** `.github/workflows/keycloak-flow.yml` (via `scripts/ci/keycloak-flow.sh`) runs `idp-flow`, `idp-config` and `idp-hardening` on Chromium and Firefox. It passes locally (51 passed / 5 fixme) but had not concluded on Actions when checked (PR #24 run in progress). It is informational, not a deploy gate; make it a required check after about 10 green runs.
+- **Real validation on the owner's server is pending.** Funnel, Gmail delivery and passkeys on the `.ts.net` rpId were never exercised: the sandbox used a TLS front for Funnel and Mailpit for Gmail. Whether `tailscale serve` forwards the true client IP in `X-Forwarded-For` (the `TRUSTED_PROXY_HOPS=2` assumption) is unverified. `funnel.sh` ran only against a stub tailscale.
+- **Neon is only an emulator.** The Neon HTTP driver path ran against a fake that models the `/sql` contract (`backend/tests/system/`), not real Neon; the smoke checklist (S4) is still unrun.
+- **Username enumeration is residual.** The username-first login flow answers differently for an unknown user and a known one (and shows the WebAuthn prompt only for users with a passkey). Not fixable by configuration; bounded by registration off, temporary lockouts, identical failure messages. Pinned by `idp-hardening.spec.ts`; see `keycloak/README.md` section 4.
+- **Informational, not ours: the owner's existing Tailscale Funnel on port 8443 (Home Assistant) is public** (the owner's statement). The kit leaves it, and the existing `:8081` entry, untouched and uses 443 only. Worth the owner reviewing what is reachable from the internet on that machine.
+- **Rate limits are per process.** On Workers each isolate counts separately until a shared store or WAF rules exist; the geocode gate and cache are also per process. A typo in `ALLOWED_ORIGINS` silently locks the SPA out (logged as `cors.invalid_allowed_origins`).
+- **Old Worker on a migrated schema degrades to 500s** for date-rule and email-conflict writes; roll forward, never roll the schema back.
+- **S4 not run: Neon HTTP smoke test.** Tests use node-postgres (the system suite uses an emulator). The Neon paths (`db.execute().rows` for `otp_issue()`, the `code`/`message`/`column` fields behind 422 `date_conflict` and 409, the schema-guard query) have never run on the Neon driver. Checklist: `qa/NEON-SMOKE-CHECKLIST.md`.
 - **Migration 0005 aborts on duplicate emails** (case-insensitive, non-empty). The migrator rolls the whole run back. `db:preflight` lists the offenders and runs before `db:migrate` in the deploy workflow; merge accounts by hand. Migration 0006 sets both coordinates to NULL on out-of-range rows and cannot detect swapped lat/lng (query in `backend/src/db/README.md`).
 - **Deploy order matters.** Migrations 0004-0009 must be applied before the new Worker (the new `otp-request` calls `otp_issue()`, absent until 0009). The workflow enforces it; manual deploys must too. `GET /api/health/ready` returns 503 `schema_not_migrated` otherwise.
-- **The e2e job now gates deploys.** `continue-on-error` was removed from the `e2e` job (2fa0560), so a red e2e run on `main` blocks both the Pages and Worker deploys. ARCH-09 has never been seen green on Actions.
-- **Backend has never been deployed.** Actions history shows the backend deploy failing on `main` (2026-07-30; consistent with no Cloudflare secrets, cause not inspected); the frontend Pages deploy succeeds. The live demo is still built from `3c147f6` (CartoDB placeholder tiles, no overview map) until this branch is merged.
+- **The e2e job gates deploys.** `continue-on-error` was removed from the `e2e` job (2fa0560), so a red e2e run on `main` blocks both the Pages and Worker deploys. It was green on PR #23 head 2200c6e and on the push to `main` (ARCH-09 Complete).
+- **Backend has never been deployed.** The Worker deploy run on `main` (ed49639) is green, which is consistent with the workflow skipping without Cloudflare secrets (cause not inspected); no backend is running. The Pages deploy for ed49639 succeeded. The self-hosted backend of PR #24 is not deployed either.
 - **Leaked local Keycloak client secret** (`japan-trip-worker`, found by gitleaks in two planning docs) was redacted at HEAD but remains in git history; rotation not verified (DEP-02).
 - **CSP is a second line of defence only:** `script-src` keeps `'unsafe-inline'`; `frame-ancestors` cannot be set by a meta tag.
-- Residual test debt: 3 `waitForTimeout` and 6 `test.skip(` in newer e2e specs; `api.spec.ts` still has `expect([404, 500]).toContain(...)`; `trip-edit.spec.ts:260` expects a destination POST body without `zoom_level`; backend adversarial suites log `57P01` on teardown; the backend suite needs a UTF8 Postgres cluster.
+- Residual test debt (after QA-01): the `waitForTimeout` and `test.skip(` residue, `api.spec.ts` `[404, 500]` and the `trip-edit.spec.ts` zoom_level expectation are fixed; `qa-sw` on Firefox fails 3 tests (CI is Chromium only); `qa-sw` "offline city never opened" and `trips` "API failure on create" flake under load; the backend suite needs a UTF8 Postgres cluster. Dead sessionStorage replay in several specs is cosmetic.
 - Local dev stack (Docker Keycloak/Postgres, backend, frontend) goes down between sessions. A git worktree's `backend/.dev.vars` is gitignored and not copied on worktree creation; missing it makes DB-backed tests fail silently.
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| SEC | SEC-18 Nominatim proxied through the Worker | Deferred: low risk for a single-user tool; needed before public use | v3.2 Phase 26 |
-| SEC | SEC-17 set `ssl_required = "all"` in prod after checking Railway proxy headers | Partial: variable and runbook done, Railway unverified | v3.2 Phase 26 |
-| A11Y | A11Y-04 target-size on overlapping tokyo markers (needs clustering/spiderfy) | Partial | v3.2 Phase 23 |
-| A11Y | A11Y-05 landing LCP (hero waits on fonts/load; compress `demo-hero.jpg`, 677 KB) | Partial | v3.2 Phase 23 |
+| SEC | SEC-17 proxy-header behaviour behind the real Funnel to Caddy chain | Partial: production profile enforces `ssl_required = all`; Railway no longer applies; real chain unverified | v3.2 Phase 26 |
 | DEP | Rotate the `japan-trip-worker` Keycloak secret | Owner action, unverified | v3.2 Phase 23 |
-| CI | S3: CI job running Keycloak + `idp-flow.spec.ts` | Not built (proposal in REVIEW-FIXES.md) | v3.2 review |
+| CI | S3: CI job running Keycloak + `idp-flow.spec.ts` | Built (`keycloak-flow.yml`), not yet green on Actions (QA-01) | v3.2 review |
 | QA | S4: Neon HTTP smoke test | Not run (checklist ready) | v3.2 review |
 | BIZ | Day in an undated destination vs trip range; hotel dates vs destination dates; option groups "1/2/3" need an `option_label` column | Not enforced / not built | v3.2 Phase 25 |
 | TECH | `AuthGuard.ts` unused; `drizzle-kit push` vs migrations drift in `schema.ts` | Cleanup candidates | v3.2 |
-| DEPLOY | Production deployment (Cloudflare + Neon + Railway) | Deferred, unscoped; build, gating and migration order are now ready | v1.0 planning |
+| DEPLOY | Production deployment | Self-hosted kit built (PROD-01) and sandbox-proven; real-server validation pending. Cloudflare + Neon + Railway still unscoped | v1.0 planning |
 | DEMO | Landing demo experience | Shipped in practice (landing, overview map, countdown); formal closure pending | v1.0 planning |
 | PASS | Rename passkey (PUT credentials/{id}/label) | Deferred, unscoped | v1.0 planning |
-| PROD | prod rpId for passkeys (Railway hostname in Terraform) | Deferred, unscoped | Phase 09 |
-| PROD | Real-auth E2E in CI (requires KC in CI environment) | Deferred; same item as S3 | Phase 09 |
+| PROD | prod rpId for passkeys | `webauthn_rp_id` is a required production variable now (host name to be chosen by the owner before any registration) | Phase 09 |
+| PROD | Real-auth E2E in CI (requires KC in CI environment) | Partly done: IdP specs in the Keycloak job; the rest stays `SKIP_REAL_AUTH` | Phase 09 |
 | E2E | OTP brute-force lockout: add `attackDetection.del` to `beforeEach` | Deferred to future | v3.1 planning |
 | E2E | Per-recipient Mailpit isolation (`search?query=to:...`) | Deferred to future | v3.1 planning |
 
 ## Session Continuity
 
-Last session: 2026-10-04
-Stopped at: Planning docs consolidated (REQUIREMENTS, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX, PR-DESCRIPTION)
-Resume: Review and push the branch, open the PR, read the first Actions run, then update the Unverified requirements. Run `/gsd-complete-milestone` only after owner actions are done or consciously deferred.
+Last session: 2026-10-08
+Stopped at: Planning docs updated for the PR #24 batch (REQUIREMENTS, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX). `PR-DESCRIPTION.md` still describes PR #23 only.
+Resume: Read the PR #24 checks, merge, validate on the owner's server, then update PROD-01, SEC-17 and QA-01. Run `/gsd-complete-milestone` only after owner actions are done or consciously deferred.

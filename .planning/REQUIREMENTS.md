@@ -7,7 +7,7 @@ Source: `.planning/v3.2-CANDIDATE-REQUIREMENTS.md` (synthesized from `ANALISIS-R
 
 ## v3.2 Requirements
 
-Checked = `Complete`. Unchecked items carry a bold status tag (`Partial`, `Deferred`, `Unverified`); details are in the Traceability table below.
+Checked = `Complete`. Unchecked items carry a bold status tag (`Partial`, `Deferred`, `Unverified`); details are in the Traceability table below. Items added by the second batch (PR #24) are in the last section of this list.
 
 ### Security: Critical & High — Phase 20
 
@@ -51,12 +51,12 @@ Checked = `Complete`. Unchecked items carry a bold status tag (`Partial`, `Defer
 - [x] **SEC-16**: Service worker `CACHE_NAME` derived from build hash/version; HTML/navigation requests switch to network-first or stale-while-revalidate (not cache-first with a hardcoded, never-rotating key)
 - [x] **INFRA-06**: Dead `EXTERNAL_ASSETS` array removed from `sw.js` (or wired into the fetch handler if offline map support is intended — currently unreachable code)
 - [ ] **DEP-02**: Gitleaks full-history re-scan completed against HEAD; all 14 `generic-api-key` findings triaged (confirmed false-positives documented; any live keys rotated) **[Partial]**
-- [ ] **DEP-03**: CI pipeline includes Gitleaks/TruffleHog secret scanning and axe/Lighthouse accessibility scanning so regressions are caught automatically **[Unverified]**
+- [x] **DEP-03**: CI pipeline includes Gitleaks/TruffleHog secret scanning and axe/Lighthouse accessibility scanning so regressions are caught automatically
 - [x] **A11Y-01**: `aria-expanded` attribute removed from `<input>` elements across all 12 affected pages (invalid ARIA role/attribute combo — highest-leverage a11y fix)
 - [x] **A11Y-02**: Contrast violations fixed on landing page (`.demo-countdown-title`, loading span), dashboard `.nav-link`, and profile page (13 nodes)
 - [x] **A11Y-03**: `tripDetail.ts`'s `showError()` error-render path includes a proper heading element (currently wipes `<main>` and rebuilds with no `<h1>`)
-- [ ] **A11Y-04**: `tokyo.html` heading-order and target-size violations resolved **[Partial]**
-- [ ] **A11Y-05**: Mobile LCP improved for landing and Tokyo pages (Lighthouse mobile-throttled baseline: landing 5.856s, Tokyo 6.261s) **[Partial]**
+- [x] **A11Y-04**: `tokyo.html` heading-order and target-size violations resolved
+- [x] **A11Y-05**: Mobile LCP improved for landing and Tokyo pages (Lighthouse mobile-throttled baseline: landing 5.856s, Tokyo 6.261s)
 
 ### Architecture Debt & Test Coverage — Phase 24
 
@@ -67,7 +67,7 @@ Checked = `Complete`. Unchecked items carry a bold status tag (`Partial`, `Defer
 - [x] **ARCH-06**: Backend unit tests point `DATABASE_URL` at a real ephemeral Postgres DB (migrations + minimal seed); vacuous `toContain([200, 500])` assertions replaced with real assertions
 - [x] **ARCH-07**: E2E suite `waitForTimeout` hard sleeps replaced with web-first `expect(locator)` assertions (31 instances); conditional `test.skip()` calls converted to documented `test.fixme(condition, reason)` or removed (35 instances)
 - [x] **ARCH-08**: Terraform documented as sole source of truth for KC realm config; `apply-local-settings.sh` browserFlow override documented or removed; vestigial `realm-export.json` deleted or regenerated (tracked as SEC-13)
-- [ ] **ARCH-09**: CI `e2e` job is green (100% historical failure rate since April 2026 — `#trips-grid`/`#dashboard-login-prompt` timing assertions fixed for preview-build context) **[Unverified]**
+- [x] **ARCH-09**: CI `e2e` job is green (100% historical failure rate since April 2026 — `#trips-grid`/`#dashboard-login-prompt` timing assertions fixed for preview-build context)
 - [x] **M-01**: `DATABASE_URL`/`getDb` middleware extracted to a shared helper, eliminating ~20 duplicated guard blocks across `trips.ts`/`auth.ts`/`users.ts`/`public.ts`
 - [x] **M-02**: `resolveActivity` uses a single JOIN query instead of 4 sequential SELECTs
 - [x] **M-09**: Per-route `catch {}` blocks log the original error before rethrowing (or removed in favor of propagation to the global `onError` handler — currently makes prod 500s undiagnosable from `wrangler tail`)
@@ -103,7 +103,7 @@ Checked = `Complete`. Unchecked items carry a bold status tag (`Partial`, `Defer
 - [x] **SEC-12**: Keycloak `passkey-forms` subflow restructured to remove the `REQUIRED`+`ALTERNATIVE` smell (confirmed live at 819 occurrences/2h); negative E2E test asserts that username-only auth is impossible
 - [x] **SEC-13**: Terraform is the sole source of truth for `browserFlow`; `apply-local-settings.sh` browserFlow override is documented or removed; vestigial `realm-export.json` deleted or regenerated (also tracked as ARCH-08)
 - [ ] **SEC-17**: KC realm `sslRequired` verified against Railway proxy-header configuration; `"all"` enforced in prod if headers are correctly forwarded **[Partial]**
-- [ ] **SEC-18**: Nominatim geocoder requests proxied through the Worker (not direct from browser) to comply with OSM Usage Policy and avoid per-user query leakage **[Deferred]**
+- [x] **SEC-18**: Nominatim geocoder requests proxied through the backend (not direct from browser) to comply with OSM Usage Policy and avoid per-user query leakage (done after the first consolidation: `GET /api/geocode`; demo-only builds without `VITE_API_URL` still call Nominatim directly)
 - [x] **SEC-19**: Terraform `variables.tf` E2E user password defaults removed; forced via `-var-file=local.tfvars` or guarded by a `precondition` checking `kc_url` is localhost
 - [x] **SEC-20**: `X-Content-Type-Options: nosniff` and `Permissions-Policy` headers added to `backend/src/middleware/security.ts`
 - [x] **SEC-21**: Public trip response field exposure is documented as an intentional product decision, or `user_id`/numeric internal IDs are projected out of the public response
@@ -113,15 +113,25 @@ Checked = `Complete`. Unchecked items carry a bold status tag (`Partial`, `Defer
 - [x] **SEC-25**: `avatar_url`/`preferences` KC attribute mappers remove `add_to_access_token: true` (unnecessary token bloat; backend only reads them on user-CREATE via `id_token`/`userinfo`)
 - [x] **KC-01**: Keycloak `passkey-forms` subflow restructured to a single REQUIRED credential-subflow with webauthn/password as internal ALTERNATIVEs using `conditional-user-configured` executor; password fallback for non-passkey users (including E2E `e2e-test@local`) must remain functional
 
+### Production readiness and QA — added by the second batch (PR #24)
+
+Not in the audit-derived list. Added 2026-10-08 after the 89 commits on `claude/focused-lovelace-cryssy` (`git log origin/main..HEAD`). Target: frontend on GitHub Pages; backend, Keycloak and Postgres on the owner's own server behind Tailscale Funnel (single host, path routing `/api` and `/auth`). Reports: `.planning/qa/SELFHOST-REPORT.md`, `PROD-HARDENING.md`, `INTEGRATION-REPORT.md`, `QA-SYSTEM-REPORT.md`.
+
+- [ ] **PROD-01**: A self-hosting kit takes a fresh Linux server to a working login: production Node entry built from the same Hono app, images, compose stack, reverse proxy, Funnel/tunnel modes, deploy / Keycloak-apply / backup / restore / update scripts, and a guide **[Partial]** (sandbox-proven; real Funnel, Gmail and passkeys not validated)
+- [x] **PROD-02**: The API and Keycloak are hardened for internet exposure: Pages-origin typo fixed and defined once, env-driven CORS allow-list, access-token-only verifier (`typ`/`azp`), per-IP and per-user rate limits with trusted-proxy client IP, TLS-only SMTP OTP transport, scrubbed structured logs, HSTS and API CSP, Keycloak `production` profile with plan-time guards
+- [x] **PROD-03**: Login started from a page with a query string (for example `trip-edit.html?tripId=N`) no longer fails with Keycloak "Invalid redirect_uri"; the target is restored after the callback
+- [x] **PROD-04**: A database built by the old `drizzle-kit push` docs (or journal-less at 0003) upgrades safely: migration 0010, `db:preflight` no longer blocks the likely production state, `/api/health/ready` reports an unreachable database
+- [ ] **QA-01**: E2E hygiene is enforced (no sleeps, no silent skips, exact `api.spec` assertion) and a Keycloak CI job runs the KC-01/IdP regression specs on Chromium and Firefox **[Unverified]** (the hygiene guard runs in the frontend suite; the `Keycloak flow` workflow had not concluded on Actions when this was written)
+
 ## Future Requirements (Deferred)
 
 From STATE.md deferred items and v3.1 closing notes — not in v3.2 roadmap.
 
 ### Deployment
 
-- **DEPLOY-01**: Production deployment live (Cloudflare Workers + Neon + Railway) with public URLs — unblocked by INFRA-03
-- **DEPLOY-02**: Deployment runbook documenting how to bring up all three services locally and in production
-- **DEPLOY-03**: Real-auth E2E in CI (Keycloak running in CI; `SKIP_REAL_AUTH` removed from pipeline)
+- **DEPLOY-01**: Production deployment live with public URLs — unblocked by INFRA-03; the self-hosted route (PROD-01) is now the primary candidate, Cloudflare Workers + Neon + Railway remains possible
+- **DEPLOY-02**: Deployment runbook documenting how to bring up all three services locally and in production — the self-hosted path is covered by `docs/SELF-HOSTING.md`; the Cloudflare/Railway path is still open
+- **DEPLOY-03**: Real-auth E2E in CI (Keycloak running in CI; `SKIP_REAL_AUTH` removed from pipeline) — partly addressed by QA-01 (IdP specs only; `SKIP_REAL_AUTH` stays for the rest)
 
 ### Features
 
@@ -145,8 +155,7 @@ From STATE.md deferred items and v3.1 closing notes — not in v3.2 roadmap.
 | Payment or monetization | Free personal tool / portfolio project |
 | Java KC SPIs | All KC customization via built-in flows + FreeMarker themes; re-evaluated in ANALISIS pass 6 — constraint confirmed |
 | ROPC / username-password API auth in tests | PKCE only; passkey flows cannot use ROPC |
-| Production deployment | Prerequisite (INFRA-03) is in v3.2, but full prod deploy is deferred |
-| Nominatim proxy (SEC-18) while the project stays personal-scale | Deferred, not dropped: low risk for a single-user tool; required before public use |
+| Production deployment | Prerequisite (INFRA-03) is in v3.2; the self-hosting kit and hardening (PROD-01/02) make it deployable, but nothing is deployed yet |
 
 ## Traceability
 
@@ -158,11 +167,11 @@ Which phase covers which requirement, and how far it got. Evidence (commits, tes
 |-------------|-------|--------|-------|
 | SEC-01 | Phase 20 | Complete | Single Uint32 draw via crypto.getRandomValues; residual `% 1_000_000` bias ~0.02%, accepted by the Phase 20 criterion |
 | SEC-02 | Phase 20 | Complete | renderList rebuilt with DOM APIs; weather/RSS hardened again in QA (e048732) |
-| SEC-03 | Phase 20 | Complete | Sanitised at render (DOM APIs, http(s)-only links). Relay through allorigins/corsproxy is unchanged and is tracked under SEC-18 (Deferred) |
+| SEC-03 | Phase 20 | Complete | Sanitised at render (DOM APIs, http(s)-only links). The RSS relay through allorigins/corsproxy is unchanged (still referenced in `widgets.ts`); it is not covered by SEC-18, which now means Nominatim only |
 | SEC-04 | Phase 20 | Complete | CSP meta built from resolved env (1b9ba1d); production build fails on bad/missing origins. `script-src` still has `unsafe-inline`; `frame-ancestors` needs an HTTP header |
 | SEC-14 | Phase 20 | Complete | Cloudflare secret removed from Terraform; Worker never deployed so the `wrangler tail` check is moot |
 | INFRA-01 | Phase 21 | Complete | Live CI gating UAT passed on push to main (3c147f6). Since 2fa0560 the e2e job is no longer `continue-on-error`, so it now also gates deploys |
-| INFRA-02 | Phase 21 | Complete | test-backend job now has a Postgres service (not yet observed on Actions) |
+| INFRA-02 | Phase 21 | Complete | test-backend job has a Postgres service; observed green on Actions (PR #23 head 2200c6e, and the push to main at ed49639) |
 | INFRA-03 | Phase 21 | Complete | `wrangler deploy --dry-run` OK at every later verification |
 | INFRA-04 | Phase 21 | Complete | wrangler pinned `^3.101.0`; deploy via `npm run deploy` |
 | INFRA-05 | Phase 21 | Complete | bash /dev/tcp healthcheck |
@@ -187,20 +196,20 @@ Which phase covers which requirement, and how far it got. Evidence (commits, tes
 | SEC-16 | Phase 23 | Complete | Cache name = content hash; navigations network-first; hardened in d439e21 |
 | INFRA-06 | Phase 23 | Complete | Offline map tiles are intentionally not cached |
 | DEP-02 | Phase 23 | Partial | 14 findings triaged, leaked local KC secret redacted at HEAD (history not rewritten). Rotation of the `japan-trip-worker` secret NOT verified (owner action) |
-| DEP-03 | Phase 23 | Unverified | security.yml (gitleaks + axe + Lighthouse) exists and its scripts pass locally, but the workflow has never run on Actions |
+| DEP-03 | Phase 23 | Complete | security.yml (gitleaks, axe, Lighthouse) ran on Actions: `gitleaks` and `accessibility` success on PR #23 head 2200c6e and on the push to main (ed49639; the `Security & Accessibility Scans` run succeeded). It needed 2200c6e to triage two test-fixture hits by fingerprint in `.gitleaksignore`. Lighthouse LCP on a real network is still unmeasured |
 | A11Y-01 | Phase 23 | Complete |  |
 | A11Y-02 | Phase 23 | Complete | axe 0 violations on 7 pages, light and dark (local run, not on Actions) |
 | A11Y-03 | Phase 23 | Complete |  |
-| A11Y-04 | Phase 23 | Partial | Heading order fixed; WCAG 2.2 target-size on overlapping tokyo markers not fixed (Lighthouse a11y 0.96) |
-| A11Y-05 | Phase 23 | Partial | Render-blocking font @import removed; no LCP gain measured; landing hero still waits on fonts/load; demo-hero.jpg is 677 KB |
+| A11Y-04 | Phase 23 | Complete | Overlapping markers are spread in screen space (`frontend/src/modules/declutter.ts`, 8de5e7f). axe wcag2a/2aa/21a/21aa/22aa: 0 violations on 9 pages x light/dark x 375/1280; Lighthouse a11y tokyo 0.96 to 1.00. Evidence: `qa/A11Y-LCP-FOLLOWUP.md`; tests `declutter.test.ts`, `lcp-target-size.spec.ts`. Local run, not re-run on Actions |
+| A11Y-05 | Phase 23 | Complete | Landing LCP 5415 ms to 1304 ms, Lighthouse performance 0.68 to 1.00 (sandbox, mobile emulation, median of 3). Tokyo LCP 2749 to 2261 ms (noisy; its LCP element is the tile-failure notice in the sandbox). Body opacity gate removed, hero served as AVIF/WebP/JPEG `image-set` with preloads, Leaflet lazy-loaded. Tests `lcp-budget.test.ts`, `lcp-target-size.spec.ts`. Real-network LCP on GitHub Pages not measured |
 | ARCH-01 | Phase 24 | Complete |  |
 | ARCH-02 | Phase 24 | Complete |  |
 | ARCH-03 | Phase 24 | Complete | Matrix over all nested endpoints, DB snapshot asserted |
 | ARCH-05 | Phase 24 | Complete | Delivered by BIZ-06/08/09 |
-| ARCH-06 | Phase 24 | Complete | Real Postgres 16 via globalSetup; the Actions `postgres:16-alpine` service has not been observed running |
+| ARCH-06 | Phase 24 | Complete | Real Postgres 16 via globalSetup; the Actions `postgres:16-alpine` service is now observed: `test-backend` success on 2200c6e and ed49639 |
 | ARCH-07 | Phase 24 | Complete | Original 31 sleeps / 35 skips cleared. Later specs added 3 `waitForTimeout` and 6 `test.skip(` (idp-flow, idp-config, qa-sw, overview-map, qa-frontend). Specs needing a real Keycloak were typecheck-only |
 | ARCH-08 | Phase 24 | Complete | Done with SEC-13 (Phase 26) |
-| ARCH-09 | Phase 24 | Unverified | Fixed locally (3 CI-mode runs: 144 passed / 41 fixme / 0 failed). Never observed green on GitHub Actions: no run exists for this branch |
+| ARCH-09 | Phase 24 | Complete | `e2e` job success on PR #23 head 2200c6e and on the push to main (ed49639), after 2200c6e fixed the last expectation (`trip-edit.spec.ts`, zoom_level). It gates deploys, so it must stay green. Earlier local CI-mode runs: 144 passed / 41 fixme / 0 failed |
 | M-01 | Phase 24 | Complete |  |
 | M-02 | Phase 24 | Complete |  |
 | M-09 | Phase 24 | Complete |  |
@@ -228,24 +237,30 @@ Which phase covers which requirement, and how far it got. Evidence (commits, tes
 | SEC-11 | Phase 26 | Complete | The prod Keycloak image has no theme (Dockerfile never copies themes/), so the fix only applies where the theme is mounted |
 | SEC-12 | Phase 26 | Complete | Verified on live KC 26.6.1 in the sandbox; not run in CI (S3) |
 | SEC-13 | Phase 26 | Complete | apply-local-settings.sh and realm-export.json deleted |
-| SEC-17 | Phase 26 | Partial | `ssl_required` variable + Railway proxy runbook done; Railway not checked, prod not switched to `all` |
-| SEC-18 | Phase 26 | Deferred | Not implemented. Reason: low risk for a single-user tool, only needed before public use (see Out of Scope). The geocoder still calls Nominatim from the browser |
+| SEC-17 | Phase 26 | Partial | The `production` Keycloak profile now refuses any plan with `ssl_required != all` (precondition in `terraform/keycloak/main.tf`). Realm dumps show `sslRequired=all` on a TLS Keycloak under `/auth` and on the self-host kit stack (a TLS front stood in for Funnel). The Railway check no longer applies (the target is a self-hosted server). Not validated: proxy-header behaviour (`KC_PROXY_HEADERS=xforwarded`) behind the real Funnel to Caddy chain; no production realm has been applied |
+| SEC-18 | Phase 26 | Complete | Delivered after the first consolidation (7dbb9b2, 070af9c): `GET /api/geocode`, authenticated, per-IP 30/min and per-user 20/min, identifying User-Agent, 1 req/s process-wide gate, 24 h LRU, only lat/lon/display_name returned. The frontend uses it when `VITE_API_URL` is set and the CSP drops the Nominatim origin. Tests: `adv/geocode.test.ts`, `fe/geocoder-proxy.test.ts`, `fe/csp-plugin.test.ts`. `NOMINATIM_USER_AGENT` is honoured since ec2f546. Caveats: cache and gate are per process; demo-only builds still call Nominatim directly; tested against a fake upstream, not live Nominatim |
 | SEC-19 | Phase 26 | Complete |  |
 | SEC-20 | Phase 26 | Complete |  |
 | SEC-21 | Phase 26 | Complete | `user_id` projected out; remaining fields documented as intentional (26-APPSEC-SUMMARY). 26-IDP-SUMMARY lists it as Deferred; superseded |
 | SEC-22 | Phase 26 | Complete | 404 on every nested route (ea1f511); 16 `403` branches removed |
-| SEC-23 | Phase 26 | Complete | Production allows only https://manud.github.io |
+| SEC-23 | Phase 26 | Complete | Now driven by `ALLOWED_ORIGINS` (exact origins; default = the Pages origin from `config/deploy-defaults.json`). The original value `https://manud.github.io` was a typo for the real site `https://manudubo.github.io`; fixed and defined once in PROD-02 (0325e75) |
 | SEC-24 | Phase 26 | Complete | Minimised to `{"status":"ok"}`; not rate-limited by design |
 | SEC-25 | Phase 26 | Complete |  |
 | KC-01 | Phase 26 | Complete | The old flow was a live auth bypass: treat any prod Keycloak that ran it as exposed (see STATE.md) |
 | DATA-04 (extra) | Phase 24 | Complete | Not in the original list. `hotels` unique on `destination_id` plus atomic upsert (migration 0007, 623917b); found by the new concurrency tests |
+| PROD-01 (extra) | Post-v3.2 batch | Partial | Self-hosting kit (`deploy/selfhost/`, `backend/src/server.ts`, `backend/src/node/`, `docs/SELF-HOSTING.md`). `stack-e2e.sh` 40/40 on a fresh sandbox stack (a TLS front and Mailpit stood in for Funnel and Gmail), `scripts.test.sh` 52/52, shellcheck clean. Not validated: real Tailscale Funnel, real Gmail delivery, real passkeys on the `.ts.net` rpId, Ubuntu 26.04 specifics, Cloudflare Tunnel and Let's Encrypt modes (config level only), the legacy state move |
+| PROD-02 (extra) | Post-v3.2 batch | Complete | CORS fix and env allow-list, access-token-only verifier (a real Keycloak ID token was accepted before), rate limits, SMTP transport, log scrubbing, header fixes, Keycloak `production` profile; `qa/PROD-HARDENING.md` lists 12 findings. Last integration run: backend 1928 tests, frontend 1148 tests. The production-profile realm was applied to a real Keycloak 26.6.1 and `idp-hardening.spec.ts` ran against it. Residual: per-process rate limiter, username enumeration in the username-first flow, tokens valid up to 5 min after logout |
+| PROD-03 (extra) | Post-v3.2 batch | Complete | `loginRedirectUri()` in `frontend/src/auth/keycloak.ts` (bda9027); `auth-redirect.test.ts` (23) and the `@qa-noauth` `auth-return-to.spec.ts`, which fails on the old code. Chromium only |
+| PROD-04 (extra) | Post-v3.2 batch | Complete | Migration 0010 (297dba5), `db:preflight` fix (e8b2d5a), `/api/health/ready` reports an unreachable database (ad852aa; later one `SELECT 1` per probe), pool error listener (f2a3edb). `backend/tests/system/` (5 files, 92 tests) runs on a Neon HTTP emulator, not on real Neon; the Neon smoke checklist is still unrun |
+| QA-01 (extra) | Post-v3.2 batch | Unverified | `e2e-hygiene.test.ts` guard (253cd65) and 8 spec fixes are in the frontend suite (`test-frontend` success on Actions for PR #24 head 2d7a734). The `Keycloak flow` workflow (`keycloak-flow.yml`, `scripts/ci/keycloak-flow.sh`) passes locally (31 passed / 4 fixme; 51 passed / 5 fixme with idp-hardening) but had not concluded on Actions when checked. It is informational, not a deploy gate |
 
 **Coverage:**
-- v3.2 requirements: 82 total (85 audit findings minus 3 duplicates consolidated: ARCH-04 to BUG-08, ARCH-08 to SEC-13, one KC-02 informational), plus 1 extra (DATA-04)
-- Mapped to phases: 82
+- v3.2 requirements: 82 total (85 audit findings minus 3 duplicates consolidated: ARCH-04 to BUG-08, ARCH-08 to SEC-13, one KC-02 informational), plus 1 extra (DATA-04), plus 5 added by the second batch (PROD-01..04, QA-01): 88 rows
+- Mapped to phases: 82 (DATA-04 and the 5 batch rows are outside the original phase plan)
 - Unmapped: 0
-- Status: **75 Complete, 4 Partial** (DEP-02, A11Y-04, A11Y-05, SEC-17), **1 Deferred** (SEC-18), **2 Unverified** (DEP-03, ARCH-09)
+- Status: **84 Complete, 3 Partial** (DEP-02, SEC-17, PROD-01), **0 Deferred**, **1 Unverified** (QA-01)
+- Change since the first consolidation (76 Complete including DATA-04, 4 Partial, 1 Deferred, 2 Unverified): A11Y-04, A11Y-05, SEC-18, DEP-03 and ARCH-09 became Complete; PROD-02/03/04 are new and Complete; PROD-01 and QA-01 are new and open. The earlier line "75 Complete" excluded DATA-04
 
 ---
 *Requirements defined: 2026-07-24*
-*Last updated: 2026-10-04 after consolidating Phases 20-26 and post-phase QA (statuses re-checked against code and tests; see phases/TRACEABILITY.md)*
+*Last updated: 2026-10-08 after the second batch (PR #24, 89 commits): statuses re-checked against code, tests, commits and GitHub check runs; see phases/TRACEABILITY.md*
