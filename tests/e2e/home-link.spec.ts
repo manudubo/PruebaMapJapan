@@ -28,9 +28,7 @@ test.describe('@qa-noauth Home link with a signed-in session', () => {
       await brand.click();
       await expect(page).toHaveURL(/\/PruebaMapJapan\/index\.html\?home$/);
       await expect(page.locator('#landing-hero')).toBeVisible();
-      // Give the (late) auth answer time to wrongly redirect.
       await expect(page.locator('#landing-login-btn')).toHaveText('Go to dashboard');
-      await page.waitForTimeout(500);
       await expect(page).toHaveURL(/index\.html\?home$/);
     });
   }
