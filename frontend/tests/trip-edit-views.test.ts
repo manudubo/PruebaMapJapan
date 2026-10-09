@@ -88,6 +88,37 @@ describe('city view', () => {
   });
 });
 
+describe('drop a pin hint is pointer-aware', () => {
+  function mountPicking(coarse: boolean) {
+    const { ctx, store } = setup();
+    vi.spyOn(window, 'matchMedia').mockImplementation(((q: string) => ({ matches: coarse && q === '(pointer: coarse)', media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia);
+    let on = false;
+    ctx.isPicking = () => on;
+    ctx.pickOnMap = vi.fn((cb) => { on = cb !== null; });
+    const view = mountCityView(ctx, store.trip.destinations[0]!._key, null);
+    document.body.append(view.el);
+    (document.getElementById('pick-pin') as HTMLButtonElement).click();
+    return { ctx, view };
+  }
+
+  it('touch: says Tap and offers a 44px-class Cancel button that stops picking', () => {
+    const { ctx } = mountPicking(true);
+    expect(document.getElementById('pick-hint')!.hidden).toBe(false);
+    expect(document.getElementById('pick-hint-text')!.textContent).toBe('Tap the map to drop the pin. Tap Cancel to stop.');
+    const cancel = document.getElementById('pick-hint-cancel') as HTMLButtonElement;
+    expect(cancel.hidden).toBe(false);
+    cancel.click();
+    expect(ctx.pickOnMap).toHaveBeenLastCalledWith(null);
+    expect(document.getElementById('pick-hint')!.hidden).toBe(true);
+  });
+
+  it('fine pointer: keeps the Click / Esc wording and no Cancel button', () => {
+    mountPicking(false);
+    expect(document.getElementById('pick-hint-text')!.textContent).toBe('Click the map to drop a pin. Press Esc to cancel.');
+    expect((document.getElementById('pick-hint-cancel') as HTMLButtonElement).hidden).toBe(true);
+  });
+});
+
 describe('route view', () => {
   it('lists destinations numbered, disables the end arrows and deletes with undo available', () => {
     const { store, ctx } = setup();
