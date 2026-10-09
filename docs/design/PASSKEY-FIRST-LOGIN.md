@@ -92,6 +92,61 @@ the browser asks. Otherwise the plain page.
 Immediate mediation names (`immediateGet`) are from the draft proposal; if absent the
 modal prompt runs, so a missing passkey looks like a cancel and the two-miss rule applies.
 
+## Passkey enrolment: labels, errors and the e-mail recovery link
+
+Owner report from a real phone (2026-10-09), two findings.
+
+**1. A second passkey from the same device failed** ("Device already exists with the same
+name"). Keycloak needs a unique label per user and the label carried only the day. The
+registration page's FreeMarker model (26.6.1 `WebAuthnRegister`) holds `challenge`, `userid`,
+`username`, the policy values, `excludeCredentialIds` and `isSetRetry`, but **not** the labels
+the user already has, so the server cannot be asked and the page cannot avoid a collision
+deterministically. Instead (`js/passkey-label.js`):
+
+- the label carries the local minute: `Chrome on Android (2026-10-09 14:41)`;
+- a second one in the same minute from the same browser counts: `... 14:41 #2`
+  (remembered in `localStorage`, only once a label is actually used);
+- a blocked/unwritable storage or an unusable clock gets two random characters: `... #k7`;
+- the "Try again" page (`isSetRetry`) always adds two random characters, so a retry after a
+  collision the page could not foresee (cleared site data, another profile) cannot repeat the
+  label that failed.
+
+`webauthn-error.ftl` (theme override of the base page; "Try again" is a real submit button)
+turns the raw `Failed to register your Passkey. <detail>` into plain language, en and es,
+keeping the original in a folded "Details for support" (SEC-11: `kcSanitize` on every raw
+string). Cases: `Device already exists with the same name` (a new label is made on "Try
+again"), `InvalidStateError` (the browser says this authenticator is already registered) and
+`NotAllowedError` (cancelled or timed out). Any other message is shown as Keycloak wrote it.
+
+> Registering the SAME authenticator twice is only blocked when the realm's WebAuthn policy has
+> "Avoid same authenticator registration" on (Terraform: `avoid_same_authenticator_register` in
+> `web_authn_passwordless_policy`). Today it is off: `excludeCredentialIds` is empty and a
+> second registration with the same authenticator succeeds (a resident credential is replaced on
+> the phone, leaving a stale record on the server). Turning it on is a realm change
+> (`keycloak-apply`), not done here.
+
+**2. The e-mail recovery link (REG-07) was shown to a signed-in person.** It exists for a
+passkey-only user who cannot use a passkey on this device while signing in, or during sign-up
+enrolment. It is not offered when `isAppInitiatedAction` is in the model, which Keycloak sets
+exactly on the registration page and error page of an app-initiated action (the profile page's
+"add a passkey", `kc_action=webauthn-register-passwordless`). Verified on the real models
+(snapshots in `tests/e2e/fixtures/idp-theme/`). "Back to Japan Trip" is always there.
+
+| Page | Flow | Recovery link | `isAppInitiatedAction` |
+|------|------|---------------|------------------------|
+| `webauthn-authenticate` | passkey sign-in step | shown | no |
+| `webauthn-error` | sign-in step failed | shown | no |
+| `webauthn-register` | sign-up / first sign-in (required action) | shown | no |
+| `webauthn-error` | that enrolment failed | shown | no |
+| `webauthn-register` | proactive "add a passkey" (`kc_action`, signed in) | **hidden** | yes |
+| `webauthn-error` | that registration failed | **hidden** | yes |
+| username, password, other pages | any | not offered (unchanged) | n/a |
+
+Tests: `idp-passkey-labels-static.spec.ts` (label function, storage behaviour, footer and
+error templates), `idp-theme-render.spec.ts` (the matrix on real HTML, every state light/dark,
+375/1280), `idp-passkey-labels.spec.ts` (live: two passkeys in the same minute, forced
+collision then "Try again", error messages, link absent on the proactive flow).
+
 ## Tests
 
 - `idp-passkey-first-unit.spec.ts`: marker set/read/expire/clear/corrupt, storage off or

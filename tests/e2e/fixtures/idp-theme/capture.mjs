@@ -64,7 +64,7 @@ async function snap(page, name, served) {
     .replace(/<script[\s\S]*?<\/script>/g, '')
     .replace(/(session_code|tab_id|execution|client_data|kc_locale)=[^&"'\s]+/g, '$1=x')
     .replace(/\/resources\/[^/]+\/(login|common)\//g, '/resources/$1/')
-    .replace(/theme-[a-z-]+-[0-9a-f]{6}@example\.test/g, 'traveler@example.test')
+    .replace(/theme-[a-z-]+-[0-9a-f]{6}(@|%40)example\.test/g, 'traveler$1example.test')
     .replace(/\?v=[0-9a-f]{12}/g, '?v=snapshot') // the hash changes with every CSS edit; the static spec checks the real one
     .split(KC).join('')
     .replace(/\/auth\/resources\//g, '/resources/'); // production serves Keycloak under /auth
@@ -107,6 +107,87 @@ try {
   await p.click('#kc-login');
   await p.waitForSelector('#registerWebAuthn');
   await snap(p, 'webauthn-register');
+  await c.close();
+
+  // The same enrolment page failing in a flow that is NOT app-initiated (sign-up and first
+  // sign-in): the person cancels the browser prompt. footer.ftl keeps the e-mail recovery link here.
+  ({ c, p } = await ctx());
+  await toPasswordStep(p, passkey);
+  await p.fill('#password', PW);
+  await p.click('#kc-login');
+  await p.waitForSelector('#registerWebAuthn');
+  await p.evaluate(() => {
+    document.getElementById('error').value = 'NotAllowedError: The operation either timed out or was not allowed.';
+    document.getElementById('register').requestSubmit();
+  });
+  await p.waitForSelector('#kc-try-again');
+  await snap(p, 'webauthn-error-enrol');
+  await c.close();
+
+  // App-initiated registration ("add a passkey" from the profile page, kc_action=...): the
+  // person is signed in, so no e-mail recovery link. A virtual authenticator stands in for the phone.
+  const newAuthenticator = (cdp) =>
+    cdp.send('WebAuthn.addVirtualAuthenticator', {
+      options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+    });
+  const aia = await mkUser('aia');
+  ({ c, p } = await ctx());
+  await p.clock.setFixedTime(new Date(2026, 9, 9, 14, 41)); // one minute, so both labels below start the same
+  const cdp = await c.newCDPSession(p);
+  await cdp.send('WebAuthn.enable', { enableUI: false });
+  const first = await newAuthenticator(cdp);
+  await p.goto(`${AUTH}&kc_action=webauthn-register-passwordless`);
+  await p.fill('#username', aia);
+  await p.click('#kc-login');
+  await p.fill('#password', PW);
+  await p.click('#kc-login');
+  await p.waitForSelector('#registerWebAuthn');
+  await snap(p, 'webauthn-register-aia');
+  await Promise.all([p.waitForEvent('framenavigated', (f) => f === p.mainFrame() && !f.url().startsWith(KC)), p.click('#registerWebAuthn')]);
+
+  // A second phone, but the page lost its memory of the first label (storage cleared): the
+  // server sees the same label twice -> "Device already exists with the same name".
+  await cdp.send('WebAuthn.removeVirtualAuthenticator', first);
+  await newAuthenticator(cdp);
+  await p.goto(`${AUTH}&kc_action=webauthn-register-passwordless`);
+  await p.waitForSelector('#registerWebAuthn');
+  await p.evaluate(() => localStorage.clear());
+  await p.click('#registerWebAuthn');
+  await p.waitForSelector('#kc-try-again');
+  await snap(p, 'webauthn-error-aia');
+
+  await c.close();
+
+  // Passkey sign-in step of a passkey-only account (fresh browser, authenticator C holds its passkey).
+  const only = await mkUser('only');
+  ({ c, p } = await ctx());
+  const cdp2 = await c.newCDPSession(p);
+  await cdp2.send('WebAuthn.enable', { enableUI: false });
+  await newAuthenticator(cdp2);
+  await p.goto(`${AUTH}&kc_action=webauthn-register-passwordless`);
+  await p.fill('#username', only);
+  await p.click('#kc-login');
+  await p.fill('#password', PW);
+  await p.click('#kc-login');
+  await p.waitForSelector('#registerWebAuthn');
+  await Promise.all([p.waitForEvent('framenavigated', (f) => f === p.mainFrame() && !f.url().startsWith(KC)), p.click('#registerWebAuthn')]);
+  const [onlyUser] = await (await admin('GET', `/users?username=${encodeURIComponent(only)}&exact=true`)).json();
+  for (const cred of await (await admin('GET', `/users/${onlyUser.id}/credentials`)).json()) {
+    if (cred.type === 'password') await admin('DELETE', `/users/${onlyUser.id}/credentials/${cred.id}`);
+  }
+  await c.close();
+  ({ c, p } = await ctx()); // a browser that has never seen the passkey: Keycloak still shows its sign-in step
+  await p.goto(AUTH);
+  await p.fill('#username', only);
+  await p.click('#kc-login');
+  await p.waitForSelector('#authenticateWebAuthnButton');
+  await snap(p, 'webauthn-authenticate');
+  await p.evaluate(() => {
+    document.getElementById('error').value = 'NotAllowedError: The operation either timed out or was not allowed.';
+    document.getElementById('webauth').requestSubmit();
+  });
+  await p.waitForSelector('#kc-try-again');
+  await snap(p, 'webauthn-error-login');
   await c.close();
 
   const upd = await mkUser('upd', ['UPDATE_PASSWORD']);

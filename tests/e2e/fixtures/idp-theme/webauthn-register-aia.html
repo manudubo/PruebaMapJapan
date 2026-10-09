@@ -68,6 +68,10 @@
 
         <input type="submit" class="jp-btn jp-btn--primary jp-btn--block " id="registerWebAuthn" value="Register passkey">
 
+            <form action="/realms/japan-trip/login-actions/required-action?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" class="jp-form" id="kc-webauthn-settings-form" method="post">
+                <button type="submit" class="jp-btn jp-btn--secondary jp-btn--block " id="cancelWebAuthnAIA" name="cancel-aia" value="true">Cancel
+                </button>
+            </form>
 
 
 
@@ -76,9 +80,6 @@
     </main>
 
   <footer class="jp-foot">
-      <p id="jp-passkey-recovery" class="jp-passkey-recovery">
-        <a id="jp-passkey-recovery-link" href="http://localhost:5173/PruebaMapJapan/recover.html">Can't use a passkey on this device? Get a code by email</a>
-      </p>
     <a class="jp-idp-exit" href="http://localhost:5173/PruebaMapJapan/">Back to Japan Trip</a>
   </footer>
 </div>
