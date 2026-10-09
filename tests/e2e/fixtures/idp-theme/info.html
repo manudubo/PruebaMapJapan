@@ -18,7 +18,7 @@
     
 </head>
 
-<body class="jp-body" data-page-id="login-error" data-realm="japan-trip">
+<body class="jp-body" data-page-id="login-info" data-realm="japan-trip">
 <div class="jp-page">
     <div id="kc-header" class="jp-brand">
         <svg class="jp-brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
@@ -31,13 +31,9 @@
     <main class="jp-card">
         <header class="jp-card__header">
 
-            <h1 id="kc-page-title">        We couldn't start the sign-in
-        
+            <h1 id="kc-page-title">            You are logged out
 </h1>
 
-                <p class="jp-subtitle" id="kc-page-subtitle">        Please go back to Japan Trip and try again.
-        
-</p>
 
         </header>
 
@@ -45,13 +41,7 @@
             <div id="kc-content-wrapper">
 
 
-        <div id="kc-error-message" class="jp-error" data-error-kind="start">
-                <a id="jp-error-action" class="jp-btn jp-btn--primary jp-btn--block" href="http://localhost:5173/PruebaMapJapan/">Back to Japan Trip</a>
-                <details id="jp-error-details" class="jp-details">
-                    <summary>Details for support</summary>
-                    <p id="jp-error-original">Invalid parameter: redirect_uri</p>
-                    
-                </details>
+        <div id="kc-info-message">
         </div>
 
 
@@ -61,6 +51,7 @@
     </main>
 
   <footer class="jp-foot">
+    <a class="jp-idp-exit" href="/realms/japan-trip/account/">Back to Japan Trip</a>
   </footer>
 </div>
 
