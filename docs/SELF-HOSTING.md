@@ -390,6 +390,14 @@ To roll it out on an existing server, in this order:
 Rollback: set `passwordless_passkeys_enabled = false` and re-apply; the theme
 falls back to the plain form by itself.
 
+Editing the login theme: Keycloak lets browsers cache theme files for 30
+days, so every stylesheet and script is linked with a `?v=` version taken from
+`jpAssetVersion` in `keycloak/themes/japan-trip/login/theme.properties`. After
+editing anything under `login/resources`, run
+`node tests/e2e/fixtures/idp-theme/asset-version.mjs --write` and commit the
+result (a test fails otherwise). A new ES module imported by a theme script
+must also be added to `jpModules` in the same file.
+
 ---
 
 ## Open sign-up

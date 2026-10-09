@@ -38,10 +38,17 @@
             <script src="${url.resourcesPath}/${script}?v=${properties.jpAssetVersion!}" type="text/javascript" defer></script>
         </#list>
     </#if>
+    <#--
+      Import map: the theme's ES modules are imported by bare relative path (./passkey-device.js inside
+      passkey-first.js), so the browser would request them without ?v= and serve a stale copy from its 30-day
+      cache after an edit. Each module listed in theme.properties (jpModules) is mapped to its versioned URL.
+      Browsers without import maps (Safari < 16.4, Chrome < 89, Firefox < 108) ignore this and use the plain URLs.
+    -->
     <script type="importmap">
         {
             "imports": {
-                "rfc4648": "${url.resourcesCommonPath}/vendor/rfc4648/rfc4648.js"
+                "rfc4648": "${url.resourcesCommonPath}/vendor/rfc4648/rfc4648.js"<#if properties.jpModules?has_content><#list properties.jpModules?split(' ') as module>,
+                "${url.resourcesPath}/${module}": "${url.resourcesPath}/${module}?v=${properties.jpAssetVersion!}"</#list></#if>
             }
         }
     </script>

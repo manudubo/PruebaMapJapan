@@ -1,6 +1,7 @@
 import { devices, expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { layoutProblems } from './fixtures/idp-theme/mobile-checks';
 import { openSnapshot, ROOT, SCREENS, SNAPSHOTS } from './fixtures/idp-theme/snapshot-server';
@@ -38,6 +39,38 @@ test.describe('theme assets are cache-busted', () => {
     const bare = [...template.matchAll(/resourcesPath\}\/(?:js|css)\/([\w.-]+)"/g)].map((m) => m[1]).filter((f) => f && fs.existsSync(path.join(LOGIN, 'resources/js', f)));
     expect(bare, 'theme scripts referenced without ?v=').toEqual([]);
     expect(read('webauthn-register.ftl')).toMatch(/passkey-label\.js\?v=\$\{properties\.jpAssetVersion/);
+  });
+
+  // RESIDUAL GAP: passkey-first.js imports ./passkey-device.js and ./passkey-webauthn.js by a bare
+  // relative URL; the browser would request them without ?v= and keep a stale copy for 30 days after
+  // an edit. template.ftl maps each module listed in theme.properties (jpModules) to its versioned URL
+  // in the import map.
+  test('every ES module a theme script imports has an import-map entry (jpModules)', () => {
+    const jsDir = path.join(LOGIN, 'resources/js');
+    const listed = (/^jpModules=(.*)$/m.exec(read('theme.properties'))?.[1] ?? '').split(/\s+/).filter(Boolean);
+    const IMPORT = /(?:\bimport\s*(?:[\w*{}\s,]*?\bfrom\s*)?|\bexport\s*[\w*{}\s,]*?\bfrom\s*|\bimport\s*\(\s*)(['"`])([^'"`]+)\1/g;
+    const needed = new Set<string>();
+    for (const f of fs.readdirSync(jsDir).filter((n) => n.endsWith('.js'))) {
+      for (const m of fs.readFileSync(path.join(jsDir, f), 'utf8').matchAll(IMPORT)) {
+        const spec = m[2]!;
+        if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(spec)) continue; // absolute URLs are not ours
+        expect(spec, `${f}: import "${spec}" must be a relative path to a theme file (bare names resolve through the import map)`).toMatch(/^\.{1,2}\//);
+        const target = path.relative(path.join(LOGIN, 'resources'), path.resolve(jsDir, spec)).split(path.sep).join('/');
+        expect(fs.existsSync(path.join(LOGIN, 'resources', target)), `${f} imports ${spec}: no such theme file`).toBe(true);
+        needed.add(target);
+      }
+    }
+    // Inline module scripts in the templates that import a theme file by URL.
+    for (const t of fs.readdirSync(LOGIN).filter((n) => n.endsWith('.ftl'))) {
+      for (const m of read(t).matchAll(/\bimport\b[^;"']*?from\s*"\$\{url\.resourcesPath\}\/([\w./-]+)"|\bimport\(\s*"\$\{url\.resourcesPath\}\/([\w./-]+)"/g)) {
+        const target = (m[1] ?? m[2])!;
+        if (fs.existsSync(path.join(LOGIN, 'resources', target))) needed.add(target);
+      }
+    }
+    expect([...needed].sort(), 'imported theme modules').not.toEqual([]);
+    expect([...needed].filter((n) => !listed.includes(n)).sort(), 'imported by a theme script but missing from jpModules in theme.properties').toEqual([]);
+    expect(listed.filter((n) => !needed.has(n)), 'listed in jpModules but never imported').toEqual([]);
+    expect(read('template.ftl')).toMatch(/<script type="importmap">[\s\S]*<#list properties\.jpModules\?split\(' '\) as module>[\s\S]*\$\{url\.resourcesPath\}\/\$\{module\}\?v=\$\{properties\.jpAssetVersion/);
   });
 
   for (const screen of SCREENS) {
@@ -88,5 +121,73 @@ test.describe('live Keycloak', () => {
     expect(css.status()).toBe(200);
     expect(css.headers()['content-type']).toContain('text/css');
     expect(await css.text()).toBe(fs.readFileSync(path.join(LOGIN, 'resources/css/login.css'), 'utf8'));
+  });
+});
+
+// A browser with an import map, as a request log: editing an imported module must change the URL requested.
+test.describe('imported modules are requested with the version of resources/', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  const BASE = '/resources/login/japan-trip';
+
+  /** template.ftl's import map with its few FreeMarker expressions evaluated (a list, two variables). */
+  function renderedImportMap(version: string, withModules = true): string {
+    const block = /<script type="importmap">([\s\S]*?)<\/script>/.exec(read('template.ftl'))![1]!;
+    const modules = (/^jpModules=(.*)$/m.exec(read('theme.properties'))?.[1] ?? '').split(/\s+/).filter(Boolean);
+    const expand = (t: string) => t.replace(/\$\{url\.resourcesCommonPath\}/g, '/common').replace(/\$\{url\.resourcesPath\}/g, BASE).replace(/\$\{properties\.jpAssetVersion!\}/g, version);
+    const out = block
+      .replace(/<#if [^>]*>(<#list [^>]*>)([\s\S]*?)<\/#list><\/#if>/, (_m, _l, body: string) => (withModules ? modules.map((m) => expand(body.replace(/\$\{module\}/g, m))).join('') : ''))
+      .replace(/\$\{module\}/g, '');
+    const rendered = expand(out);
+    expect(rendered, 'FreeMarker left unevaluated').not.toMatch(/<#|\$\{/);
+    return `<script type="importmap">${rendered}</script>`;
+  }
+
+  async function visit(page: import('@playwright/test').Page, resources: string, version: string, withModules = true): Promise<string[]> {
+    const requested: string[] = [];
+    await page.route('http://idp.test/**', (route) => {
+      const url = new URL(route.request().url());
+      requested.push(url.pathname.replace(BASE, '') + url.search);
+      if (url.pathname === '/page.html') {
+        return route.fulfill({ contentType: 'text/html', body: `<!doctype html><title>t</title>${renderedImportMap(version, withModules)}<script type="module" src="${BASE}/js/passkey-first.js?v=${version}"></script>` });
+      }
+      const file = path.join(resources, url.pathname.replace(`${BASE}/`, ''));
+      return fs.existsSync(file) ? route.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(file) }) : route.fulfill({ status: 404, body: '' });
+    });
+    await page.goto('http://idp.test/page.html');
+    await expect.poll(() => requested.filter((r) => r.startsWith('/js/passkey-')).length).toBeGreaterThanOrEqual(3);
+    return requested.filter((r) => r.startsWith('/js/'));
+  }
+
+  test('editing passkey-device.js or passkey-webauthn.js changes the URL the browser requests', async ({ browser }) => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jp-theme-'));
+    try {
+      const copy = path.join(tmp, 'resources');
+      fs.cpSync(path.join(LOGIN, 'resources'), copy, { recursive: true });
+      const hash = () => execFileSync('node', [path.join(SNAPSHOTS, 'asset-version.mjs'), '--root', copy], { encoding: 'utf8' }).trim();
+      const seen: Record<string, string[]> = {};
+      for (const [step, edited] of [['v1', ''], ['v2', 'passkey-device.js'], ['v3', 'passkey-webauthn.js']] as const) {
+        if (edited) fs.appendFileSync(path.join(copy, 'js', edited), `\n// edited for ${step}\n`);
+        const version = hash();
+        const context = await browser.newContext();
+        const requests = await visit(await context.newPage(), copy, version);
+        await context.close();
+        for (const mod of ['passkey-device.js', 'passkey-webauthn.js']) {
+          expect(requests, `${step}: ${mod} requested with the current version`).toContain(`/js/${mod}?v=${version}`);
+          expect(requests.filter((r) => r.startsWith(`/js/${mod}`) && !r.endsWith(`?v=${version}`)), `${step}: ${mod} requested by a bare URL`).toEqual([]);
+        }
+        seen[step] = [version];
+      }
+      expect(new Set(Object.values(seen).flat()).size, 'each edit produced a new version').toBe(3);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('control: without the map entries the modules are requested by a bare URL (the bug)', async ({ browser }) => {
+    const context = await browser.newContext();
+    const requests = await visit(await context.newPage(), path.join(LOGIN, 'resources'), 'abc123', false);
+    await context.close();
+    expect(requests).toContain('/js/passkey-device.js');
+    expect(requests.some((r) => r.includes('passkey-device.js?v='))).toBe(false);
   });
 });
