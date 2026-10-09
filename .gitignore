@@ -57,3 +57,4 @@ backend/.dev.vars
 
 # Terraform lock info (transient, not the state lock itself)
 *.tfstate.lock.info
+tests/node_modules
