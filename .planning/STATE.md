@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.3
 milestone_name: UX & Product Polish
-status: v3.3_in_progress_v3.2_and_registration_merged_pending_validation
-stopped_at: v3.2 merged (PR #23, green on Actions); second batch (PR #24, 89 commits) consolidated in planning docs; waiting for PR #24 checks and validation on the owner's real server
-last_updated: "2026-10-08T12:00:00.000Z"
-last_activity: 2026-10-08 -- v3.3 UX & Product Polish recorded (UX-*, phases 27-31); PR #25 and #26 marked merged
+status: v3.3_shipped_pending_owner_validation_on_real_devices
+stopped_at: v3.3 shipped (PR #27 `c7d54dc`, PR #28 `460a449`); passkey-first login ready in its own PR (pending merge); nothing deployed, nothing validated on real devices
+last_updated: "2026-10-09T12:00:00.000Z"
+last_activity: 2026-10-09 -- v3.3 recorded as shipped (UX-*, UX-MOB-01, PKF-01..04 Complete); QA report qa/UX-REPORT.md
 progress:
   total_phases: 7
   completed_phases: 7
@@ -18,19 +18,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-08 — v3.2 merged; production-readiness batch on PR #24)
+See: .planning/PROJECT.md (updated 2026-10-09 — v3.3 shipped; registration batch and v3.2 merged)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus (2026-10-08): v3.3 UX & Product Polish, phases 27-31.** Seven owner-reported items (UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01) are being implemented by parallel agents, all In progress; the most critical is UX-TRIP-01 (trip creation as simple as the demo). Final statuses are set by whoever merges. Earlier focus, still valid for ops: v3.2 is merged to `main` (PR #23, merge `ed49639`). The branch `claude/focused-lovelace-cryssy` carries a second batch (PR #24 open, head `2d7a734`, 89 commits ahead of `main`): self-hosting kit, internet hardening, A11Y-04/05, SEC-18, system and real-auth QA, Keycloak CI job. Next step is to read the PR #24 checks, merge, then validate on the owner's server `legion-server.tailad4a36.ts.net` (Funnel, Gmail, passkeys). Nothing of this batch is deployed.
+**Current focus (2026-10-09): v3.3 is shipped; next is owner validation on real devices plus the residual items.** v3.3 UX & Product Polish (phases 27-32) is in `main`: PR #27 (`c7d54dc`, UX-KC-01..03, UX-NAV-01, UX-SEARCH-01, UX-TRIP-01, UX-TRIP-02) and PR #28 (`460a449`, UX-MOB-01). Passkey-first login (PKF-01..04) is Complete in its own PR, number pending, not yet merged. All of it is sandbox-validated only (Chromium, Keycloak 26.6.1 with a virtual authenticator); nothing is deployed. Owner steps: pull `main`, redeploy the Keycloak image (new theme), re-run `keycloak-apply` on the Lenovo (for passkey-first the plan adds 5 resources, updates the realm passkey setting, profile mappers no change; `docs/SELF-HOSTING.md`), set `REGISTRATION_ENABLED` + SMTP for Sign up (the Pages build now includes sign-up when `VITE_KEYCLOAK_URL` is set), then try on a real iPhone and Android: Face ID / Touch ID / biometrics, the iOS Safari user-gesture rule for the passkey prompt, installed PWA, keyboard overlap, OTP autofill, a real swipe over the map. Residual items: "remember me" is off (`remember_me=false`, SSO idle 30 min / max 10 h; owner may want longer sessions, proposal only); search deep link to a day/activity ignored by `tripDetail.ts`; external cover images blocked by the CSP `img-src`; editor cramped in landscape; profile heading flush; drop-a-pin hint says "Click ... Esc"; navbar `role=tab` on links; weather/news widgets not on the trip city view; no per-IP sign-up throttle (REG-06); `deploy/selfhost/scripts/lib/common.sh` hard-codes `FRONTEND_ORIGIN` defaults instead of reading `config/deploy-defaults.json`. Earlier focus, still valid for ops: PR #24 (`d2dd404`), PR #25 (`41f43d4`) and PR #26 (`6d4c4f1`) are merged; validate on the owner's server `legion-server.tailad4a36.ts.net` (Funnel, Gmail, passkeys) and read the `Keycloak flow` workflow on Actions (QA-01, REG-07).
 
 ## Current Position
 
 Phase: 26 of 26 (all v3.2 phases executed and merged); post-v3.2 production-readiness batch (PR #24) not phased
 Plan: n/a — Phases 22-26 ran from summaries, not PLAN.md files; the batch ran as five parallel tracks plus one integration pass
-Status: v3.2 shipped to `main` (CI green). PR #24 (`d2dd404`), PR #25 self-registration (`41f43d4`) and PR #26 docs (`6d4c4f1`) are merged; validated in the sandbox only. v3.3 UX & Product Polish is in progress (below)
-Last activity: 2026-10-08
+Status: v3.3 shipped to `main` (PR #27, PR #28); passkey-first PR pending. v3.2 shipped to `main` (CI green). PR #24 (`d2dd404`), PR #25 self-registration (`41f43d4`) and PR #26 docs (`6d4c4f1`) are merged; validated in the sandbox only. see the v3.3 notes in the current focus above
+Last activity: 2026-10-09
 
-Progress: v3.2 100%. Requirements: 88 Complete, 4 Partial (DEP-02, SEC-17, PROD-01, REG-06), 3 Unverified (QA-01, REG-01, REG-07), 0 Deferred (95 rows: 82 audit-derived, DATA-04, PROD-01..04, QA-01, REG-01..07). PR #24 is in `main` as `d2dd404` (its "open / running checks" wording below is from before the merge); the registration batch is merged as PR #25 (`41f43d4`), its docs as PR #26 (`6d4c4f1`). v3.3 adds 7 rows (UX-*), all In progress.
+Progress: v3.2 100%, v3.3 100%. Requirements: 100 Complete, 4 Partial (DEP-02, SEC-17, PROD-01, REG-06), 3 Unverified (QA-01, REG-01, REG-07), 0 Deferred, 0 In progress (107 rows: 82 audit-derived, DATA-04, PROD-01..04, QA-01, REG-01..07, UX-KC-01..03, UX-NAV-01, UX-SEARCH-01, UX-TRIP-01..02, UX-MOB-01, PKF-01..04). PR #24 is in `main` as `d2dd404` (its "open / running checks" wording below is from before the merge); the registration batch is merged as PR #25 (`41f43d4`), its docs as PR #26 (`6d4c4f1`). v3.3 added 13 rows, all Complete (PKF-01..04 in the passkey-first PR, pending merge).
 
 GitHub Actions evidence (checked 2026-10-08 through the API): PR #23 head `2200c6e` had all 10 checks green (`e2e`, `accessibility`, `gitleaks`, `test-backend`, `test-frontend`, `test-scripts`, `typecheck-*`, `build-backend`, Vercel preview comments). The push to `main` at `ed49639` ran green (12 check runs including `e2e`, `accessibility`, `gitleaks`, `test-backend`, `build-and-deploy` and `deploy`; the `Security & Accessibility Scans`, `Deploy Frontend to GitHub Pages` and `Deploy Backend to Cloudflare Workers` runs succeeded; the backend deploy almost certainly skipped without Cloudflare secrets, cause not inspected). For PR #24 head `2d7a734`, `Keycloak flow`, `CI` and the security workflow had started; `e2e`, `idp-flow`, `accessibility` and `test-backend` were still in progress, the rest green. Re-read before merging.
 
@@ -91,9 +91,13 @@ Third batch (self-registration, REG-01..07):
 - **Verified semantic (DB flag):** verified = `users.email_verified_at` is set OR the token claim `email_verified === true` (boolean; `"true"`, `1`, null do not count). Migration 0011 stamps every existing user so the gate does not lock them out. `REQUIRE_VERIFIED_EMAIL` defaults to on outside development.
 - **Squatting defence:** recovering an account whose e-mail was never verified also deletes its other credentials and sessions; a legitimate unverified user loses passkeys they enrolled.
 
+- **Passkey-first (PKF):** realm passkeys (provider >= 5.8, lock 5.10.0) let the username page accept a passkey answer; a CONDITIONAL credential subflow fails open on Keycloak 26.6.1 (a bare username got a code), so the credential step gets an extra fail-closed ALTERNATIVE branch `passkey-done` (condition first, `allow-access` second). The device marker `jp.passkey.<realm>` holds no identifying data and lives 180 days. SEC-25 mappers pin `add_to_token_introspection=false` across the provider bump.
+- **Mobile is a tested target (UX-MOB-01):** Chromium-only emulation (iPhone 13, Pixel 7) with an `e2e-mobile` CI job; real-device and WebKit gaps are listed in `docs/design/MOBILE-COVERAGE.md`.
+- **Guided editor (UX-TRIP-01):** one autosave queue with undo and a live preview built from the demo's own classes; the saved view uses the same adapters (`docs/design/TRIP-CREATION-UX.md`).
+
 ### Pending Todos
 
-- v3.3: merge the parallel UX agents, then set UX-* statuses, fill `phases/TRACEABILITY.md` (v3.3 section) with commits and tests, and write `qa/UX-REPORT.md` (see the placeholder in `qa/QA-INDEX.md`). Add a real decision here once `docs/design/TRIP-CREATION-UX.md` is final.
+- v3.3: merge the passkey-first PR (fill its number into `REQUIREMENTS.md`, `phases/TRACEABILITY.md`, `MILESTONES.md`, `ROADMAP.md`), then validate on real devices (see current focus) and update the Unverified lines of `qa/UX-REPORT.md`.
 - Registration batch is merged (PR #25 `41f43d4`, docs PR #26 `6d4c4f1`); the Actions run of the extended `keycloak-flow.yml` is still to be read (REG-07).
 - Read the PR #24 checks (`e2e`, `idp-flow`, `accessibility`, `test-backend` were in progress), merge, and record the `Keycloak flow` result against QA-01.
 - Validate on the owner's server (see Manual actions for the owner). Then update PROD-01 and SEC-17.
@@ -111,6 +115,7 @@ Third batch (self-registration, REG-01..07):
 7. Consider a Caddy rate limit on `POST /auth/realms/japan-trip/login-actions/authenticate` (username enumeration).
 8. Run the Neon smoke checklist if the Worker/Neon path will be used; rotate the leaked local `japan-trip-worker` secret (DEP-02).
 9. Registration (third batch): set `REGISTRATION_ENABLED=true` only when ready; run `keycloak-apply.sh` (writes `KEYCLOAK_RECOVERY_CLIENT_SECRET` to `.env`), redeploy the backend, run `stack-e2e.sh register verify recover` against the real host; enable `purge-timer.sh` (daily); decide on reCAPTCHA (`TF_VAR_recaptcha_site_key` / `recaptcha_secret_key`, `require_recaptcha`); consider a Caddy or WAF limit on `/auth/realms/japan-trip/protocol/openid-connect/registrations`; check that `users.email_verified_at` is filled for existing users before turning the gate on.
+10. v3.3 / passkey-first: pull `main`, redeploy the Keycloak image (new theme), re-run `keycloak-apply` on the Lenovo (plan: +5 resources, realm passkey setting updated, profile mappers no change); set `REGISTRATION_ENABLED` + SMTP to enable Sign up; rebuild Pages with `VITE_KEYCLOAK_URL` set to include sign-up; decide whether to lengthen sessions (`remember_me`).
 
 ### Blockers/Concerns
 
@@ -161,5 +166,5 @@ Third batch (self-registration, REG-01..07):
 ## Session Continuity
 
 Last session: 2026-10-08
-Stopped at: Planning docs updated for v3.3 (UX-* requirements, phases 27-31, QA placeholder); before that for the registration batch (REQUIREMENTS REG-01..07, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX, PR-DESCRIPTION).
-Resume: v3.3 merge and status update first; then validate on the owner's server, then update PROD-01, SEC-17 and QA-01. Run `/gsd-complete-milestone` only after owner actions are done or consciously deferred.
+Stopped at: Planning docs updated for shipped v3.3 (UX-*, UX-MOB-01, PKF-01..04 Complete, phases 27-32, `qa/UX-REPORT.md`); before that for the v3.3 requirements (UX-*, phases 27-31, QA placeholder); before that for the registration batch (REQUIREMENTS REG-01..07, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX, PR-DESCRIPTION).
+Resume: merge the passkey-first PR; then re-run `keycloak-apply` and validate v3.3 on real devices and on the owner's server, then update PROD-01, SEC-17 and QA-01. Run `/gsd-complete-milestone` only after owner actions are done or consciously deferred.

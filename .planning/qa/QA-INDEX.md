@@ -1,6 +1,6 @@
 # QA index: what was checked, and what was not
 
-Read this before approving the v3.2 PR, PR #24, the registration batch (PR #25, merged) or the v3.3 UX batch (entries still placeholders). It lists every QA artifact, what it covers, and the verification gaps. The first table is the v3.2 set (PR #23, merged); the second is the PR #24 set (added 2026-10-08). Requirement-level evidence is in `.planning/phases/TRACEABILITY.md`.
+Read this before approving the v3.2 PR, PR #24, the registration batch (PR #25, merged) or the v3.3 UX batch (PR #27, PR #28, passkey-first PR; `UX-REPORT.md`). It lists every QA artifact, what it covers, and the verification gaps. The first table is the v3.2 set (PR #23, merged); the second is the PR #24 set (added 2026-10-08). Requirement-level evidence is in `.planning/phases/TRACEABILITY.md`.
 
 ## Artifacts
 
@@ -37,11 +37,13 @@ Read this before approving the v3.2 PR, PR #24, the registration batch (PR #25, 
 | `REGISTRATION-UI-REPORT.md` | Sign up/Sign in, verify screen, passkey onboarding, `recover.html`, profile card; vitest (jsdom) plus 58 mocked Playwright cases, axe 0 violations, 24 screenshots in `visual-registration/` | Written against an assumed backend contract (since reconciled), no real Keycloak/backend, `kc_action` completion asserted only up to the redirect, no undo for "Don't ask again", no "Email verified" toast after a 403-driven reload |
 | `REGISTRATION-INTEGRATION-REPORT.md` | One wire-contract fixture (14 cases) run by both sides; 4 bugs found on the real stack and fixed; real-stack e2e 16/16; `registration-stack.sh` in `keycloak-flow.yml`; self-host `stack-e2e.sh` 67/67 with `register verify recover` | The workflow on Actions, real Funnel/Gmail/`.ts.net` passkeys, reCAPTCHA, the UI against the self-host stack, expired code and double click on the real stack, Firefox/WebKit; `attemptsLeft` is never sent by the backend |
 
-## Artifacts added by v3.3 (UX & Product Polish): placeholder
+## Artifacts added by v3.3 (UX & Product Polish)
 
 | Artifact | Covers | Not covered / status |
 |----------|--------|----------------------|
-| `UX-REPORT.md` (to be written by whoever merges v3.3; may be split per item) | UX-KC-01..03, UX-NAV-01, UX-SEARCH-01, UX-TRIP-01, UX-TRIP-02: unit, e2e (mocked and real stack), edge cases, visual validation light/dark x 375/1280 with screenshots in `visual-ux/` | Not written yet. All items are In progress. Expected gaps to record honestly: real passkey label on non-Chromium browsers, production Keycloak image theme (not deployed), real Nominatim in place search, Firefox/WebKit |
+| `UX-REPORT.md` | UX-KC-01..03, UX-NAV-01, UX-SEARCH-01, UX-TRIP-01, UX-TRIP-02 (PR #27), UX-MOB-01 (PR #28), PKF-01..04 (passkey-first PR): method and evidence per area, bugs found, CI lessons (hygiene rules, strict-mode selectors, racy app load). Screenshots: `.planning/qa/screens-theme/` (and `passkey-first/`), `docs/design/trip-view-screens/`, `docs/design/trip-creation-screens/`, `docs/design/mobile-screens/` | Real devices (iOS Safari, installed PWA, keyboard overlap, real swipe, WebAuthn prompts, OTP autofill), WebKit and Firefox, real Face ID / Touch ID / Android biometrics, hybrid passkeys, the `immediate` mediation, passkey label on non-Chromium, real Nominatim, the production Keycloak theme (not deployed). Test counts not re-run when written |
+| `docs/design/MOBILE-COVERAGE.md` | Mobile matrix: what the `mobile` and `mobile-android` projects prove and what needs a real device | Chromium only |
+| `docs/design/PASSKEY-FIRST-LOGIN.md` | Passkey-first design, device memory, per-browser table, tests, not verified list | Chromium virtual authenticator only |
 
 Counts in this table are the reports' figures; they were not re-run when this index was updated.
 
