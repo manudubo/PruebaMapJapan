@@ -142,6 +142,20 @@ function uniqueUser(prefix: string): string {
 const THROWAWAY_PASSWORD = 'Idp-Flow-Test-1!';
 
 async function addVirtualAuthenticator(page: Page): Promise<{ cdp: CDPSession; authenticatorId: string }> {
+  // These cases drive the TYPED-username path (username step, then the credential step). The
+  // realm has passkeys on the username page, where a browser that holds a passkey signs in
+  // before anything is typed: through the autofill request (which a virtual authenticator
+  // answers by itself on load) or, on a browser that remembers a passkey was used here, the
+  // prompt the theme starts at once. So this browser reports no autofill and forgets the
+  // memory on every page. The passkey-first behaviour has its own spec (idp-passkey-first.spec.ts).
+  await page.addInitScript(() => {
+    PublicKeyCredential.isConditionalMediationAvailable = () => Promise.resolve(false);
+    try {
+      localStorage.removeItem('jp.passkey.japan-trip');
+    } catch {
+      // storage unavailable: nothing to forget
+    }
+  });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('WebAuthn.enable', { enableUI: false });
   const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
