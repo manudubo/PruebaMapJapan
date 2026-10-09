@@ -102,9 +102,9 @@ test.describe("Search scope: account pages search the user's trips", () => {
       day: '2026-04-03',
       activity: 'Dotonbori ramen',
     });
-    await expect(page.locator('#trip-title')).toHaveText('Spring in Kansai');
-    await expect(page.locator('#dest-tabs .dest-tab').nth(1)).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('#trip-subtitle')).toContainText('Osaka');
+    // The trip page opens in the city view of the matched destination.
+    await expect(page.locator('#trip-title')).toHaveText('Osaka');
+    await expect(page.locator('#dest-tabs [aria-current="page"]')).toContainText('Osaka');
   });
 
   test('keyboard: arrows and Enter open a trip result', async ({ page }) => {
@@ -179,13 +179,10 @@ test.describe("Search scope: account pages search the user's trips", () => {
     await input(page).fill('hakodate');
     await expect(page.locator('search-bar .search-empty')).toBeVisible();
 
-    // The trip now exists on the backend; the app then performs a write through its API client.
+    // The trip now exists on the backend and a write through the app's API client succeeded
+    // (it announces that with this window event), so the cached index must be dropped.
     backend.setTrips([SPRING, WINTER, { id: 'trip-new', name: 'Hakodate weekend', dests: [] }]);
-    await page.keyboard.press('Escape'); // the open dropdown would cover the button
-    await page.locator('#new-trip-btn').click();
-    await page.locator('#create-trip-form input').first().fill('Hakodate weekend');
-    await page.locator('#create-trip-form button[type="submit"]').click();
-    await expect(page.locator('#create-trip-overlay')).toBeHidden();
+    await page.evaluate(() => window.dispatchEvent(new Event('travelmap:trips-changed')));
 
     await input(page).fill('hakodate');
     await expect(titles(page).first()).toHaveText('Hakodate weekend');

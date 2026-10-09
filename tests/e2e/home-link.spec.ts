@@ -78,7 +78,8 @@ test.describe('@qa-noauth Home link with a signed-in session', () => {
     await mockKeycloakLoggedOut(page);
     await page.goto('index.html?home');
     const authorize = page.waitForRequest(
-      (r) => r.isNavigationRequest() && r.url().includes('/protocol/openid-connect/auth'),
+      (r) =>
+        r.isNavigationRequest() && r.url().includes('/protocol/openid-connect/auth') && !r.url().includes('prompt=none'),
     );
     await page.locator('#landing-login-btn').click();
     const authorizeUrl = new URL((await authorize).url());
