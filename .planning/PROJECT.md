@@ -67,9 +67,9 @@ Rows REG-01..07 in `.planning/REQUIREMENTS.md`; evidence in `.planning/phases/TR
 - ✓ E-mail code verification and the `403 email_not_verified` gate (migration 0011), recovery by e-mail code, sign-up/verify/onboarding/recover UI, "Try another way" fix, contract fixture and real-stack e2e — REG-02..05
 - ~ Passkey-first self-registration in Keycloak — REG-01 Unverified (real passkeys on the `.ts.net` host and the Actions run not seen); abuse controls — REG-06 Partial (no per-IP sign-up throttle; reCAPTCHA unvalidated); contract tests and e2e in CI — REG-07 Unverified
 
-### Validated in v3.3 UX & Product Polish (PR #27 `c7d54dc`, PR #28 `460a449`, PR #29 `38b9108`, PR #30 `432aba5`, PR #31 pending; sandbox-validated only)
+### Validated in v3.3 UX & Product Polish (PR #27 `c7d54dc`, PR #28 `460a449`, PR #29 `38b9108`, PR #30 `432aba5`, PR #31 `7b22618`, PR #32 residual items; sandbox-validated only)
 
-Rows UX-*, UX-MOB-01, PKF-01..04, UX-KC-04, UX-NAV-02, TEST-PARITY-01 in `.planning/REQUIREMENTS.md`; evidence in `.planning/phases/TRACEABILITY.md`; QA in `.planning/qa/UX-REPORT.md`.
+Rows UX-*, UX-MOB-01, PKF-01..04, UX-KC-04, UX-NAV-02, TEST-PARITY-01 and the Phase 34 rows (INFRA-APPLY-01, INFRA-CFG-01, UX-SESS-01, UX-KC-05, UX-MOB-02, UX-SEARCH-02, UX-TRIP-03) in `.planning/REQUIREMENTS.md`; evidence in `.planning/phases/TRACEABILITY.md`; QA in `.planning/qa/UX-REPORT.md`.
 
 - ✓ Keycloak theme rebuilt on the base theme (no PatternFly), device-generated passkey labels, production "back to application" link from deploy defaults — UX-KC-01..03
 - ✓ Home reachable when logged in, search scope (own trips vs demo) — UX-NAV-01, UX-SEARCH-01
@@ -78,11 +78,13 @@ Rows UX-*, UX-MOB-01, PKF-01..04, UX-KC-04, UX-NAV-02, TEST-PARITY-01 in `.plann
 - ✓ Passkey-first login (prompt on load, private device memory, `passkey-done` branch, provider pin) — PKF-01..04, PR #29 (`38b9108`); real biometrics, Safari/iOS and Firefox not seen
 - ✓ No `redirect_uri` error on iOS (`silentCheckSsoFallback: false`) — UX-NAV-02, PR #30 (`432aba5`); residual: a signed-in iOS user with a blocked SSO iframe sees the signed-out state until Sign in
 - ✓ Demo-parity acceptance test (editor rebuilds the demo; structural and visual gates; 3 gaps fixed, `takayama-option-labels` documented) — TEST-PARITY-01, PR #30
-- ✓ Keycloak login theme served fresh (`?v=` cache-busting against the 30-day Keycloak cache) and friendly error pages — UX-KC-04, Complete in PR #31; real iPhone, real HTTP cache and Inter webfont not seen
+- ✓ Keycloak login theme served fresh (`?v=` cache-busting against the 30-day Keycloak cache) and friendly error pages — UX-KC-04, Complete in PR #31 (`7b22618`); real iPhone, real HTTP cache and Inter webfont not seen
+- ✓ Residual items (PR #32, Phase 34): theme module imports versioned through the import map — UX-KC-05; landscape editor, profile inset, pointer-aware drop-a-pin hint, `<nav>` semantics — UX-MOB-02; search deep links open the day and focus the activity — UX-SEARCH-02; Open-Meteo weather on the trip city view — UX-TRIP-03; `common.sh` reads `config/deploy-defaults.json` — INFRA-CFG-01; "Remember me" and session lengths as opt-in variables (off by default) — UX-SESS-01
+- ~ Single-step `keycloak-apply` (data sources by realm name) with a guard that stops on any destroy/replace — INFRA-APPLY-01: Complete in the repo, **Unverified on the real realm** until the owner's `./scripts/keycloak-apply.sh --dry-run` shows 0 destroy/replace
 
 ### Active
 
-- [ ] Owner validation of v3.3 on real devices (iOS Safari, Android, installed PWA, biometrics), after merging PR #31, rebuilding and redeploying the Keycloak image, and re-running `keycloak-apply` after pulling `main` (see the two-step apply in `STATE.md`); enable Sign up (`REGISTRATION_ENABLED` + SMTP); optionally lengthen sessions ("remember me" is off). Residual gaps are listed in `MILESTONES.md` (v3.3, Known Gaps)
+- [ ] Owner validation of v3.3 on real devices (iOS Safari, Android, installed PWA, biometrics), after merging PR #32, rebuilding and redeploying the Keycloak image, and re-running `keycloak-apply` after pulling `main` (first `./scripts/keycloak-apply.sh --dry-run`: only the 5 `passkey_done*` creates plus in-place updates, 0 destroy/replace; if the script stops, send `deploy/selfhost/state/terraform/keycloak/plan.txt`, never `ALLOW_DESTROY`); enable Sign up (`REGISTRATION_ENABLED` + SMTP); optionally enable "Remember me" (`REMEMBER_ME=true`, `720h` idle, `2160h` max; off by default). Residual gaps are listed in `MILESTONES.md` (v3.3, Known Gaps)
 
 - [ ] Confirm the extended `keycloak-flow.yml` is green on Actions (REG-07); the registration batch is merged (PR #25, `41f43d4`; docs PR #26, `6d4c4f1`). Keep registration closed in production until then. Earlier: PR #24 is merged (`d2dd404`); confirm the `Keycloak flow` workflow is green on Actions (QA-01)
 - [ ] Validate the self-hosting kit on the owner's server `legion-server.tailad4a36.ts.net`: Funnel client-IP forwarding (`TRUSTED_PROXY_HOPS=2`), Gmail delivery, passkeys on the `.ts.net` rpId; then close PROD-01 and SEC-17 (owner actions in `STATE.md`)
@@ -99,7 +101,7 @@ Rows UX-*, UX-MOB-01, PKF-01..04, UX-KC-04, UX-NAV-02, TEST-PARITY-01 in `.plann
 
 ## Current Milestone: v3.3 UX & Product Polish (shipped; owner validation pending)
 
-Phases 27-33. Seven owner-reported items (UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01) shipped in PR #27 (`c7d54dc`), mobile as a tested target (UX-MOB-01) in PR #28 (`460a449`), passkey-first login (PKF-01..04) in PR #29 (`38b9108`), the demo-parity test and iOS redirect fix (TEST-PARITY-01, UX-NAV-02) in PR #30 (`432aba5`), and the login theme cache-busting fix (UX-KC-04) in PR #31. All Complete, validated in the sandbox only. Details: `ROADMAP.md`, `REQUIREMENTS.md` section "v3.3", `MILESTONES.md`, `qa/UX-REPORT.md`. Previous milestone below.
+Phases 27-34. Seven owner-reported items (UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01) shipped in PR #27 (`c7d54dc`), mobile as a tested target (UX-MOB-01) in PR #28 (`460a449`), passkey-first login (PKF-01..04) in PR #29 (`38b9108`), the demo-parity test and iOS redirect fix (TEST-PARITY-01, UX-NAV-02) in PR #30 (`432aba5`), the login theme cache-busting fix (UX-KC-04) in PR #31 (`7b22618`), and the residual items (INFRA-APPLY-01, INFRA-CFG-01, UX-SESS-01, UX-KC-05, UX-MOB-02, UX-SEARCH-02, UX-TRIP-03, Phase 34) in PR #32. All Complete except INFRA-APPLY-01 (Complete in the repo, Unverified on the real realm), validated in the sandbox only. Details: `ROADMAP.md`, `REQUIREMENTS.md` section "v3.3", `MILESTONES.md`, `qa/UX-REPORT.md`. Previous milestone below.
 
 ## Previous Milestone: v3.2 Security & Code Health Hardening (merged) and the production-readiness batch (PR #24)
 
@@ -209,4 +211,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-Last updated: 2026-10-09 — v3.3 UX & Product Polish shipped (PR #27 `c7d54dc`, PR #28 `460a449`, PR #29 `38b9108`, PR #30 `432aba5`; PR #31 pending); v3.2, PR #24 and the registration batch (PR #25 `41f43d4`, docs PR #26 `6d4c4f1`) merged
+Last updated: 2026-10-09 — v3.3 UX & Product Polish shipped (PR #27 `c7d54dc`, PR #28 `460a449`, PR #29 `38b9108`, PR #30 `432aba5`, PR #31 `7b22618`; PR #32 residual items pending); v3.2, PR #24 and the registration batch (PR #25 `41f43d4`, docs PR #26 `6d4c4f1`) merged
