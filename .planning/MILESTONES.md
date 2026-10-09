@@ -1,26 +1,34 @@
 # Milestones
 
-## v3.3 UX & Product Polish (Phases 27-31)
+## v3.3 UX & Product Polish (Phases 27-32)
 
-**Status:** In progress (started 2026-10-08). Seven owner-reported items implemented by parallel agents in separate worktrees; none merged when this was written, so every status is In progress. Whoever merges updates `REQUIREMENTS.md`, `phases/TRACEABILITY.md` and this entry.
-**Requirements:** UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01 (`REQUIREMENTS.md`, section "v3.3")
-**Design doc:** `docs/design/TRIP-CREATION-UX.md` (UX-TRIP-01)
+**Status:** Shipped to `main` in two PRs, third piece pending merge. PR #27 merged as `c7d54dc` (seven owner-reported items), PR #28 merged as `460a449` (mobile as a tested target), passkey-first login in a further PR (number pending; PKF-01..04 Complete there). Sandbox-validated only; owner validation on real devices pending.
+**Timeline:** 2026-10-08 to 2026-10-09
+**Requirements:** UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01 (PR #27), UX-MOB-01 (PR #28), PKF-01..04 (passkey-first PR); all Complete (`REQUIREMENTS.md`, section "v3.3")
+**Design docs:** `docs/design/TRIP-CREATION-UX.md`, `docs/design/MOBILE-COVERAGE.md`, `docs/design/PASSKEY-FIRST-LOGIN.md`
+**QA:** `qa/UX-REPORT.md`; evidence per ID in `phases/TRACEABILITY.md` (section "v3.3")
 
 ### Goal
 
-Make the product feel finished: modern Keycloak screens that match the site, device-named passkeys, a production-correct "back to application" link, a landing page logged-in users can reach, search that matches the page you are on, and above all a trip creation flow as simple as the demo makes it look, with saved trips viewed the same way.
+Make the product feel finished: modern Keycloak screens that match the site, device-named passkeys, a production-correct "back to application" link, a landing page logged-in users can reach, search that matches the page you are on, and above all a trip creation flow as simple as the demo makes it look, with saved trips viewed the same way. Then make it usable on phones and make passkey sign-in one prompt.
 
-### Scope and dependencies
+### Shipped
 
-- Phase 27 (UX-KC-01..03): Keycloak theme, Terraform and deploy defaults
-- Phase 28 (UX-NAV-01, UX-SEARCH-01): navigation and search scope; search depends on the API client
-- Phases 29-30 (UX-TRIP-01, UX-TRIP-02): creation flow and view parity; share the trip data adapters
-- Phase 31: cross-cutting validation: unit, e2e, edge cases, visual light/dark at 375 and 1280
+- **PR #27 (`c7d54dc`)**: Keycloak theme rebuilt on the base theme with no PatternFly (one flat card per screen, light/dark, 44 px controls); passkey label generated from the device; Home link `index.html?home` keeps signed-in users on the landing; production client `root_url`/`base_url` derived from `config/deploy-defaults.json` with a loopback guard in Terraform and `keycloak-apply.sh`; guided trip editor (Trip, Route, Share) with autosave queue, undo and a live demo-style preview (also fixed the missing `order_index` bug); trip view parity with the demo (overview map with dashed route, city views) plus dashboard trip cards with loading, error and API-down states; search scope (user trips on dashboard/trip/profile, demo data elsewhere) backed by a cached own-trips index; Navbar stored-XSS fix (city labels escaped); SEC-11 `kcSanitize` fix in the theme template. CI needed several rounds; the e2e fixes were stale expectations, racy specs (app loading during e-mail code tests, a response asserted before it arrived), ambiguous submit selectors and `test.fixme` for the hygiene guard (`qa/UX-REPORT.md`, "CI lessons").
+- **PR #28 (`460a449`)**: Playwright projects `mobile` (iPhone 13) and `mobile-android` (Pixel 7), Chromium only; specs `mobile-layout`, `mobile-touch`, `mobile-platform`, `mobile-screens`; separate `e2e-mobile` CI job; 11 fixes (44 px coarse-pointer targets, 16 px fields, navbar/search shadow-DOM sizing, city links row, map one-finger pan off with a two-finger hint, bigger zoom/marker hit areas, 44 px OTP boxes, `100dvh`, safe-area snackbar, manifest orientation unlocked). Matrix: `docs/design/MOBILE-COVERAGE.md`.
+- **Passkey-first login PR (number pending)**: a browser that used a passkey with the realm is asked for it on load, no username (PKF-01); device memory `jp.passkey.<realm>` with no identifying data, 180 days, cleared on "Use another account" and after two dismissals (PKF-02); credential-step `passkey-done` ALTERNATIVE branch, with the finding that a CONDITIONAL credential subflow fails open (a bare username got an authorization code) (PKF-03); Terraform provider `>= 5.8.0` (lock 5.10.0) and the SEC-25 mapper pin `add_to_token_introspection=false` (PKF-04).
 
-### Known Gaps (at time of writing)
+### Operator steps (nothing is deployed)
 
-- Nothing is merged or verified; no test counts yet. QA entry is a placeholder in `qa/QA-INDEX.md`
-- Production Keycloak keeps the old theme until the owner redeploys the image (the prod image has no theme today, see `STATE.md` blockers)
+- Pull `main`, redeploy the Keycloak image so the new theme is served, then re-run `keycloak-apply` on the Lenovo. For passkey-first the plan adds 5 resources and updates the realm passkey setting; the profile mappers show no change (`docs/SELF-HOSTING.md`, "Passkey-first sign-in (operator notes)").
+- `REGISTRATION_ENABLED` plus SMTP are needed for Sign up to work. The GitHub Pages build now includes sign-up when `VITE_KEYCLOAK_URL` is set.
+- "Remember me" is off (`remember_me=false`, SSO idle 30 min / max 10 h). The owner may want longer sessions; a proposal only, not implemented.
+
+### Known Gaps
+
+- Not seen on real devices: iOS Safari focus zoom and toolbar, keyboard overlap, installed PWA, a real swipe over the map, WebAuthn prompts, OTP autofill; no WebKit run. Passkey-first: real Face ID / Touch ID / Android biometrics, the Safari/iOS user-gesture rule for a modal `get()`, Firefox, hybrid (QR) passkeys, the `immediate` mediation (a guess from a draft proposal).
+- Search deep link to a day/activity is ignored by `tripDetail.ts`; external cover images are blocked by the CSP `img-src`; editor cramped in landscape; profile heading flush; drop-a-pin hint says "Click ... Esc"; navbar uses `role=tab` on links; weather/news widgets are not on the trip city view; no per-IP sign-up throttle (REG-06); `deploy/selfhost/scripts/lib/common.sh` hard-codes `FRONTEND_ORIGIN` defaults instead of reading `config/deploy-defaults.json`; no dedicated test of the Navbar escape.
+- Production Keycloak keeps the old theme until the owner redeploys the image.
 
 ## Post-v3.2 batch 3 — Self-registration (REG-01..07)
 
