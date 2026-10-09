@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
-  <meta name="description" content="Edit trip – Interactive travel itinerary">
+  <meta name="description" content="Plan your trip: add cities, days and places, and see it on the map as you go.">
   <meta name="view-transition" content="same-origin">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,107 +33,64 @@
       }
     })();
   </script>
-
-  <style>
-    .color-swatch {
-      width: 24px; height: 24px;
-      border: 2px solid transparent;
-      border-radius: var(--jp-radius);
-      cursor: pointer;
-      padding: 0;
-    }
-    .color-swatch:hover,
-    .color-swatch.selected { border-color: var(--jp-text, #1d1d1f); }
-    .color-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
-    .geocoder-widget { display: flex; flex-direction: column; gap: 8px; }
-    .geocoder-results button {
-      display: block; width: 100%; text-align: left;
-      padding: 8px 12px; font-size: 14px; font-family: inherit;
-      border: none; border-bottom: 1px solid var(--jp-border-strong);
-      background: var(--jp-surface); color: var(--jp-text, #1d1d1f);
-      cursor: pointer;
-    }
-    .geocoder-results button:hover { background: var(--jp-accent-subtle); }
-    .dest-section { margin-bottom: 16px; }
-    .dest-section-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; }
-    .dest-section-body { padding: 16px; }
-    .day-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--jp-border); flex-wrap: wrap; }
-    .activity-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
-    .destinations-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-    .destinations-title-row h2 { margin: 0; font-size: 18px; font-weight: 600; }
-    .muted-msg { color: var(--jp-text-secondary, #515154); }
-  </style>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Skip to main content</a>
-  <div class="container">
+  <div class="container te-container">
     <travel-nav></travel-nav>
-    <main id="main-content">
-      <div class="dashboard-header">
-        <h1 id="trip-name-heading">Loading trip…</h1>
-        <div class="dashboard-actions">
-          <a href="dashboard.html" class="btn btn-secondary">← My Trips</a>
+    <main id="main-content" class="te">
+      <header class="te-bar">
+        <a href="dashboard.html" class="te-back">&larr; My trips</a>
+        <h1 id="trip-name-heading" class="te-title">Loading trip…</h1>
+        <div class="te-bar-right">
+          <div id="save-status" class="save-status" role="status" aria-live="polite" data-state="idle">
+            <span class="save-dot" aria-hidden="true"></span>
+            <span class="save-text">Changes save automatically</span>
+          </div>
+          <a id="te-view-link" class="btn btn-secondary btn-small" href="dashboard.html" hidden>View trip</a>
+        </div>
+      </header>
+
+      <div id="te-banners" class="te-banners"></div>
+
+      <div id="te-workspace" hidden>
+        <div class="te-tabs" role="tablist" aria-label="Plan or preview">
+          <button type="button" role="tab" id="te-tab-plan" class="te-tab" aria-selected="true" aria-controls="te-plan">Plan</button>
+          <button type="button" role="tab" id="te-tab-preview" class="te-tab" aria-selected="false" aria-controls="te-preview" tabindex="-1">Map &amp; preview</button>
+        </div>
+
+        <div class="te-layout">
+          <section id="te-plan" class="te-plan is-active" role="tabpanel" aria-labelledby="te-tab-plan">
+            <nav id="te-steps" class="te-steps" aria-label="Steps">
+              <ol>
+                <li><button type="button" data-step="trip" class="te-step"><span class="te-step-n" aria-hidden="true">1</span> Trip</button></li>
+                <li><button type="button" data-step="route" class="te-step"><span class="te-step-n" aria-hidden="true">2</span> Route</button></li>
+                <li><button type="button" data-step="share" class="te-step"><span class="te-step-n" aria-hidden="true">3</span> Share</button></li>
+              </ol>
+            </nav>
+            <div id="te-view"></div>
+          </section>
+
+          <section id="te-preview" class="te-preview" role="tabpanel" aria-labelledby="te-tab-preview" aria-label="Live preview">
+            <div class="te-map-wrap map-container">
+              <div id="map" data-city="overview" role="application" aria-label="Map of your trip. Markers update as you edit." aria-describedby="te-map-help"></div>
+              <p class="sr-only" id="te-map-help">Everything you add is listed in the plan next to the map. Use the plan to edit places; markers can be dragged to move a pin.</p>
+              <p id="te-map-empty" class="te-map-empty" hidden></p>
+              <div id="te-pick-banner" class="te-pick-banner" hidden role="status">
+                <span>Click or tap the map to drop a pin.</span>
+                <button type="button" id="te-pick-cancel" class="btn btn-secondary btn-small">Cancel</button>
+              </div>
+            </div>
+            <div id="te-cards" class="te-cards"></div>
+          </section>
         </div>
       </div>
-
-      <!-- Metadata section -->
-      <section id="metadata-section" class="edit-page-section" hidden>
-        <h2>Trip Details</h2>
-        <form id="metadata-form">
-          <div class="form-group">
-            <label for="trip-name">Name</label>
-            <input type="text" id="trip-name" name="name" required maxlength="255">
-          </div>
-          <div class="form-group">
-            <label for="trip-description">Description</label>
-            <textarea id="trip-description" name="description" rows="3"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="trip-start-date">Start</label>
-              <input type="date" id="trip-start-date" name="start_date">
-            </div>
-            <div class="form-group">
-              <label for="trip-end-date">End</label>
-              <input type="date" id="trip-end-date" name="end_date">
-            </div>
-          </div>
-          <div class="form-group form-group--checkbox">
-            <label class="checkbox-label">
-              <input type="checkbox" id="trip-public" name="is_public">
-              Make public
-            </label>
-          </div>
-          <p class="error-msg" id="metadata-error" hidden></p>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="metadata-save-btn">Save changes</button>
-          </div>
-        </form>
-      </section>
-
-      <!-- Destinations section (populated by destinations.ts) -->
-      <section id="destinations-section" hidden>
-        <div class="destinations-title-row">
-          <h2>Destinations</h2>
-          <button class="btn btn-primary" id="add-dest-btn">Add destination</button>
-        </div>
-        <div id="destinations-list"></div>
-        <p class="error-msg muted-msg" id="destinations-empty">This trip has no destinations yet. Add the first one.</p>
-      </section>
     </main>
   </div>
 
-  <!-- Shared confirm-delete overlay (reused by all entity types) -->
-  <div class="overlay" id="confirm-overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true">
-      <h2 id="confirm-title">Delete?</h2>
-      <p id="confirm-msg"></p>
-      <p class="error-msg" id="confirm-error" hidden></p>
-      <div class="form-actions">
-        <button class="btn btn-secondary" id="confirm-cancel-btn">Cancel</button>
-        <button class="btn btn-danger" id="confirm-delete-btn">Delete</button>
-      </div>
-    </div>
+  <div class="te-snackbar" id="te-snackbar" hidden role="status">
+    <span id="te-snackbar-msg"></span>
+    <button type="button" id="undo-btn" class="btn btn-small te-snackbar-btn">Undo</button>
   </div>
 
   <script type="module" src="/src/pages/trip-edit.ts"></script>

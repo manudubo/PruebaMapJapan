@@ -150,85 +150,43 @@ test.describe('New user trip creation flow', () => {
     const tripId = new URL(page.url()).searchParams.get('tripId')!;
     capturedTripId = tripId;
 
-    // --- Step 4: Navigate to trip-edit; add destination via geocoder ---
-    await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
-    await page.waitForSelector('#destinations-section', { timeout: 10_000 });
+    // --- Step 4: Navigate to trip-edit; add a destination from a pasted Google Maps link ---
+    await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}#route`);
+    await page.waitForSelector('#dest-search', { timeout: 10_000 });
 
-    await page.click('#add-dest-btn');
-    await page.waitForSelector('#dest-modal-overlay:not([hidden])', { timeout: 5_000 });
-
-    await page.fill('#dest-city', 'Tokyo');
-    await page.fill('#dest-country', 'Japan');
-
-    await page.fill('#dest-geocoder-input', 'https://www.google.com/maps/@35.6762,139.6503,13z');
-    await page.click('#dest-geocoder-btn');
-    await page.waitForSelector('#dest-geocoder-results:not([hidden])', { timeout: 5_000 });
-
-    // Save destination
+    await page.fill('#dest-search', 'https://www.google.com/maps/place/Tokyo/@35.6762,139.6503,13z');
     const destRespPromise = page.waitForResponse(
       r => r.url().includes('/destinations') && r.request().method() === 'POST',
       { timeout: 8_000 }
     );
-    await page.click('#dest-save-btn');
+    await page.locator('#dest-search-list .place-option').first().click();
     const destResp = await destRespPromise;
     expect(destResp.status()).toBe(201);
-    const destData = await destResp.json();
-    const destId = String(destData.data.id);
-    void destId;
 
-    // --- Step 5: Add hotel via geocoder ---
-    await page.waitForSelector('button:has-text("Add hotel")', { timeout: 5_000 });
-    await page.locator('button:has-text("Add hotel")').first().click();
-    await page.waitForSelector('#hotel-modal-overlay:not([hidden])', { timeout: 5_000 });
-
-    await page.fill('#hotel-name', 'Tokyo Hotel');
-    await page.fill('#hotel-geocoder-input', 'https://www.google.com/maps/@35.6762,139.6503,13z');
-    await page.click('#hotel-geocoder-btn');
-    await page.waitForSelector('#hotel-geocoder-results:not([hidden])', { timeout: 5_000 });
-
+    // --- Step 5: open the city; set a hotel from a link ---
+    await page.locator('.te-dest-open').first().click();
+    await page.waitForSelector('#hotel-search', { timeout: 5_000 });
     const hotelRespPromise = page.waitForResponse(
       r => r.url().includes('/hotel') && r.request().method() === 'PUT',
       { timeout: 8_000 }
     );
-    await page.click('#hotel-save-btn');
-    const hotelResp = await hotelRespPromise;
-    expect(hotelResp.status()).toBe(200);
+    await page.fill('#hotel-search', 'https://www.google.com/maps/place/Tokyo+Hotel/@35.6762,139.6503,13z');
+    await page.locator('#hotel-search-list .place-option').first().click();
+    expect((await hotelRespPromise).status()).toBe(200);
 
-    // --- Step 6: Add day via modal ---
-    // "Add day" button has no ID — text-based selector (days.ts:388)
-    await page.waitForSelector('button:has-text("Add day")', { timeout: 5_000 });
-    await page.locator('button:has-text("Add day")').first().click();
-    await page.waitForSelector('#day-modal-overlay:not([hidden])', { timeout: 5_000 });
-
-    // date is required (days.ts:86 dInput.required = true)
-    await page.fill('#day-date', '2026-08-01');
-
+    // --- Step 6 + 7: the day is created on first use, then the activity ---
     const dayRespPromise = page.waitForResponse(
       r => r.url().includes('/days') && r.request().method() === 'POST',
       { timeout: 8_000 }
     );
-    await page.click('#day-save-btn');
-    const dayResp = await dayRespPromise;
-    expect(dayResp.status()).toBe(201);
-
-    // --- Step 7: Add activity via geocoder ---
-    // Open activity modal (first day's "Add activity" button — no ID, text-based)
-    await page.waitForSelector('button:has-text("Add activity")', { timeout: 5_000 });
-    await page.locator('button:has-text("Add activity")').first().click();
-    await page.waitForSelector('#act-modal-overlay:not([hidden])', { timeout: 5_000 });
-
-    await page.fill('#act-name', 'Senso-ji Temple');
-    await page.fill('#act-geocoder-input', 'https://www.google.com/maps/@35.6762,139.6503,13z');
-    await page.click('#act-geocoder-btn');
-    await page.waitForSelector('#act-geocoder-results:not([hidden])', { timeout: 5_000 });
-
     const actRespPromise = page.waitForResponse(
       r => r.url().includes('/activities') && r.request().method() === 'POST',
       { timeout: 8_000 }
     );
-    await page.click('#act-save-btn');
-    const actResp = await actRespPromise;
-    expect(actResp.status()).toBe(201);
+    await page.fill('#act-search', 'https://www.google.com/maps/place/Senso-ji+Temple/@35.7148,139.7967,17z');
+    await page.locator('#act-search-list .place-option').first().click();
+    expect((await dayRespPromise).status()).toBe(201);
+    expect((await actRespPromise).status()).toBe(201);
 
     // --- Step 8: Navigate to trip-detail; assert Leaflet map renders ---
     await page.goto(`${FRONTEND_BASE}/trip.html?tripId=${tripId}`);
@@ -250,14 +208,14 @@ test.describe('New user trip creation flow', () => {
     await expect(page.locator('.trip-card').filter({ hasText: 'New User Test Trip' })).toBeVisible({ timeout: 5_000 });
 
     // --- Step 10: Edit trip metadata ---
-    await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}`);
+    await page.goto(`${FRONTEND_BASE}/trip-edit.html?tripId=${tripId}#trip`);
     await page.waitForSelector('#metadata-form', { timeout: 10_000 });
-    await page.fill('#trip-name', 'New User Test Trip (edited)');
+    // Autosave: the PATCH goes out by itself shortly after typing.
     const patchRespPromise = page.waitForResponse(
       r => r.url().includes(`/trips/${tripId}`) && r.request().method() === 'PATCH',
       { timeout: 8_000 }
     );
-    await page.click('#metadata-save-btn');
+    await page.fill('#trip-name', 'New User Test Trip (edited)');
     const patchResp = await patchRespPromise;
     expect(patchResp.status()).toBe(200);
 
