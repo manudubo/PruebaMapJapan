@@ -1,8 +1,11 @@
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { mockTripStore, type TripStore } from './fixtures/mockTripStore';
 import { saved } from './fixtures/editorHelpers';
 import { mockKeycloakLoggedIn, mockKeycloakLoggedOut } from './fixtures/mockKeycloak';
-import { stubMapThirdParty } from './fixtures/mockThirdParty';
+import { stubMapThirdParty, TILE_ROUTE } from './fixtures/mockThirdParty';
+import { pixelDiff } from './fixtures/pixelDiff';
 import {
   GeocoderMock, TRIP_NAME, addDestinationInEditor, buildCityInEditor, demoCities, seedCityInStore, tripEnd, tripStart,
   type DemoCity,
@@ -35,13 +38,16 @@ import {
  *   cd tests && SKIP_REAL_AUTH=1 npx playwright test demo-parity --project=chromium
  */
 
+/** Keeper images of the visual comparison (written only with PARITY_WRITE_DOCS=1). */
+const DOCS_DIR = join(__dirname, '../../docs/design/demo-parity');
+
 test.use({ storageState: { cookies: [], origins: [] } });
 
 /** Cities entered through the editor UI (the rest is seeded through the store). */
 const UI_CITIES = new Set(['takayama', 'kyoto', 'osaka']);
 
 /** Clock times the user types in the editor (the demo has none): a place name -> HH:MM. */
-const USER_TIMES: Record<string, string> = { 'Fushimi Inari Taisha': '18:30', 'Universal Studios Japan': '09:00' };
+const USER_TIMES: Record<string, string> = { 'Fushimi Inari Taisha': '18:30', 'Hida no Sato Folk Village': '09:30' };
 
 /**
  * KNOWN GAPS between what the editor can express and what the demo shows. Every entry needs a
@@ -237,6 +243,121 @@ test.describe.serial('Demo parity: the demo itinerary, rebuilt in the editor, is
         });
       });
     });
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // VISUAL PARITY. Tiles are stubbed (blank), so what is compared is what the product draws:
+  // markers, the dashed route, popups' host, the legend, the hotel line, attribution. The demo and
+  // the trip are screenshotted in the same run and diffed in a canvas; no committed baselines.
+  //
+  // Normalised so that only the drawing is compared: both maps get the demo's view (the trip's
+  // overview frames its stops, the demo uses a fixed Japan view; a city's centre is its pin), and
+  // the overview city CARDS are not compared pixel-wise because a trip card adds "8 days · 36
+  // places" under the dates (covered by the structural test).
+  // -------------------------------------------------------------------------------------------
+  const VISUAL_CITY = 'osaka';
+  const VIEWPORTS = [{ name: '1280', width: 1280, height: 900 }, { name: '375', width: 375, height: 740 }];
+  const THEMES = ['light', 'dark'] as const;
+  /**
+   * Gate: a region may differ in at most this share of its pixels. Measured over repeated runs:
+   * overview map 0.3% (1280) / 1.3% (375), city map <= 0.12%, legend <= 0.08% (sub-pixel layout
+   * offsets of 1px); the limits leave a 4-20x margin so only a real drawing difference trips them.
+   */
+  const MAX_DIFF_RATIO = { overview: 0.05, map: 0.02, legend: 0.02 };
+
+  let scratch: Page;
+  test.beforeAll(async () => {
+    scratch = await world.demoContext!.newPage();
+    await scratch.goto('about:blank');
+    // A flat 256x256 tile instead of the shared 1x1 stub: a 1px image stretched to a tile is smoothed
+    // into gradient bands whose shape depends on when the tile loaded, which is noise, not a difference.
+    const tile = Buffer.from(await scratch.evaluate(async () => {
+      const c = new OffscreenCanvas(256, 256);
+      const x = c.getContext('2d')!;
+      x.fillStyle = '#e6e2d8';
+      x.fillRect(0, 0, 256, 256);
+      const buf = new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer());
+      let bin = '';
+      for (const b of buf) bin += String.fromCharCode(b);
+      return btoa(bin);
+    }), 'base64');
+    for (const page of [world.demo!.page, world.user!.page]) {
+      await page.route(TILE_ROUTE, (route) => route.fulfill({ status: 200, contentType: 'image/png', body: tile }));
+    }
+  });
+
+  async function settle(page: Page): Promise<void> {
+    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+    // blank tiles are still fading in for a moment after a view change: wait until all are loaded and opaque
+    await expect.poll(() => page.evaluate(() => [...document.querySelectorAll<HTMLElement>('#map .leaflet-tile')]
+      .every((t) => t.classList.contains('leaflet-tile-loaded') && getComputedStyle(t).opacity === '1'))).toBe(true);
+  }
+
+  async function frame(page: Page, view: { lat: number; lng: number; zoom: number }): Promise<void> {
+    await page.evaluate((v) => {
+      const map = (window as unknown as { currentMap: { setView(c: [number, number], z: number, o: object): void; invalidateSize(): void } }).currentMap;
+      map.invalidateSize();
+      map.setView([v.lat, v.lng], v.zoom, { animate: false });
+    }, view);
+    await settle(page);
+  }
+
+  async function shoot(page: Page, selector: string): Promise<Buffer> {
+    const el = page.locator(selector);
+    await el.scrollIntoViewIfNeeded();
+    return el.screenshot({ animations: 'disabled', caret: 'hide' });
+  }
+
+  for (const vp of VIEWPORTS) {
+    for (const theme of THEMES) {
+      test(`visual ${vp.name}px ${theme}: overview map and ${VISUAL_CITY} map + legend look like the demo`, async ({}, testInfo) => {
+        const demo = world.demo!;
+        const user = world.user!;
+        const cityIndex = cities.findIndex((c) => c.key === VISUAL_CITY);
+        for (const page of [demo.page, user.page]) {
+          await page.setViewportSize({ width: vp.width, height: vp.height });
+          await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+        }
+
+        const shots: Record<string, [Buffer, Buffer, number]> = {};
+        // overview map
+        await demo.page.goto('');
+        await demo.page.locator('#map').scrollIntoViewIfNeeded();
+        await expect(demo.page.locator('#map .numbered-marker')).toHaveCount(8);
+        await user.page.goto(`trip.html?tripId=${user.tripId}`);
+        await expect(user.page.locator('#map .numbered-marker')).toHaveCount(8);
+        await frame(demo.page, demo.overview.view);
+        await frame(user.page, demo.overview.view);
+        shots['overview-map'] = [await shoot(demo.page, '#map'), await shoot(user.page, '#map'), MAX_DIFF_RATIO.overview];
+
+        // one city: map and legend
+        await demo.page.goto(`${VISUAL_CITY}.html`);
+        await expect(demo.page.locator('#map .hotel-marker')).toHaveCount(1);
+        await user.page.goto(`trip.html?tripId=${user.tripId}&destIndex=${cityIndex}`);
+        await expect(user.page.locator('#map .hotel-marker')).toHaveCount(1);
+        const view = demo.cities[VISUAL_CITY]!.view;
+        await frame(demo.page, view);
+        await frame(user.page, view);
+        shots[`${VISUAL_CITY}-map`] = [await shoot(demo.page, '#map'), await shoot(user.page, '#map'), MAX_DIFF_RATIO.map];
+        shots[`${VISUAL_CITY}-legend`] = [await shoot(demo.page, '.legend'), await shoot(user.page, '.legend'), MAX_DIFF_RATIO.legend];
+
+        const failures: string[] = [];
+        for (const [name, [a, b, max]] of Object.entries(shots)) {
+          const r = await pixelDiff(scratch, a, b);
+          const id = `${name}-${vp.name}-${theme}`;
+          await testInfo.attach(`${id} (demo | user | diff) ${(r.ratio * 100).toFixed(2)}%`, { body: r.composite, contentType: 'image/png' });
+          if (process.env['PARITY_WRITE_DOCS'] === '1' && !name.endsWith('legend')) { // legends are tall: report attachment only
+            mkdirSync(DOCS_DIR, { recursive: true });
+            writeFileSync(join(DOCS_DIR, `${id}.png`), r.composite);
+          }
+          testInfo.annotations.push({ type: 'diff-ratio', description: `${id}=${r.ratio.toFixed(5)} (${r.diffPixels}/${r.total}) sizes demo=${r.sizeA} user=${r.sizeB}` });
+          console.log(`PARITY ${id} ratio=${r.ratio.toFixed(5)} diff=${r.diffPixels}/${r.total} demo=${r.sizeA} user=${r.sizeB}`);
+          if (Math.abs(r.sizeA[0] - r.sizeB[0]) > 1 || Math.abs(r.sizeA[1] - r.sizeB[1]) > 1) failures.push(`${id}: size demo=${r.sizeA} user=${r.sizeB}`);
+          if (r.ratio > max) failures.push(`${id}: ${(r.ratio * 100).toFixed(2)}% of pixels differ (max ${(max * 100).toFixed(1)}%)`);
+        }
+        expect(failures, 'visual parity (see the demo|user|diff images attached to this test)').toEqual([]);
+      });
+    }
   }
 });
 
