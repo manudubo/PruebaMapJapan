@@ -141,6 +141,11 @@ test.describe.serial('Demo parity: the demo itinerary, rebuilt in the editor, is
     const options = { baseURL: test.info().project.use.baseURL, viewport: { width: 1280, height: 900 } };
     world.demoContext = await browser.newContext(options);
     world.context = await browser.newContext(options);
+    // Web fonts load on their own schedule on a networked runner (CI) and never locally. Both pages must
+    // lay out with the same fallback font, or the pixel diff measures font timing instead of the app.
+    for (const ctx of [world.demoContext, world.context]) {
+      await ctx.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) => route.abort());
+    }
     world.demo = await readDemo(world.demoContext);
     world.user = await buildUserTrip(world.context, world.demo.overview);
   });
@@ -287,6 +292,7 @@ test.describe.serial('Demo parity: the demo itinerary, rebuilt in the editor, is
   });
 
   async function settle(page: Page): Promise<void> {
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
     await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
     // blank tiles are still fading in for a moment after a view change: wait until all are loaded and opaque
     await expect.poll(() => page.evaluate(() => [...document.querySelectorAll<HTMLElement>('#map .leaflet-tile')]
