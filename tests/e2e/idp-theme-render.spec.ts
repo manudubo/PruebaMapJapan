@@ -20,7 +20,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const THEME = path.join(ROOT, 'keycloak/themes/japan-trip/login/resources');
 const SNAPSHOTS = path.join(__dirname, 'fixtures/idp-theme');
 const ORIGIN = 'http://idp.test';
-const SCREENS = ['username', 'register', 'password-error', 'webauthn-register', 'update-password-error', 'error'] as const;
+const SCREENS = ['username', 'register', 'password-error', 'webauthn-register', 'update-password-error', 'error', 'error-expired', 'info'] as const;
 const SHOTS = process.env['QA_SCREENSHOTS_DIR'];
 
 function loadAxe(): string | null {
@@ -241,14 +241,44 @@ test.describe('theme render: screen specifics', () => {
     await expect(page.locator('#jp-passkey-recovery-link')).toHaveAttribute('href', /recover\.html$/);
   });
 
-  test('error page: the alert is the page body and appears once; one way back, from the client Base URL', async ({ page }) => {
+  test('error page (invalid redirect_uri): plain language, one way back from the client Base URL, original message folded away', async ({ page }) => {
     await open(page, 'error');
-    await expect(page.locator('.jp-alert')).toHaveCount(1);
-    await expect(page.locator('.jp-alert')).toHaveAttribute('role', 'alert');
+    await expect(page.locator('h1')).toHaveText("We couldn't start the sign-in");
+    await expect(page.locator('#kc-page-subtitle')).toHaveText('Please go back to Japan Trip and try again.');
+    await expect(page.locator('.jp-alert')).toHaveCount(0);
+    await expect(page.locator('#jp-error-action')).toHaveText('Back to Japan Trip');
     await expect(page.locator('#backToApplication')).toHaveCount(0);
-    await expect(page.locator('a.jp-idp-exit')).toHaveCount(1);
-    // the only link back is the one the (captured) client's Base URL produced
+    // the back button replaces the footer link: one way back, and it is the (captured) client's Base URL
+    await expect(page.locator('a.jp-idp-exit')).toHaveCount(0);
     expect(await page.locator('main a, footer a').evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href')))).toEqual(['http://localhost:5173/PruebaMapJapan/']);
+    // the raw Keycloak sentence is there for support, collapsed
+    await expect(page.locator('#jp-error-details')).not.toHaveAttribute('open', /.*/);
+    await expect(page.locator('#jp-error-original')).toHaveText('Invalid parameter: redirect_uri');
+    await expect(page.locator('#jp-error-original')).toBeHidden();
+  });
+
+  test('error page (client not found): same friendly copy; the client page is not trusted, so no back button here', async ({ page }) => {
+    await open(page, 'error-client');
+    await expect(page.locator('h1')).toHaveText("We couldn't start the sign-in");
+    await expect(page.locator('#jp-error-original')).toHaveText('Client not found.');
+    // Keycloak has no client to link back to here: no button rather than a made-up address
+    await expect(page.locator('#jp-error-action, a.jp-idp-exit')).toHaveCount(0);
+  });
+
+  test('error page (sign-in session lost): "This link has expired" and back to the app, which starts a new sign-in (restarting here would loop)', async ({ page }) => {
+    await open(page, 'error-expired');
+    await expect(page.locator('h1')).toHaveText('This link has expired');
+    await expect(page.locator('#kc-page-subtitle')).toContainText('Go back to Japan Trip and sign in again');
+    await expect(page.locator('#jp-error-action')).toHaveText('Back to Japan Trip');
+    await expect(page.locator('#jp-error-action')).toHaveAttribute('href', 'http://localhost:5173/PruebaMapJapan/');
+    await expect(page.locator('a.jp-idp-exit')).toHaveCount(0);
+    await expect(page.locator('#jp-error-original')).toContainText('Your sign-in session expired');
+  });
+
+  test('info page: the notice is the title, printed once', async ({ page }) => {
+    await open(page, 'info');
+    await expect(page.locator('h1')).toHaveText('You are logged out');
+    expect((await page.locator('main').innerText()).match(/You are logged out/g)).toHaveLength(1);
   });
 
   test('password toggle keeps its 44px target and swaps its icon on click without scripts being needed for layout', async ({ page }) => {

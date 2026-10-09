@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
-            <link href="/resources/login/japan-trip/css/login.css" rel="stylesheet">
+            <link href="/resources/login/japan-trip/css/login.css?v=snapshot" rel="stylesheet">
             
     
     
@@ -31,9 +31,13 @@
     <main class="jp-card">
         <header class="jp-card__header">
 
-            <h1 id="kc-page-title">        Something went wrong
+            <h1 id="kc-page-title">        We couldn't start the sign-in
+        
 </h1>
 
+                <p class="jp-subtitle" id="kc-page-subtitle">        Please go back to Japan Trip and try again.
+        
+</p>
 
         </header>
 
@@ -41,11 +45,13 @@
             <div id="kc-content-wrapper">
 
 
-        <div id="kc-error-message">
-            <div class="alert-error jp-alert jp-alert--error" role="alert">
-                <span class="jp-icon jp-icon--alert" aria-hidden="true"></span>
-                <span class="jp-alert__text kc-feedback-text">Invalid parameter: redirect_uri</span>
-            </div>
+        <div id="kc-error-message" class="jp-error" data-error-kind="start">
+                <a id="jp-error-action" class="jp-btn jp-btn--primary jp-btn--block" href="http://localhost:5173/PruebaMapJapan/">Back to Japan Trip</a>
+                <details id="jp-error-details" class="jp-details">
+                    <summary>Details for support</summary>
+                    <p id="jp-error-original">Invalid parameter: redirect_uri</p>
+                    
+                </details>
         </div>
 
 
@@ -55,7 +61,6 @@
     </main>
 
   <footer class="jp-foot">
-    <a class="jp-idp-exit" href="http://localhost:5173/PruebaMapJapan/">Back to Japan Trip</a>
   </footer>
 </div>
 

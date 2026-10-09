@@ -391,7 +391,8 @@ test.describe('theme files', () => {
     const footer = read('footer.ftl');
     expect(footer).toMatch(/\(client\.baseUrl\)!''/);
     expect(footer).toMatch(/<#if appUrl\?has_content>/);
-    expect(read('error.ftl')).not.toMatch(/href=/);
+    // the error page links only to addresses Keycloak or the client provide, never a literal one
+    expect(read('error.ftl')).not.toMatch(/href="(?!\$\{)/);
   });
 
   test('login pages carry the autocomplete tokens password managers and conditional UI need', () => {
@@ -413,7 +414,7 @@ test.describe('theme files', () => {
   test('passkey enrolment never asks for a label: hidden field, device label script, no text input', () => {
     const src = read('webauthn-register.ftl');
     expect(src).toMatch(/<input type="hidden" id="authenticatorLabel" name="authenticatorLabel"\/>/);
-    expect(src).toMatch(/from "\$\{url\.resourcesPath\}\/js\/passkey-label\.js"/);
+    expect(src).toMatch(/from "\$\{url\.resourcesPath\}\/js\/passkey-label\.js\?v=\$\{properties\.jpAssetVersion!\}"/);
     expect(src).toMatch(/installDeviceLabel\(/);
     expect(src).not.toMatch(/<input[^>]*type="text"/);
     expect(src).not.toMatch(/window\.prompt|prompt\(/);
@@ -560,7 +561,6 @@ test.describe('theme CSS', () => {
     }
     // ...and the composed ones really are produced
     expect(read('template.ftl')).toMatch(/jp-alert--\$\{message\.type\}/);
-    expect(read('error.ftl')).toMatch(/jp-alert--error/);
     expect(read('resources/js/jp-login.js')).toMatch(/jp-passkey-recovery--primary/);
   });
 
@@ -572,7 +572,7 @@ test.describe('theme CSS', () => {
     const styled = new Set([...css.matchAll(/\.(jp-[a-z0-9_-]+)/g)].map((m) => m[1]!));
     // ids and message keys that merely start with jp-
     const notClasses = new Set([
-      'jp-passkey-recovery-link', // element ids
+      'jp-passkey-recovery-link', 'jp-error-action', 'jp-error-details', 'jp-error-original', // element ids
       'jp-passkey', 'jp-passkey-button', 'jp-passkey-continue', 'jp-passkey-other', 'jp-passkey-alt-status',
     ]);
     const unstyled = [...used].filter((c) => !notClasses.has(c) && !styled.has(c));

@@ -30,12 +30,12 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <#if properties.styles?has_content>
         <#list properties.styles?split(' ') as style>
-            <link href="${url.resourcesPath}/${style}" rel="stylesheet" />
+            <link href="${url.resourcesPath}/${style}?v=${properties.jpAssetVersion!}" rel="stylesheet" />
         </#list>
     </#if>
     <#if properties.scripts?has_content>
         <#list properties.scripts?split(' ') as script>
-            <script src="${url.resourcesPath}/${script}" type="text/javascript" defer></script>
+            <script src="${url.resourcesPath}/${script}?v=${properties.jpAssetVersion!}" type="text/javascript" defer></script>
         </#list>
     </#if>
     <script type="importmap">
@@ -47,7 +47,7 @@
     </script>
     <script src="${url.resourcesPath}/js/menu-button-links.js" type="module"></script>
     <#-- Passkey memory and passkey-first sign-in (see the header of the script); inert on pages without a passkey form. -->
-    <script src="${url.resourcesPath}/js/passkey-first.js" type="module"></script>
+    <script src="${url.resourcesPath}/js/passkey-first.js?v=${properties.jpAssetVersion!}" type="module"></script>
     <#if scripts??>
         <#list scripts as script>
             <script src="${script}" type="text/javascript"></script>

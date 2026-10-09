@@ -2,6 +2,9 @@
 //
 //   KEYCLOAK_URL=http://localhost:8080 KC_ADMIN_PASSWORD=... node tests/e2e/fixtures/idp-theme/capture.mjs
 //
+// Production serves Keycloak under /auth, so capture from a Keycloak started with
+// KC_HTTP_RELATIVE_PATH=/auth (KEYCLOAK_URL=http://localhost:8080/auth) to get the same URLs.
+//
 // Needs a Keycloak with the japan-trip realm (scripts/ci/keycloak-flow.sh) whose login theme is
 // this checkout's keycloak/themes/japan-trip, registration open, and the master admin password
 // (read from KC_ADMIN_PASSWORD or the file in KC_MASTER_ADMIN_PASSWORD_FILE). It creates
@@ -62,7 +65,9 @@ async function snap(page, name, served) {
     .replace(/(session_code|tab_id|execution|client_data|kc_locale)=[^&"'\s]+/g, '$1=x')
     .replace(/\/resources\/[^/]+\/(login|common)\//g, '/resources/$1/')
     .replace(/theme-[a-z-]+-[0-9a-f]{6}@example\.test/g, 'traveler@example.test')
-    .replace(/http:\/\/localhost:8080/g, '');
+    .replace(/\?v=[0-9a-f]{12}/g, '?v=snapshot') // the hash changes with every CSS edit; the static spec checks the real one
+    .split(KC).join('')
+    .replace(/\/auth\/resources\//g, '/resources/'); // production serves Keycloak under /auth
   fs.writeFileSync(path.join(OUT, `${name}.html`), html);
   snaps.push(name);
 }
@@ -88,6 +93,7 @@ try {
   const email = await mkUser('pw');
   ({ c, p } = await ctx());
   await toPasswordStep(p, email);
+  await snap(p, 'password');
   await p.fill('#password', 'wrong-password');
   await p.click('#kc-login');
   await p.waitForSelector('#input-error-password');
@@ -118,6 +124,26 @@ try {
   ({ c, p } = await ctx());
   await p.goto(AUTH.replace('redirect_uri=http', 'redirect_uri=https%3A%2F%2Fevil.example%2F&x=http'));
   await snap(p, 'error');
+  await p.goto(AUTH.replace('japan-trip-frontend', 'no-such-client'));
+  await snap(p, 'error-client');
+  await c.close();
+
+  // The sign-in session cookie is gone (expired or cleared): "This link has expired".
+  ({ c, p } = await ctx());
+  await p.goto(AUTH);
+  await c.clearCookies();
+  await p.fill('#username', 'traveler@example.test');
+  await p.click('#kc-login');
+  await p.waitForSelector('#kc-error-message');
+  await snap(p, 'error-expired');
+  await c.close();
+
+  // "You are logged out": the generic info page.
+  ({ c, p } = await ctx());
+  await p.goto(`${KC}/realms/${REALM}/protocol/openid-connect/logout`);
+  await p.click('#kc-logout');
+  await p.waitForSelector('#kc-info-message', { state: 'attached' });
+  await snap(p, 'info');
   await c.close();
 
 } finally {

@@ -6,7 +6,7 @@
 - ✅ **v3.0 Quality, Polish & DevX** — Phases 10–14 (shipped 2026-06-15)
 - ✅ **v3.1 E2E Stabilization** — Phases 15–19 (shipped 2026-07-23)
 - ✅ **v3.2 Security & Code Health Hardening** — Phases 20–26 (executed 2026-07-24 → 2026-10-04; merged to `main` as PR #23, green on Actions; leftovers: DEP-02 and SEC-17 Partial)
-- ✅ **v3.3 UX & Product Polish** — Phases 27–32 (2026-10-08 → 2026-10-09; PR #27 `c7d54dc` seven owner-reported items UX-*, PR #28 `460a449` mobile UX-MOB-01, passkey-first login PKF-01..04 in a PR pending merge; all Complete, not validated on real devices)
+- ✅ **v3.3 UX & Product Polish** — Phases 27–33 (2026-10-08 → 2026-10-09; PR #27 `c7d54dc` seven owner-reported items UX-*, PR #28 `460a449` mobile UX-MOB-01, PR #29 `38b9108` passkey-first login PKF-01..04, PR #30 `432aba5` demo-parity test TEST-PARITY-01 and iOS redirect fix UX-NAV-02, PR #31 login theme cache-busting UX-KC-04; all Complete, not validated on real devices)
 - 🔄 **Production readiness (post-v3.2)** — third batch (self-registration, REG-01..07) added on top, 53 commits after `d2dd404`; second batch PR #24 (89 commits, 2026-10-04 → 2026-10-08), merged as `d2dd404`; the registration batch is merged as PR #25 (`41f43d4`), docs PR #26 (`6d4c4f1`); self-hosting kit, internet hardening, A11Y-04/05, SEC-18; validation on the owner's real server pending
 
 ## Phases
@@ -65,14 +65,15 @@ Synthesized from `ANALISIS-REPO.md` (7 passes, ~85 actionable findings) and `cod
 
 ### v3.3 UX & Product Polish
 
-Owner-reported on 2026-10-08, after the registration batch (PR #25) merged. Requirements: UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01 (`REQUIREMENTS.md`, section "v3.3"), later UX-MOB-01 and PKF-01..04. Acceptance criteria per item are in the same file. Status: **all Complete** — PR #27 (`c7d54dc`), PR #28 (`460a449`), and the passkey-first PR (number pending, not merged). Design docs: `docs/design/TRIP-CREATION-UX.md`, `docs/design/MOBILE-COVERAGE.md`, `docs/design/PASSKEY-FIRST-LOGIN.md`. QA: `qa/UX-REPORT.md`. Phases are grouped for traceability; there are no PLAN.md files.
+Owner-reported on 2026-10-08, after the registration batch (PR #25) merged. Requirements: UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01 (`REQUIREMENTS.md`, section "v3.3"), later UX-MOB-01, PKF-01..04, UX-KC-04, UX-NAV-02 and TEST-PARITY-01. Acceptance criteria per item are in the same file. Status: **all Complete** — PR #27 (`c7d54dc`), PR #28 (`460a449`), PR #29 (`38b9108`, passkey-first), PR #30 (`432aba5`, Phase 33: UX-NAV-02, TEST-PARITY-01) and PR #31 (pending, Phase 33: UX-KC-04). Design docs: `docs/design/TRIP-CREATION-UX.md`, `docs/design/MOBILE-COVERAGE.md`, `docs/design/PASSKEY-FIRST-LOGIN.md`. QA: `qa/UX-REPORT.md`. Phases are grouped for traceability; there are no PLAN.md files.
 
 - [x] **Phase 27: Keycloak Screens** — redesign of every realm screen on the site/demo tokens, light/dark, mobile; one flat card on the base theme (UX-KC-01); device-derived passkey labels (UX-KC-02); the error / "back to application" link returns to the production app (UX-KC-03) — PR #27
 - [x] **Phase 28: Navigation & Search Scope** — Home reaches the landing page for logged-in users (UX-NAV-01); search scope: own trips on authenticated pages, demo data on demo pages (UX-SEARCH-01) — PR #27
 - [x] **Phase 29: Trip Creation Flow** — guided steps, place search, map with dashed route, day/activity editing, live preview, autosave and undo (UX-TRIP-01, the most critical objective of v3.3) — PR #27
 - [x] **Phase 30: Trip View Parity** — saved trips shown like the demo, dashboard trip cards, loading / error / API-down states (UX-TRIP-02) — PR #27
 - [x] **Phase 31: Cross-cutting Validation and Mobile** — unit, e2e, edge-case and visual validation (light/dark x 375/1280) in `qa/UX-REPORT.md`; mobile as a tested target with Playwright projects `mobile` and `mobile-android` and an `e2e-mobile` CI job (UX-MOB-01) — PR #27 / PR #28
-- [x] **Phase 32: Passkey-first Login** — passkey prompt on load for browsers that used one, device memory, `passkey-done` credential branch, provider pin (PKF-01..04) — passkey-first PR, pending merge
+- [x] **Phase 32: Passkey-first Login** — passkey prompt on load for browsers that used one, device memory, `passkey-done` credential branch, provider pin (PKF-01..04) — PR #29 (`38b9108`)
+- [x] **Phase 33: Mobile-real Fixes and Parity Validation** — login theme served fresh with `?v=` cache-busting and friendly error pages (UX-KC-04, PR #31 pending), no `redirect_uri` error on iOS via `silentCheckSsoFallback: false` (UX-NAV-02, PR #30), demo-parity acceptance test (TEST-PARITY-01, PR #30; found and fixed 3 gaps, 1 documented)
 
 Dependencies: UX-TRIP-01 and UX-TRIP-02 share the trip data adapters (API shape to editor/view model); UX-SEARCH-01 depends on the API client; UX-KC-01..03 touch the Keycloak theme and Terraform/deploy config only; UX-NAV-01 is independent.
 
@@ -208,7 +209,8 @@ Plans:
 | 29. Trip Creation Flow | v3.3 | n/a | Complete (UX-TRIP-01; PR #27) | 2026-10-08 |
 | 30. Trip View Parity | v3.3 | n/a | Complete (UX-TRIP-02; PR #27) | 2026-10-08 |
 | 31. Cross-cutting Validation and Mobile | v3.3 | n/a | Complete (UX-MOB-01; PR #28, `qa/UX-REPORT.md`) | 2026-10-09 |
-| 32. Passkey-first Login | v3.3 | n/a | Complete in the passkey-first PR, pending merge (PKF-01..04) | 2026-10-09 |
+| 32. Passkey-first Login | v3.3 | n/a | Complete (PKF-01..04; PR #29, `38b9108`) | 2026-10-09 |
+| 33. Mobile-real Fixes and Parity Validation | v3.3 | n/a | Complete (UX-NAV-02, TEST-PARITY-01; PR #30, `432aba5`) and UX-KC-04 Complete in PR #31; real-phone validation Unverified | 2026-10-09 |
 
 ## Post-phase work (v3.2, outside the original requirements)
 
