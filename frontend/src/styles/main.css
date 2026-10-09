@@ -2438,3 +2438,56 @@ travel-nav:not(:defined) {
     to { opacity: 1; }
   }
 }
+
+/* ============================================
+   Touch ergonomics (docs/design/MOBILE-COVERAGE.md)
+   Fingers are ~44 CSS px wide and iOS Safari zooms the page into any focused text field under
+   16px, so on touch screens every control gets a 44px target and fields get 16px type.
+   Keyed on the pointer, not the width: a narrow desktop window keeps the compact desktop UI,
+   an iPad in landscape gets the touch one. Must stay LAST so it wins over the component rules.
+   ============================================ */
+@media (pointer: coarse) {
+  .btn,
+  .btn-small {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* :is() keeps the element-level specificity of the list while the :not()s lift it above
+     component rules such as `.form-group textarea`. */
+  :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  input[type="range"] {
+    min-height: 44px;
+  }
+
+  .checkbox-label {
+    min-height: 44px;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+  }
+
+  .hotel-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Leaflet draws 30px zoom buttons; the marker glyph is 28px. Grow the hit area, not the look. */
+  html .leaflet-touch .leaflet-bar a {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+  }
+
+  .leaflet-marker-icon.custom-marker::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+  }
+}

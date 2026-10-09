@@ -572,3 +572,31 @@ button.te-num-btn:disabled { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .te * { transition: none !important; animation: none !important; }
 }
+
+/* ---- Touch screens: 44px targets for every control in the editor (docs/design/MOBILE-COVERAGE.md) ---- */
+@media (pointer: coarse) {
+  .te-back,
+  .te-back-btn,
+  .te-day {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .te-grip { width: 44px; height: 44px; }
+  .te-num { width: 44px; height: 44px; }
+  .te-icon-btn { width: 44px; height: 44px; min-height: 44px; }
+  .place-clear { width: 44px; height: 44px; right: 0; }
+  .te-act-name, .te-act-time, .te-hotel-card input { min-height: 44px; }
+  .te-row-actions { gap: 2px; }
+  .te-act-main { gap: 2px; }
+}
+
+/* 44px controls need more room than a 320-430px card has on one line: let the destination's
+   actions drop under its name, and put a place's time under its name instead of beside it. */
+@media (pointer: coarse) and (max-width: 479px) {
+  .te-dest { flex-wrap: wrap; }
+  .te-dest-open { flex: 1 1 0; min-width: 120px; }
+  .te-row-actions { margin-left: auto; }
+  .te-act-main { display: grid; grid-template-columns: 44px 44px minmax(0, 1fr); }
+  .te-act-time { grid-column: 3; width: 100%; }
+}
