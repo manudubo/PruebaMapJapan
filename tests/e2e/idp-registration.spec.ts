@@ -169,12 +169,12 @@ async function signInWithPasswordOnOldDevice(old: BrowserContext, email: string,
   const codes = trackCodes(page);
   await page.goto(authUrl(pkce().challenge));
   await page.locator('input[name="username"]').fill(email);
-  await submitForm(page, '#kc-login, [type="submit"]');
+  await submitForm(page, '#kc-login');
   await expect(page.locator('#jp-passkey-recovery')).toHaveClass(/jp-passkey-recovery--primary/);
   await submitForm(page, '#try-another-way');
   await submitForm(page, '#kc-select-credential-form button:not(:has-text("Passkey"))');
   await page.locator('input[name="password"]').fill(password);
-  await submitForm(page, '#kc-login, [type="submit"]');
+  await submitForm(page, '#kc-login');
   await expect.poll(() => codes.length).toBe(1);
 }
 
@@ -289,7 +289,7 @@ test.describe('Self-registration (REG-01..07)', () => {
         const login = pkce();
         await page.goto(authUrl(login.challenge));
         await page.locator('input[name="username"]').fill(email);
-        await submitForm(page, '#kc-login, [type="submit"]');
+        await submitForm(page, '#kc-login');
         expect(codes).toHaveLength(0);
         await expect(page.locator('input[name="password"]')).toHaveCount(0);
         await expect(page.locator('#registerWebAuthn')).toHaveCount(0);
@@ -508,9 +508,9 @@ test.describe('Self-registration (REG-01..07)', () => {
         const ownerCodes = trackCodes(page);
         await page.goto(authUrl(pkce().challenge));
         await page.locator('input[name="username"]').fill(email);
-        await submitForm(page, '#kc-login, [type="submit"]');
+        await submitForm(page, '#kc-login');
         await page.locator('input[name="password"]').fill(newPassword);
-        await submitForm(page, '#kc-login, [type="submit"]');
+        await submitForm(page, '#kc-login');
         await expect.poll(() => ownerCodes.length).toBe(1);
       } finally {
         await squatter.close();
