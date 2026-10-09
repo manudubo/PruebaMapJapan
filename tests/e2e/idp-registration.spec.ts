@@ -383,6 +383,10 @@ test.describe('Self-registration (REG-01..07)', () => {
       const { verifier, challenge } = pkce();
       try {
         const codes = trackCodes(page);
+        // Only the code in the redirect matters here. Letting the app load would make its own
+        // dashboard request an e-mail code for the unverified user and race the explicit
+        // request below (429 cooldown), so the redirect target is never served.
+        await page.route(`${REDIRECT_URI}**`, (route) => route.abort());
         await page.goto(registrationUrl(challenge));
         await fillRegistration(page, email);
         await page.locator('#registerWebAuthn').click();

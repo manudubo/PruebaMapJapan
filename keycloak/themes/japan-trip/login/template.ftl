@@ -55,7 +55,7 @@
         import { startSessionPolling } from "${url.resourcesPath}/js/authChecker.js";
 
         startSessionPolling(
-            "${url.ssoLoginInOtherTabsUrl?no_esc}"
+            "${kcSanitize(url.ssoLoginInOtherTabsUrl)?no_esc}"
         );
     </script>
     <script type="module">
