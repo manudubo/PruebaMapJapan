@@ -20,7 +20,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const THEME = path.join(ROOT, 'keycloak/themes/japan-trip/login/resources');
 const SNAPSHOTS = path.join(__dirname, 'fixtures/idp-theme');
 const ORIGIN = 'http://idp.test';
-const SCREENS = ['username', 'register', 'password-error', 'webauthn-register', 'update-password-error', 'error', 'error-expired', 'info'] as const;
+const SCREENS = ['username', 'register', 'password-error', 'webauthn-register', 'webauthn-register-aia', 'webauthn-error-enrol', 'webauthn-error-aia', 'webauthn-authenticate', 'webauthn-error-login', 'update-password-error', 'error', 'error-expired', 'info'] as const;
 const SHOTS = process.env['QA_SCREENSHOTS_DIR'];
 
 function loadAxe(): string | null {
@@ -239,6 +239,79 @@ test.describe('theme render: screen specifics', () => {
     await expect(page.locator('main input[type=text], main textarea')).toHaveCount(0);
     await expect(page.locator('#registerWebAuthn')).toHaveCount(1);
     await expect(page.locator('#jp-passkey-recovery-link')).toHaveAttribute('href', /recover\.html$/);
+  });
+
+  // Page x flow: where the e-mail recovery link is offered (docs/design/PASSKEY-FIRST-LOGIN.md).
+  const recoveryMatrix: [string, string, boolean][] = [
+    ['webauthn-register', 'sign-up / first sign-in enrolment (required action)', true],
+    ['webauthn-error-enrol', 'its error page', true],
+    ['webauthn-authenticate', 'passkey sign-in step', true],
+    ['webauthn-error-login', 'its error page', true],
+    ['webauthn-register-aia', 'app-initiated registration from the profile page (signed in)', false],
+    ['webauthn-error-aia', 'its error page', false],
+    ['username', 'username step', false],
+    ['password', 'password step', false],
+  ];
+  for (const [screen, flow, shown] of recoveryMatrix) {
+    test(`e-mail recovery link ${shown ? 'is' : 'is NOT'} offered on ${screen} (${flow}); the way back to the app stays`, async ({ page }) => {
+      await open(page, screen);
+      await expect(page.locator('#jp-passkey-recovery')).toHaveCount(shown ? 1 : 0);
+      await expect(page.locator('#jp-passkey-recovery-link')).toHaveCount(shown ? 1 : 0);
+      await expect(page.locator('a.jp-idp-exit')).toHaveText('Back to Japan Trip');
+    });
+  }
+
+  test('passkey enrolment: the form carries the retry flag for the label script', async ({ page }) => {
+    await open(page, 'webauthn-register');
+    await expect(page.locator('#register')).toHaveAttribute('data-retry', 'false');
+    await open(page, 'webauthn-register-aia');
+    await expect(page.locator('#register')).toHaveAttribute('data-retry', 'false');
+    await expect(page.locator('#cancelWebAuthnAIA')).toHaveCount(1); // the person can walk away from an action they started
+  });
+
+  test('app-initiated passkey registration: one primary action, Cancel, no recovery hint', async ({ page }) => {
+    await open(page, 'webauthn-register-aia');
+    await expect(page.locator('#registerWebAuthn')).toHaveCount(1);
+    await expect(page.locator('#cancelWebAuthnAIA')).toHaveText('Cancel');
+    await expect(page.locator('main')).not.toContainText('code by email');
+    await expect(page.locator('footer')).not.toContainText('code by email');
+  });
+
+  test('passkey error, name collision (app-initiated): plain language, Try again, Cancel, original sentence folded away, no recovery link', async ({ page }) => {
+    await open(page, 'webauthn-error-aia');
+    await expect(page.locator('h1')).toHaveText('Passkey Error');
+    await expect(page.locator('#jp-passkey-error')).toHaveAttribute('data-error-kind', 'name');
+    await expect(page.locator('#jp-passkey-error-text')).toContainText('another one of yours already has the same name');
+    await expect(page.locator('#jp-passkey-error-text')).not.toContainText('Device already exists');
+    await expect(page.locator('.jp-alert')).toHaveCount(1);
+    await expect(page.locator('#kc-try-again')).toHaveText('Try again');
+    await expect(page.locator('#kc-try-again')).toHaveAttribute('type', 'submit');
+    await expect(page.locator('#isSetRetry')).toHaveValue('retry');
+    await expect(page.locator('#executionValue')).not.toHaveValue('');
+    await expect(page.locator('#cancelWebAuthnAIA')).toHaveText('Cancel');
+    await expect(page.locator('#jp-error-details')).not.toHaveAttribute('open', /.*/);
+    await expect(page.locator('#jp-error-original')).toContainText('Device already exists with the same name');
+    await expect(page.locator('#jp-error-original')).toBeHidden();
+    await expect(page.locator('#jp-passkey-recovery')).toHaveCount(0);
+    await expect(page.locator('a.jp-idp-exit')).toHaveText('Back to Japan Trip');
+  });
+
+  test('passkey error, cancelled in the browser (enrolment): friendly text, no Cancel (not app-initiated), recovery link kept', async ({ page }) => {
+    await open(page, 'webauthn-error-enrol');
+    await expect(page.locator('#jp-passkey-error')).toHaveAttribute('data-error-kind', 'cancelled');
+    await expect(page.locator('#jp-passkey-error-text')).toContainText('cancelled or took too long');
+    await expect(page.locator('#cancelWebAuthnAIA')).toHaveCount(0);
+    await expect(page.locator('#jp-passkey-recovery-link')).toHaveAttribute('href', /recover\.html$/);
+  });
+
+  test('passkey error at sign-in: Keycloak\'s own sentence, kept as it is, with Try again and the recovery link', async ({ page }) => {
+    await open(page, 'webauthn-error-login');
+    await expect(page.locator('#jp-passkey-error')).toHaveAttribute('data-error-kind', 'generic');
+    await expect(page.locator('#jp-passkey-error-text')).toContainText('Failed to authenticate by the Passkey.');
+    await expect(page.locator('#jp-error-details')).toHaveCount(0);
+    await expect(page.locator('#kc-try-again')).toBeVisible();
+    // the address typed on the previous step travels along, nothing else
+    await expect(page.locator('#jp-passkey-recovery-link')).toHaveAttribute('href', /recover\.html\?email=traveler%40example\.test$/);
   });
 
   test('error page (invalid redirect_uri): plain language, one way back from the client Base URL, original message folded away', async ({ page }) => {

@@ -1,0 +1,80 @@
+<!DOCTYPE html><html class="jp-html" lang="en"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Sign in to Japan Trip</title>
+    <link rel="icon" href="/resources/login/japan-trip/img/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+            <link href="/resources/login/japan-trip/css/login.css?v=snapshot" rel="stylesheet">
+            
+    
+    
+    
+    
+    
+        
+</head>
+
+<body class="jp-body" data-page-id="login-webauthn-error" data-realm="japan-trip">
+<div class="jp-page">
+    <div id="kc-header" class="jp-brand">
+        <svg class="jp-brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+            <rect width="32" height="32" fill="currentColor"></rect>
+            <path d="M16 6.5c-3.6 0-6.5 2.8-6.5 6.4 0 4.6 6.5 12.6 6.5 12.6s6.5-8 6.5-12.6c0-3.6-2.9-6.4-6.5-6.4zm0 8.7a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6z" fill="#fff"></path>
+        </svg>
+        <div id="kc-header-wrapper" class="jp-brand__name">Japan Trip</div>
+    </div>
+
+    <main class="jp-card">
+        <header class="jp-card__header">
+
+            <h1 id="kc-page-title">        Passkey Error
+</h1>
+
+
+        </header>
+
+        <div id="kc-content">
+            <div id="kc-content-wrapper">
+
+
+        <div id="jp-passkey-error" data-error-kind="name">
+            <div class="alert-error jp-alert jp-alert--error" role="alert">
+                <span class="jp-icon jp-icon--alert" aria-hidden="true"></span>
+                <span class="jp-alert__text kc-feedback-text" id="jp-passkey-error-text">We could not save this passkey because another one of yours already has the same name. Press "Try again" and the new one will get its own name.</span>
+            </div>
+
+        <form id="kc-error-credential-form" class="jp-form" action="/realms/japan-trip/login-actions/required-action?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" method="post">
+            <input type="hidden" id="executionValue" name="authenticationExecution" value="webauthn-register-passwordless">
+            <input type="hidden" id="isSetRetry" name="isSetRetry" value="retry">
+            <button type="submit" id="kc-try-again" name="try-again" value="true" class="jp-btn jp-btn--primary jp-btn--block ">Try again</button>
+        </form>
+
+            <form action="/realms/japan-trip/login-actions/required-action?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" class="jp-form" id="kc-webauthn-settings-form" method="post">
+                <button type="submit" class="jp-btn jp-btn--secondary jp-btn--block " id="cancelWebAuthnAIA" name="cancel-aia" value="true">Cancel
+                </button>
+            </form>
+
+            <details id="jp-error-details" class="jp-details">
+                <summary>Details for support</summary>
+                <p id="jp-error-original">Failed to register your Passkey. Device already exists with the same name</p>
+            </details>
+        </div>
+
+
+
+            </div>
+        </div>
+    </main>
+
+  <footer class="jp-foot">
+    <a class="jp-idp-exit" href="http://localhost:5173/PruebaMapJapan/">Back to Japan Trip</a>
+  </footer>
+</div>
+
+
+</body></html>

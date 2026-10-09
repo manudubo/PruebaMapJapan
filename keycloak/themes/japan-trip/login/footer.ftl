@@ -13,9 +13,17 @@
       device without WebAuthn. Only the e-mail address the user typed is passed along
       (never a token or code). A small secondary link normally; when the browser has no
       WebAuthn at all, js/jp-login.js promotes it to the main action.
+
+      NOT offered on an app-initiated action (the profile page's "add a passkey",
+      kc_action=webauthn-register*), on the enrolment page or on its error page: that person is
+      already signed in, so "get a code by email" makes no sense. Keycloak puts
+      isAppInitiatedAction in the model of exactly those pages. The sign-up enrolment and the
+      sign-in steps are not app-initiated, so they keep the link (page x flow table:
+      docs/design/PASSKEY-FIRST-LOGIN.md; the condition is pinned in tests/e2e/idp-theme-static.spec.ts).
     -->
     <#assign jpPage = pageId!''>
-    <#if jpPage?starts_with('webauthn-authenticate') || jpPage?starts_with('webauthn-register') || jpPage?starts_with('webauthn-error')>
+    <#assign jpAppInitiated = isAppInitiatedAction??>
+    <#if !jpAppInitiated && (jpPage?starts_with('webauthn-authenticate') || jpPage?starts_with('webauthn-register') || jpPage?starts_with('webauthn-error'))>
       <#assign jpAttempted = (auth.attemptedUsername)!''>
       <#assign jpRecoverUrl = appUrl?ensure_ends_with('/') + 'recover.html'>
       <#if jpAttempted?contains('@')>

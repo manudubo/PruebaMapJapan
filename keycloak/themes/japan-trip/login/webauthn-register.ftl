@@ -17,6 +17,7 @@
         <div class="jp-passkey-hero" aria-hidden="true"><span class="${properties.kcWebAuthnKeyIcon!}"></span></div>
 
         <form id="register" class="${properties.kcFormClass!}" action="${url.loginAction}" method="post"
+              data-retry="${isSetRetry?has_content?c}"
               data-label-joiner="${msg("jpPasskeyLabelOn")}" data-label-fallback="${msg("jpPasskeyLabelFallback")}">
             <input type="hidden" id="clientDataJSON" name="clientDataJSON"/>
             <input type="hidden" id="attestationObject" name="attestationObject"/>

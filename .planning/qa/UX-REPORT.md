@@ -69,3 +69,15 @@ Demo-parity lessons (PR #30):
 ## Known gaps (not fixed)
 
 Fixed in PR #32 (Phase 34), see above: search deep link to a day/activity, landscape editor, profile heading, drop-a-pin hint, navbar `role=tab`, weather on the trip city view, `common.sh` defaults, module imports, and "Remember me" as an opt-in (off by default: `remember_me=false`, SSO idle 30 min / max 10 h; the owner decides). Still open: external cover images are blocked by the CSP `img-src` (allowing arbitrary https would weaken it; host covers on the own server if wanted); Takayama option labels "1,2,3" need `activities.option_label` (product decision); the news widget is not on the trip city view (third-party CORS proxies); no per-IP sign-up throttle (REG-06); demo `WEATHER_CONDITIONS` lacks codes such as 80 and 96.
+
+## Passkey enrolment fixes (owner phone report, 2026-10-09)
+
+Found on a real phone after PR #32 reached the server (the new flat theme renders correctly there):
+
+- **Second passkey on the same device failed** ('Failed to register your Passkey. Device already exists with the same name'). Cause: the generated label was `<browser> on <system> (YYYY-MM-DD)` and Keycloak requires a unique label per user. Fixed: the label now includes the local time, a counter (` #2`) for a second one in the same minute, a random suffix when storage is blocked, and 'Try again' always regenerates a new label (it used to resubmit the same one).
+- **E-mail recovery link shown on the proactive registration page** (signed-in user, `kc_action=webauthn-register`). Fixed: `footer.ftl` hides it when `isAppInitiatedAction` is set; it stays on login steps and on the sign-up enrolment. The page x flow matrix is in `docs/design/PASSKEY-FIRST-LOGIN.md`.
+- **Plain-language passkey errors:** new `webauthn-error.ftl` (collision, authenticator already registered, prompt cancelled), original text in a collapsed 'Details for support', en + es.
+- Evidence: `tests/e2e/idp-passkey-labels.spec.ts` (live, virtual authenticator: two labels in the same minute, collision then retry, no recovery link on the proactive flow), static and render specs; 4 of the 5 live tests fail without the fix.
+- **Open follow-up (not done on purpose):** the realm policy 'avoid same authenticator register' is off, so the same authenticator can be registered twice (what the owner wants). Do not enable `avoid_same_authenticator_register` unless the owner prefers to block it.
+- **Not verifiable without real authenticators:** Google Password Manager / iCloud Keychain behaviour, and the exact `DOMException` text of Safari/Firefox (the theme matches the error name).
+- Deploy: redeploy the Keycloak image (`deploy.sh`); no `keycloak-apply` needed.

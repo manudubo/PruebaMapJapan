@@ -16,9 +16,10 @@
     
     
     
+        
 </head>
 
-<body class="jp-body" data-page-id="login-webauthn-register" data-realm="japan-trip">
+<body class="jp-body" data-page-id="login-webauthn-error" data-realm="japan-trip">
 <div class="jp-page">
     <div id="kc-header" class="jp-brand">
         <svg class="jp-brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
@@ -31,43 +32,34 @@
     <main class="jp-card">
         <header class="jp-card__header">
 
-            <h1 id="kc-page-title">        Create a passkey
+            <h1 id="kc-page-title">        Passkey Error
 </h1>
 
-                <p class="jp-subtitle" id="kc-page-subtitle">        Sign in with your fingerprint, face or screen lock. No password to remember.
-</p>
 
+                <div id="kc-username" class="jp-user">
+                    <span id="kc-attempted-username" class="jp-user__name">traveler@example.test</span>
+                    <a id="reset-login" class="jp-user__change" href="/auth/realms/japan-trip/login-actions/restart?client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x&amp;skip_logout=false">Not you?</a>
+                </div>
         </header>
 
         <div id="kc-content">
             <div id="kc-content-wrapper">
 
 
-        <div class="jp-passkey-hero" aria-hidden="true"><span class="jp-icon jp-icon--key"></span></div>
-
-        <form id="register" class="jp-form" action="/realms/japan-trip/login-actions/required-action?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" method="post" data-retry="false" data-label-joiner="on" data-label-fallback="Passkey">
-            <input type="hidden" id="clientDataJSON" name="clientDataJSON">
-            <input type="hidden" id="attestationObject" name="attestationObject">
-            <input type="hidden" id="publicKeyCredentialId" name="publicKeyCredentialId">
-            <input type="hidden" id="authenticatorLabel" name="authenticatorLabel">
-            <input type="hidden" id="transports" name="transports">
-            <input type="hidden" id="error" name="error">
-    <div id="kc-form-options" class="jp-form__options">
-        <div class="">
-            <div class="checkbox">
-                <label>
-                    <input type="checkbox" id="logout-sessions" name="logout-sessions" value="on">
-                    Sign out from other devices
-                </label>
+        <div id="jp-passkey-error" data-error-kind="generic">
+            <div class="alert-error jp-alert jp-alert--error" role="alert">
+                <span class="jp-icon jp-icon--alert" aria-hidden="true"></span>
+                <span class="jp-alert__text kc-feedback-text" id="jp-passkey-error-text">Failed to authenticate by the Passkey. </span>
             </div>
-        </div>
-    </div>
+
+        <form id="kc-error-credential-form" class="jp-form" action="/realms/japan-trip/login-actions/authenticate?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" method="post">
+            <input type="hidden" id="executionValue" name="authenticationExecution" value="4901b647-8d7b-43e4-ad8a-f77f941d7531">
+            <input type="hidden" id="isSetRetry" name="isSetRetry" value="retry">
+            <button type="submit" id="kc-try-again" name="try-again" value="true" class="jp-btn jp-btn--primary jp-btn--block ">Try again</button>
         </form>
 
-        
 
-        <input type="submit" class="jp-btn jp-btn--primary jp-btn--block " id="registerWebAuthn" value="Register passkey">
-
+        </div>
 
 
 
@@ -77,7 +69,7 @@
 
   <footer class="jp-foot">
       <p id="jp-passkey-recovery" class="jp-passkey-recovery">
-        <a id="jp-passkey-recovery-link" href="http://localhost:5173/PruebaMapJapan/recover.html">Can't use a passkey on this device? Get a code by email</a>
+        <a id="jp-passkey-recovery-link" href="http://localhost:5173/PruebaMapJapan/recover.html?email=traveler%40example.test">Can't use a passkey on this device? Get a code by email</a>
       </p>
     <a class="jp-idp-exit" href="http://localhost:5173/PruebaMapJapan/">Back to Japan Trip</a>
   </footer>
