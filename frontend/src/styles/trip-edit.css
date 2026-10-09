@@ -78,6 +78,8 @@
   position: fixed;
   left: 50%;
   bottom: 20px;
+  /* Clear the iPhone home indicator when the page runs full-screen (standalone PWA). */
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
   transform: translateX(-50%);
   z-index: 3000;
   display: flex;

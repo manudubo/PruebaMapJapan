@@ -2439,6 +2439,31 @@ travel-nav:not(:defined) {
   }
 }
 
+/* One-finger drags scroll the page on touch screens; this tells the user why the map did not move. */
+.map-gesture-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Mobile browsers' collapsing URL bar makes 100vh taller than what is visible: prefer dvh. */
+@supports (min-height: 100dvh) {
+  body {
+    min-height: 100dvh;
+  }
+}
+
 /* ============================================
    Touch ergonomics (docs/design/MOBILE-COVERAGE.md)
    Fingers are ~44 CSS px wide and iOS Safari zooms the page into any focused text field under
@@ -2466,6 +2491,15 @@ travel-nav:not(:defined) {
 
   .checkbox-label {
     min-height: 44px;
+  }
+
+  /* Six one-digit boxes: 44px each, so tighten the gap to keep them inside a 320px card. */
+  .code-input-row {
+    gap: 4px;
+  }
+
+  .code-input-digit {
+    min-width: 44px;
   }
 
   .checkbox-label input[type="checkbox"] {
