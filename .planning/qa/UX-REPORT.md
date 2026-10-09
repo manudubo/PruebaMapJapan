@@ -19,7 +19,7 @@ Screenshot locations: `.planning/qa/screens-theme/` (Keycloak, light/dark x 375/
 
 ## Bugs found by the QA passes (all fixed in the PRs)
 
-- Navbar interpolated city names into `innerHTML`: stored XSS from a trip's city name. Escaped in `Navbar.ts` (2c937fa, dbe7782). No dedicated Navbar test yet.
+- Navbar interpolated city names into `innerHTML`: stored XSS from a trip's city name. Escaped in `Navbar.ts` (2c937fa, dbe7782). Covered by a regression test in `signup-entry-points.test.ts` (fails without the escape).
 - `template.ftl` passed `ssoLoginInOtherTabsUrl` to `?no_esc` without `kcSanitize` (SEC-11 invariant); found by the guard in `idp-config.spec.ts` (ee45857).
 - The stock "sign out other sessions" checkbox had no `:focus-visible` style in the new theme; found by the render test (d1e33f0).
 - Trips created from the UI had no `order_index`; fixed with the editor rebuild (578d531).

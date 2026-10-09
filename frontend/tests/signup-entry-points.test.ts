@@ -161,6 +161,19 @@ describe('navbar', () => {
     return nav.shadowRoot!;
   }
 
+  it('city names are user input: markup in a destination label is shown as text, never run', async () => {
+    const root = await mountNav();
+    const nav = document.querySelector('travel-nav') as unknown as {
+      setDestinations(d: Array<{ id: number; label: string; tripId: number; index: number }>): void;
+    };
+    const evil = '<img src=x onerror="window.__pwned=1">Tokyo & "co"';
+    nav.setDestinations([{ id: 1, label: evil, tripId: 7, index: 0 }]);
+    expect(root.querySelector('img')).toBeNull();
+    const link = [...root.querySelectorAll('a.nav-link')].find((a) => a.textContent?.includes('Tokyo'))!;
+    expect(link.textContent).toBe(evil);
+    expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+
   it('signed out: Sign in (outlined) and Sign up (filled), both 44px targets', async () => {
     const root = await mountNav();
     const signin = root.querySelector<HTMLButtonElement>('.nav-auth-login')!;
