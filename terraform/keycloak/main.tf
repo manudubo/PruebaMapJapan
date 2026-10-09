@@ -1,6 +1,18 @@
 # The Pages origin and app path live in config/deploy-defaults.json, shared with the
 # backend CORS default, so they are written down exactly once.
 locals {
+  # The realm name, written once. Data sources that read Keycloak's built-in objects
+  # (client scopes profile/email, the realm-management client and its roles) take THIS
+  # instead of keycloak_realm.japan_trip.id/.realm: any reference to a managed resource
+  # makes Terraform defer the read to apply time whenever that resource has a pending
+  # change (even an in-place one), which turns every id derived from the data source
+  # into "known after apply" and plans a destroy/recreate of the protocol mappers and
+  # the recovery service-account role. The price: the realm must already exist when
+  # the plan reads them, so a FIRST run creates it on its own
+  # (`terraform apply -target=keycloak_realm.japan_trip`, done by
+  # deploy/selfhost/scripts/keycloak-apply.sh and scripts/ci/keycloak-flow.sh).
+  realm_name = "japan-trip"
+
   deploy_defaults = jsondecode(file("${path.module}/../../config/deploy-defaults.json"))
   production      = var.profile == "production"
   # Plain http to the admin API is only acceptable when it never leaves the machine
@@ -54,7 +66,7 @@ locals {
 }
 
 resource "keycloak_realm" "japan_trip" {
-  realm        = "japan-trip"
+  realm        = local.realm_name
   enabled      = true
   display_name = "Japan Trip"
   login_theme  = "japan-trip"
@@ -336,7 +348,7 @@ resource "keycloak_openid_client_service_account_role" "recovery_manage_users" {
 data "keycloak_role" "realm_management_manage_users" {
   count = local.create_recovery_client ? 1 : 0
 
-  realm_id  = keycloak_realm.japan_trip.id
+  realm_id  = local.realm_name # not keycloak_realm.japan_trip.*: see local.realm_name
   client_id = data.keycloak_openid_client.realm_management.id
   name      = "manage-users"
 }
@@ -427,7 +439,7 @@ resource "keycloak_openid_client" "japan_trip_worker" {
 
 # Lookup built-in realm-management client (contains manage-users as a CLIENT role)
 data "keycloak_openid_client" "realm_management" {
-  realm_id  = keycloak_realm.japan_trip.id
+  realm_id  = local.realm_name # not keycloak_realm.japan_trip.*: see local.realm_name
   client_id = "realm-management"
 }
 
