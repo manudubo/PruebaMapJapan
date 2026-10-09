@@ -84,9 +84,19 @@ export function selectDayAndFocusActivity(
 
   if (map && marker) {
     if (!map.hasLayer(marker)) marker.addTo(map);
-    marker.openPopup();
+    // Open the popup once the map has settled on the marker, so Leaflet's auto-pan can keep the
+    // whole popup inside the map (opened first, flyTo would re-centre it and clip its top on a
+    // short phone map). With reduced motion the move is instant and `moveend` fires at once.
+    let opened = false;
+    const openPopup = (): void => {
+      if (opened) return;
+      opened = true;
+      if (map.hasLayer(marker)) marker.openPopup();
+    };
+    map.once('moveend', openPopup);
     const reduced = prefersReducedMotion();
     map.flyTo(marker.getLatLng(), 15, { animate: !reduced, duration: 0.8 });
+    setTimeout(openPopup, 2000); // never leave the visitor without the popup if no move event comes
     map.getContainer().scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
     announceToScreenReader(`${activity.name}, ${day.label}. Opened on the map.`);
   } else {

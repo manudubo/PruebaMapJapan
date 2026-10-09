@@ -42,8 +42,16 @@ function fixture() {
   const markersByDay = { d1: [marker(), marker()], d2: [marker()] };
   const container = document.createElement('div');
   container.scrollIntoView = vi.fn();
-  const map = { hasLayer: vi.fn(() => true), flyTo: vi.fn(), getContainer: () => container };
-  return { selector, clicks, markersByDay, map };
+  // `moveend` fires when the map has settled; the test fires it by hand.
+  const settled: Array<() => void> = [];
+  const map = {
+    hasLayer: vi.fn(() => true),
+    flyTo: vi.fn(),
+    once: vi.fn((_event: string, cb: () => void) => { settled.push(cb); }),
+    getContainer: () => container,
+  };
+  const moveend = (): void => settled.splice(0).forEach((cb) => cb());
+  return { selector, clicks, markersByDay, map, moveend };
 }
 
 const rows = (day: string) => Array.from(document.querySelectorAll<HTMLElement>(`.day-group[data-day="${day}"] .legend-item`));
@@ -63,6 +71,9 @@ describe('selectDayAndFocusActivity', () => {
     expect(r).toEqual({ dayKey: 'd1', activityIndex: 2, onMap: true });
     expect(f.clicks).toEqual(['d1']);
     // "Walk" has no marker, so Temple is the second marker of the day, not the third
+    expect(f.markersByDay.d1[1]!.openPopup).not.toHaveBeenCalled(); // not before the map has settled
+    f.moveend();
+    f.moveend();
     expect(f.markersByDay.d1[1]!.openPopup).toHaveBeenCalledOnce();
     expect(f.markersByDay.d1[0]!.openPopup).not.toHaveBeenCalled();
     expect(f.map.flyTo).toHaveBeenCalledWith({ lat: 1, lng: 2 }, 15, expect.objectContaining({ duration: 0.8 }));
@@ -76,7 +87,17 @@ describe('selectDayAndFocusActivity', () => {
     f.selector.querySelector('[data-day="d1"]')!.classList.add('active');
     selectDayAndFocusActivity('d1', 'Ramen', f.selector, f.map as never, data, f.markersByDay as never);
     expect(f.clicks).toEqual([]);
+    f.moveend();
     expect(f.markersByDay.d1[0]!.openPopup).toHaveBeenCalledOnce();
+  });
+
+  it('opens the popup even if no move event ever arrives', () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    selectDayAndFocusActivity('d1', 'Ramen', f.selector, f.map as never, data, f.markersByDay as never);
+    vi.advanceTimersByTime(2100);
+    expect(f.markersByDay.d1[0]!.openPopup).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
 
   it('a day key with quotes or # is found without a CSS selector', () => {
@@ -131,9 +152,11 @@ describe('selectDayAndFocusActivity', () => {
 
   it('adds a marker that is not on the map yet before opening it', () => {
     const f = fixture();
-    f.map.hasLayer.mockReturnValue(false);
+    f.map.hasLayer.mockReturnValueOnce(false).mockReturnValue(true);
     selectDayAndFocusActivity('d1', 'Ramen', f.selector, f.map as never, data, f.markersByDay as never);
     expect(f.markersByDay.d1[0]!.addTo).toHaveBeenCalledWith(f.map);
+    f.moveend();
+    expect(f.markersByDay.d1[0]!.openPopup).toHaveBeenCalledOnce();
   });
 
   it('does not animate for reduced motion', () => {
