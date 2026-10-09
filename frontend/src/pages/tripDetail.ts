@@ -295,7 +295,9 @@ function overviewStop(stop: TripStop): OverviewStop {
   return {
     key: stop.key,
     number: stop.number,
-    name: stop.label,
+    // The popup title is the city's name, as in the demo ("Tokyo" for the return stay too);
+    // the unique label stays on the marker's alt text and the card.
+    name: stop.name,
     label: stop.label,
     dates: stop.dates,
     coords: stop.coords!,

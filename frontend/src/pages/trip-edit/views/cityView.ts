@@ -6,7 +6,7 @@
 
 import { toCoords } from '@/modules/tripAdapter';
 import {
-  cleanText, dayChips, dayColor, isValid, validateDestinationFields, placeNameFromMapsUrl, validateHttpUrl,
+  cleanText, dayChips, dayColor, DAY_COLORS, DAY_COLOR_NAMES, isValid, validateDestinationFields, placeNameFromMapsUrl, validateHttpUrl,
   LIMITS, type DayChip, type EDest,
 } from '../model';
 import { markerLabels } from '../previewModel';
@@ -69,7 +69,15 @@ export function mountCityView(ctx: ViewCtx, destKey: string, initialDate: string
   const dayTitle = h('h3', { class: 'te-day-title', id: 'day-title' });
   const dayLabelInput = h('input', { type: 'text', id: 'day-label', maxLength: 255, placeholder: 'e.g. Temples and tea' });
   const fDayLabel = field('Day title (optional)', dayLabelInput);
-  const dayOptions = h('details', { class: 'te-more', id: 'day-options', hidden: true }, h('summary', { text: 'Day options' }), fDayLabel.el);
+  // The day's colour: its numbered markers on the map, the dot of its chip and its group in the list.
+  // The demo hand-picks a colour per day; the default is the palette position, this lets the user match it.
+  const colorRadios = DAY_COLORS.map((hex, i) => h('input', {
+    type: 'radio', name: 'day-color', value: hex, class: 'te-swatch', title: DAY_COLOR_NAMES[i],
+    attrs: { 'aria-label': DAY_COLOR_NAMES[i] }, style: `--swatch:${hex}`,
+  }));
+  const colorGroup = h('fieldset', { class: 'te-day-colors', id: 'day-color' },
+    h('legend', { text: 'Day colour' }), h('div', { class: 'te-swatches' }, ...colorRadios));
+  const dayOptions = h('details', { class: 'te-more', id: 'day-options', hidden: true }, h('summary', { text: 'Day options' }), fDayLabel.el, colorGroup);
   const list = h('ul', { class: 'te-acts', id: 'activity-list', attrs: { 'aria-label': 'Places for this day, in order' } });
   const emptyDay = h('div', { class: 'te-empty', id: 'activities-empty' },
     h('h3', { text: 'Nothing planned for this day yet' }),
@@ -186,6 +194,14 @@ export function mountCityView(ctx: ViewCtx, destKey: string, initialDate: string
   zoomInput.addEventListener('input', () => {
     zoomOut.value = zoomInput.value;
     store.patchDestination(destKey, { zoom_level: Number(zoomInput.value) });
+  });
+  colorGroup.addEventListener('change', (e) => {
+    const input = e.target as HTMLInputElement;
+    const d = date ? dest?.days.find((x) => x.date === date) : undefined;
+    if (d && input.checked) {
+      store.patchDay(d._key, { color_hex: input.value });
+      announce(`Day colour set to ${DAY_COLOR_NAMES[DAY_COLORS.indexOf(input.value)] ?? input.value}`);
+    }
   });
   dayLabelInput.addEventListener('input', () => {
     const d = date ? dest?.days.find((x) => x.date === date) : undefined;
@@ -310,6 +326,7 @@ export function mountCityView(ctx: ViewCtx, destKey: string, initialDate: string
     list.hidden = acts.length === 0;
     dayOptions.hidden = !day;
     if (day && document.activeElement !== dayLabelInput) dayLabelInput.value = day.label ?? '';
+    for (const r of colorRadios) r.checked = !!chip && r.value.toLowerCase() === chip.color.toLowerCase();
 
     const labels = markerLabels(acts);
     reconcile(list, acts, (a) => a._key, (a) => buildActivityRow(ctx, a._key));
