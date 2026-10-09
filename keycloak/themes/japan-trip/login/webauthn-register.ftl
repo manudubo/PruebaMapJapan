@@ -30,7 +30,7 @@
         <script type="module">
             <#outputformat "JavaScript">
             import { registerByWebAuthn } from "${url.resourcesPath}/js/webauthnRegister.js";
-            import { installDeviceLabel } from "${url.resourcesPath}/js/passkey-label.js";
+            import { installDeviceLabel } from "${url.resourcesPath}/js/passkey-label.js?v=${properties.jpAssetVersion!}";
             const form = document.getElementById('register');
             installDeviceLabel({
                 form,

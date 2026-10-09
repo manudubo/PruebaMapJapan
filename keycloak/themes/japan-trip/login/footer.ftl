@@ -25,7 +25,10 @@
         <a id="jp-passkey-recovery-link" href="${jpRecoverUrl}">${msg("jpPasskeyRecovery")}</a>
       </p>
     </#if>
+    <#-- The error page can carry the way back as its own button (error.ftl): one is enough. -->
+    <#if !(jpErrorOwnsBack!false)>
     <a class="jp-idp-exit" href="${appUrl}">${msg("jpBackToApp", realm.displayName!'Japan Trip')}</a>
+    </#if>
   </footer>
   </#if>
 </#macro>

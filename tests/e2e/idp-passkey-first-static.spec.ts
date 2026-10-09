@@ -49,7 +49,7 @@ test.describe('passkey-first: templates', () => {
   });
 
   test('the script is a same-origin module loaded by the shell on every login page', () => {
-    expect(template).toMatch(/<script src="\$\{url\.resourcesPath\}\/js\/passkey-first\.js" type="module"><\/script>/);
+    expect(template).toMatch(/<script src="\$\{url\.resourcesPath\}\/js\/passkey-first\.js\?v=\$\{properties\.jpAssetVersion!\}" type="module"><\/script>/);
     expect(template).toMatch(/data-realm="\$\{\(realm\.name\)!''\}"/);
     expect(fs.existsSync(path.join(LOGIN, 'resources/js/passkey-first.js'))).toBe(true);
   });

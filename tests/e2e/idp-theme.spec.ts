@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { createUser, deleteUser, getUserCredentialLabels } from './fixtures/kc-admin';
 
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL ?? 'http://localhost:8080';
@@ -48,7 +49,7 @@ test.describe('Keycloak theme', () => {
 
     const username = page.locator('#username');
     await expect(username).toHaveAttribute('autocomplete', /^username( webauthn)?$/);
-    await expect(page.getByRole('button', { name: /sign in/i })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /^sign in$/i })).toHaveCount(1); // "Sign in with a passkey" is a second, secondary button
     expect((await page.locator('#kc-login').boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
     const exitAction = page.locator('.jp-idp-exit');
@@ -96,11 +97,42 @@ test.describe('Keycloak theme', () => {
     }
   });
 
-  test('Keycloak error pages use the themed alert, once', async ({ page }) => {
+  test('Keycloak error pages speak plain language, with one action and the raw message folded away', async ({ page }) => {
     await page.goto(LOGIN_URL.replace('redirect_uri=http', 'redirect_uri=https%3A%2F%2Fevil.example%2F&x=http'));
-    await expect(page.locator('.jp-alert')).toHaveCount(1);
-    await expect(page.locator('.jp-alert')).toHaveAttribute('role', 'alert');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText("We couldn't start the sign-in");
     await expect(page.locator('#kc-error-message')).toBeVisible();
+    await expect(page.locator('.jp-alert')).toHaveCount(0);
+    await expect(page.locator('#jp-error-action')).toHaveAttribute('href', /\/PruebaMapJapan\/?$/); // the client's Base URL
+    await expect(page.locator('#jp-error-original')).toBeHidden(); // inside a closed <details>
+    expect(await page.locator('main').innerText()).not.toContain('Invalid parameter');
+  });
+
+  test('a lost sign-in session says the link has expired and sends the person back to the app (restarting would loop)', async ({ page }) => {
+    await page.goto(LOGIN_URL);
+    await page.context().clearCookies();
+    await page.locator('#username').fill('traveler@example.test');
+    await page.locator('#kc-login').click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('This link has expired');
+    await expect(page.locator('#jp-error-action')).toHaveText('Back to Japan Trip');
+    await expect(page.locator('#jp-error-action')).toHaveAttribute('href', /\/PruebaMapJapan\/?$/);
+    await expect(page.locator('.jp-idp-exit')).toHaveCount(0);
+  });
+
+  test('sign-up switched off: "Sign-up is closed right now"', async ({ page, request }) => {
+    const pw = process.env['KC_ADMIN_PASSWORD'] ?? (process.env['KC_MASTER_ADMIN_PASSWORD_FILE'] ? fs.readFileSync(process.env['KC_MASTER_ADMIN_PASSWORD_FILE'], 'utf8').trim() : '');
+    test.fixme(!pw, 'needs the master admin password (KC_ADMIN_PASSWORD or KC_MASTER_ADMIN_PASSWORD_FILE) to switch registration off and on');
+    const token = ((await (await request.post(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, { form: { client_id: 'admin-cli', grant_type: 'password', username: 'admin', password: pw } })).json()) as { access_token: string }).access_token;
+    const headers = { authorization: `Bearer ${token}` };
+    const realmUrl = `${KEYCLOAK_URL}/admin/realms/japan-trip`;
+    const realm = (await (await request.get(realmUrl, { headers })).json()) as { registrationAllowed: boolean };
+    try {
+      await request.put(realmUrl, { headers, data: { registrationAllowed: false } });
+      await page.goto(REGISTER_URL);
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign-up is closed right now');
+      await expect(page.locator('#jp-error-action')).toHaveText('Sign in');
+    } finally {
+      await request.put(realmUrl, { headers, data: { registrationAllowed: realm.registrationAllowed } });
+    }
   });
 
   test.describe('passkey enrolment names the passkey after the device', () => {
