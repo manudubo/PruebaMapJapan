@@ -56,6 +56,18 @@ test.describe('navbar by touch', () => {
     await page.waitForURL(/profile\.html$/);
   });
 
+  for (const width of [320, 360, 390]) {
+    test(`signed in at ${width}px the My Trips link is fully visible, not cut off beside the account buttons`, async ({ page }) => {
+      await page.setViewportSize(phoneViewport(width));
+      await mockKeycloakLoggedIn(page);
+      await mockApi(page, { trips: [] });
+      await page.goto('dashboard.html');
+      await expect(page.locator('travel-nav .nav-auth-user')).toBeVisible();
+      const clipped = await page.locator('travel-nav .top-nav').evaluate((e) => e.scrollWidth > e.clientWidth + 1);
+      expect(clipped).toBe(false);
+    });
+  }
+
   test('on a trip, the cities get their own full-width row on a phone', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page);

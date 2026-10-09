@@ -176,7 +176,8 @@ export const SCREENS: Screen[] = [
       await mockAccountCredentials(page, { passkeys: 2, passwords: 1 });
       await mockApi(page, { trips: [] });
       await page.goto('profile.html');
-      await expect(page.locator('#passkey-list li').first()).toBeVisible();
+      await expect(page.locator('#info-email')).not.toHaveText('—');
+      await expect(page.locator('#passkey-list')).not.toContainText('Loading');
     },
   },
   {

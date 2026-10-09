@@ -347,19 +347,17 @@ class TravelNav extends HTMLElement {
         /* A trip's cities need the full width to be reachable: on a phone they get their own
            scrolling row under the brand / account / theme buttons instead of a 60px sliver. */
         @media (max-width: 600px) {
-          nav.has-dest .nav-inner {
-            flex-wrap: wrap;
-            height: auto;
-            min-height: 56px;
-            padding-block: 4px;
-          }
-          nav.has-dest .top-nav {
-            order: 3;
-            flex: 1 1 100%;
-          }
-          nav.has-dest .nav-auth {
-            margin-left: auto;
-          }
+          nav.has-dest .nav-inner { flex-wrap: wrap; height: auto; min-height: 56px; padding-block: 4px; }
+          nav.has-dest .top-nav { order: 3; flex: 1 1 100%; }
+          nav.has-dest .nav-auth { margin-left: auto; }
+        }
+
+        /* Narrower than ~400px even the single "My Trips" link is cut off beside the account
+           buttons (Test, Sign out, theme), so the links drop to their own row there too. */
+        @media (max-width: 400px) {
+          .nav-inner { flex-wrap: wrap; height: auto; min-height: 56px; padding-block: 4px; }
+          .top-nav { order: 3; flex: 1 1 100%; }
+          .nav-auth { margin-left: auto; }
         }
       </style>
       <nav role="navigation" aria-label="Main navigation" class="${this.destinations.length > 0 ? 'has-dest' : ''}">

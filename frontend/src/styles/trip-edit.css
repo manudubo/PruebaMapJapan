@@ -602,3 +602,10 @@ button.te-num-btn:disabled { cursor: default; }
   .te-act-main { display: grid; grid-template-columns: 44px 44px minmax(0, 1fr); }
   .te-act-time { grid-column: 3; width: 100%; }
 }
+
+/* Landscape phones are ~375px tall: spend less of it on chrome above the plan. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .te-bar { padding: 4px 0; }
+  .te-steps ol, .te-tabs { margin-bottom: 8px; }
+  .te-preview #map { height: 70vh; min-height: 220px; }
+}
