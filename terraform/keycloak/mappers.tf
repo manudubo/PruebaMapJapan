@@ -38,7 +38,9 @@ resource "keycloak_openid_user_attribute_protocol_mapper" "avatar_url" {
   claim_value_type    = "String"
   add_to_id_token     = true
   add_to_access_token = false # SEC-25: user-editable; not needed by the API
-  add_to_userinfo     = true
+  # Provider >= 5.8 defaults this to true; user-editable claims stay out of introspection too.
+  add_to_token_introspection = false
+  add_to_userinfo            = true
 }
 
 resource "keycloak_openid_user_attribute_protocol_mapper" "preferences" {
@@ -50,7 +52,9 @@ resource "keycloak_openid_user_attribute_protocol_mapper" "preferences" {
   claim_value_type    = "String"
   add_to_id_token     = true
   add_to_access_token = false # SEC-25: user-editable; not needed by the API
-  add_to_userinfo     = true
+  # Provider >= 5.8 defaults this to true; user-editable claims stay out of introspection too.
+  add_to_token_introspection = false
+  add_to_userinfo            = true
 }
 
 resource "keycloak_openid_user_property_protocol_mapper" "email_claim" {

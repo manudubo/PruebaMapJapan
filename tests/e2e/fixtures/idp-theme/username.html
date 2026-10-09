@@ -1,16 +1,20 @@
-<!DOCTYPE html><html class="jp-html" lang="en"><head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<!DOCTYPE html>
+<html class="jp-html" lang="en">
 
-            <meta name="viewport" content="width=device-width,initial-scale=1">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+            <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark">
     <title>Sign in to Japan Trip</title>
-    <link rel="icon" href="/resources/login/japan-trip/img/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/resources/login/japan-trip/img/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
-            <link href="/resources/login/japan-trip/css/login.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+            <link href="/resources/login/japan-trip/css/login.css" rel="stylesheet" />
             
+    
     
     
     
@@ -18,12 +22,12 @@
         
 </head>
 
-<body class="jp-body" data-page-id="login-login-username">
+<body class="jp-body" data-page-id="login-login-username" data-realm="japan-trip">
 <div class="jp-page">
     <div id="kc-header" class="jp-brand">
         <svg class="jp-brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-            <rect width="32" height="32" fill="currentColor"></rect>
-            <path d="M16 6.5c-3.6 0-6.5 2.8-6.5 6.4 0 4.6 6.5 12.6 6.5 12.6s6.5-8 6.5-12.6c0-3.6-2.9-6.4-6.5-6.4zm0 8.7a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6z" fill="#fff"></path>
+            <rect width="32" height="32" fill="currentColor"/>
+            <path d="M16 6.5c-3.6 0-6.5 2.8-6.5 6.4 0 4.6 6.5 12.6 6.5 12.6s6.5-8 6.5-12.6c0-3.6-2.9-6.4-6.5-6.4zm0 8.7a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6z" fill="#fff"/>
         </svg>
         <div id="kc-header-wrapper" class="jp-brand__name">Japan Trip</div>
     </div>
@@ -43,27 +47,65 @@
             <div id="kc-content-wrapper">
 
 
+        <div id="jp-passkey-first" class="jp-passkey-first" hidden aria-busy="false">
+            <div class="jp-passkey-hero" aria-hidden="true"><span class="jp-icon jp-icon--key"></span></div>
+            <p class="jp-passkey-lead">Sign in with the passkey saved on this device.</p>
+            <p id="jp-passkey-status" class="jp-passkey-status" role="status" aria-live="polite"></p>
+            <button type="button" id="jp-passkey-continue" class="jp-btn jp-btn--primary jp-btn--block">Continue with passkey</button>
+            <button type="button" id="jp-passkey-other" class="jp-btn jp-btn--secondary jp-btn--block">Use another account</button>
+        </div>
         <div id="kc-form">
             <div id="kc-form-wrapper">
-                    <form id="kc-form-login" class="jp-form" data-jp-once="" action="/realms/japan-trip/login-actions/authenticate?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" method="post">
+                    <form id="kc-form-login" class="jp-form" data-jp-once action="/realms/japan-trip/login-actions/authenticate?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" method="post">
                             <div class="jp-field">
                                 <label for="username" class="jp-label">Email</label>
-                                <input tabindex="1" id="username" class="jp-input" name="username" value="" type="text" autofocus="" dir="ltr" autocomplete="username" autocapitalize="none" spellcheck="false" inputmode="email" aria-invalid="false">
+                                <input id="username" class="jp-input" name="username"
+                                       value="" type="text" autofocus dir="ltr"
+                                       autocomplete="username webauthn"
+                                       autocapitalize="none" spellcheck="false" inputmode="email"
+                                       aria-invalid="false"
+                                       />
                             </div>
 
 
                         <div id="kc-form-buttons" class="jp-field">
-                            <button tabindex="4" class="jp-btn jp-btn--primary jp-btn--block " name="login" id="kc-login" type="submit">Sign in</button>
+                            <button class="jp-btn jp-btn--primary jp-btn--block " name="login" id="kc-login" type="submit">Sign in</button>
                         </div>
                     </form>
             </div>
+        </div>
+        <div id="jp-passkey" hidden
+             data-realm="japan-trip"
+             data-auto="true"
+             data-challenge="2D5KpupzRWiEPW_PurDDxw"
+             data-rp-id="localhost"
+             data-user-verification="required"
+             data-timeout="0"
+             data-text-waiting="Confirm with your passkey on this device."
+             data-text-signing-in="Signing you in..."
+             data-text-dismissed="Passkey sign-in was cancelled. Try again, or continue with your email."
+             data-text-failed="We could not use your passkey. Try again, or continue with your email."
+             data-text-unsupported="This device cannot use a passkey here. Continue with your email."></div>
+
+        <form id="webauth" action="/realms/japan-trip/login-actions/authenticate?session_code=x&amp;execution=x&amp;client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x" method="post">
+            <input type="hidden" id="clientDataJSON" name="clientDataJSON"/>
+            <input type="hidden" id="authenticatorData" name="authenticatorData"/>
+            <input type="hidden" id="signature" name="signature"/>
+            <input type="hidden" id="credentialId" name="credentialId"/>
+            <input type="hidden" id="userHandle" name="userHandle"/>
+            <input type="hidden" id="error" name="error"/>
+        </form>
+
+        <div id="jp-passkey-alt" class="jp-passkey-alt" hidden>
+            <button type="button" id="jp-passkey-button" class="jp-btn jp-btn--secondary jp-btn--block">Sign in with a passkey</button>
+            <p id="jp-passkey-alt-status" class="jp-passkey-status" role="status" aria-live="polite"></p>
         </div>
 
 
 
                     <div id="kc-info" class="">
                         <div id="kc-info-wrapper" class="">
-            <p id="kc-registration">New here? <a tabindex="6" href="/realms/japan-trip/login-actions/registration?client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x">Create account</a></p>
+            <p id="kc-registration">New here? <a href="/realms/japan-trip/login-actions/registration?client_id=japan-trip-frontend&amp;tab_id=x&amp;client_data=x">Create account</a></p>
                         </div>
                     </div>
             </div>
@@ -74,6 +116,5 @@
     <a class="jp-idp-exit" href="http://localhost:5173/PruebaMapJapan/">Back to Japan Trip</a>
   </footer>
 </div>
-
-
-</body></html>
+</body>
+</html>

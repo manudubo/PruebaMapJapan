@@ -134,17 +134,22 @@ test.describe('Registration through the built frontend (real Keycloak, backend, 
     const email = emailOf('ui-unverified');
     const cdp = await virtualAuthenticator(page);
     try {
+      // Count code requests from the very start, so the screen's own first request (sent a
+      // moment after the heading shows) cannot be mistaken for one made by the reload.
+      const requests: string[] = [];
+      page.on('request', (r) => { if (r.url().includes('/email-verify/request')) requests.push(r.url()); });
       await signUp(page, email);
       const v = verifyScreen(page);
       await expect(v.heading).toBeVisible();
+      await expect.poll(() => requests.length, 'the screen asks for the first code on its own').toBe(1);
+      await expect(v.resend).toBeDisabled();
 
-      const requests: string[] = [];
-      page.on('request', (r) => { if (r.url().includes('/email-verify/request')) requests.push(r.url()); });
       await page.reload();
       await expect(v.heading).toBeVisible();
       // Reload within the cooldown: the screen does not request another code.
       await expect(v.resend).toBeDisabled();
-      expect(requests, 'no second code requested while the first is pending').toEqual([]);
+      await page.waitForLoadState('networkidle');
+      expect(requests, 'no second code requested while the first is pending').toHaveLength(1);
       const mails = await page.request.get(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
       expect(((await mails.json()) as { messages_count: number }).messages_count).toBe(1);
     } finally {

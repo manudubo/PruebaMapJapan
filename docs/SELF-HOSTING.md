@@ -363,6 +363,33 @@ changes (renamed machine, new tailnet, switching to a domain), every
 registered passkey stops working: users sign in with password or email code and
 register a new passkey. Pick the final name before inviting people.
 
+### Passkey-first sign-in (operator notes)
+
+A browser that has used a passkey on the login page asks for it on load, with
+no username typed; other browsers get the usual form with passkeys in the
+e-mail field's autofill list. Design and per-browser behaviour:
+`docs/design/PASSKEY-FIRST-LOGIN.md`.
+
+To roll it out on an existing server, in this order:
+
+1. Redeploy Keycloak so the new login theme is served (rebuild/restart the
+   Keycloak image; the theme is copied in by `keycloak/Dockerfile`). No new
+   Keycloak feature flag is needed.
+2. Run `keycloak-apply` (Terraform) with provider 5.8 or newer (the lock file
+   pins it; `terraform init` fetches it). It turns on realm passkeys and adds
+   the `passkey-done` branch to the credential step. Both changes are
+   additive and fail closed at every step of the apply. Check the plan: it
+   should add 5 resources and update the realm's passkey setting; the two
+   profile mappers must show no change (`add_to_token_introspection` is pinned
+   false).
+3. Nothing to do on the devices: the first passkey sign-in or registration on
+   a browser stores the marker. Safari deletes script-written storage after
+   about 7 days without a visit; that browser then simply shows the normal
+   page until the next passkey sign-in.
+
+Rollback: set `passwordless_passkeys_enabled = false` and re-apply; the theme
+falls back to the plain form by itself.
+
 ---
 
 ## Open sign-up

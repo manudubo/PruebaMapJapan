@@ -260,13 +260,74 @@ test.describe('Keycloak config invariants (static)', () => {
     expect(worker.body).toMatch(/count = local\.create_worker_client \? 1 : 0/);
   });
 
-  test('SEC-25: user-editable attributes stay out of the access token', () => {
+  test('SEC-25: user-editable attributes stay out of the access token and out of token introspection', () => {
     const mappers = resources(read('terraform/keycloak/mappers.tf'));
     for (const name of ['avatar_url', 'preferences']) {
       const m = mappers.find((b) => b.name === name);
       expect(m, `mapper ${name}`).toBeTruthy();
       expect(attr(m!.body, 'add_to_access_token')).toBe('false');
+      // provider >= 5.8 defaults this to true
+      expect(attr(m!.body, 'add_to_token_introspection')).toBe('false');
     }
+  });
+
+  test('PASSKEY-FIRST: passkeys are on for the realm, with resident keys and required user verification', () => {
+    const main = read('terraform/keycloak/main.tf');
+    const realm = resources(main).find((b) => b.type === 'keycloak_realm')!;
+    const policy = realm.body.match(/web_authn_passwordless_policy\s*\{([\s\S]*?)\n  \}/)![1]!;
+    expect(attr(policy, 'passwordless_passkeys_enabled')).toBe('true');
+    // A passkey signs the user in with no username and no second factor: both must hold on the
+    // device (the passkey is a discoverable credential, the user is verified by biometrics or PIN).
+    expect(attr(policy, 'require_resident_key')).toBe('Yes');
+    expect(attr(policy, 'user_verification_requirement')).toBe('required');
+    // The switch needs provider 5.8.0 or later (versions.tf and the lock file agree).
+    expect(read('terraform/keycloak/versions.tf')).toMatch(/version = ">= 5\.(8|9|1\d)\.\d+"/);
+    const lock = read('terraform/keycloak/.terraform.lock.hcl');
+    const locked = lock.match(/provider "registry\.terraform\.io\/keycloak\/keycloak" \{\s+version\s+= "(\d+)\.(\d+)\.\d+"/)!;
+    expect(Number(locked[1]) * 100 + Number(locked[2])).toBeGreaterThanOrEqual(508);
+  });
+
+  test('PASSKEY-FIRST: the credential step stays REQUIRED; "passkey already used" is one more ALTERNATIVE branch', () => {
+    const hcl = read('terraform/keycloak/flows.tf');
+    const { nodes } = flowTree(hcl);
+    // Never CONDITIONAL: Keycloak skips a CONDITIONAL subflow that has no condition yet, so an
+    // upgrade (or a typo) would let a bare username through (reproduced on Keycloak 26.6.1).
+    expect(nodes.find((n) => n.kind === 'subflow' && n.id === 'passkey-or-password')?.requirement).toBe('REQUIRED');
+    const branches = nodes.filter((n) => n.parent === 'passkey-or-password');
+    expect(branches.map((n) => [n.id, n.requirement]).sort()).toEqual([
+      ['passkey', 'ALTERNATIVE'],
+      ['passkey-done', 'ALTERNATIVE'],
+      ['password', 'ALTERNATIVE'],
+    ]);
+    const gate = nodes.filter((n) => n.parent === 'passkey-done');
+    expect(gate.map((n) => [n.id, n.requirement])).toEqual([['passkey-done-if-used', 'CONDITIONAL']]);
+    const inner = nodes.filter((n) => n.parent === 'passkey-done-if-used');
+    expect(inner.map((n) => n.id).sort()).toEqual(['allow-access-authenticator', 'conditional-credential']);
+    expect(inner.every((n) => n.requirement === 'REQUIRED')).toBe(true);
+  });
+
+  test('PASSKEY-FIRST: allow-access is only ever the body of the passkey-used condition, and the condition is the right one', () => {
+    const hcl = read('terraform/keycloak/flows.tf');
+    const blocks = resources(hcl);
+    const allow = blocks.filter((b) => attr(b.body, 'authenticator') === 'allow-access-authenticator');
+    expect(allow, 'allow-access-authenticator appears once in the realm flows').toHaveLength(1);
+    expect(attr(allow[0]!.body, 'parent_flow_alias')).toBe('keycloak_authentication_subflow.passkey_done_if_used.alias');
+    // The condition is "a passkey was used in this session", nothing weaker. conditional-credential
+    // reads the credentials Keycloak has actually validated (webauthn-passwordless, with user verification).
+    const condition = blocks.find((b) => b.type === 'keycloak_authentication_execution' && b.name === 'passkey_done_condition')!;
+    expect(attr(condition.body, 'authenticator')).toBe('conditional-credential');
+    const config = blocks.find((b) => b.type === 'keycloak_authentication_execution_config' && b.name === 'passkey_done_condition')!;
+    expect(config.body).toMatch(/credentials\s+= "webauthn-passwordless"/);
+    expect(config.body).toMatch(/included\s+= "true"/);
+    expect(config.body).not.toMatch(/"password"|"otp"|"none"/);
+    // Condition first, allow-access second: otherwise Keycloak's selection resolver swaps
+    // allow-access for the WebAuthn authenticator and asks for the passkey a second time.
+    expect(Number(attr(condition.body, 'priority'))).toBeLessThan(Number(attr(allow[0]!.body, 'priority')));
+    // The branch sits before the real credential branches, and the bindings wait for it.
+    const priority = (name: string) => Number(attr(blocks.find((b) => b.name === name)!.body, 'priority'));
+    expect(priority('passkey_done')).toBeLessThan(priority('passkey'));
+    const bindings = blocks.find((b) => b.type === 'keycloak_authentication_bindings')!;
+    expect(bindings.body).toContain('keycloak_authentication_execution_config.passkey_done_condition');
   });
 
   test('SEC-11: every ?no_esc in the theme goes through kcSanitize()', () => {

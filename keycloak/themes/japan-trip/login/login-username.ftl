@@ -7,6 +7,7 @@
     <#elseif section = "subtitle">
         ${msg("jpSignInSubtitle")}
     <#elseif section = "form">
+        <@passkeys.firstPanel />
         <div id="kc-form">
             <div id="kc-form-wrapper">
                 <#if realm.password>
@@ -14,7 +15,7 @@
                         <#if !usernameHidden??>
                             <div class="${properties.kcFormGroupClass!}">
                                 <label for="username" class="${properties.kcLabelClass!}"><#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if></label>
-                                <input tabindex="1" id="username" class="${properties.kcInputClass!}" name="username"
+                                <input id="username" class="${properties.kcInputClass!}" name="username"
                                        value="${(login.username!'')}" type="text" autofocus dir="ltr"
                                        autocomplete="${(enableWebAuthnConditionalUI?has_content)?then('username webauthn', 'username')}"
                                        autocapitalize="none" spellcheck="false"<#if realm.loginWithEmailAllowed> inputmode="email"</#if>
@@ -31,14 +32,14 @@
                         <#if realm.rememberMe && !usernameHidden??>
                             <div class="${properties.kcFormGroupClass!}">
                                 <label class="${properties.kcCheckLabelClass!}" for="rememberMe">
-                                    <input tabindex="3" id="rememberMe" name="rememberMe" type="checkbox" class="${properties.kcCheckInputClass!}"<#if login.rememberMe??> checked</#if>>
+                                    <input id="rememberMe" name="rememberMe" type="checkbox" class="${properties.kcCheckInputClass!}"<#if login.rememberMe??> checked</#if>>
                                     <span>${msg("rememberMe")}</span>
                                 </label>
                             </div>
                         </#if>
 
                         <div id="kc-form-buttons" class="${properties.kcFormGroupClass!}">
-                            <button tabindex="4" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit">${msg("doLogIn")}</button>
+                            <button class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit">${msg("doLogIn")}</button>
                         </div>
                     </form>
                 </#if>
@@ -47,7 +48,7 @@
         <@passkeys.conditionalUIData />
     <#elseif section = "info">
         <#if realm.password && realm.registrationAllowed && !registrationDisabled??>
-            <p id="kc-registration">${msg("noAccount")} <a tabindex="6" href="${url.registrationUrl}">${msg("doRegister")}</a></p>
+            <p id="kc-registration">${msg("noAccount")} <a href="${url.registrationUrl}">${msg("doRegister")}</a></p>
         </#if>
     <#elseif section = "socialProviders">
         <#if realm.password && social?? && social.providers?has_content>

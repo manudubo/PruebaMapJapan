@@ -571,7 +571,10 @@ test.describe('theme CSS', () => {
     const used = new Set([...sources.matchAll(/\bjp-[a-z0-9]+(?:(?:__|--|-)[a-z0-9]+)*/g)].map((m) => m[0]));
     const styled = new Set([...css.matchAll(/\.(jp-[a-z0-9_-]+)/g)].map((m) => m[1]!));
     // ids and message keys that merely start with jp-
-    const notClasses = new Set(['jp-passkey-recovery-link']); // an element id
+    const notClasses = new Set([
+      'jp-passkey-recovery-link', // element ids
+      'jp-passkey', 'jp-passkey-button', 'jp-passkey-continue', 'jp-passkey-other', 'jp-passkey-alt-status',
+    ]);
     const unstyled = [...used].filter((c) => !notClasses.has(c) && !styled.has(c));
     expect(unstyled, 'classes set by a template or theme.properties with no rule in login.css').toEqual([]);
   });
