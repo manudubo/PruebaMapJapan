@@ -5,6 +5,7 @@ import { stubMapThirdParty } from './mockThirdParty';
 import { mockAccountCredentials, mockAuthFlows, WEBAUTHN_SUPPORTED } from './mockAuthFlows';
 import { mockTripStore, emptyTrip } from './mockTripStore';
 import { japanTrip, longNamesTrip, routeOwnerTrip } from './mockTripView';
+import { mockOpenMeteo, type MeteoBehaviour } from './mockOpenMeteo';
 
 /**
  * Every user-facing screen, reachable hermetically (Keycloak, API, tiles and external hosts are
@@ -65,6 +66,21 @@ async function openEditorAt(page: Page, hash: string, trip: unknown = mobileTrip
   await page.goto(`trip-edit.html?tripId=1${hash}`);
   await expect(page.locator('#te-workspace')).toBeVisible();
   await expect(page.locator('#te-view')).not.toBeEmpty();
+}
+
+/** A city of a saved trip with the weather card scrolled into view and settled. */
+async function openCityWeather(page: Page, behaviour: MeteoBehaviour): Promise<void> {
+  await blockExternal(page);
+  await mockKeycloakLoggedIn(page);
+  await mockApi(page);
+  await stubMapThirdParty(page);
+  await mockOpenMeteo(page, behaviour);
+  await routeOwnerTrip(page, japanTrip(1)); // starts tomorrow: inside the forecast horizon
+  await page.goto('trip.html?tripId=11&destIndex=0');
+  await expect(page.locator('#view-city')).toBeVisible();
+  await page.locator('#trip-weather').scrollIntoViewIfNeeded();
+  await expect(page.locator('#trip-weather .widget-content')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator(behaviour === 'ok' ? '#trip-weather .weather-temp' : '#trip-weather-retry')).toBeVisible();
 }
 
 export const SCREENS: Screen[] = [
@@ -165,6 +181,17 @@ export const SCREENS: Screen[] = [
       await expect(page.locator('#view-city')).toBeVisible();
       await expect(page.locator('#map .leaflet-marker-icon').first()).toBeVisible();
     },
+  },
+  {
+    name: 'trip-city-weather',
+    area: 'account',
+    open: (page) => openCityWeather(page, 'ok'),
+  },
+  {
+    // The failure state has the only button of the card ("Try again"): it must be a 44px target too.
+    name: 'trip-city-weather-problem',
+    area: 'account',
+    open: (page) => openCityWeather(page, 'http500'),
   },
   {
     name: 'profile',

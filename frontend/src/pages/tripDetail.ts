@@ -56,6 +56,7 @@ import {
 } from '@/modules/tripView';
 import { selectDayAndFocusActivity, type FocusResult } from '@/modules/activityFocus';
 import { findDestinationOfActivity, isEmptyRequest, type FocusRequest } from '@/modules/focusTarget';
+import { mountTripWeather } from '@/modules/tripWeather';
 import { getMapsUrl } from '@/data/maps';
 import { createDirectionsUrl, createPlaceUrl, announceToScreenReader, escapeHtml } from '@/modules/utils';
 import type { ApiDestination, ApiHotel, ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
@@ -196,6 +197,7 @@ let overviewMap: OverviewMap | null = null;
 let cityMap: L.Map | null = null;
 let cityTileLayer: L.TileLayer | null = null;
 let stopCountdown: (() => void) | null = null;
+let stopWeather: (() => void) | null = null;
 
 let loadSeq = 0;
 let slowTimer: ReturnType<typeof setTimeout> | undefined;
@@ -210,6 +212,9 @@ function teardownMaps(): void {
   window.currentTileLayer = null;
   stopCountdown?.();
   stopCountdown = null;
+  stopWeather?.();
+  stopWeather = null;
+  byId('trip-weather')?.setAttribute('hidden', '');
 }
 
 function mountMapElement(slot: HTMLElement, label: string, describedBy?: string): HTMLElement {
@@ -503,6 +508,13 @@ function renderCity(index: number, focus: FocusRequest | null = null): void {
   const daySelector = byId('day-selector')!;
 
   generateLegend(data, hotelInfo);
+
+  // Weather only for a destination with its own coordinates (not a guess from the hotel or a pin).
+  const weather = byId('trip-weather');
+  if (weather) {
+    setText(byId('trip-weather-title')!, `Weather in ${stop.name}`);
+    stopWeather = mountTripWeather(weather, { lat: dest.lat, lng: dest.lng, start: dest.start_date, end: dest.end_date });
+  }
 
   if (!hasLocation) {
     slot.hidden = true;
