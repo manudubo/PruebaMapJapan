@@ -138,7 +138,7 @@ test.describe('Keycloak theme', () => {
   test.describe('passkey enrolment names the passkey after the device', () => {
     const HAS_ADMIN = !!process.env.KC_ADMIN_CLIENT_ID && !!process.env.KC_ADMIN_CLIENT_SECRET;
 
-    test('no label question; the stored label is "<browser> on <system> (YYYY-MM-DD)"', async ({ page }) => {
+    test('no label question; the stored label is "<browser> on <system> (YYYY-MM-DD HH:mm)"', async ({ page }) => {
       test.fixme(!HAS_ADMIN, 'needs the worker client (KC_ADMIN_CLIENT_ID / KC_ADMIN_CLIENT_SECRET) to read credentials');
       const email = `theme-label-${Date.now()}-${crypto.randomBytes(3).toString('hex')}@example.test`;
       const password = `${crypto.randomBytes(12).toString('base64url')}Aa1!`;
@@ -169,7 +169,7 @@ test.describe('Keycloak theme', () => {
         expect(prompts, 'the user is never asked for a label').toEqual([]);
         const labels = await getUserCredentialLabels(email, 'webauthn-passwordless');
         expect(labels).toHaveLength(1);
-        expect(labels[0]).toMatch(/^[A-Za-z][A-Za-z ]+ on [A-Za-z]+ \(\d{4}-\d{2}-\d{2}\)$/);
+        expect(labels[0]).toMatch(/^[A-Za-z][A-Za-z ]+ on [A-Za-z]+ \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)$/);
         expect(labels[0]).not.toMatch(/Default Label/i);
       } finally {
         await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => {});

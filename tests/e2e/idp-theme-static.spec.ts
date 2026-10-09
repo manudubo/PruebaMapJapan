@@ -8,6 +8,7 @@ import {
   buildPasskeyLabel,
   detectDevice,
   formatLabelDate,
+  formatLabelStamp,
   installDeviceLabel,
 } from '../../keycloak/themes/japan-trip/login/resources/js/passkey-label.js';
 
@@ -33,7 +34,7 @@ const read = (file: string) => fs.readFileSync(path.join(LOGIN, file), 'utf-8');
 
 /** 8 Oct 2026, built from local components: the label uses the device's local date. */
 const NOW = new Date(2026, 9, 8, 13, 45);
-const SUFFIX = ' (2026-10-08)';
+const SUFFIX = ' (2026-10-08 13:45)';
 
 const UA = {
   chromeAndroid:
@@ -168,7 +169,7 @@ test.describe('passkey label generator', () => {
     }
 
     test('no arguments at all still gives a dated label', () => {
-      expect(buildPasskeyLabel()).toMatch(/^Passkey \(\d{4}-\d{2}-\d{2}\)$/);
+      expect(buildPasskeyLabel()).toMatch(/^Passkey \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)$/);
     });
 
     test('only the system known: "Passkey on Linux"', () => {
@@ -180,11 +181,22 @@ test.describe('passkey label generator', () => {
     });
   });
 
-  test.describe('date suffix', () => {
-    test('is local, zero-padded and unique per day', () => {
-      expect(labelOf(UA.safariIphone, { now: new Date(2026, 0, 5, 23, 59) })).toBe('Safari on iPhone (2026-01-05)');
-      expect(labelOf(UA.safariIphone, { now: new Date(2026, 11, 31, 0, 0) })).toBe('Safari on iPhone (2026-12-31)');
+  test.describe('date and time suffix', () => {
+    test('is local, zero-padded and unique per minute', () => {
+      expect(labelOf(UA.safariIphone, { now: new Date(2026, 0, 5, 23, 59) })).toBe('Safari on iPhone (2026-01-05 23:59)');
+      expect(labelOf(UA.safariIphone, { now: new Date(2026, 11, 31, 0, 0) })).toBe('Safari on iPhone (2026-12-31 00:00)');
       expect(labelOf(UA.safariIphone, { now: new Date(2026, 9, 8) })).not.toBe(labelOf(UA.safariIphone, { now: new Date(2026, 9, 9) }));
+      // the owner's case: two passkeys on one phone on one day used to collide
+      expect(labelOf(UA.chromeAndroid, { now: new Date(2026, 9, 9, 14, 41) })).toBe('Chrome on Android (2026-10-09 14:41)');
+      expect(labelOf(UA.chromeAndroid, { now: new Date(2026, 9, 9, 9, 5) })).not.toBe(labelOf(UA.chromeAndroid, { now: new Date(2026, 9, 9, 9, 6) }));
+    });
+
+    test('formatLabelStamp is date, space, 24-hour time; empty for anything that is not a valid Date', () => {
+      expect(formatLabelStamp(new Date(2026, 9, 9, 0, 0))).toBe('2026-10-09 00:00');
+      expect(formatLabelStamp(new Date(2026, 9, 9, 23, 59, 59))).toBe('2026-10-09 23:59');
+      expect(formatLabelStamp(new Date(NaN))).toBe('');
+      expect(formatLabelStamp(undefined as unknown as Date)).toBe('');
+      expect(formatLabelStamp('2026-10-09 14:41' as unknown as Date)).toBe('');
     });
 
     test('formatLabelDate rejects everything that is not a valid Date', () => {
@@ -274,6 +286,8 @@ test.describe('passkey label generator', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('installDeviceLabel', () => {
+  // a usable but empty localStorage (a blocked one gets a random suffix: idp-passkey-labels-static.spec.ts)
+  const NO_MEMORY = { getItem: () => null, setItem: () => undefined };
   function fakePage(errorValue = '') {
     const listeners: Record<string, (() => void)[]> = {};
     const fields: Record<string, { value: string }> = {
@@ -292,15 +306,15 @@ test.describe('installDeviceLabel', () => {
 
   test("window.prompt answers with the device label and ignores Keycloak's default text", () => {
     const { form, win, prompts } = fakePage();
-    installDeviceLabel({ form: form as never, window: win as never, navigator: nav as never });
+    installDeviceLabel({ form: form as never, window: win as never, navigator: nav as never, storage: NO_MEMORY as never });
     const answer = win.prompt('Please input your registered Passkey\'s label', 'Passkey (Default Label)');
-    expect(answer).toMatch(/^Chrome on Android \(\d{4}-\d{2}-\d{2}\)$/);
+    expect(answer).toMatch(/^Chrome on Android \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)$/);
     expect(prompts, 'the native prompt must never be shown').toHaveLength(0);
   });
 
   test('the hidden authenticatorLabel field is filled on submit', () => {
     const { form, win, fields, listeners } = fakePage();
-    installDeviceLabel({ form: form as never, window: win as never, navigator: nav as never });
+    installDeviceLabel({ form: form as never, window: win as never, navigator: nav as never, storage: NO_MEMORY as never });
     expect(listeners['submit']).toHaveLength(1);
     listeners['submit']![0]!();
     expect(fields['#authenticatorLabel']!.value).toMatch(/^Chrome on Android \(/);
@@ -308,7 +322,7 @@ test.describe('installDeviceLabel', () => {
 
   test('a failed registration (error field set) does not get a label', () => {
     const { form, win, fields, listeners } = fakePage('NotAllowedError');
-    installDeviceLabel({ form: form as never, window: win as never, navigator: nav as never });
+    installDeviceLabel({ form: form as never, window: win as never, navigator: nav as never, storage: NO_MEMORY as never });
     listeners['submit']![0]!();
     expect(fields['#authenticatorLabel']!.value).toBe('');
   });
@@ -319,9 +333,10 @@ test.describe('installDeviceLabel', () => {
       form: form as never,
       window: win as never,
       navigator: undefined as never,
+      storage: NO_MEMORY as never,
       text: { joiner: 'en', fallback: 'Clave de acceso' },
     });
-    expect(label()).toMatch(/^Clave de acceso \(\d{4}-\d{2}-\d{2}\)$/);
+    expect(label()).toMatch(/^Clave de acceso \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)$/);
   });
 });
 
@@ -573,6 +588,7 @@ test.describe('theme CSS', () => {
     // ids and message keys that merely start with jp-
     const notClasses = new Set([
       'jp-passkey-recovery-link', 'jp-error-action', 'jp-error-details', 'jp-error-original', // element ids
+      'jp-passkey-error', 'jp-passkey-error-text', // element ids of webauthn-error.ftl
       'jp-passkey', 'jp-passkey-button', 'jp-passkey-continue', 'jp-passkey-other', 'jp-passkey-alt-status',
     ]);
     const unstyled = [...used].filter((c) => !notClasses.has(c) && !styled.has(c));

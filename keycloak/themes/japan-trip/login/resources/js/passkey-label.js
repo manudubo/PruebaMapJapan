@@ -1,4 +1,10 @@
-// Passkey labels come from the device, not from the user: "Chrome on Android (2026-10-08)".
+// Passkey labels come from the device, not from the user: "Chrome on Android (2026-10-08 13:45)".
+//
+// Keycloak refuses a second credential with the same label for a user ("Device already exists
+// with the same name"), and the registration page is not told the labels that already exist.
+// So the label carries the local minute, and when this browser already issued a label in the
+// same minute (or the page is a retry after an error) it gets a short suffix: "... 13:45 #2"
+// or "... 13:45 #k7".
 //
 // Keycloak's webauthnRegister.js asks the user for a label with window.prompt(); this module
 // replaces that question (see installDeviceLabel and webauthn-register.ftl). The functions
@@ -97,11 +103,52 @@ export function detectDevice({ userAgent = '', uaData, maxTouchPoints = 0 } = {}
   return { browser, system };
 }
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
 /** YYYY-MM-DD in the device's local time, or '' for anything that is not a valid Date. */
 export function formatLabelDate(now) {
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) return '';
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+/** YYYY-MM-DD HH:mm in the device's local time (the label's stamp), or '' for an invalid Date. */
+export function formatLabelStamp(now) {
+  const date = formatLabelDate(now);
+  return date ? `${date} ${pad2(now.getHours())}:${pad2(now.getMinutes())}` : '';
+}
+
+// No 0/o/1/l/i: a person may have to read the label out of the account list.
+const SUFFIX_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+/** Two characters ("k7") picked with `random`, a function returning a number in [0, 1). */
+export function randomSuffix(random = Math.random) {
+  let out = '';
+  for (let i = 0; i < 2; i++) {
+    const r = Number(random());
+    const index = Number.isFinite(r) ? Math.floor(Math.abs(r) * SUFFIX_ALPHABET.length) % SUFFIX_ALPHABET.length : 0;
+    out += SUFFIX_ALPHABET[index];
+  }
+  return out;
+}
+
+/**
+ * Which suffix keeps this label apart from the ones this browser already made.
+ *  - same minute as the last label: a counter ("2", "3", ...);
+ *  - a retry after an error (the collision may come from a label this browser does not know,
+ *    e.g. another profile): two random characters;
+ *  - no memory (storage blocked) or no usable clock: two random characters;
+ *  - otherwise none.
+ *
+ * @param {{ stamp: string, last?: { stamp: string, n: number } | null, retry?: boolean, storageKnown?: boolean, random?: () => number }} input
+ * @returns {{ suffix: string, record: { stamp: string, n: number } }} `record` is what to remember
+ */
+export function nextLabelSuffix({ stamp, last = null, retry = false, storageKnown = true, random = Math.random }) {
+  const sameMinute = Boolean(stamp) && Boolean(last) && last.stamp === stamp && Number.isInteger(last.n) && last.n >= 1;
+  const n = sameMinute ? last.n + 1 : 1;
+  let suffix = '';
+  if (retry || !storageKnown || !stamp) suffix = randomSuffix(random);
+  else if (n > 1) suffix = String(n);
+  return { suffix, record: { stamp, n } };
 }
 
 function clean(text) {
@@ -122,17 +169,20 @@ function truncate(text, max) {
 }
 
 /**
- * Label for a new passkey: "<browser> on <system> (<date>)", e.g. "Safari on iPhone (2026-10-08)".
- * The date keeps two passkeys from the same device and browser apart in the account list.
- * With only the system known it is "Passkey on Linux (<date>)", with only the browser
- * "Chrome (<date>)", with neither "Passkey (<date>)"; with no usable date, the date and its
- * parentheses are left out. Never empty, never longer than `maxLength`.
+ * Label for a new passkey: "<browser> on <system> (<date> <time>[ #<suffix>])", e.g.
+ * "Safari on iPhone (2026-10-08 13:45)". The local minute keeps passkeys from the same device
+ * and browser apart in the account list; `suffix` separates two made in the same minute.
+ * With only the system known it is "Passkey on Linux (<stamp>)", with only the browser
+ * "Chrome (<stamp>)", with neither "Passkey (<stamp>)"; with no usable date the stamp is left
+ * out (and the parentheses too, unless there is a suffix). Never empty, never longer than
+ * `maxLength`.
  *
  * @param {object} [options]
  * @param {string} [options.userAgent]    navigator.userAgent
  * @param {object} [options.uaData]       navigator.userAgentData
  * @param {number} [options.maxTouchPoints] navigator.maxTouchPoints
  * @param {Date}   [options.now]          creation time (injected for tests)
+ * @param {string} [options.suffix]       from nextLabelSuffix; at most 8 characters are kept
  * @param {string} [options.joiner]       translated "on"
  * @param {string} [options.fallback]     translated "Passkey"
  * @param {number} [options.maxLength]
@@ -143,6 +193,7 @@ export function buildPasskeyLabel({
   uaData,
   maxTouchPoints = 0,
   now = new Date(),
+  suffix: uniqueness = '',
   joiner = DEFAULT_JOINER,
   fallback = DEFAULT_FALLBACK,
   maxLength = MAX_LABEL_LENGTH,
@@ -156,14 +207,39 @@ export function buildPasskeyLabel({
   else if (system) name = `${generic} ${on} ${system}`;
   else name = generic;
 
-  const date = formatLabelDate(now);
-  const suffix = date ? ` (${date})` : '';
+  const tag = clean(uniqueness).replace(/\s/g, '').slice(0, 8);
+  const inner = [formatLabelStamp(now), tag ? `#${tag}` : ''].filter(Boolean).join(' ');
+  const suffix = inner ? ` (${inner})` : '';
   const requested = Math.floor(Number(maxLength));
   const limit = requested >= 1 ? requested : MAX_LABEL_LENGTH;
-  // The date is the part that makes the label unique: shorten the name, not the date.
+  // The stamp and suffix are what make the label unique: shorten the name, not them.
   const room = Math.max(1, limit - suffix.length);
   const label = `${truncate(name, room)}${suffix}`;
   return truncate(label, limit) || DEFAULT_FALLBACK;
+}
+
+const STORAGE_KEY = 'jp-passkey-label';
+
+/** The last label's record: { ok, last }. ok is false when the storage cannot even be read. */
+function readLast(storage) {
+  try {
+    const parsed = JSON.parse(storage.getItem(STORAGE_KEY) ?? 'null');
+    const valid = parsed && typeof parsed.stamp === 'string' && Number.isInteger(parsed.n) && parsed.n >= 1;
+    return { ok: true, last: valid ? parsed : null };
+  } catch (error) {
+    // a SecurityError is a storage that is not there; bad JSON is a storage that holds rubbish
+    return { ok: error instanceof SyntaxError, last: null };
+  }
+}
+
+/** True when the record was stored. */
+function writeLast(storage, record) {
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(record));
+    return true;
+  } catch {
+    return false; // blocked or full: the next label cannot count
+  }
 }
 
 /**
@@ -172,23 +248,56 @@ export function buildPasskeyLabel({
  *    (webauthnRegister.js calls it right after navigator.credentials.create);
  *  - the hidden "authenticatorLabel" field is set again on submit, so a Keycloak that stops
  *    prompting still gets a label.
+ * The label is made once per page, when first needed, and remembered (localStorage) so the next
+ * one in the same minute differs. A form marked data-retry="true" (Keycloak's "Try again" after
+ * an error, e.g. a name collision) always gets a fresh random suffix.
  *
  * @param {object} env
  * @param {HTMLFormElement} env.form          the #register form
  * @param {Window} env.window
  * @param {Navigator} env.navigator
  * @param {{ joiner?: string, fallback?: string }} [env.text]
+ * @param {Storage | null} [env.storage]      defaults to window.localStorage (may be blocked)
+ * @param {() => Date} [env.now]
+ * @param {() => number} [env.random]
  * @returns {{ label: () => string }}
  */
-export function installDeviceLabel({ form, window: win, navigator: nav, text = {} }) {
-  const label = () =>
-    buildPasskeyLabel({
+export function installDeviceLabel({ form, window: win, navigator: nav, text = {}, storage, now = () => new Date(), random }) {
+  let made = null;
+  const label = () => {
+    if (made !== null) return made;
+    let store = storage;
+    if (store === undefined) {
+      try {
+        store = win.localStorage;
+      } catch {
+        store = null;
+      }
+    }
+    const when = now();
+    const dice = random ?? (() => Math.random());
+    const memory = store ? readLast(store) : { ok: false, last: null };
+    const next = nextLabelSuffix({
+      stamp: formatLabelStamp(when),
+      last: memory.last,
+      retry: form.dataset?.retry === 'true',
+      storageKnown: memory.ok,
+      random: dice,
+    });
+    // A memory that cannot be written is no memory: do not trust the counter's silence.
+    let suffix = next.suffix;
+    if (store && !writeLast(store, next.record) && !suffix) suffix = randomSuffix(dice);
+    made = buildPasskeyLabel({
       userAgent: nav?.userAgent,
       uaData: nav?.userAgentData,
       maxTouchPoints: nav?.maxTouchPoints,
+      now: when,
+      suffix,
       joiner: text.joiner,
       fallback: text.fallback,
     });
+    return made;
+  };
 
   win.prompt = () => label();
 
