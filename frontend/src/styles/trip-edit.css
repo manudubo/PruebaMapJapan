@@ -255,6 +255,25 @@
 .te-more > :not(summary) { margin: 14px; }
 .te-more[hidden] { display: none; }
 
+/* Day colour picker (Day options): 8 round swatches, the checked one is ringed. */
+.te-day-colors { border: 0; padding: 0; }
+.te-day-colors legend { font-size: 14px; font-weight: 500; padding: 0; margin-bottom: 8px; }
+.te-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.te-swatch {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--swatch);
+  border: 2px solid var(--jp-surface);
+  box-shadow: 0 0 0 1px var(--jp-border-strong);
+  cursor: pointer;
+}
+.te-swatch:checked { box-shadow: 0 0 0 3px var(--jp-text); }
+.te-swatch:focus-visible { outline: 2px solid var(--jp-accent-solid); outline-offset: 3px; }
+
 .te-empty {
   padding: 20px;
   border: 1px dashed var(--jp-border-strong);
@@ -589,6 +608,8 @@ button.te-num-btn:disabled { cursor: default; }
   .te-icon-btn { width: 44px; height: 44px; min-height: 44px; }
   .place-clear { width: 44px; height: 44px; right: 0; }
   .te-act-name, .te-act-time, .te-hotel-card input { min-height: 44px; }
+  .te-swatch { width: 44px; height: 44px; }
+  .te-swatches { gap: 6px; }
   .te-row-actions { gap: 2px; }
   .te-act-main { gap: 2px; }
 }

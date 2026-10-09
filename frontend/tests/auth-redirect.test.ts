@@ -57,6 +57,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('the silent SSO check never falls back to a full-page prompt=none redirect', () => {
+  it.each(['index.html', 'trip-edit.html?tripId=3', 'trip.html?tripId=1&destIndex=2'])(
+    'init on %s uses the silent page and disables the page-redirect fallback',
+    async (path) => {
+      at(path);
+      await auth.initKeycloak();
+      const options = (h.instances[0] as unknown as { init: { mock: { calls: Array<[Record<string, unknown>]> } } })
+        .init.mock.calls[0]![0];
+      expect(options['silentCheckSsoFallback']).toBe(false);
+      expect(String(options['silentCheckSsoRedirectUri'])).toMatch(/silent-check-sso\.html$/);
+      expect(options['onLoad']).toBe('check-sso');
+    },
+  );
+});
+
 describe('loginRedirectUri: only registered pages go to Keycloak', () => {
   it('trip-edit.html?tripId=12 → dashboard.html, the real target is remembered', () => {
     expect(auth.loginRedirectUri(page('trip-edit.html?tripId=12'))).toBe(page('dashboard.html'));

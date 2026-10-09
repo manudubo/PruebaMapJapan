@@ -275,6 +275,12 @@ function startAttempt(): Promise<boolean> {
   const p = kc.init({
     onLoad: 'check-sso',
     silentCheckSsoRedirectUri: silentCheckSsoRedirectUri(),
+    // When the hidden iframe cannot answer (iOS and other browsers that block third-party
+    // storage), keycloak-js would otherwise redirect the whole page with prompt=none and the
+    // CURRENT url as redirect_uri, which is rarely a registered one (the app root, or a page
+    // with a query like trip-edit.html?tripId=3): "Invalid parameter: redirect_uri". The user
+    // simply stays signed out and uses Sign in.
+    silentCheckSsoFallback: false,
     pkceMethod: 'S256',
     responseMode: 'fragment',
     checkLoginIframe: false,

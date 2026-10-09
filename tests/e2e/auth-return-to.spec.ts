@@ -41,7 +41,8 @@ test.describe('@qa-noauth sign-in returns to the page it started from', () => {
     // The user signs in at Keycloak, which redirects to that registered page with a code.
     await completeMockLogin(page, authorizeUrl);
 
-    await expect(page).toHaveURL(/\/PruebaMapJapan\/trip-edit\.html\?tripId=42$/);
+    // the editor adds its own #step hash once it has loaded, so accept it but require the query
+    await expect(page).toHaveURL(/\/PruebaMapJapan\/trip-edit\.html\?tripId=42(#.*)?$/);
     await expect(page.locator('#te-workspace')).toBeVisible();
   });
 

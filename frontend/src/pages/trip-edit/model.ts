@@ -158,6 +158,8 @@ export const MAX_CHIP_DAYS = 90;
 
 /** Marker palette shared with the demo; one colour per day, cycling. */
 export const DAY_COLORS = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'];
+/** Accessible names of the palette, in the same order (the day-colour picker). */
+export const DAY_COLOR_NAMES = ['Red', 'Orange', 'Yellow', 'Green', 'Sky blue', 'Blue', 'Purple', 'Pink'] as const;
 export function dayColor(index: number): string {
   return DAY_COLORS[((index % DAY_COLORS.length) + DAY_COLORS.length) % DAY_COLORS.length]!;
 }

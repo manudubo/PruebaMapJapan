@@ -52,6 +52,21 @@ test.describe('@qa-noauth landing overview map', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the return stay in Tokyo (8) does not hide stop 1: no two markers overlap', async ({ page }) => {
+    await open(page);
+    await page.locator('#map').scrollIntoViewIfNeeded();
+    await expect(markers(page)).toHaveCount(8);
+    const boxes = await markers(page).evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y, w: r.width, h: r.height })));
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        const overlap = a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1;
+        expect(overlap, `markers ${i + 1} and ${j + 1} overlap`).toBe(false);
+      }
+    }
+  });
+
   test('click a marker: popup with dates and a link that opens the city page under the base path', async ({ page }) => {
     await open(page);
     await page.locator('#map').scrollIntoViewIfNeeded();

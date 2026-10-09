@@ -105,3 +105,34 @@ test.describe('The journey: create -> cities -> days -> places -> preview -> sha
     await expect(page.locator('#activity-list > li').nth(1).locator('.te-tag--option')).toBeVisible();
   });
 });
+
+test.describe('Day colour', () => {
+  const kyoto = emptyTrip({
+    destinations: [{
+      id: 12, trip_id: 1, city_name: 'Kyoto', country: 'Japan', start_date: '2026-02-24', end_date: '2026-02-26',
+      lat: 35.0116, lng: 135.7681, zoom_level: 12, order_index: 0, hotel: null,
+      days: [{
+        id: 21, date: '2026-02-25', label: null, color_hex: '#ff9500', order_index: 0,
+        activities: [{ id: 31, name: 'Kinkaku-ji', lat: 35.0394, lng: 135.7292, notes: null, time: null, maps_url: null, is_optional: false, is_generic: false, order_index: 0 }],
+      }],
+    }],
+  });
+
+  test('the demo hand-picks a colour per day: the user can too, and it is saved and shown everywhere', async ({ page }) => {
+    const store = await openEditor(page, kyoto, {}, '#city/12/2026-02-25');
+    await page.locator('#day-options summary').click();
+    await expect(page.getByRole('radio', { name: 'Orange' })).toBeChecked();
+
+    await page.getByRole('radio', { name: 'Purple' }).check();
+    const purple = 'rgb(175, 82, 222)';
+    await expect(page.locator('#day-chips .day-btn.active .te-day-dot')).toHaveCSS('background-color', purple);
+    await expect(page.locator('#activity-list .te-num')).toHaveCSS('background-color', purple);
+    await expect(page.locator('#map .numbered-marker')).toHaveCSS('background-color', purple);
+    await saved(page);
+    expect(store.writes('PATCH').filter((c) => c.path === '/trips/1/destinations/12/days/21').map((c) => c.body)).toEqual([{ color_hex: '#af52de' }]);
+
+    await page.reload();
+    await page.locator('#day-options summary').click();
+    await expect(page.getByRole('radio', { name: 'Purple' })).toBeChecked();
+  });
+});
