@@ -1,5 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Phone specs (mobile-*.spec.ts) run only in the `mobile*` projects below: they set their own
+// viewports and assume touch input, so running them on the desktop projects would be meaningless.
+const MOBILE_SPECS = '**/mobile-*.spec.ts';
+
+// Engine for the iPhone project. The device descriptor (viewport, DPR, touch, user agent) is the
+// iPhone 13's either way; only the engine differs. CI installs chromium only, so the default is
+// chromium; run `MOBILE_ENGINE=webkit npx playwright test --project=mobile` on a machine with
+// `npx playwright install webkit` for the closest thing to iOS Safari that runs off-device.
+const MOBILE_ENGINE = process.env.MOBILE_ENGINE === 'webkit' ? 'webkit' : 'chromium';
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
@@ -24,7 +34,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
       },
-      testIgnore: ['**/passkeys.spec.ts'],
+      testIgnore: ['**/passkeys.spec.ts', MOBILE_SPECS],
     },
     {
       name: 'firefox',
@@ -34,7 +44,7 @@ export default defineConfig({
       },
       // idp-config: static file checks; idp-hardening: mostly raw HTTP against Keycloak.
       // Both are browser-independent, so they run once (chromium).
-      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts', '**/idp-hardening.spec.ts'],
+      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts', '**/idp-hardening.spec.ts', MOBILE_SPECS],
     },
     {
       name: 'webkit',
@@ -42,7 +52,19 @@ export default defineConfig({
         ...devices['Desktop Safari'],
         ...(process.env.SKIP_REAL_AUTH ? {} : { storageState: '.auth/user.json' }),
       },
-      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts', '**/idp-hardening.spec.ts'],
+      testIgnore: ['**/passkeys.spec.ts', '**/idp-config.spec.ts', '**/idp-hardening.spec.ts', MOBILE_SPECS],
+    },
+    {
+      // iPhone 13 (390x664 @3x, touch, mobile UA) - see MOBILE_ENGINE for the engine actually used.
+      name: 'mobile',
+      testMatch: [MOBILE_SPECS],
+      use: { ...devices['iPhone 13'], defaultBrowserType: MOBILE_ENGINE, browserName: MOBILE_ENGINE },
+    },
+    {
+      // Pixel 7 on Chromium: the native Android Chrome engine (touch, 412x839 @2.6x, mobile UA).
+      name: 'mobile-android',
+      testMatch: [MOBILE_SPECS],
+      use: { ...devices['Pixel 7'] },
     },
     {
       name: 'chromium-passkeys',

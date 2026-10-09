@@ -47,14 +47,50 @@ function watchTileFailures(container: HTMLElement, layer: L.TileLayer): void {
   });
 }
 
+const HINT_CLASS = 'map-gesture-hint';
+
+/** True on phones/tablets, where one finger must scroll the page rather than drag the map. */
+export function isTouchPrimary(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+}
+
+/**
+ * Scroll-hijack guard for touch screens. A map that fills the width of a phone captures every
+ * vertical swipe that starts on it, so the page cannot be scrolled past it. With one-finger
+ * dragging off, Leaflet leaves `touch-action: pan-x pan-y` on the container (the browser scrolls
+ * the page) while its pinch handler still pans and zooms with two fingers. A one-finger drag
+ * shows a short hint so the behaviour is discoverable.
+ */
+function guardTouchScroll(map: L.Map): void {
+  const el = map.getContainer();
+  let timer: number | undefined;
+  el.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1 || el.querySelector(`.${HINT_CLASS}`)) return;
+    const hint = document.createElement('p');
+    hint.className = HINT_CLASS;
+    hint.setAttribute('role', 'status');
+    hint.textContent = 'Use two fingers to move the map';
+    el.appendChild(hint);
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => hint.remove(), 1600);
+  }, { passive: true });
+}
+
 export function createBaseMap(
   container: string | HTMLElement,
   center: L.LatLngExpression,
   zoom: number,
   options: L.MapOptions = {},
 ): BaseMap {
-  const map = L.map(container, { zoomControl: true, attributionControl: true, keyboard: true, ...options })
-    .setView(center, zoom);
+  const touch = isTouchPrimary();
+  const map = L.map(container, {
+    zoomControl: true,
+    attributionControl: true,
+    keyboard: true,
+    dragging: !touch,
+    ...options,
+  }).setView(center, zoom);
+  if (touch && options.dragging === undefined) guardTouchScroll(map);
   // Keep the Leaflet credit but drop its decorative flag SVG; the OSM credit comes from the layer.
   map.attributionControl?.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
   const tileLayer = createTileLayer();
