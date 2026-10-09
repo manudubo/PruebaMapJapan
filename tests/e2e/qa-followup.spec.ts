@@ -369,7 +369,7 @@ test.describe('@qa-noauth auth-gated pages when Keycloak is unreachable', () => 
       await expect(state.getByRole('heading', { level: 1, name: "Can't reach the sign-in service" })).toBeVisible();
       await expect(state.getByRole('alert')).toBeVisible();
       await expect(state.getByRole('button', { name: 'Retry' })).toBeVisible();
-      await expect(state.getByRole('link', { name: 'Back to home' })).toHaveAttribute('href', /index\.html$/);
+      await expect(state.getByRole('link', { name: 'Back to home' })).toHaveAttribute('href', /index\.html(\?home)?$/);
       await expect(page.locator('#auth-pending')).toHaveCount(0);
       // Exactly one visible h1 (the page's own heading is hidden behind the state).
       const h1s = await page.locator('main h1:visible').count();
@@ -497,7 +497,7 @@ test.describe('@qa-noauth signed-in dashboard (fake IdP + API)', () => {
     const api = await openCreateForm(page);
     await page.locator('#create-trip-form [type="submit"]').dblclick();
     await page.locator('#create-trip-form [type="submit"]').click({ force: true, noWaitAfter: true }).catch(() => {});
-    await page.waitForURL(/trip\.html\?tripId=101/, { timeout: 8000 });
+    await page.waitForURL(/trip-edit\.html\?tripId=101/, { timeout: 8000 });
     expect(api.tripPosts).toBe(1);
   });
 
@@ -505,7 +505,7 @@ test.describe('@qa-noauth signed-in dashboard (fake IdP + API)', () => {
     const api = await openCreateForm(page);
     await page.locator('#trip-name').focus();
     for (let i = 0; i < 4; i++) await page.keyboard.press('Enter', { delay: 0 });
-    await page.waitForURL(/trip\.html\?tripId=101/, { timeout: 8000 });
+    await page.waitForURL(/trip-edit\.html\?tripId=101/, { timeout: 8000 });
     expect(api.tripPosts).toBe(1);
   });
 

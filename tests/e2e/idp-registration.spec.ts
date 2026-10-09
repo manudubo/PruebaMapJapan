@@ -428,6 +428,9 @@ test.describe('Self-registration (REG-01..07)', () => {
         const p = await phone.newPage();
         const { cdp } = await addVirtualAuthenticator(p);
         const phoneCodes = trackCodes(p);
+        // Only the code in the redirect matters; serving the app would let its dashboard request
+        // an e-mail code and race the explicit request below (429 cooldown).
+        await p.route(`${REDIRECT_URI}**`, (route) => route.abort());
         const signup = pkce();
         await p.goto(registrationUrl(signup.challenge));
         await fillRegistration(p, email);
@@ -478,6 +481,9 @@ test.describe('Self-registration (REG-01..07)', () => {
         const p = await squatter.newPage();
         const { cdp } = await addVirtualAuthenticator(p);
         const codes = trackCodes(p);
+        // Only the code in the redirect matters; serving the app would let its dashboard request
+        // an e-mail code and race the explicit request below (429 cooldown).
+        await p.route(`${REDIRECT_URI}**`, (route) => route.abort());
         const signup = pkce();
         await p.goto(registrationUrl(signup.challenge));
         await fillRegistration(p, email);

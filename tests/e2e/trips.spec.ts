@@ -220,7 +220,7 @@ test.describe('Create trip form', () => {
     await page.locator('#trip-end').fill('2027-04-02');
     await page.locator('#create-trip-form button[type="submit"]').click();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     const post = calls.find((c) => c.method === 'POST' && c.path === '/trips');
     expect(post?.body).toEqual({
       name: 'New Test Trip',
@@ -238,7 +238,7 @@ test.describe('Create trip form', () => {
     await page.locator('#trip-name').fill('Minimal');
     await page.locator('#create-trip-form button[type="submit"]').click();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     const post = calls.find((c) => c.method === 'POST' && c.path === '/trips');
     expect(post?.body).toMatchObject({ name: 'Minimal', description: null, start_date: null, end_date: null });
   });
@@ -300,7 +300,7 @@ test.describe('Create trip form', () => {
     const submit = page.locator('#create-trip-form button[type="submit"]');
     await submit.dblclick();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     expect(calls.filter((c) => c.method === 'POST' && c.path === '/trips')).toHaveLength(1);
   });
 
@@ -312,7 +312,7 @@ test.describe('Create trip form', () => {
     await page.locator('#trip-name').fill(nasty);
     await page.locator('#create-trip-form button[type="submit"]').click();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ name: nasty });
   });
 

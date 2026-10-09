@@ -126,6 +126,19 @@ export const SEARCH_BAR_CSS = `
         .search-container.has-value .clear-btn {
           display: flex;
         }
+
+        /* Touch: the 28px clear button becomes a full 44px target flush with the field's edge. */
+        @media (pointer: coarse) {
+          .clear-btn {
+            inset-inline-end: 0;
+            width: 44px;
+            height: 44px;
+            background: transparent;
+          }
+          .search-container.has-value .search-input {
+            padding-inline-end: 44px;
+          }
+        }
         
         .clear-btn svg {
           width: 14px;

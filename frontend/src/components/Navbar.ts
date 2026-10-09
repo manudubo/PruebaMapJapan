@@ -328,8 +328,39 @@ class TravelNav extends HTMLElement {
             display: inline;
           }
         }
+
+        /* Touch screens: 44px targets (this lives in a shadow root, so main.css cannot reach it). */
+        @media (pointer: coarse) {
+          .nav-brand,
+          .nav-link,
+          .nav-auth-user,
+          .theme-toggle {
+            min-height: 44px;
+            min-width: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .nav-auth-user { padding: 0 8px; }
+        }
+
+        /* A trip's cities need the full width to be reachable: on a phone they get their own
+           scrolling row under the brand / account / theme buttons instead of a 60px sliver. */
+        @media (max-width: 600px) {
+          nav.has-dest .nav-inner { flex-wrap: wrap; height: auto; min-height: 56px; padding-block: 4px; }
+          nav.has-dest .top-nav { order: 3; flex: 1 1 100%; }
+          nav.has-dest .nav-auth { margin-left: auto; }
+        }
+
+        /* Narrower than ~400px even the single "My Trips" link is cut off beside the account
+           buttons (Test, Sign out, theme), so the links drop to their own row there too. */
+        @media (max-width: 400px) {
+          .nav-inner { flex-wrap: wrap; height: auto; min-height: 56px; padding-block: 4px; }
+          .top-nav { order: 3; flex: 1 1 100%; }
+          .nav-auth { margin-left: auto; }
+        }
       </style>
-      <nav role="navigation" aria-label="Main navigation">
+      <nav role="navigation" aria-label="Main navigation" class="${this.destinations.length > 0 ? 'has-dest' : ''}">
         <div class="nav-inner">
           <a href="${HOME_HREF}" class="nav-brand" aria-label="Go to home">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
