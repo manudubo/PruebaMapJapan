@@ -110,9 +110,10 @@ test.describe('Registration through the built frontend (real Keycloak, backend, 
       await expect(v.digits).toHaveCount(6);
       // The screen asked for the code on its own; the resend button is on cooldown.
       await expect(v.resend).toBeDisabled();
-      expect(statuses.filter((s) => s.path === '/api/auth/email-verify/request')).toEqual([
-        { path: '/api/auth/email-verify/request', status: 201 },
-      ]);
+      // The cooldown starts on click; the response lands a moment later, so poll for it.
+      await expect
+        .poll(() => statuses.filter((s) => s.path === '/api/auth/email-verify/request'))
+        .toEqual([{ path: '/api/auth/email-verify/request', status: 201 }]);
       expect(await kcAdmin.credentialTypes(email)).toEqual(['webauthn-passwordless']);
 
       const code = await mailedCode(page, email, /confirm/i);
