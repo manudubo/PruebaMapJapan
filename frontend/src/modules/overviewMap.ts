@@ -106,7 +106,8 @@ export interface OverviewMapOptions {
 
 /** The demo's overview: every city of the static itinerary. */
 export function initOverviewMap(container: HTMLElement, list: HTMLElement | null): OverviewMap {
-  return createOverviewMap(getOverviewStops(), container, list);
+  // declutter: the return stay in Tokyo sits ~1 km from stop 1 and would hide it at the overview zoom
+  return createOverviewMap(getOverviewStops(), container, list, { declutter: true });
 }
 
 /**
