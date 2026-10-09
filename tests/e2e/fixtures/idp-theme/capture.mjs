@@ -45,14 +45,18 @@ async function mkUser(label, requiredActions = []) {
     credentials: [{ type: 'password', value: PW, temporary: false }],
   });
   created.push(email);
+  // Keycloak adds the realm's default required actions (create a passkey) to a new user, and
+  // that step would come before the one a snapshot is about to show: set exactly the wanted ones.
+  const [user] = await (await admin('GET', `/users?username=${encodeURIComponent(email)}&exact=true`)).json();
+  await admin('PUT', `/users/${user.id}`, { requiredActions });
   return email;
 }
 
 const browser = await chromium.launch();
 const snaps = [];
-async function snap(page, name) {
+async function snap(page, name, served) {
   await page.waitForLoadState('domcontentloaded');
-  let html = await page.content();
+  let html = served ?? (await page.content());
   html = html
     .replace(/<script[\s\S]*?<\/script>/g, '')
     .replace(/(session_code|tab_id|execution|client_data|kc_locale)=[^&"'\s]+/g, '$1=x')
@@ -75,8 +79,8 @@ async function toPasswordStep(p, email) {
 
 try {
   let { c, p } = await ctx();
-  await p.goto(AUTH);
-  await snap(p, 'username');
+  const served = await (await p.goto(AUTH)).text(); // the server's HTML: the theme script has not touched it
+  await snap(p, 'username', served);
   await p.click('#kc-registration a');
   await snap(p, 'register');
   await c.close();
