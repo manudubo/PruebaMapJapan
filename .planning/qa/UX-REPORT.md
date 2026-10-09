@@ -1,6 +1,6 @@
 # QA report: v3.3 UX & Product Polish
 
-Written 2026-10-09 from the commits, specs and screenshots on the integration branch (`git log 6d4c4f1..HEAD`). Test counts are not restated here because this report was written without re-running the suites; per-ID evidence is in `.planning/phases/TRACEABILITY.md` (section "v3.3"). Three pieces: PR #27 (`c7d54dc`, UX-KC-01..03, UX-NAV-01, UX-SEARCH-01, UX-TRIP-01, UX-TRIP-02), PR #28 (`460a449`, UX-MOB-01) and the passkey-first PR (number pending, PKF-01..04, not merged).
+Written 2026-10-09 from the commits, specs and screenshots on the integration branch (`git log 6d4c4f1..HEAD`). Test counts are not restated here because this report was written without re-running the suites; per-ID evidence is in `.planning/phases/TRACEABILITY.md` (section "v3.3"). Three pieces: PR #27 (`c7d54dc`, UX-KC-01..03, UX-NAV-01, UX-SEARCH-01, UX-TRIP-01, UX-TRIP-02), PR #28 (`460a449`, UX-MOB-01) PR #29 (`38b9108`, PKF-01..04, close-out docs, Navbar XSS regression test), PR #30 (`432aba5`, UX-NAV-02, TEST-PARITY-01) and PR #31 (pending, UX-KC-04).
 
 ## What was validated and how
 
@@ -13,18 +13,24 @@ Written 2026-10-09 from the commits, specs and screenshots on the integration br
 | Trip editor (UX-TRIP-01) | Unit tests of model, store, save queue, place search, views; e2e with a stateful in-memory API fixture (persistence across reload) and a resilience spec that breaks the editor on purpose (XSS strings, end before start, 0/1/60 days, 200 places, geocoder down/empty/slow, 500/422/409, offline mid-edit, double submit, undo, rapid reorder, keyboard and drag, Back, resize, pin dropping) | `trip-edit-*` unit tests, `trip-edit.spec.ts`, `trip-edit-resilience.spec.ts`; screenshots `docs/design/trip-creation-screens/`; critique of two visual rounds in `docs/design/TRIP-CREATION-UX.md` |
 | Trip view and My Trips (UX-TRIP-02) | Overview and city views with one city, many cities, no activities, missing coordinates, very long names, XSS strings, shared (slug) links, 404/403, API down, gateway error, slow API, trip phase (countdown, progress, completed), OSM tiles with attribution, light/dark | `trip-view.spec.ts`, `dashboard-trips.spec.ts`; screenshots `docs/design/trip-view-screens/` |
 | Mobile (UX-MOB-01) | Playwright projects `mobile` (iPhone 13) and `mobile-android` (Pixel 7), Chromium only: layout sweep of every screen 320-430 px, landscape and tablets (no sideways scroll, no clipped control, 44 px targets, 16 px fields), touch journeys, document contracts (viewport meta, manifest, dvh, safe area), dialogs/OTP, reduced motion, dark, enlarged text, offline; `e2e-mobile` CI job | `mobile-layout`, `mobile-touch`, `mobile-platform`, `mobile-screens` specs; matrix `docs/design/MOBILE-COVERAGE.md`; screenshots `docs/design/mobile-screens/` |
+| Demo parity (TEST-PARITY-01) | Rebuilds the demo through the real editor (Kyoto, Osaka, Takayama fully via the UI; all 8 destinations by search; Tokyo, Nagoya, Naoshima, Hakone, Tokyo (return) seeded) and compares it to the demo structurally (gating) and visually (gating at 5% overview / 2% others, same-run diff); normalisations N1-N3 in `tripSnapshot.ts` | `tests/e2e/demo-parity.spec.ts`, fixtures `demoTrip.ts` / `tripSnapshot.ts` / `pixelDiff.ts`, `frontend/tests/demo-roundtrip.test.ts`; screenshots `docs/design/demo-parity/` |
+| iOS `redirect_uri` (UX-NAV-02) | Unit test that keycloak-js is initialised with `silentCheckSsoFallback: false` | `frontend/tests/auth-redirect.test.ts` |
+| Login theme freshness and mobile (UX-KC-04) | Cache-busting asserted on every theme link, asset-version guard, friendly error pages, mobile audit shared by a static spec and a live spec; reproduced the 30-day cache on a real Keycloak 26.6.1 with the production realm | `idp-theme-cache.spec.ts`, `idp-theme-mobile.spec.ts` (60), `idp-theme-mobile-live.spec.ts` (48), `fixtures/idp-theme/mobile-checks.ts`; screenshots `.planning/qa/screens-theme/mobile-real/` |
 | Passkey-first login (PKF-01..04) | Marker unit tests, static contract tests, render tests of the real server HTML with a WebAuthn stand-in, live Keycloak 26.6.1 with a Chromium virtual authenticator including forged assertions and a bare username | `idp-passkey-first-{unit,static,render}.spec.ts`, `idp-passkey-first.spec.ts`, `idp-config.spec.ts`; screenshots `.planning/qa/screens-theme/passkey-first/`; `docs/design/PASSKEY-FIRST-LOGIN.md` |
 
 Screenshot locations: `.planning/qa/screens-theme/` (Keycloak, light/dark x 375/1280, plus `passkey-first/`), `docs/design/trip-view-screens/`, `docs/design/trip-creation-screens/`, `docs/design/mobile-screens/`.
 
 ## Bugs found by the QA passes (all fixed in the PRs)
 
-- Navbar interpolated city names into `innerHTML`: stored XSS from a trip's city name. Escaped in `Navbar.ts` (2c937fa, dbe7782). Covered by a regression test in `signup-entry-points.test.ts` (fails without the escape).
+- Navbar interpolated city names into `innerHTML`: stored XSS from a trip's city name. Escaped in `Navbar.ts` (2c937fa, dbe7782). Covered by a regression test, `frontend/tests/signup-entry-points.test.ts` "city names are user input" (merged in PR #29, `38b9108`; fails without the escape).
 - `template.ftl` passed `ssoLoginInOtherTabsUrl` to `?no_esc` without `kcSanitize` (SEC-11 invariant); found by the guard in `idp-config.spec.ts` (ee45857).
 - The stock "sign out other sessions" checkbox had no `:focus-visible` style in the new theme; found by the render test (d1e33f0).
 - Trips created from the UI had no `order_index`; fixed with the editor rebuild (578d531).
 - Navbar and search live in shadow roots, so `main.css` never gave them 44 px targets; a trip's city links were squeezed into a 60 px sliver (1103e0a). A full-width map swallowed every vertical swipe (8ba6797). The manifest locked portrait (WCAG 1.3.4).
 - Passkey-first: after a passkey answer on the username page the credential step asked again (two Face ID prompts); and **a CONDITIONAL credential subflow fails open on Keycloak 26.6.1** (a bare username got an authorization code). Both fixed with the `passkey-done` ALTERNATIVE branch and pinned by tests (ded6f2f).
+- Demo parity (PR #30) found 3 gaps, all fixed: the day colour could not be chosen in the editor (Day colour swatches, 44 px on coarse pointers; c47d78e, 88e006a), the overview popup of a return stay lacked the city name (c684774), and the demo overview hid stop 8 (declutter, ab42df6). Documented, not fixed (product decision, `EXPECTED_GAPS`): `takayama-option-labels`, the demo shows "1,2,3" and the API only has `is_optional`, so it needs `activities.option_label`.
+- iOS "Invalid parameter: redirect_uri" (PR #30, 39827dd): when the hidden SSO iframe cannot answer (iOS blocks third-party storage) keycloak-js redirected the whole page with `prompt=none` and the CURRENT url as `redirect_uri` (`/PruebaMapJapan/`, `trip-edit.html?tripId=3`), which is not registered. Fixed with `silentCheckSsoFallback: false`; regression test `auth-redirect.test.ts`. Residual: a signed-in iOS user whose iframe is blocked sees the signed-out state until Sign in.
+- Stale login CSS on the owner's iPhone (PR #31, pending): screenshots showed the OLD theme `login.css` (nested `#kc-content` / `#kc-form-wrapper` / `.card-pf` boxes, 40 px indents, overflow) on the NEW templates. Reproduced on a real Keycloak 26.6.1 with the production realm: production serves `/auth/resources/<hash>/login/japan-trip/css/login.css` with `Cache-Control: max-age=2592000` (30 days), and the hash is Keycloak's version hash, not the theme's. `start-dev` says no-cache, so every earlier test (start-dev, or CSS read from disk) was blind to it. Fix: `template.ftl` links every theme stylesheet and script as `?v=${properties.jpAssetVersion}`; `theme.properties` `jpAssetVersion` is a hash of `login/resources`; `node tests/e2e/fixtures/idp-theme/asset-version.mjs --write` refreshes it and a test fails if a resource is edited without it. Also friendly error pages (`error.ftl`: "We couldn't start the sign-in" / "This link has expired" / "Sign-up is closed right now" / "This account is disabled" / generic; details collapsed; Back button from `client.baseUrl`; SEC-11 kept; en + es), mobile CSS tweaks, regenerated snapshots. Proof it failed before: 16 failed on the old theme; 651 theme/passkey/config/flow tests passed locally on Keycloak 26.6.1. Residual: module imports inside `passkey-first.js` (`passkey-device.js`, `passkey-webauthn.js`) are not versioned.
 
 ## CI lessons
 
@@ -38,12 +44,25 @@ Several rounds were needed to get PR #27 green. Rules to keep:
 6. Worktree artefacts do not belong in commits (d5ca9b3: a `tests/node_modules` symlink slipped in).
 7. Specs that need a live backend (`trip-edit-integration`, parts of `csp`, `auth-return-to`) cannot run in CI-without-backend; they were updated to the new selectors but are not exercised there.
 
+Demo-parity lessons (PR #30):
+
+8. **Build with the CI env** (`VITE_API_URL`, `VITE_KEYCLOAK_*`): without it the geocoder bypasses the mock.
+9. **Block font hosts in the visual test.** Google Fonts loads on CI only (3.80% diff on CI vs 0.08% locally).
+10. **The editor adds a `#step` hash**, so URL assertions must allow it.
+11. **New controls go through the mobile sweep**: the Day colour swatches first failed the 44 px touch-target check (88e006a).
+
 ## Not covered / unverified
 
 - **Real devices.** iOS Safari focus zoom and toolbar behaviour, keyboard overlap, the installed PWA, a real swipe over the map, WebAuthn prompts, OTP autofill; no WebKit run. Chromium emulation only (`docs/design/MOBILE-COVERAGE.md`).
 - **Passkey-first on real hardware.** Face ID / Touch ID / Android biometrics, the Safari/iOS user-gesture requirement for a modal `get()` (if it applies, the panel falls back to a one-tap "Continue with passkey"), Firefox, hybrid (QR) passkeys, ITP storage expiry timing, and the `immediate` mediation (named from a draft proposal; if absent the modal prompt runs).
 - Passkey label on non-Chromium browsers; real Nominatim in the editor's place search (the geocode proxy was stubbed).
-- The production Keycloak keeps the old theme until the operator redeploys the image and re-runs `keycloak-apply`.
+- The production Keycloak keeps the old theme until the operator redeploys the image and re-runs `keycloak-apply`. For UX-KC-04 specifically, the Keycloak image must be rebuilt and redeployed (`deploy.sh`); existing browsers get the fix on their next page load because the HTML is no-store and now points at a new URL.
+- **Not verifiable in the sandbox (UX-KC-04, UX-NAV-02):** real iOS/WebKit, a real phone's HTTP cache, the Inter webfont.
+- Optional follow-up: lower Keycloak's theme static max-age at deploy time.
+
+## Operator note: unexpected Terraform plan after the provider bump
+
+`keycloak-apply.sh` on the owner's server planned to destroy and recreate 6 protocol mappers (`profile_username`, `profile_full_name`, `email_claim`, `email_verified`, `avatar_url`, `preferences`) and the recovery service-account role plus scope mapping. Probable cause, not verified: data sources (`terraform/keycloak/mappers.tf` `data "keycloak_openid_client_scope"` profile/email; `terraform/keycloak/main.tf` `data "keycloak_role"` and `data "keycloak_openid_client"` realm_management) reference `keycloak_realm.japan_trip.id` while the realm has a pending change, so Terraform defers them ("known after apply"). Mitigation used on the server: two-step apply (`-target=keycloak_realm.japan_trip`, re-plan expecting 0 destroys and only the 5 `passkey_done*` creates plus the in-place client update, then the full apply). Proposed fix, NOT implemented (todo): make those data sources use the realm NAME (a variable/local that does not depend on the resource) so a single apply works.
 
 ## Known gaps (not fixed)
 
