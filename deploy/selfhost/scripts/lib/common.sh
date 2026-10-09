@@ -77,6 +77,26 @@ check_env_permissions() {
   esac
 }
 
+# Print one string value of config/deploy-defaults.json (python3 is a bootstrap
+# requirement). Fails with a clear message when the file is missing, is not valid
+# JSON or lacks the key, so a broken checkout never silently falls back to a guess.
+deploy_default() {
+  local key="$1" file="${DEPLOY_DEFAULTS_FILE:-$REPO_DIR/config/deploy-defaults.json}" value
+  [ -f "$file" ] || die "$file not found: set $([ "$key" = pagesOrigin ] && echo FRONTEND_ORIGIN || echo FRONTEND_BASE_PATH) in .env, or restore the file (git checkout config/deploy-defaults.json)."
+  value="$(python3 -I -c '
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        v = json.load(f)[sys.argv[2]]
+except (OSError, ValueError, KeyError, TypeError):
+    sys.exit(1)
+if not isinstance(v, str) or not v:
+    sys.exit(1)
+print(v)' "$file" "$key")" \
+    || die "$file is not valid JSON with a non-empty string \"$key\"."
+  printf '%s' "$value"
+}
+
 is_fqdn() {
   [[ "$1" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$ ]]
 }
@@ -90,8 +110,14 @@ derive_config() {
   export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-travelmap}"
   export PROXY_PORT="${PROXY_PORT:-28080}"
   export KC_ADMIN_PORT="${KC_ADMIN_PORT:-28081}"
-  export FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-https://manudubo.github.io}"
-  export FRONTEND_BASE_PATH="${FRONTEND_BASE_PATH:-/PruebaMapJapan}"
+  # Origin and app path come from config/deploy-defaults.json (shared with Terraform,
+  # the backend CORS default and the frontend); .env values still win. The file is
+  # only read when a value is missing.
+  FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-$(deploy_default pagesOrigin)}" || exit 1
+  FRONTEND_BASE_PATH="${FRONTEND_BASE_PATH:-$(deploy_default appBasePath)}" || exit 1
+  # .env style has no trailing slash (the JSON has one: Terraform appends it anyway).
+  FRONTEND_BASE_PATH="${FRONTEND_BASE_PATH%/}"
+  export FRONTEND_ORIGIN FRONTEND_BASE_PATH
   export BACKUP_DIR="${BACKUP_DIR:-$SELFHOST_DIR/backups}"
   export BACKUP_KEEP="${BACKUP_KEEP:-14}"
   local default_hops

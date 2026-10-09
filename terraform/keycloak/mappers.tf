@@ -1,10 +1,14 @@
+# Lookups of Keycloak's built-in objects use the realm NAME (local.realm_name), never
+# keycloak_realm.japan_trip.*: Terraform defers a data source to apply time ("known after
+# apply") whenever a resource it references has a pending change, and everything that
+# uses its id is then destroyed and recreated. See the comment on local.realm_name.
 data "keycloak_openid_client_scope" "profile" {
-  realm_id = keycloak_realm.japan_trip.id
+  realm_id = local.realm_name
   name     = "profile"
 }
 
 data "keycloak_openid_client_scope" "email" {
-  realm_id = keycloak_realm.japan_trip.id
+  realm_id = local.realm_name
   name     = "email"
 }
 

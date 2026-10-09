@@ -283,3 +283,62 @@ variable "e2e_session_password" {
   sensitive   = true
   default     = null
 }
+
+# ---------------------------------------------------------------------------
+# Sessions and "Remember me" (opt-in). Defaults are the previous behaviour: no
+# checkbox, 30 minutes idle, 10 hours max. Longer sessions mean a stolen unlocked
+# phone stays signed in longer; production refuses anything above 90 days (2160h).
+# Recommended if you want the phone to stay signed in: remember_me = true,
+# sso_session_idle_timeout_remember_me = "720h" (30 days),
+# sso_session_max_lifespan_remember_me = "2160h" (90 days). Values are <n>s, <n>m or <n>h
+# (no days), so 30 days is 720h. Cross-checks live in main.tf (realm preconditions).
+# ---------------------------------------------------------------------------
+variable "remember_me" {
+  description = "Show the Remember me checkbox on the login page and use the remember-me lifetimes when it is ticked"
+  type        = bool
+  default     = false
+}
+
+variable "sso_session_idle_timeout" {
+  description = "SSO session idle timeout (<n>s|m|h)"
+  type        = string
+  default     = "30m"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]{0,5}[smh]$", var.sso_session_idle_timeout))
+    error_message = "sso_session_idle_timeout must look like 30m, 10h or 600s (no days: 30 days is 720h)."
+  }
+}
+
+variable "sso_session_max_lifespan" {
+  description = "SSO session max lifespan (<n>s|m|h)"
+  type        = string
+  default     = "10h"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]{0,5}[smh]$", var.sso_session_max_lifespan))
+    error_message = "sso_session_max_lifespan must look like 10h or 600m (no days: 30 days is 720h)."
+  }
+}
+
+variable "sso_session_idle_timeout_remember_me" {
+  description = "Idle timeout when Remember me is ticked (null = not managed; required when remember_me = true)"
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.sso_session_idle_timeout_remember_me == null ? true : can(regex("^[1-9][0-9]{0,5}[smh]$", var.sso_session_idle_timeout_remember_me))
+    error_message = "sso_session_idle_timeout_remember_me must look like 720h (no days: 30 days is 720h)."
+  }
+}
+
+variable "sso_session_max_lifespan_remember_me" {
+  description = "Max lifespan when Remember me is ticked (null = not managed; required when remember_me = true)"
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.sso_session_max_lifespan_remember_me == null ? true : can(regex("^[1-9][0-9]{0,5}[smh]$", var.sso_session_max_lifespan_remember_me))
+    error_message = "sso_session_max_lifespan_remember_me must look like 2160h (no days: 90 days is 2160h)."
+  }
+}
