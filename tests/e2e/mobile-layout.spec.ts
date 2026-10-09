@@ -37,6 +37,8 @@ for (const screen of SCREENS) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       // Each viewport has been applied once layout has settled at that width.
       await expect.poll(() => page.evaluate(() => document.documentElement.clientWidth)).toBe(vp.width);
+      // Two frames: Leaflet re-measures its container on the resize event, then repositions markers.
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(0)))));
       const r = await audit(page);
       if (r.hscroll) scroll.push(`[${vp.label}] scrollWidth ${r.hscroll.scrollWidth} > ${r.hscroll.clientWidth}`);
       seen(clipped, vp.label, r.clipped);

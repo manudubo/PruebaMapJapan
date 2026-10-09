@@ -98,7 +98,15 @@ export async function audit(page: Page, options: AuditOptions = {}): Promise<Aud
       const clipped: { el: string; detail: string }[] = [];
       const vw = document.documentElement.clientWidth;
 
-      for (const e of Array.from(document.querySelectorAll(sel))) {
+      // <travel-nav> and <search-bar> keep their controls in open shadow roots: walk into them.
+      const collect = (root: ParentNode): Element[] => {
+        const out = Array.from(root.querySelectorAll(sel));
+        for (const host of Array.from(root.querySelectorAll('*'))) {
+          if (host.shadowRoot) out.push(...collect(host.shadowRoot));
+        }
+        return out;
+      };
+      for (const e of collect(document)) {
         if (ignored(e) || e.closest('.leaflet-control-attribution')) continue;
         if (e.classList.contains('skip-link')) continue;
         // A "stretched link": its ::after covers the whole card, so the card is the target.
@@ -127,7 +135,7 @@ export async function audit(page: Page, options: AuditOptions = {}): Promise<Aud
           const miss = probes.filter(([x, y]) => {
             if (!inView(x, y)) return false;
             const hit = document.elementFromPoint(x, y);
-            return !hit?.closest('.leaflet-marker-icon, .leaflet-control, .leaflet-popup');
+            return !hit?.closest('.leaflet-marker-icon, .leaflet-control, .leaflet-popup, .leaflet-interactive');
           });
           if (targets && miss.length) smallTargets.push({ el: describe(e), detail: `hit area ${Math.round(r.width)}px, ${miss.length}/4 edge probes land on the map` });
           continue;

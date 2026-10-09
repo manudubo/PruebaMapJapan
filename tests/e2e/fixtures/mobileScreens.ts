@@ -180,6 +180,35 @@ export const SCREENS: Screen[] = [
     },
   },
   {
+    name: 'verify-email',
+    area: 'account',
+    async open(page) {
+      await blockExternal(page);
+      const verification = { verified: false };
+      await page.addInitScript(WEBAUTHN_SUPPORTED);
+      await mockKeycloakLoggedIn(page);
+      await mockAccountCredentials(page, { passkeys: 0, passwords: 1 });
+      await mockApi(page, { trips: [], verification });
+      await mockAuthFlows(page, { code: '123456', verification });
+      await page.goto('dashboard.html');
+      await expect(page.locator('.code-input-digit').first()).toBeVisible();
+    },
+  },
+  {
+    name: 'passkey-dialog',
+    area: 'account',
+    async open(page) {
+      await blockExternal(page);
+      await page.addInitScript(WEBAUTHN_SUPPORTED);
+      await mockKeycloakLoggedIn(page);
+      await mockAccountCredentials(page, { passkeys: 0, passwords: 1 });
+      await mockApi(page, { trips: [], me: { onboarding: { is_new: true } } });
+      await mockAuthFlows(page);
+      await page.goto('dashboard.html');
+      await expect(page.getByRole('dialog')).toBeVisible();
+    },
+  },
+  {
     name: 'editor-trip',
     area: 'editor',
     async open(page) {
