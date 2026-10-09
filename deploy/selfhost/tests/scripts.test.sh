@@ -191,6 +191,122 @@ grep -q 'printf .  "registration_allowed": %s' "$SCRIPTS/keycloak-apply.sh" \
   && ! grep -q 'recaptcha_secret_key"' "$SCRIPTS/keycloak-apply.sh" \
   && t_ok "keycloak-apply.sh: sign-up flag in the tfvars file, captcha secret only in the environment" \
   || t_fail "keycloak-apply.sh: sign-up flag in the tfvars file, captcha secret only in the environment"
+for bad in yes 1 TRUE; do
+  out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@gmail.com REMEMBER_ME=$bad \
+    "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+  expect_eq "keycloak-apply.sh: REMEMBER_ME=$bad refused" 1 "$rc"
+  expect_has "  and says why" "REMEMBER_ME must be true or false" "$out"
+done
+for bad in 30d 0m -5m 1.5h abc 1234567s; do
+  out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@gmail.com SSO_SESSION_MAX_REMEMBER_ME=$bad \
+    "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+  expect_eq "keycloak-apply.sh: session length '$bad' refused" 1 "$rc"
+  expect_has "  and says why" "SSO_SESSION_MAX_REMEMBER_ME must look like" "$out"
+done
+out="$(SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@gmail.com REMEMBER_ME=true \
+  SSO_SESSION_IDLE_REMEMBER_ME=720h "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+expect_eq "keycloak-apply.sh: REMEMBER_ME=true without both lifetimes refused" 1 "$rc"
+expect_has "  and says why" "REMEMBER_ME=true needs SSO_SESSION_IDLE_REMEMBER_ME and SSO_SESSION_MAX_REMEMBER_ME" "$out"
+
+# --- keycloak-apply.sh against stub curl/terraform: tfvars content and the destroy guard ----
+cat > "$WORK/bin/terraform" <<'EOF'
+#!/usr/bin/env bash
+echo "terraform $*" >> "$TF_LOG"
+case "$1" in
+  init) exit 0 ;;
+  state) echo keycloak_realm.japan_trip ;;
+  plan) echo "  # keycloak_realm.japan_trip will be updated in-place" > plan-stub.txt; echo "Plan: 5 to add, 1 to change, 0 to destroy."; exit "${TF_PLAN_RC:-2}" ;;
+  show) cat "$TF_SHOW_JSON" ;;
+  *) exit 0 ;;
+esac
+EOF
+chmod +x "$WORK/bin/terraform"
+export TF_LOG="$WORK/tf.log" TF_SHOW_JSON="$WORK/plan.json" SELFHOST_STATE_DIR="$WORK/state"
+apply_stubbed() { # KEY=VAL... -> output of keycloak-apply.sh --dry-run; sets rc
+  out="$(env PATH="$WORK/bin:$PATH" SMTP_HOST=smtp.gmail.com SMTP_USER=u@gmail.com SMTP_PASS=x EMAIL_FROM=u@gmail.com "$@" \
+    "$SCRIPTS/keycloak-apply.sh" --dry-run 2>&1)"; rc=$?
+}
+plan_json() { # actions-json-per-resource ...: address=action[,action]
+  python3 - "$@" <<'PY' > "$TF_SHOW_JSON"
+import json, sys
+rcs = []
+for a in sys.argv[1:]:
+    addr, acts = a.split("=")
+    rcs.append({"address": addr, "change": {"actions": acts.split(",")}})
+print(json.dumps({"resource_changes": rcs}))
+PY
+}
+tfvars="$WORK/state/terraform/keycloak/production.auto.tfvars.json"
+
+plan_json keycloak_realm.japan_trip=update keycloak_authentication_flow.passkey=create keycloak_openid_user_property_protocol_mapper.email_claim=no-op
+apply_stubbed
+expect_eq "destroy guard: create/update/no-op plan passes" 0 "$rc"
+expect_has "  and is only a dry run" "Dry run" "$out"
+expect_eq "tfvars: remember_me defaults to false" false "$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["remember_me"]).lower())' "$tfvars")"
+expect_eq "tfvars: no session lifetimes unless set in .env" 0 "$(grep -c sso_session "$tfvars")"
+expect_eq "tfvars: app_origins and base path come from config/deploy-defaults.json" \
+  "https://manudubo.github.io /PruebaMapJapan/" \
+  "$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["app_origins"][0], d["app_base_path"])' "$tfvars")"
+
+apply_stubbed REMEMBER_ME=true SSO_SESSION_IDLE_REMEMBER_ME=720h SSO_SESSION_MAX_REMEMBER_ME=2160h SSO_SESSION_IDLE_TIMEOUT=1h
+expect_eq "REMEMBER_ME opt-in plans" 0 "$rc"
+expect_eq "tfvars: opt-in values reach Terraform" \
+  "True 720h 2160h 1h" \
+  "$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["remember_me"], d["sso_session_idle_timeout_remember_me"], d["sso_session_max_lifespan_remember_me"], d["sso_session_idle_timeout"])' "$tfvars")"
+
+plan_json keycloak_realm.japan_trip=update keycloak_openid_user_property_protocol_mapper.profile_username=delete,create keycloak_generic_role_mapper.recovery_scope_manage_users[0]=delete
+apply_stubbed
+expect_eq "destroy guard: replacing a protocol mapper stops the run" 1 "$rc"
+expect_has "  names the replaced mapper" "replace  keycloak_openid_user_property_protocol_mapper.profile_username" "$out"
+expect_has "  names the destroyed role mapping" "destroy  keycloak_generic_role_mapper.recovery_scope_manage_users[0]" "$out"
+expect_has "  points to ALLOW_DESTROY" "ALLOW_DESTROY=1" "$out"
+case "$out" in *"Dry run"*) t_fail "  and applies nothing" "$out" ;; *) t_ok "  and applies nothing" ;; esac
+apply_stubbed ALLOW_DESTROY=1
+expect_eq "destroy guard: ALLOW_DESTROY=1 continues (and still warns)" 0 "$rc"
+expect_has "  warns" "ALLOW_DESTROY=1: continuing" "$out"
+printf 'not json' > "$TF_SHOW_JSON"
+apply_stubbed
+expect_eq "destroy guard: unreadable plan fails closed" 1 "$rc"
+expect_has "  says so" "could not read the plan" "$out"
+[ -e "$WORK/state/terraform/keycloak/selfhost.tfplan" ] && t_fail "refused plan file is removed" || t_ok "refused plan file is removed"
+
+# --- deploy defaults come from config/deploy-defaults.json ---------------------------------------
+frontend() { # KEY=VAL... -> "<origin>|<base path>" or the error text
+  (
+    for kv in "$@"; do export "${kv?}"; done
+    # shellcheck source=SCRIPTDIR/../scripts/lib/common.sh
+    . "$SCRIPTS/lib/common.sh"
+    load_config >/dev/null
+    printf '%s|%s' "$FRONTEND_ORIGIN" "$FRONTEND_BASE_PATH"
+  ) 2>&1
+}
+json_origin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["pagesOrigin"])' "$HERE/../../../config/deploy-defaults.json")"
+json_path="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["appBasePath"].rstrip("/"))' "$HERE/../../../config/deploy-defaults.json")"
+base_env
+expect_eq "FRONTEND_* default to config/deploy-defaults.json" "$json_origin|$json_path" "$(frontend)"
+expect_eq "FRONTEND_* env vars override the JSON" "https://o.example|/p" "$(frontend FRONTEND_ORIGIN=https://o.example FRONTEND_BASE_PATH=/p)"
+printf '{"pagesOrigin":"https://other.github.io","appBasePath":"/Other/"}' > "$WORK/dd.json"
+expect_eq "a different JSON is honoured (trailing slash dropped)" "https://other.github.io|/Other" "$(frontend DEPLOY_DEFAULTS_FILE="$WORK/dd.json")"
+expect_eq "the JSON is not needed when both env vars are set" "https://o.example|/p" \
+  "$(frontend DEPLOY_DEFAULTS_FILE="$WORK/missing.json" FRONTEND_ORIGIN=https://o.example FRONTEND_BASE_PATH=/p)"
+out="$(frontend DEPLOY_DEFAULTS_FILE="$WORK/missing.json")"
+expect_has "missing JSON fails with a clear message" "missing.json not found" "$out"
+expect_has "  and says how to fix it" "FRONTEND_ORIGIN in .env" "$out"
+printf '{not json' > "$WORK/bad.json"
+expect_has "invalid JSON fails with a clear message" "not valid JSON" "$(frontend DEPLOY_DEFAULTS_FILE="$WORK/bad.json")"
+printf '{"pagesOrigin":"https://x.github.io"}' > "$WORK/nokey.json"
+expect_has "a missing key fails with a clear message" 'non-empty string "appBasePath"' "$(frontend DEPLOY_DEFAULTS_FILE="$WORK/nokey.json")"
+printf '{"pagesOrigin":"","appBasePath":"/x/"}' > "$WORK/empty.json"
+expect_has "an empty value fails" 'non-empty string "pagesOrigin"' "$(frontend DEPLOY_DEFAULTS_FILE="$WORK/empty.json")"
+printf '[1]' > "$WORK/arr.json"
+expect_has "a non-object JSON fails" "not valid JSON" "$(frontend DEPLOY_DEFAULTS_FILE="$WORK/arr.json")"
+if grep -n 'manudubo.github.io\|PruebaMapJapan' "$SCRIPTS/lib/common.sh" | grep -v '^[0-9]*:\s*#' | grep -q .; then
+  t_fail "common.sh hard-codes no frontend origin/path"
+else
+  t_ok "common.sh hard-codes no frontend origin/path"
+fi
+"$SCRIPTS/gen-secrets.sh" >/dev/null 2>&1 # base_env above reset the secrets the compose checks below need
+
 for bad in 'not-an-email' 'a b@example.com' 'x@y' '"><@example.com'; do
   out="$("$SCRIPTS/add-user.sh" "$bad" 2>&1)"; rc=$?
   expect_eq "add-user.sh refuses '$bad'" 1 "$rc"

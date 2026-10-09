@@ -1,6 +1,8 @@
 import type { Map, TileLayer, LatLngExpression } from 'leaflet';
 
 export interface Activity {
+  /** Stable id of a saved activity (user trips); the demo's activities have none. */
+  id?: string;
   name: string;
   coords?: [number, number];
   notes: string | null;

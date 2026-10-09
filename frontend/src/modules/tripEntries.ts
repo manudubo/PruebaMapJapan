@@ -11,7 +11,7 @@ export function formatDateLabel(dateKey: string): string {
   return formatIsoDate(dateKey, { weekday: 'long', day: 'numeric', month: 'long' }) || dateKey;
 }
 
-/** trip.html deep link; `extra` adds destIndex/day/activity. */
+/** trip.html deep link; `extra` adds destIndex/day/activity/activityId. */
 export function tripUrl(tripId: string, extra: Record<string, string> = {}): string {
   const params = new URLSearchParams({ tripId, ...extra });
   return `trip.html?${params.toString()}`;
@@ -105,7 +105,8 @@ export function buildTripEntries(trip: ApiTrip): SearchResult[] {
               date: dayKey,
               color: day.color_hex ?? undefined,
               coords: toCoords(act.lat, act.lng),
-              url: tripUrl(tripId, { ...destParam, day: dayKey, activity: act.name }),
+              // activityId is the stable key: names repeat ("Lunch" on every day) and can be renamed.
+              url: tripUrl(tripId, { ...destParam, day: dayKey, activity: act.name, activityId: String(act.id) }),
             });
           });
         });

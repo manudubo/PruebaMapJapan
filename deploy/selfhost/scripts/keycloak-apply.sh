@@ -16,6 +16,9 @@
 #   - Keycloak emails through SMTP_* / EMAIL_FROM from .env
 #   - registration_allowed = REGISTRATION_ENABLED (default false), optional
 #     reCAPTCHA (RECAPTCHA_SITE_KEY, secret via TF_VAR_recaptcha_secret_key)
+#   - opt-in "Remember me" and session lengths: REMEMBER_ME, SSO_SESSION_IDLE_TIMEOUT,
+#     SSO_SESSION_MAX_LIFESPAN, SSO_SESSION_IDLE_REMEMBER_ME, SSO_SESSION_MAX_REMEMBER_ME
+#     (empty = unchanged defaults; see .env.example)
 #   - writes the travelmap-recovery client secret to .env
 #     (KEYCLOAK_RECOVERY_CLIENT_SECRET, never printed) for the backend
 #
@@ -23,6 +26,10 @@
 # public URL, where the admin API is blocked). Uses `terraform` if installed,
 # otherwise the official Terraform image. State lives in
 # deploy/selfhost/state/terraform/keycloak (back it up; backup.sh does).
+#
+# Fails closed: if the plan destroys or replaces anything (e.g. protocol mappers or a
+# role), nothing is applied. Read the plan (state/terraform/keycloak/plan.txt); only if the destroys
+# are intended, re-run with ALLOW_DESTROY=1.
 set -euo pipefail
 # shellcheck source=SCRIPTDIR/lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
@@ -32,7 +39,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
-    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument '$1' (see --help)" ;;
   esac
 done
@@ -83,6 +90,20 @@ recaptcha_site_key="${RECAPTCHA_SITE_KEY:-}"
 if { [ -n "$recaptcha_site_key" ] && [ -z "${RECAPTCHA_SECRET_KEY:-}" ]; } \
    || { [ -z "$recaptcha_site_key" ] && [ -n "${RECAPTCHA_SECRET_KEY:-}" ]; }; then
   die "Set both RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY in .env, or neither."
+fi
+
+# --- Sessions / "Remember me" (opt-in; docs/SELF-HOSTING.md "Keeping people signed in") ----
+remember_me="${REMEMBER_ME:-false}"
+case "$remember_me" in
+  true|false) ;;
+  *) die "REMEMBER_ME must be true or false (got '$remember_me')." ;;
+esac
+for v in SSO_SESSION_IDLE_TIMEOUT SSO_SESSION_MAX_LIFESPAN SSO_SESSION_IDLE_REMEMBER_ME SSO_SESSION_MAX_REMEMBER_ME; do
+  [[ -z "${!v:-}" || "${!v}" =~ ^[1-9][0-9]{0,5}[smh]$ ]] \
+    || die "$v must look like 30m, 10h or 720h (seconds, minutes or hours; no days: 30 days is 720h). Got '${!v}'."
+done
+if [ "$remember_me" = true ] && { [ -z "${SSO_SESSION_IDLE_REMEMBER_ME:-}" ] || [ -z "${SSO_SESSION_MAX_REMEMBER_ME:-}" ]; }; then
+  die "REMEMBER_ME=true needs SSO_SESSION_IDLE_REMEMBER_ME and SSO_SESSION_MAX_REMEMBER_ME in .env (recommended: 720h and 2160h)."
 fi
 
 # --- Client URLs: the production realm must never point at localhost -----------------
@@ -164,6 +185,12 @@ base_path="${FRONTEND_BASE_PATH%/}/"
   printf '  "smtp_ssl": %s,\n' "$smtp_ssl"
   printf '  "smtp_starttls": %s,\n' "$smtp_starttls"
   printf '  "registration_allowed": %s,\n' "$registration"
+  printf '  "remember_me": %s,\n' "$remember_me"
+  # Only what .env sets: empty keeps the Terraform default (current behaviour).
+  [ -z "${SSO_SESSION_IDLE_TIMEOUT:-}" ] || printf '  "sso_session_idle_timeout": %s,\n' "$(json_str "$SSO_SESSION_IDLE_TIMEOUT")"
+  [ -z "${SSO_SESSION_MAX_LIFESPAN:-}" ] || printf '  "sso_session_max_lifespan": %s,\n' "$(json_str "$SSO_SESSION_MAX_LIFESPAN")"
+  [ -z "${SSO_SESSION_IDLE_REMEMBER_ME:-}" ] || printf '  "sso_session_idle_timeout_remember_me": %s,\n' "$(json_str "$SSO_SESSION_IDLE_REMEMBER_ME")"
+  [ -z "${SSO_SESSION_MAX_REMEMBER_ME:-}" ] || printf '  "sso_session_max_lifespan_remember_me": %s,\n' "$(json_str "$SSO_SESSION_MAX_REMEMBER_ME")"
   printf '  "recaptcha_site_key": %s\n' "$(json_str "$recaptcha_site_key")"
   printf '}\n'
 } > "$WORK/production.auto.tfvars.json"
@@ -268,6 +295,39 @@ case "$plan_rc" in
   2) grep -E '^\s*(#|Plan:)' "$WORK/plan.txt" || true ;;
   *) cat "$WORK/plan.txt" >&2; die "terraform plan failed (full output above)." ;;
 esac
+
+# Fail closed on destroys. Normal updates only ever create or change things; a destroy
+# or replacement (protocol mappers, roles, flows, clients...) is what a wrong plan looks
+# like, and it is applied to the live login realm. Stop unless the operator, having read
+# the plan, passes ALLOW_DESTROY=1.
+guard_destroys() {
+  local doomed
+  doomed="$(tf show -json -no-color selfhost.tfplan 2>/dev/null | python3 -c '
+import json, sys
+try:
+    plan = json.load(sys.stdin)
+except ValueError:
+    print("UNREADABLE"); sys.exit(0)
+for rc in plan.get("resource_changes", []):
+    actions = rc.get("change", {}).get("actions", [])
+    if "delete" in actions:
+        print(("replace  " if "create" in actions else "destroy  ") + rc["address"])
+')" || doomed=UNREADABLE
+  [ -n "$doomed" ] || return 0
+  if [ "$doomed" = UNREADABLE ]; then
+    doomed="(could not read the plan with 'terraform show -json'; assuming it destroys something)"
+  fi
+  warn "The plan DESTROYS or REPLACES live Keycloak objects:"
+  printf '  %s\n' "$doomed" >&2
+  if [ "${ALLOW_DESTROY:-0}" = 1 ]; then
+    warn "ALLOW_DESTROY=1: continuing."
+    return 0
+  fi
+  rm -f "$WORK/selfhost.tfplan"
+  say "Full plan: $WORK/plan.txt"
+  die "Refusing to continue: an update of this realm should not destroy anything (check docs/SELF-HOSTING.md, 'Keycloak plan shows destroys'). Send the plan, or re-run with ALLOW_DESTROY=1 if you read it and the destroys are intended."
+}
+guard_destroys
 
 if [ "$DRY_RUN" = 1 ]; then
   ok "Dry run: the changes above were NOT applied. Full plan: $WORK/plan.txt"

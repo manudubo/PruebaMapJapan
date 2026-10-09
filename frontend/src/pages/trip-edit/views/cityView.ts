@@ -13,6 +13,7 @@ import { markerLabels } from '../previewModel';
 import { field } from '../ui/fields';
 import { h, icon, announce, append } from '../ui/h';
 import { createPlaceBox } from '../ui/placeBox';
+import { isCoarsePointer, pickHintText } from '../ui/pickHint';
 import { reconcile, byKey } from '../ui/reconcile';
 import { makeSortable } from '../ui/sortable';
 import { buildActivityRow, updateActivityRow } from './activityRow';
@@ -91,7 +92,9 @@ export function mountCityView(ctx: ViewCtx, destKey: string, initialDate: string
     freeTextLabel: (t) => `Add “${t}” without a map location`,
   });
   const pickBtn = h('button', { type: 'button', class: 'btn btn-secondary te-pick', id: 'pick-pin', attrs: { 'aria-pressed': 'false' } }, icon('pin', 16), 'Drop a pin on the map');
-  const pickHint = h('p', { class: 'te-pick-hint form-hint', id: 'pick-hint', hidden: true, attrs: { role: 'status' }, text: 'Click the map to drop a pin. Press Esc to cancel.' });
+  const pickHintMsg = h('span', { id: 'pick-hint-text' });
+  const pickHintCancel = h('button', { type: 'button', class: 'btn btn-secondary te-pick-cancel', id: 'pick-hint-cancel', hidden: true, on: { click: () => { ctx.pickOnMap(null); syncPick(); pickBtn.focus(); } } }, 'Cancel');
+  const pickHint = h('p', { class: 'te-pick-hint form-hint', id: 'pick-hint', hidden: true, attrs: { role: 'status' } }, pickHintMsg, pickHintCancel);
   const composer = h('div', { class: 'te-composer', id: 'composer' }, addBox.el, h('div', { class: 'te-composer-or' }, h('span', { text: 'or' })), pickBtn, pickHint);
 
   // ---- hotel ----------------------------------------------------------------------------
@@ -155,6 +158,11 @@ export function mountCityView(ctx: ViewCtx, destKey: string, initialDate: string
     pickBtn.setAttribute('aria-pressed', String(on));
     pickBtn.classList.toggle('is-on', on);
     pickHint.hidden = !on;
+    if (on) {
+      const coarse = isCoarsePointer();
+      pickHintMsg.textContent = pickHintText(coarse);
+      pickHintCancel.hidden = !coarse;
+    }
   }
   pickBtn.addEventListener('click', () => {
     if (ctx.isPicking()) ctx.pickOnMap(null);

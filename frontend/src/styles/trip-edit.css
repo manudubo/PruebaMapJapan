@@ -523,6 +523,9 @@ button.te-num-btn:disabled { cursor: default; }
 .te-pick.is-on { background: var(--jp-accent-solid); border-color: var(--jp-accent-solid); color: var(--jp-white); }
 .te-pick-hint { margin: 0; }
 .te-pick-hint[hidden] { display: none; }
+.te-pick-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.te-pick-cancel, .te-pick-banner .btn { min-height: 44px; min-width: 44px; }
+.te-pick-cancel[hidden] { display: none; }
 
 .te-hotel { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; border-top: 1px solid var(--jp-border); }
 .te-hotel-card input {
@@ -624,9 +627,20 @@ button.te-num-btn:disabled { cursor: default; }
   .te-act-time { grid-column: 3; width: 100%; }
 }
 
-/* Landscape phones are ~375px tall: spend less of it on chrome above the plan. */
+/* Landscape phones are ~375px tall (667x375, 844x390): the page chrome (nav, back/title/status bar,
+   Plan|Map tabs, step tabs) took ~250px of it. Keep every 44px target but spend a lot less around
+   them: no outer gutter, one slim bar, tabs and steps tight, and let the page scroll under the
+   (non-sticky) site nav; only the save-status banner stays pinned. */
 @media (max-height: 500px) and (orientation: landscape) {
-  .te-bar { padding: 4px 0; }
-  .te-steps ol, .te-tabs { margin-bottom: 8px; }
-  .te-preview #map { height: 70vh; min-height: 220px; }
+  .te-container { padding-top: 0; padding-bottom: 8px; }
+  /* The search strip is a whole extra 55px row under the nav; the editor has its own place search. */
+  .te-container > search-bar { display: none; }
+  .te { padding-bottom: 24px; }
+  .te-bar { padding: 2px 0; gap: 0 12px; flex-wrap: nowrap; }
+  .te-title { font-size: 18px; flex: 1 1 0; }
+  .te-bar-right { flex-wrap: nowrap; gap: 8px; }
+  .te-tabs { margin-bottom: 4px; }
+  .te-steps ol { margin-bottom: 8px; }
+  .te-banner { margin-bottom: 6px; padding: 6px 12px; }
+  .te-preview #map { height: calc(100vh - 64px); min-height: 220px; }
 }

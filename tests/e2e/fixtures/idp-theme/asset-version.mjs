@@ -26,8 +26,7 @@ function files(dir) {
   });
 }
 
-export function computeAssetVersion() {
-  const root = path.join(LOGIN, 'resources');
+export function computeAssetVersion(root = path.join(LOGIN, 'resources')) {
   const hash = crypto.createHash('sha256');
   for (const f of files(root).sort()) {
     hash.update(path.relative(root, f).split(path.sep).join('/')).update('\0').update(fs.readFileSync(f)).update('\0');
@@ -40,8 +39,11 @@ export function recordedAssetVersion() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const v = computeAssetVersion();
+  // --root <dir>: hash another copy of resources/ (tests simulate an edit without touching the theme)
+  const rootArg = process.argv.indexOf('--root');
+  const v = computeAssetVersion(rootArg > 0 ? path.resolve(process.argv[rootArg + 1]) : undefined);
   if (process.argv.includes('--write')) {
+    if (rootArg > 0) throw new Error('--write hashes the theme itself; do not combine it with --root');
     const src = fs.readFileSync(PROPS, 'utf8');
     const line = `jpAssetVersion=${v}`;
     const note = `$1\n\n# Cache-busting version of resources/ (see tests/e2e/fixtures/idp-theme/asset-version.mjs)\n${line}`;

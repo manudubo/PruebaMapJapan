@@ -37,6 +37,16 @@ webauthn_rp_id = "REPLACE.tailnet.ts.net"
 # travelmap-recovery (manage-users only) is created by default; its secret is the
 # sensitive output recovery_client_secret -> backend KEYCLOAK_RECOVERY_CLIENT_SECRET.
 
+# Sessions / "Remember me" (opt-in; the defaults below are the current behaviour). A longer
+# session means a stolen unlocked phone stays signed in longer. Recommended if the phone
+# should stay signed in: remember_me with 30 days idle / 90 days max (production refuses
+# more than 2160h). Durations are <n>s|m|h, no days.
+# remember_me                          = true
+# sso_session_idle_timeout             = "30m"
+# sso_session_max_lifespan             = "10h"
+# sso_session_idle_timeout_remember_me = "720h"
+# sso_session_max_lifespan_remember_me = "2160h"
+
 # Realm SMTP for verification / reset-password emails. Gmail with an app password
 # (needs 2-Step Verification on the Google account; ~500 messages/day):
 smtp_host              = "smtp.gmail.com"

@@ -44,6 +44,7 @@ import {
   describeCounts,
   describeTripError,
   destinationCoords,
+  FOCUS_PARAMS,
   parseTripLocation,
   resolveDestIndex,
   summarizeTrip,
@@ -53,6 +54,9 @@ import {
   type TripRef,
   type TripStop,
 } from '@/modules/tripView';
+import { selectDayAndFocusActivity, type FocusResult } from '@/modules/activityFocus';
+import { findDestinationOfActivity, isEmptyRequest, type FocusRequest } from '@/modules/focusTarget';
+import { mountTripWeather } from '@/modules/tripWeather';
 import { getMapsUrl } from '@/data/maps';
 import { createDirectionsUrl, createPlaceUrl, announceToScreenReader, escapeHtml } from '@/modules/utils';
 import type { ApiDestination, ApiHotel, ApiTrip, CityData, Activity, Day, Hotel } from '@/types';
@@ -138,6 +142,9 @@ export function buildLegendItem(activity: Activity, idx: number, day: Day): HTML
   const mapsUrl = resolveActivityMapsUrl(activity);
   const item = document.createElement('li');
   item.className = 'legend-item' + (isOptional ? ' is-optional' : '');
+  // Lets a search deep link find the row to highlight (see selectDayAndFocusActivity in map.ts).
+  item.dataset['activityIndex'] = String(idx);
+  if (activity.id) item.dataset['activityId'] = activity.id;
   const noteText = activity.notes
     ? activity.notes.length > 50
       ? activity.notes.substring(0, 50) + '...'
@@ -190,6 +197,7 @@ let overviewMap: OverviewMap | null = null;
 let cityMap: L.Map | null = null;
 let cityTileLayer: L.TileLayer | null = null;
 let stopCountdown: (() => void) | null = null;
+let stopWeather: (() => void) | null = null;
 
 let loadSeq = 0;
 let slowTimer: ReturnType<typeof setTimeout> | undefined;
@@ -204,6 +212,9 @@ function teardownMaps(): void {
   window.currentTileLayer = null;
   stopCountdown?.();
   stopCountdown = null;
+  stopWeather?.();
+  stopWeather = null;
+  byId('trip-weather')?.setAttribute('hidden', '');
 }
 
 function mountMapElement(slot: HTMLElement, label: string, describedBy?: string): HTMLElement {
@@ -468,7 +479,7 @@ function hotelView(hotel: ApiHotel): { hotel: Hotel; mapsUrl: string | null } {
   return { hotel: view, mapsUrl };
 }
 
-function renderCity(index: number): void {
+function renderCity(index: number, focus: FocusRequest | null = null): void {
   if (!trip) return;
   const stop = stops[index]!;
   const dest = destinations[index]!;
@@ -498,11 +509,19 @@ function renderCity(index: number): void {
 
   generateLegend(data, hotelInfo);
 
+  // Weather only for a destination with its own coordinates (not a guess from the hotel or a pin).
+  const weather = byId('trip-weather');
+  if (weather) {
+    setText(byId('trip-weather-title')!, `Weather in ${stop.name}`);
+    stopWeather = mountTripWeather(weather, { lat: dest.lat, lng: dest.lng, start: dest.start_date, end: dest.end_date });
+  }
+
   if (!hasLocation) {
     slot.hidden = true;
     daySelector.hidden = true;
     daySelector.innerHTML = '';
     setNote('city-map-note', `No locations have been added for ${stop.name} yet, so there is no map to show.`);
+    applyDeepLink(index, focus, data, { daySelector: null, map: null, markersByDay: {} });
     return;
   }
   slot.hidden = false;
@@ -563,6 +582,55 @@ function renderCity(index: number): void {
   hotelBtn.onclick = hotelCoords ? () => map.setView(hotelCoords, 15) : null;
 
   announceToScreenReader(`Map of ${stop.name} loaded with ${allMarkers.length} locations`);
+  applyDeepLink(index, focus, data, { daySelector, map, markersByDay });
+}
+
+interface FocusContext {
+  daySelector: HTMLElement | null;
+  map: L.Map | null;
+  markersByDay: Record<string, L.Marker[]>;
+}
+
+/**
+ * Search deep link (`day`, `activity`, `activityId`): select the day and focus the activity.
+ * Unknown values fall back to less (the day, or nothing) without an error; a failure here must
+ * never take the page down, so it is contained.
+ */
+function applyDeepLink(index: number, focus: FocusRequest | null, data: CityData, ctx: FocusContext): void {
+  if (!focus || isEmptyRequest(focus)) return;
+  try {
+    const result = selectDayAndFocusActivity(focus.day ?? null, focus.activity ?? null, ctx.daySelector, ctx.map, data, ctx.markersByDay, {
+      activityId: focus.activityId,
+    });
+    if (!result) return;
+    const activity = result.activityIndex === null ? null : data.days[result.dayKey]?.activities[result.activityIndex];
+    if (ctx.map && activity && !result.onMap) {
+      setNote('city-map-note', `"${activity.name}" has no location on the map yet, so the map stays where it is.`);
+    }
+    keepDeepLinkInUrl(index, result, activity ?? null);
+  } catch {
+    /* a bad link must not break the trip page */
+  }
+}
+
+/**
+ * Rewrite the address bar to the resolved target with replaceState (no new history entry):
+ * the link stays shareable, tripId/slug and any other parameter are kept, and a link that matched
+ * through the name alone gains the stable activityId.
+ */
+function keepDeepLinkInUrl(index: number, result: FocusResult, activity: Activity | null): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set('destIndex', String(index));
+  url.searchParams.set('day', result.dayKey);
+  if (activity) {
+    url.searchParams.set('activity', activity.name);
+    if (activity.id) url.searchParams.set('activityId', activity.id);
+    else url.searchParams.delete('activityId');
+  } else {
+    url.searchParams.delete('activity');
+    url.searchParams.delete('activityId');
+  }
+  if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url.href);
 }
 
 function buildCityTabs(activeIndex: number): void {
@@ -602,6 +670,7 @@ function setupDayFilter(
   daySelector.onclick = (e) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>('.day-btn');
     if (!target) return;
+    setNote('city-map-note', null); // the "no location" note of a focused activity belongs to that focus
     const selectedDay = target.dataset['day']!;
 
     if (activeDay === selectedDay) {
@@ -709,12 +778,12 @@ function updateHotelInfo(info: { hotel: Hotel; mapsUrl: string | null } | null):
 // Routing between the two views (no reload)
 // ---------------------------------------------------------------------------
 
-function showView(requested: number | null, userInitiated: boolean): void {
+function showView(requested: number | null, userInitiated: boolean, focus: FocusRequest | null = null): void {
   if (!trip) return;
   teardownMaps();
   const index = resolveDestIndex(requested, stops.length);
   if (index === null) renderOverview();
-  else renderCity(index);
+  else renderCity(index, focus);
 
   if (userInitiated) {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -723,10 +792,23 @@ function showView(requested: number | null, userInitiated: boolean): void {
   }
 }
 
+/** Show what the address bar asks for: a city (or the overview), with its day/activity focus if any. */
+function showFromLocation(userInitiated: boolean): void {
+  const loc = parseTripLocation(window.location.search);
+  let requested = loc.destIndex;
+  // No usable destIndex but a stable activity id: open the city that holds it.
+  if (resolveDestIndex(requested, stops.length) === null) {
+    requested = findDestinationOfActivity(destinations, loc.activityId) ?? requested;
+  }
+  showView(requested, userInitiated, { day: loc.day, activity: loc.activity, activityId: loc.activityId });
+}
+
 function navigate(destIndex: number | null): void {
   const url = new URL(window.location.href);
   if (destIndex === null) url.searchParams.delete('destIndex');
   else url.searchParams.set('destIndex', String(destIndex));
+  // The day/activity focus belongs to the city it was written for; tripId/slug and the rest stay.
+  FOCUS_PARAMS.forEach((name) => url.searchParams.delete(name));
   window.history.pushState({}, '', url.toString());
   showView(destIndex, true);
 }
@@ -859,7 +941,7 @@ function onLoaded(loaded: ApiTrip): void {
   } else {
     wireOwnerControls(loaded);
   }
-  showView(parseTripLocation(window.location.search).destIndex, false);
+  showFromLocation(false);
 }
 
 function wireOwnerControls(t: ApiTrip): void {
@@ -910,9 +992,7 @@ function init(): void {
       window.currentTileLayer = cityTileLayer;
     }
   });
-  window.addEventListener('popstate', () => {
-    showView(parseTripLocation(window.location.search).destIndex, false);
-  });
+  window.addEventListener('popstate', () => { showFromLocation(false); });
   byId('trip-card')?.addEventListener('click', onCardClick);
   byId('trip-slow-retry')?.addEventListener('click', () => { void loadTrip(); });
 

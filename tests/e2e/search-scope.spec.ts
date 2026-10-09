@@ -101,10 +101,27 @@ test.describe("Search scope: account pages search the user's trips", () => {
       destIndex: '1',
       day: '2026-04-03',
       activity: 'Dotonbori ramen',
+      // the stable key: names repeat and can be renamed
+      activityId: 'trip-spring-d1-day0-a0',
     });
-    // The trip page opens in the city view of the matched destination.
+    // The trip page opens in the city view of the matched destination...
     await expect(page.locator('#trip-title')).toHaveText('Osaka');
     await expect(page.locator('#dest-tabs [aria-current="page"]')).toContainText('Osaka');
+    // ...on the matched day, with the matched activity focused: popup on the map, row highlighted.
+    await expect(page.locator('#day-selector .day-btn.active')).toHaveAttribute('data-day', '2026-04-03');
+    await expect(page.locator('#map .leaflet-popup h4')).toHaveText('Dotonbori ramen');
+    const row = page.locator('#legend-grid .legend-item.is-focused');
+    await expect(row).toContainText('Dotonbori ramen');
+    await expect(row).toBeFocused();
+    // The deep link is not stripped: it is still shareable and survives a reload.
+    expect(Object.fromEntries(new URL(page.url()).searchParams)).toMatchObject({
+      tripId: 'trip-spring',
+      destIndex: '1',
+      day: '2026-04-03',
+      activity: 'Dotonbori ramen',
+    });
+    await page.reload();
+    await expect(page.locator('#map .leaflet-popup h4')).toHaveText('Dotonbori ramen');
   });
 
   test('keyboard: arrows and Enter open a trip result', async ({ page }) => {

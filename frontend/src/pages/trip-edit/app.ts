@@ -10,6 +10,7 @@ import type { ApiTrip } from '@/types';
 import { EditorStore, type EditorApi, type StoreEvent } from './store';
 import { SaveQueue } from './saveQueue';
 import { PlaceSearch } from './placeSearch';
+import { pickHintText } from './ui/pickHint';
 import { describeBanner, describeStatus } from './status';
 import { formatHash, parseHash } from './nav';
 import { routeStops, tripSummary, type ETrip } from './model';
@@ -76,6 +77,7 @@ export function mountEditor(initial: { trip: ApiTrip | null }, deps: EditorDeps 
   const mapEl = $('map');
   const mapEmpty = $('te-map-empty');
   const pickBanner = $('te-pick-banner');
+  const pickBannerText = $('te-pick-banner-text');
   const snackbar = $('te-snackbar');
   const snackbarMsg = $('te-snackbar-msg');
   const undoBtn = $('undo-btn');
@@ -158,6 +160,7 @@ export function mountEditor(initial: { trip: ApiTrip | null }, deps: EditorDeps 
       pickCb = cb;
       map.setPickMode(cb !== null);
       pickBanner.hidden = cb === null;
+      if (cb) pickBannerText.textContent = pickHintText();
       if (cb && window.matchMedia(NARROW).matches) { setTab('preview'); pickSwitchedTab = true; }
       if (!cb && pickSwitchedTab) { pickSwitchedTab = false; setTab('plan'); }
     },

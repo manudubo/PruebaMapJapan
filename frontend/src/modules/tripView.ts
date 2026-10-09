@@ -8,6 +8,7 @@
 
 import type { ApiDestination, ApiTrip } from '@/types';
 import { toCoords } from './tripAdapter';
+import { cleanParam } from './focusTarget';
 import { daysBetween, formatIsoDate, isIsoDate, toIsoDate } from './dates';
 
 // ---------------------------------------------------------------------------
@@ -269,13 +270,27 @@ export function tripHref(ref: TripRef, destIndex?: number | null): string {
 export interface TripLocation extends TripRef {
   /** null = the overview. */
   destIndex: number | null;
+  /** Search deep link: the day key, the activity name and its stable id (null when absent or blank). */
+  day: string | null;
+  activity: string | null;
+  activityId: string | null;
 }
+
+/** Query parameters that only make sense on the city they were written for. */
+export const FOCUS_PARAMS = ['day', 'activity', 'activityId'] as const;
 
 export function parseTripLocation(search: string): TripLocation {
   const params = new URLSearchParams(search);
   const raw = params.get('destIndex');
   const parsed = raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
-  return { tripId: params.get('tripId'), slug: params.get('slug'), destIndex: parsed };
+  return {
+    tripId: params.get('tripId'),
+    slug: params.get('slug'),
+    destIndex: parsed,
+    day: cleanParam(params.get('day')),
+    activity: cleanParam(params.get('activity')),
+    activityId: cleanParam(params.get('activityId')),
+  };
 }
 
 /** A requested city index that does not exist falls back to the overview. */

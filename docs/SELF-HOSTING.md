@@ -232,6 +232,19 @@ leaves the machine.
 `[ OK ] Realm 'japan-trip' applied. Issuer: https://legion-server.tailad4a36.ts.net/auth/realms/japan-trip`.
 Running it again prints `No changes`.
 
+**One command, always.** Updates (including a provider bump that changes the
+realm) are applied by this same single command; there is no manual
+`-target=keycloak_realm.japan_trip` step. (Only the very first run creates the
+realm on its own before the rest, and the script does that for you.) A plan
+that only *updates* the realm and *creates* the new items is normal.
+
+**If the plan shows destroys, stop and send it.** `keycloak-apply.sh` refuses to
+apply a plan that destroys or replaces anything (it lists the objects and
+exits) unless you re-run with `ALLOW_DESTROY=1`. Do not set that to get past
+it: send the contents of `deploy/selfhost/state/terraform/keycloak/plan.txt`
+(no secrets in it) and wait. Destroys of protocol mappers or of the
+`travelmap-recovery` role mapping are never expected on an update.
+
 ### 7. Publish it with Funnel
 
 ```bash
@@ -390,6 +403,14 @@ To roll it out on an existing server, in this order:
 Rollback: set `passwordless_passkeys_enabled = false` and re-apply; the theme
 falls back to the plain form by itself.
 
+Editing the login theme: Keycloak lets browsers cache theme files for 30
+days, so every stylesheet and script is linked with a `?v=` version taken from
+`jpAssetVersion` in `keycloak/themes/japan-trip/login/theme.properties`. After
+editing anything under `login/resources`, run
+`node tests/e2e/fixtures/idp-theme/asset-version.mjs --write` and commit the
+result (a test fails otherwise). A new ES module imported by a theme script
+must also be added to `jpModules` in the same file.
+
 ---
 
 ## Open sign-up
@@ -457,6 +478,45 @@ admin console (SSH tunnel) → Users.
 **Rotating the recovery secret.** Admin console → Clients →
 `travelmap-recovery` → Credentials → Regenerate, then `./scripts/keycloak-apply.sh`
 (it copies the new secret into `.env`) and `./scripts/deploy.sh`.
+
+---
+
+## Keeping people signed in
+
+By default nobody is asked "Remember me" and a session ends after **30 minutes
+idle** or **10 hours** in total. On a phone that means signing in again (a
+passkey tap) often. You can opt in to longer sessions; nothing changes until
+you set these in `.env` and run `./scripts/keycloak-apply.sh`:
+
+| `.env` | Meaning | Default (empty) |
+|---|---|---|
+| `REMEMBER_ME` | `true` shows a **Remember me** checkbox on the login page | `false` |
+| `SSO_SESSION_IDLE_REMEMBER_ME` | idle timeout when the box is ticked | none |
+| `SSO_SESSION_MAX_REMEMBER_ME` | maximum session when the box is ticked | none |
+| `SSO_SESSION_IDLE_TIMEOUT` / `SSO_SESSION_MAX_LIFESPAN` | the regular lifetimes (everyone) | `30m` / `10h` |
+
+Values are seconds, minutes or hours (`30m`, `10h`, `720h`; no days). With
+`REMEMBER_ME=true` both remember-me values are required, the remember-me idle
+time must not exceed the remember-me maximum, and neither may be shorter than
+the regular ones. Terraform refuses anything above **90 days (`2160h`)** in this
+production setup.
+
+**Trade-off:** a longer session means that a stolen phone that is *unlocked*, or
+a shared computer, stays signed in to your trips for that long, and signing out
+(or an admin ending the session in the Keycloak console) is how to end it early. Only people who tick the box get the
+long session; leaving it unticked keeps the short one.
+
+**Recommended if you want the phone to stay signed in** (30 days idle, 90 days max):
+
+```bash
+REMEMBER_ME=true
+SSO_SESSION_IDLE_REMEMBER_ME=720h
+SSO_SESSION_MAX_REMEMBER_ME=2160h
+```
+
+The login theme (`keycloak/themes/japan-trip/login/login.ftl` and
+`login-username.ftl`) already renders the checkbox whenever the realm has
+`rememberMe` enabled, so no frontend or theme change is needed.
 
 ---
 
