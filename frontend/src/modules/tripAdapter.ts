@@ -97,6 +97,7 @@ export function apiActivityToActivity(activity: ApiActivity, optionalLabel = 'A'
     optional: activity.is_optional ? optionalLabel : undefined,
     isGeneric: activity.is_generic,
   };
+  if (activity.id != null) view.id = String(activity.id);
   if (activity.time) view.time = activity.time;
   const mapsUrl = safeHttpUrl(activity.maps_url);
   if (mapsUrl) view.mapsUrl = mapsUrl;

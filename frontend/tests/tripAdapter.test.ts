@@ -120,6 +120,7 @@ describe('toCoords', () => {
 describe('apiActivityToActivity (BIZ-01..04)', () => {
   it('maps a plain activity', () => {
     expect(apiActivityToActivity(act())).toEqual({
+      id: '1',
       name: 'Senso-ji',
       coords: [35.7148, 139.7967],
       notes: null,
@@ -172,6 +173,7 @@ describe('apiActivityToActivity (BIZ-01..04)', () => {
       'B',
     );
     expect(view).toEqual({
+      id: '1',
       name: 'Senso-ji',
       coords: [35.7148, 139.7967],
       notes: 'n',
@@ -365,6 +367,7 @@ describe('full trip round-trip (combined)', () => {
     expect(kDay.hasOptions).toBe(true);
     expect(kDay.activities).toEqual([
       {
+        id: '1',
         name: 'Arashiyama area',
         coords: [35.0094, 135.6668],
         notes: null,
@@ -374,6 +377,7 @@ describe('full trip round-trip (combined)', () => {
         mapsUrl: 'https://maps.google.com/?q=Arashiyama',
       },
       {
+        id: '2',
         name: 'Kinkaku-ji',
         coords: [35.7148, 139.7967],
         notes: null,

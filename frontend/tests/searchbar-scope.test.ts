@@ -353,6 +353,7 @@ describe('user scope: results', () => {
       destIndex: '0',
       day: '2026-04-01',
       activity: 'Fushimi Inari',
+      activityId: 't-spring-d0-day0-a0',
     });
     expect(a.querySelector('.result-badge')!.textContent).toBe('place');
     expect(a.querySelector('.result-context')!.textContent).toBe('Kyoto · Spring in Kansai');
