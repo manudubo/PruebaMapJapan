@@ -608,6 +608,8 @@ button.te-num-btn:disabled { cursor: default; }
   .te-icon-btn { width: 44px; height: 44px; min-height: 44px; }
   .place-clear { width: 44px; height: 44px; right: 0; }
   .te-act-name, .te-act-time, .te-hotel-card input { min-height: 44px; }
+  .te-swatch { width: 44px; height: 44px; }
+  .te-swatches { gap: 6px; }
   .te-row-actions { gap: 2px; }
   .te-act-main { gap: 2px; }
 }
