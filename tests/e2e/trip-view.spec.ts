@@ -71,6 +71,14 @@ test.describe('overview of a saved trip', () => {
     expect(await page.evaluate(() => (window as unknown as { __kept?: number }).__kept)).toBe(1);
   });
 
+  test('the popup of a return stay is titled with the city name, like the demo ("Tokyo"); the card keeps "(return)"', async ({ page }) => {
+    await openOwner(page, japanTrip(), 'trip.html?tripId=11');
+    await markers(page).nth(4).click();
+    await expect(page.locator('#map .leaflet-popup h4')).toHaveText('Tokyo');
+    await expect(markers(page).nth(4)).toHaveAttribute('aria-label', /Tokyo \(return\)/);
+    await expect(cards(page).nth(4).locator('strong')).toHaveText('Tokyo (return)');
+  });
+
   test('hovering a card highlights its marker; a card is keyboard reachable', async ({ page }) => {
     await openOwner(page, japanTrip(), 'trip.html?tripId=11');
     await cards(page).nth(2).hover();
