@@ -174,6 +174,20 @@ describe('navbar', () => {
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
+  it('city links are navigation, not tabs: a labelled nav with a list of links and aria-current on the active one', async () => {
+    const root = await mountNav();
+    const nav = document.querySelector('travel-nav') as unknown as {
+      setDestinations(d: Array<{ id: number; label: string; tripId: number; index: number }>): void;
+    };
+    nav.setDestinations([{ id: 1, label: 'Tokyo', tripId: 7, index: 0 }]);
+    expect(root.querySelector('[role="tab"], [role="tablist"], [aria-selected]')).toBeNull();
+    expect(root.querySelector('nav')!.getAttribute('aria-label')).toBeTruthy();
+    const items = root.querySelectorAll('ul.top-nav > li > a.nav-link');
+    expect(items).toHaveLength(2);
+    expect(items[1]!.textContent).toBe('Tokyo');
+    expect(root.querySelector('a[href="index.html?home"], a.nav-brand')).not.toBeNull();
+  });
+
   it('signed out: Sign in (outlined) and Sign up (filled), both 44px targets', async () => {
     const root = await mountNav();
     const signin = root.querySelector<HTMLButtonElement>('.nav-auth-login')!;

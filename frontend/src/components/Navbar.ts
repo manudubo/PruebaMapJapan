@@ -163,6 +163,8 @@ class TravelNav extends HTMLElement {
         }
 
         .top-nav {
+          list-style: none;
+          margin: 0;
           display: flex;
           gap: 4px;
           overflow-x: auto;
@@ -171,6 +173,11 @@ class TravelNav extends HTMLElement {
           -ms-overflow-style: auto;
           padding: 4px;
           flex: 1;
+        }
+
+        .top-nav li {
+          display: flex;
+          flex-shrink: 0;
         }
 
         .top-nav::-webkit-scrollbar {
@@ -344,6 +351,16 @@ class TravelNav extends HTMLElement {
           .nav-auth-user { padding: 0 8px; }
         }
 
+        /* Landscape phone (~375px tall): a 56px sticky bar is 15% of the screen. Slim it and let it
+           scroll away; the page's own sticky parts (save-status banner) stay. 44px targets stay. */
+        @media (max-height: 500px) and (orientation: landscape) {
+          nav { position: static; }
+          .nav-inner { height: auto; min-height: 48px; padding-block: 2px; }
+          .nav-brand, .nav-link, .theme-toggle { padding-block: 0; }
+          .top-nav { padding: 0 4px; scrollbar-width: none; }
+          .top-nav::-webkit-scrollbar { display: none; }
+        }
+
         /* A trip's cities need the full width to be reachable: on a phone they get their own
            scrolling row under the brand / account / theme buttons instead of a 60px sliver. */
         @media (max-width: 600px) {
@@ -360,7 +377,7 @@ class TravelNav extends HTMLElement {
           .nav-auth { margin-left: auto; }
         }
       </style>
-      <nav role="navigation" aria-label="Main navigation" class="${this.destinations.length > 0 ? 'has-dest' : ''}">
+      <nav aria-label="Main navigation" class="${this.destinations.length > 0 ? 'has-dest' : ''}">
         <div class="nav-inner">
           <a href="${HOME_HREF}" class="nav-brand" aria-label="Go to home">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -369,7 +386,7 @@ class TravelNav extends HTMLElement {
             </svg>
             <span>Home</span>
           </a>
-          <div class="top-nav" role="tablist" aria-label="Navigation">${this.renderNavLinks(currentPage)}</div>
+          <ul class="top-nav">${this.renderNavLinks(currentPage)}</ul>
           <div class="nav-auth">
             <a class="nav-auth-user" hidden></a>
             <button type="button" class="nav-auth-btn nav-auth-login ${registrationEnabled() ? 'nav-auth-outline' : 'nav-auth-primary'}" hidden>Sign in</button>
@@ -385,7 +402,7 @@ class TravelNav extends HTMLElement {
     const dashboardActive = currentPage === 'dashboard';
 
     let links = '';
-    links += `<a href="dashboard.html" class="nav-link${dashboardActive ? ' is-active' : ''}" ${dashboardActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${dashboardActive}">My Trips</a>`;
+    links += `<li><a href="dashboard.html" class="nav-link${dashboardActive ? ' is-active' : ''}" ${dashboardActive ? 'aria-current="page"' : ''}>My Trips</a></li>`;
 
     // Dynamic destination links
     if (this.destinations.length > 0) {
@@ -401,7 +418,7 @@ class TravelNav extends HTMLElement {
           currentPage === 'trip' &&
           currentTripId === String(dest.tripId) &&
           currentDestIndex === idx;
-        links += `<a href="${href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${isActive}">${escapeHtml(dest.label)}</a>`;
+        links += `<li><a href="${href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''}>${escapeHtml(dest.label)}</a></li>`;
       }
     }
 
