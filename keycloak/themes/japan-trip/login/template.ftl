@@ -46,6 +46,8 @@
         }
     </script>
     <script src="${url.resourcesPath}/js/menu-button-links.js" type="module"></script>
+    <#-- Passkey memory and passkey-first sign-in (see the header of the script); inert on pages without a passkey form. -->
+    <script src="${url.resourcesPath}/js/passkey-first.js" type="module"></script>
     <#if scripts??>
         <#list scripts as script>
             <script src="${script}" type="text/javascript"></script>
@@ -92,7 +94,7 @@
     </#if>
 </head>
 
-<body class="${properties.kcBodyClass!}" data-page-id="login-${pageId}">
+<body class="${properties.kcBodyClass!}" data-page-id="login-${pageId}" data-realm="${(realm.name)!''}">
 <div class="${properties.kcLoginClass!}">
     <div id="kc-header" class="${properties.kcHeaderClass!}">
         <svg class="jp-brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">

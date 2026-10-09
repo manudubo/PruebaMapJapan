@@ -424,6 +424,19 @@ label.jp-choice { cursor: pointer; }
 #register { margin: 0; }
 #kc-webauthn-settings-form { margin-top: 12px; }
 
+/* ---- Passkey-first sign-in (username page, js/passkey-first.js) ----
+   The panel replaces the e-mail form while the browser asks for the passkey, and stays above it
+   when the user cancels. The status line is a polite live region: it is announced, not focused. */
+.jp-passkey-first { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.jp-passkey-first .jp-passkey-hero { margin: 0; }
+#kc-content .jp-passkey-lead { margin: 4px 0 0; font-size: 15px; color: var(--jp-text); }
+#kc-content .jp-passkey-status { margin: 0; min-height: 1.5em; font-size: 14px; color: var(--jp-text-secondary); }
+.jp-passkey-alt { margin-top: 12px; }
+.jp-passkey-alt .jp-passkey-status { margin-top: 8px; }
+.jp-passkey-first .jp-btn { margin: 0; }
+.jp-passkey-first[aria-busy="true"] .jp-passkey-hero { animation: jp-pulse 1.4s ease-in-out infinite; }
+@keyframes jp-pulse { 50% { opacity: 0.55; } }
+
 /* ---- One-time codes, recovery codes ---- */
 #kc-totp-secret-key, .jp-codes { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; overflow-wrap: anywhere; }
 .jp-codes { padding: 12px 14px; background: var(--jp-bg); border: 1px solid var(--jp-border-strong); }
@@ -480,6 +493,10 @@ label.jp-choice { cursor: pointer; }
 /* Visually hidden, still announced */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+/* Component rules above set `display`; the hidden attribute must still win (passkey panel, form). */
+html [hidden] { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .jp-btn { transition: none; }
+  .jp-passkey-first[aria-busy="true"] .jp-passkey-hero { animation: none; }
 }
