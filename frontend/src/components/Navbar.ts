@@ -1,4 +1,5 @@
 import { toggleTheme, getTheme } from '@/modules/theme';
+import { escapeHtml } from '@/modules/utils';
 import { initKeycloak, isAuthenticated, getUserInfo, login, logout, HOME_HREF, onAuthStatusChange } from '@/auth/keycloak';
 import { registrationEnabled, wireSignUpButton } from '@/auth/registration';
 import { showSignUpNotice } from '@/auth/authStatusUI';
@@ -369,7 +370,7 @@ class TravelNav extends HTMLElement {
           currentPage === 'trip' &&
           currentTripId === String(dest.tripId) &&
           currentDestIndex === idx;
-        links += `<a href="${href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${isActive}">${dest.label}</a>`;
+        links += `<a href="${href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${isActive}">${escapeHtml(dest.label)}</a>`;
       }
     }
 

@@ -107,7 +107,7 @@ test.describe('Keycloak theme', () => {
     const HAS_ADMIN = !!process.env.KC_ADMIN_CLIENT_ID && !!process.env.KC_ADMIN_CLIENT_SECRET;
 
     test('no label question; the stored label is "<browser> on <system> (YYYY-MM-DD)"', async ({ page }) => {
-      test.skip(!HAS_ADMIN, 'needs the worker client (KC_ADMIN_CLIENT_ID / KC_ADMIN_CLIENT_SECRET) to read credentials');
+      test.fixme(!HAS_ADMIN, 'needs the worker client (KC_ADMIN_CLIENT_ID / KC_ADMIN_CLIENT_SECRET) to read credentials');
       const email = `theme-label-${Date.now()}-${crypto.randomBytes(3).toString('hex')}@example.test`;
       const password = `${crypto.randomBytes(12).toString('base64url')}Aa1!`;
       await createUser(email, password);

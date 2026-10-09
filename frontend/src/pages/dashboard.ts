@@ -156,7 +156,7 @@ export async function handleCreateTrip(e: Event): Promise<void> {
       end_date: (data['end_date'] as string) || null,
       is_public: false,
     });
-    window.location.href = `trip.html?tripId=${newTrip.id}`;
+    window.location.href = `trip-edit.html?tripId=${newTrip.id}`;
   } catch {
     showToast('Something went wrong. Please try again.', 'error');
     creatingTrip = false;
