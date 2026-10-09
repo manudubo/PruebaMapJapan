@@ -193,7 +193,7 @@ for (const scheme of ['light', 'dark'] as const) {
           });
 
           test('axe: no violations', async ({ page }) => {
-            test.skip(!AXE, 'axe-core not available (set AXE_CORE_PATH or npm i --no-save axe-core)');
+            test.fixme(!AXE, 'axe-core not available (set AXE_CORE_PATH or npm i --no-save axe-core)');
             await page.evaluate(AXE!);
             const results = await page.evaluate(() =>
               (window as unknown as { axe: { run: (c: unknown, o: unknown) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }> } }).axe.run(document, {
