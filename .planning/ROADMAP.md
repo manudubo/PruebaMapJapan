@@ -6,7 +6,7 @@
 - ✅ **v3.0 Quality, Polish & DevX** — Phases 10–14 (shipped 2026-06-15)
 - ✅ **v3.1 E2E Stabilization** — Phases 15–19 (shipped 2026-07-23)
 - ✅ **v3.2 Security & Code Health Hardening** — Phases 20–26 (executed 2026-07-24 → 2026-10-04; merged to `main` as PR #23, green on Actions; leftovers: DEP-02 and SEC-17 Partial)
-- ✅ **v3.3 UX & Product Polish** — Phases 27–33 (2026-10-08 → 2026-10-09; PR #27 `c7d54dc` seven owner-reported items UX-*, PR #28 `460a449` mobile UX-MOB-01, PR #29 `38b9108` passkey-first login PKF-01..04, PR #30 `432aba5` demo-parity test TEST-PARITY-01 and iOS redirect fix UX-NAV-02, PR #31 (pending) login theme cache-busting UX-KC-04; all Complete, not validated on real devices)
+- ✅ **v3.3 UX & Product Polish** — Phases 27–33 (2026-10-08 → 2026-10-09; PR #27 `c7d54dc` seven owner-reported items UX-*, PR #28 `460a449` mobile UX-MOB-01, PR #29 `38b9108` passkey-first login PKF-01..04, PR #30 `432aba5` demo-parity test TEST-PARITY-01 and iOS redirect fix UX-NAV-02, PR #31 login theme cache-busting UX-KC-04; all Complete, not validated on real devices)
 - 🔄 **Production readiness (post-v3.2)** — third batch (self-registration, REG-01..07) added on top, 53 commits after `d2dd404`; second batch PR #24 (89 commits, 2026-10-04 → 2026-10-08), merged as `d2dd404`; the registration batch is merged as PR #25 (`41f43d4`), docs PR #26 (`6d4c4f1`); self-hosting kit, internet hardening, A11Y-04/05, SEC-18; validation on the owner's real server pending
 
 ## Phases
@@ -210,7 +210,7 @@ Plans:
 | 30. Trip View Parity | v3.3 | n/a | Complete (UX-TRIP-02; PR #27) | 2026-10-08 |
 | 31. Cross-cutting Validation and Mobile | v3.3 | n/a | Complete (UX-MOB-01; PR #28, `qa/UX-REPORT.md`) | 2026-10-09 |
 | 32. Passkey-first Login | v3.3 | n/a | Complete (PKF-01..04; PR #29, `38b9108`) | 2026-10-09 |
-| 33. Mobile-real Fixes and Parity Validation | v3.3 | n/a | Complete (UX-NAV-02, TEST-PARITY-01; PR #30, `432aba5`) and UX-KC-04 Complete in PR #31 (pending); real-phone validation Unverified | 2026-10-09 |
+| 33. Mobile-real Fixes and Parity Validation | v3.3 | n/a | Complete (UX-NAV-02, TEST-PARITY-01; PR #30, `432aba5`) and UX-KC-04 Complete in PR #31; real-phone validation Unverified | 2026-10-09 |
 
 ## Post-phase work (v3.2, outside the original requirements)
 

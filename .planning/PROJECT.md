@@ -78,7 +78,7 @@ Rows UX-*, UX-MOB-01, PKF-01..04, UX-KC-04, UX-NAV-02, TEST-PARITY-01 in `.plann
 - ✓ Passkey-first login (prompt on load, private device memory, `passkey-done` branch, provider pin) — PKF-01..04, PR #29 (`38b9108`); real biometrics, Safari/iOS and Firefox not seen
 - ✓ No `redirect_uri` error on iOS (`silentCheckSsoFallback: false`) — UX-NAV-02, PR #30 (`432aba5`); residual: a signed-in iOS user with a blocked SSO iframe sees the signed-out state until Sign in
 - ✓ Demo-parity acceptance test (editor rebuilds the demo; structural and visual gates; 3 gaps fixed, `takayama-option-labels` documented) — TEST-PARITY-01, PR #30
-- ✓ Keycloak login theme served fresh (`?v=` cache-busting against the 30-day Keycloak cache) and friendly error pages — UX-KC-04, Complete in PR #31 (pending); real iPhone, real HTTP cache and Inter webfont not seen
+- ✓ Keycloak login theme served fresh (`?v=` cache-busting against the 30-day Keycloak cache) and friendly error pages — UX-KC-04, Complete in PR #31; real iPhone, real HTTP cache and Inter webfont not seen
 
 ### Active
 
@@ -99,7 +99,7 @@ Rows UX-*, UX-MOB-01, PKF-01..04, UX-KC-04, UX-NAV-02, TEST-PARITY-01 in `.plann
 
 ## Current Milestone: v3.3 UX & Product Polish (shipped; owner validation pending)
 
-Phases 27-33. Seven owner-reported items (UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01) shipped in PR #27 (`c7d54dc`), mobile as a tested target (UX-MOB-01) in PR #28 (`460a449`), passkey-first login (PKF-01..04) in PR #29 (`38b9108`), the demo-parity test and iOS redirect fix (TEST-PARITY-01, UX-NAV-02) in PR #30 (`432aba5`), and the login theme cache-busting fix (UX-KC-04) in PR #31 (pending). All Complete, validated in the sandbox only. Details: `ROADMAP.md`, `REQUIREMENTS.md` section "v3.3", `MILESTONES.md`, `qa/UX-REPORT.md`. Previous milestone below.
+Phases 27-33. Seven owner-reported items (UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01) shipped in PR #27 (`c7d54dc`), mobile as a tested target (UX-MOB-01) in PR #28 (`460a449`), passkey-first login (PKF-01..04) in PR #29 (`38b9108`), the demo-parity test and iOS redirect fix (TEST-PARITY-01, UX-NAV-02) in PR #30 (`432aba5`), and the login theme cache-busting fix (UX-KC-04) in PR #31. All Complete, validated in the sandbox only. Details: `ROADMAP.md`, `REQUIREMENTS.md` section "v3.3", `MILESTONES.md`, `qa/UX-REPORT.md`. Previous milestone below.
 
 ## Previous Milestone: v3.2 Security & Code Health Hardening (merged) and the production-readiness batch (PR #24)
 
