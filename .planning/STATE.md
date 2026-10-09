@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.2
-milestone_name: Security & Code Health Hardening
-status: v3.2_merged_registration_batch_pending_validation
+milestone: v3.3
+milestone_name: UX & Product Polish
+status: v3.3_in_progress_v3.2_and_registration_merged_pending_validation
 stopped_at: v3.2 merged (PR #23, green on Actions); second batch (PR #24, 89 commits) consolidated in planning docs; waiting for PR #24 checks and validation on the owner's real server
-last_updated: "2026-10-08T00:00:00.000Z"
-last_activity: 2026-10-08 -- Planning docs updated for the self-registration batch
+last_updated: "2026-10-08T12:00:00.000Z"
+last_activity: 2026-10-08 -- v3.3 UX & Product Polish recorded (UX-*, phases 27-31); PR #25 and #26 marked merged
 progress:
   total_phases: 7
   completed_phases: 7
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-08 — v3.2 merged; production-readiness batch on PR #24)
 
 **Core value:** A user can build a complete trip itinerary end-to-end from the UI — destinations, hotels, days, activities — and see it visualized on a map.
-**Current focus:** v3.2 is merged to `main` (PR #23, merge `ed49639`). The branch `claude/focused-lovelace-cryssy` carries a second batch (PR #24 open, head `2d7a734`, 89 commits ahead of `main`): self-hosting kit, internet hardening, A11Y-04/05, SEC-18, system and real-auth QA, Keycloak CI job. Next step is to read the PR #24 checks, merge, then validate on the owner's server `legion-server.tailad4a36.ts.net` (Funnel, Gmail, passkeys). Nothing of this batch is deployed.
+**Current focus (2026-10-08): v3.3 UX & Product Polish, phases 27-31.** Seven owner-reported items (UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01) are being implemented by parallel agents, all In progress; the most critical is UX-TRIP-01 (trip creation as simple as the demo). Final statuses are set by whoever merges. Earlier focus, still valid for ops: v3.2 is merged to `main` (PR #23, merge `ed49639`). The branch `claude/focused-lovelace-cryssy` carries a second batch (PR #24 open, head `2d7a734`, 89 commits ahead of `main`): self-hosting kit, internet hardening, A11Y-04/05, SEC-18, system and real-auth QA, Keycloak CI job. Next step is to read the PR #24 checks, merge, then validate on the owner's server `legion-server.tailad4a36.ts.net` (Funnel, Gmail, passkeys). Nothing of this batch is deployed.
 
 ## Current Position
 
 Phase: 26 of 26 (all v3.2 phases executed and merged); post-v3.2 production-readiness batch (PR #24) not phased
 Plan: n/a — Phases 22-26 ran from summaries, not PLAN.md files; the batch ran as five parallel tracks plus one integration pass
-Status: v3.2 shipped to `main` (CI green). PR #24 open, validated in the sandbox only
+Status: v3.2 shipped to `main` (CI green). PR #24 (`d2dd404`), PR #25 self-registration (`41f43d4`) and PR #26 docs (`6d4c4f1`) are merged; validated in the sandbox only. v3.3 UX & Product Polish is in progress (below)
 Last activity: 2026-10-08
 
-Progress: v3.2 100%. Requirements: 88 Complete, 4 Partial (DEP-02, SEC-17, PROD-01, REG-06), 3 Unverified (QA-01, REG-01, REG-07), 0 Deferred (95 rows: 82 audit-derived, DATA-04, PROD-01..04, QA-01, REG-01..07). PR #24 is in `main` as `d2dd404` (its "open / running checks" wording below is from before the merge); the registration batch is 53 commits on top, not pushed to a PR.
+Progress: v3.2 100%. Requirements: 88 Complete, 4 Partial (DEP-02, SEC-17, PROD-01, REG-06), 3 Unverified (QA-01, REG-01, REG-07), 0 Deferred (95 rows: 82 audit-derived, DATA-04, PROD-01..04, QA-01, REG-01..07). PR #24 is in `main` as `d2dd404` (its "open / running checks" wording below is from before the merge); the registration batch is merged as PR #25 (`41f43d4`), its docs as PR #26 (`6d4c4f1`). v3.3 adds 7 rows (UX-*), all In progress.
 
 GitHub Actions evidence (checked 2026-10-08 through the API): PR #23 head `2200c6e` had all 10 checks green (`e2e`, `accessibility`, `gitleaks`, `test-backend`, `test-frontend`, `test-scripts`, `typecheck-*`, `build-backend`, Vercel preview comments). The push to `main` at `ed49639` ran green (12 check runs including `e2e`, `accessibility`, `gitleaks`, `test-backend`, `build-and-deploy` and `deploy`; the `Security & Accessibility Scans`, `Deploy Frontend to GitHub Pages` and `Deploy Backend to Cloudflare Workers` runs succeeded; the backend deploy almost certainly skipped without Cloudflare secrets, cause not inspected). For PR #24 head `2d7a734`, `Keycloak flow`, `CI` and the security workflow had started; `e2e`, `idp-flow`, `accessibility` and `test-backend` were still in progress, the rest green. Re-read before merging.
 
@@ -93,6 +93,8 @@ Third batch (self-registration, REG-01..07):
 
 ### Pending Todos
 
+- v3.3: merge the parallel UX agents, then set UX-* statuses, fill `phases/TRACEABILITY.md` (v3.3 section) with commits and tests, and write `qa/UX-REPORT.md` (see the placeholder in `qa/QA-INDEX.md`). Add a real decision here once `docs/design/TRIP-CREATION-UX.md` is final.
+- Registration batch is merged (PR #25 `41f43d4`, docs PR #26 `6d4c4f1`); the Actions run of the extended `keycloak-flow.yml` is still to be read (REG-07).
 - Read the PR #24 checks (`e2e`, `idp-flow`, `accessibility`, `test-backend` were in progress), merge, and record the `Keycloak flow` result against QA-01.
 - Validate on the owner's server (see Manual actions for the owner). Then update PROD-01 and SEC-17.
 - ARCH-06, ARCH-09 and DEP-03 were decided by the PR #23 run (all green); that is recorded in REQUIREMENTS.md.
@@ -159,5 +161,5 @@ Third batch (self-registration, REG-01..07):
 ## Session Continuity
 
 Last session: 2026-10-08
-Stopped at: Planning docs updated for the registration batch (REQUIREMENTS REG-01..07, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX, PR-DESCRIPTION).
-Resume: Read the PR #24 checks, merge, validate on the owner's server, then update PROD-01, SEC-17 and QA-01. Run `/gsd-complete-milestone` only after owner actions are done or consciously deferred.
+Stopped at: Planning docs updated for v3.3 (UX-* requirements, phases 27-31, QA placeholder); before that for the registration batch (REQUIREMENTS REG-01..07, ROADMAP, STATE, PROJECT, MILESTONES, phases/TRACEABILITY, qa/QA-INDEX, PR-DESCRIPTION).
+Resume: v3.3 merge and status update first; then validate on the owner's server, then update PROD-01, SEC-17 and QA-01. Run `/gsd-complete-milestone` only after owner actions are done or consciously deferred.

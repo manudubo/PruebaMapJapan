@@ -100,6 +100,16 @@ export async function credentialTypes(username: string): Promise<string[]> {
   return (await client.users.getCredentials({ id: user.id })).map((c) => c.type ?? '');
 }
 
+/** User labels of the user's credentials of one type (e.g. the passkey names shown in the account). */
+export async function getUserCredentialLabels(username: string, type: string): Promise<string[]> {
+  const client = await buildAdminClient();
+  const [user] = await client.users.find({ username, exact: true });
+  if (!user?.id) throw new Error(`User not found: ${username}`);
+  return (await client.users.getCredentials({ id: user.id }))
+    .filter((c) => c.type === type)
+    .map((c) => c.userLabel ?? '');
+}
+
 export async function setUserEnabled(username: string, enabled: boolean): Promise<void> {
   const client = await buildAdminClient();
   const [user] = await client.users.find({ username, exact: true });

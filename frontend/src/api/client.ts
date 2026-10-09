@@ -8,6 +8,7 @@
 import { getToken, isAuthenticated, login } from '@/auth/keycloak';
 import { showToast } from '@/modules/toast';
 import { EMAIL_NOT_VERIFIED_EVENT } from '@/auth/emailEvent';
+import { notifyTripsChanged } from '@/modules/tripsChanged';
 
 export { EMAIL_NOT_VERIFIED_EVENT };
 import type {
@@ -149,6 +150,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       Array.isArray(envelope?.issues) ? envelope.issues : [],
     );
   }
+
+  // A successful write changes what the search index may hold.
+  if (method !== 'GET') notifyTripsChanged();
 
   if (response.status === 204) {
     return undefined as unknown as T;

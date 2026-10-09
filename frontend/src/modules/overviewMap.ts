@@ -4,7 +4,8 @@ import DOMPurify from 'dompurify';
 import { ITINERARY } from '@/data/itinerary';
 import { getThemeConfig } from './theme';
 import { createBaseMap } from './baseMap';
-import { announceToScreenReader } from './utils';
+import { DeclutteredMarker, declutterMarkers } from './declutter';
+import { announceToScreenReader, escapeHtml } from './utils';
 import { setStyle } from './dom';
 
 /**
@@ -33,7 +34,7 @@ export interface OverviewStop {
 
 export const OVERVIEW_VIEW = { center: [35.5, 137.0] as [number, number], zoom: 6 };
 
-const PALETTE = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'];
+export const PALETTE = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#5ac8fa', '#007aff', '#af52de', '#ff2d55'];
 
 /**
  * Marker positions from the original overview. They differ slightly from the
@@ -82,7 +83,7 @@ function stopIcon(stop: OverviewStop): L.DivIcon {
 
 function popupHtml(stop: OverviewStop): string {
   return DOMPurify.sanitize(
-    `<h4>${stop.name}</h4><p>${stop.dates}</p><p><a href="${stop.link}" class="overview-popup-link">View itinerary</a></p>`,
+    `<h4>${escapeHtml(stop.name)}</h4>${stop.dates ? `<p>${escapeHtml(stop.dates)}</p>` : ''}<p><a href="${escapeHtml(stop.link)}" class="overview-popup-link">View itinerary</a></p>`,
   );
 }
 
@@ -92,11 +93,40 @@ export interface OverviewMap {
   markers: Map<string, L.Marker>;
   /** Select a city: open its popup and highlight its card. */
   select(key: string): void;
+  /** Remove the map and its global listeners (pages that swap views without reloading). */
+  destroy(): void;
 }
 
+export interface OverviewMapOptions {
+  /** Initial view. Default: the demo's fixed Japan view; 'fit' frames the stops (saved trips). */
+  view?: { center: [number, number]; zoom: number } | 'fit';
+  /** Nudge markers that would overlap apart (saved trips: two stops can share a spot). */
+  declutter?: boolean;
+}
+
+/** The demo's overview: every city of the static itinerary. */
 export function initOverviewMap(container: HTMLElement, list: HTMLElement | null): OverviewMap {
-  const stops = getOverviewStops();
-  const { map, tileLayer } = createBaseMap(container, OVERVIEW_VIEW.center, OVERVIEW_VIEW.zoom);
+  return createOverviewMap(getOverviewStops(), container, list);
+}
+
+/**
+ * Overview map for any list of stops: numbered markers in order, a dashed route line joining
+ * them, popups linking to each city, and card <-> marker selection sync with `list`.
+ * Shared by the demo (above) and by saved trips (pages/tripDetail.ts).
+ */
+export function createOverviewMap(
+  stops: OverviewStop[],
+  container: HTMLElement,
+  list: HTMLElement | null,
+  options: OverviewMapOptions = {},
+): OverviewMap {
+  const view = options.view ?? OVERVIEW_VIEW;
+  const start = view === 'fit' ? OVERVIEW_VIEW : view;
+  const { map, tileLayer } = createBaseMap(container, start.center, start.zoom);
+  if (view === 'fit' && stops.length === 1) map.setView(stops[0]!.coords, 10);
+  else if (view === 'fit' && stops.length > 1) {
+    map.fitBounds(L.latLngBounds(stops.map((s) => s.coords)), { padding: [48, 48], maxZoom: 10 });
+  }
   window.currentMap = map;
   window.currentTileLayer = tileLayer;
 
@@ -114,11 +144,12 @@ export function initOverviewMap(container: HTMLElement, list: HTMLElement | null
 
   const markers = new Map<string, L.Marker>();
   for (const stop of stops) {
-    const marker = L.marker(stop.coords, { icon: stopIcon(stop), alt: stop.label, riseOnHover: true })
+    const markerOptions = { icon: stopIcon(stop), alt: stop.label, riseOnHover: true };
+    const marker = (options.declutter ? new DeclutteredMarker(stop.coords, markerOptions) : L.marker(stop.coords, markerOptions))
       .bindPopup(popupHtml(stop))
       .addTo(map);
     const icon = marker.getElement();
-    icon?.setAttribute('aria-label', `${stop.number}. ${stop.label}, ${stop.dates} – show details`);
+    icon?.setAttribute('aria-label', `${stop.number}. ${stop.label}${stop.dates ? `, ${stop.dates}` : ''} – show details`);
     icon?.setAttribute('data-city', stop.key);
 
     // Opened from the keyboard (Enter on the focused marker): move focus into the
@@ -136,10 +167,18 @@ export function initOverviewMap(container: HTMLElement, list: HTMLElement | null
     markers.set(stop.key, marker);
   }
 
+  if (options.declutter) {
+    const all = [...markers.values()] as DeclutteredMarker[];
+    const spread = (): void => { declutterMarkers(map, all); };
+    spread();
+    map.on('zoomend', spread);
+  }
+
   const route = L.polyline(stops.map((s) => s.coords), {
     color: getThemeConfig().routeColor, weight: 2, opacity: 0.5, dashArray: '8, 8',
   }).addTo(map);
-  window.addEventListener('theme-changed', () => route.setStyle({ color: getThemeConfig().routeColor }));
+  const onTheme = (): void => { route.setStyle({ color: getThemeConfig().routeColor }); };
+  window.addEventListener('theme-changed', onTheme);
 
   // List -> map: hovering or focusing a card highlights its marker. The cards stay
   // plain links (activating one navigates to the city), as in the original.
@@ -161,6 +200,10 @@ export function initOverviewMap(container: HTMLElement, list: HTMLElement | null
     markers,
     select(key: string) {
       markers.get(key)?.openPopup();
+    },
+    destroy() {
+      window.removeEventListener('theme-changed', onTheme);
+      map.remove();
     },
   };
 }

@@ -119,7 +119,7 @@ test.describe('Content-Security-Policy is enforced without violations', () => {
 
   test('trip-edit.html loads the trip into the editor', async ({ page }) => {
     const probe = await armPage(page, 'in');
-    await page.goto(`trip-edit.html?tripId=${mockTrip.id}`);
+    await page.goto(`trip-edit.html?tripId=${mockTrip.id}#trip`);
     await expectPolicyInPage(page);
     await expect(page.locator('#trip-name')).toHaveValue(mockTrip.name);
     await page.waitForLoadState('networkidle');

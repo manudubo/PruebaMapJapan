@@ -1,6 +1,6 @@
 # v3.2 Traceability: requirement -> status -> commits -> tests -> summary
 
-Rebuilt on 2026-10-04 from `git log 3c147f6..HEAD` (HEAD `33ab925`), the per-phase summaries and the code. Extended on 2026-10-08 for the PR #24 batch (`git log origin/main..HEAD`, head `2d7a734`, 89 commits; section "Post-v3.2 batch" at the end) and for the Actions results of PR #23. Extended again on 2026-10-08 for the registration batch (`git log --oneline origin/main..HEAD`, 53 commits after `d2dd404`, head `f581d45`; section "Registration batch" at the end; summaries `REG-IDP` / `REG-BE` / `REG-UI` / `REG-INT` = `qa/REGISTRATION-{IDP,BACKEND,UI,INTEGRATION}-REPORT.md`). Rows below that changed in that update are marked (updated 2026-10-08). Phases 22-26 have no PLAN.md, and most commit subjects carry no requirement ID, so IDs were matched through the files each commit touched and the summaries. Each row was checked against the current code; the full unit suites were re-run on 2026-10-04 (backend 1524, frontend 1042, both passing).
+Rebuilt on 2026-10-04 from `git log 3c147f6..HEAD` (HEAD `33ab925`), the per-phase summaries and the code. Extended on 2026-10-08 for the PR #24 batch (`git log origin/main..HEAD`, head `2d7a734`, 89 commits; section "Post-v3.2 batch" at the end) and for the Actions results of PR #23. Extended again on 2026-10-08 for the registration batch (`git log --oneline origin/main..HEAD`, 53 commits after `d2dd404`, head `f581d45`; section "Registration batch" at the end; summaries `REG-IDP` / `REG-BE` / `REG-UI` / `REG-INT` = `qa/REGISTRATION-{IDP,BACKEND,UI,INTEGRATION}-REPORT.md`). Extended on 2026-10-08 with the v3.3 section (placeholders, In progress). Rows below that changed in that update are marked (updated 2026-10-08). Phases 22-26 have no PLAN.md, and most commit subjects carry no requirement ID, so IDs were matched through the files each commit touched and the summaries. Each row was checked against the current code; the full unit suites were re-run on 2026-10-04 (backend 1524, frontend 1042, both passing).
 
 Status vocabulary (same as `REQUIREMENTS.md`): **Complete** = implemented and proven by tests or a recorded manual check. **Partial** = part of the acceptance criteria met. **Deferred** = consciously not done. **Unverified** = implemented, a required verification has not happened.
 
@@ -253,3 +253,17 @@ Merge commits: cde9023 (IdP), 91be138 (UI), ae6c03b (backend), f26a235 (integrat
 Other commits of the batch: 5c4fa67, b0fef8d, f3845e1 (reports and screenshots); b29ee1a (UI Playwright, REG-04); 607b4b3 (duplicate block after merging two onboarding branches); 3367cc6 (revert; compose env left to the backend); f581d45 (`.gitleaksignore` for the reCAPTCHA test-key fixtures in the guard tests).
 
 Bugs the integration run found and fixed: recovery token without roles (b6463b8), `max_attempts` shown as a wait (d12959b), dev server dropping env variables (59a0c8d), a wrong recovery e2e assumption (8c70a4d).
+
+## v3.3 UX & Product Polish (UX-*; In progress, 2026-10-08)
+
+Placeholder rows: the agents are implementing these in parallel and nothing is merged. The merger fills commits and tests and sets the final status. Acceptance criteria per ID are in `REQUIREMENTS.md` (section "v3.3"). Dependencies: UX-TRIP-01 and UX-TRIP-02 share the trip data adapters; UX-SEARCH-01 depends on the API client.
+
+| ID | Status | Phase | Key commits | Tests (expected) | Summary |
+|----|--------|-------|-------------|------------------|---------|
+| UX-KC-01 | In progress | 27 | pending | e2e/idp-theme + idp-flow + idp-registration; theme invariants spec; visual 10 screens light/dark 375/1280 | `qa/UX-REPORT.md` (placeholder) |
+| UX-KC-02 | In progress | 27 | pending | unit for the label function; passkeys / uat-passkeys e2e | `qa/UX-REPORT.md` (placeholder) |
+| UX-KC-03 | In progress | 27 | pending | tf/ production-profile test (base_url from deploy defaults); idp-theme e2e error-page link; deploy-defaults test | `qa/UX-REPORT.md` (placeholder) |
+| UX-NAV-01 | In progress | 28 | pending | unit for the redirect rule; e2e dashboard to landing | `qa/UX-REPORT.md` (placeholder) |
+| UX-SEARCH-01 | In progress | 28 | pending | unit for scope selection and own-trips index; e2e authenticated vs city page | `qa/UX-REPORT.md` (placeholder) |
+| UX-TRIP-01 | In progress | 29 | pending | unit for adapters, autosave, route; e2e guided flow (mocked and real stack); visual every step | `docs/design/TRIP-CREATION-UX.md`, `qa/UX-REPORT.md` (placeholder) |
+| UX-TRIP-02 | In progress | 30 | pending | adapter unit tests; e2e dashboard to trip to city; loading/error/API-down; visual | `qa/UX-REPORT.md` (placeholder) |

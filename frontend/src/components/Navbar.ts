@@ -1,5 +1,6 @@
 import { toggleTheme, getTheme } from '@/modules/theme';
-import { initKeycloak, isAuthenticated, getUserInfo, login, logout, onAuthStatusChange } from '@/auth/keycloak';
+import { escapeHtml } from '@/modules/utils';
+import { initKeycloak, isAuthenticated, getUserInfo, login, logout, HOME_HREF, onAuthStatusChange } from '@/auth/keycloak';
 import { registrationEnabled, wireSignUpButton } from '@/auth/registration';
 import { showSignUpNotice } from '@/auth/authStatusUI';
 
@@ -330,7 +331,7 @@ class TravelNav extends HTMLElement {
       </style>
       <nav role="navigation" aria-label="Main navigation">
         <div class="nav-inner">
-          <a href="index.html" class="nav-brand" aria-label="Go to home">
+          <a href="${HOME_HREF}" class="nav-brand" aria-label="Go to home">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
@@ -369,7 +370,7 @@ class TravelNav extends HTMLElement {
           currentPage === 'trip' &&
           currentTripId === String(dest.tripId) &&
           currentDestIndex === idx;
-        links += `<a href="${href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${isActive}">${dest.label}</a>`;
+        links += `<a href="${href}" class="nav-link${isActive ? ' is-active' : ''}" ${isActive ? 'aria-current="page"' : ''} role="tab" aria-selected="${isActive}">${escapeHtml(dest.label)}</a>`;
       }
     }
 

@@ -6,11 +6,11 @@
  */
 
 import '@/styles/main.css';
+import '@/styles/trip-view.css';
 import '@/components/Navbar';
 import '@/components/SearchBar';
 
 import { initTheme } from '@/modules/theme';
-import { formatIsoDate } from '@/modules/dates';
 import { getUserInfo, login, getToken, keycloak, loginRedirectUri } from '@/auth/keycloak';
 import {
   watchAuth,
@@ -26,129 +26,86 @@ import { showEmailVerification } from '@/auth/verifyEmail';
 import { getMyTrips, getMe, updateMe, apiUrl, ApiError } from '@/api/client';
 import { extendSearchIndexWithApiTrip } from '@/modules/search';
 import type { ApiTrip, ApiUser } from '@/types';
-import { setText, setStyle } from '@/modules/dom';
 import { showToast, installGlobalErrorHandler } from '@/modules/toast';
+import {
+  renderEmptyState,
+  renderLoadError,
+  renderSkeletonCards,
+  renderTripGroups,
+  showSlowNotice,
+} from '@/pages/tripCards';
 
 // ---------------------------------------------------------------------------
-// Render helpers
+// Trips list: loading, slow, empty, error, loaded
 // ---------------------------------------------------------------------------
 
-function formatDateRange(start: string | null, end: string | null): string {
-  if (!start) return '';
-  const fmt = (iso: string): string =>
-    formatIsoDate(iso, { day: 'numeric', month: 'short', year: 'numeric' });
-  return end ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
+/** After this long without an answer the list says so and offers "Try again" (the request keeps going). */
+export const SLOW_TRIPS_MS = 3000;
+
+let tripsSeq = 0;
+let tripsShown = false;
+let loadingOpen = false;
+let slowTimer: ReturnType<typeof setTimeout> | undefined;
+
+function tripsGrid(): HTMLElement | null {
+  return document.getElementById('trips-grid');
 }
 
-function renderTripCard(trip: ApiTrip): HTMLElement {
-  const destCount = trip.destinations?.length ?? 0;
-  const dateRange = formatDateRange(trip.start_date, trip.end_date);
-
-  const card = document.createElement('a');
-  card.href = `trip.html?tripId=${trip.id}`;
-  card.className = 'trip-card';
-  card.setAttribute('aria-label', `View trip: ${trip.name}`);
-
-  const cover = document.createElement('div');
-  cover.className = 'trip-card-cover';
-  if (trip.cover_image_url) {
-    setStyle(cover, 'background-image', `url('${trip.cover_image_url}')`);
-    setStyle(cover, 'background-size', 'cover');
-    setStyle(cover, 'background-position', 'center');
-  }
-  if (trip.is_public) {
-    const badge = document.createElement('span');
-    badge.className = 'trip-card-badge trip-card-badge--public';
-    badge.textContent = 'Public';
-    cover.appendChild(badge);
-  }
-  card.appendChild(cover);
-
-  const body = document.createElement('div');
-  body.className = 'trip-card-body';
-
-  const title = document.createElement('h3');
-  title.className = 'trip-card-title';
-  setText(title, trip.name);
-  body.appendChild(title);
-
-  if (trip.description) {
-    const desc = document.createElement('p');
-    desc.className = 'trip-card-desc';
-    setText(desc, trip.description);
-    body.appendChild(desc);
-  }
-
-  const meta = document.createElement('div');
-  meta.className = 'trip-card-meta';
-  if (dateRange) {
-    const dates = document.createElement('span');
-    dates.className = 'trip-card-dates';
-    dates.textContent = dateRange;
-    meta.appendChild(dates);
-  }
-  const dests = document.createElement('span');
-  dests.className = 'trip-card-dests';
-  dests.textContent = `${destCount} destination${destCount !== 1 ? 's' : ''}`;
-  meta.appendChild(dests);
-  body.appendChild(meta);
-  card.appendChild(body);
-
-  // Edit link (TRIP-01)
-  const editRow = document.createElement('div');
-  editRow.className = 'trip-card-actions';
-  const editLink = document.createElement('a');
-  editLink.href = `trip-edit.html?tripId=${trip.id}`;
-  editLink.className = 'btn btn-secondary btn-small';
-  editLink.textContent = 'Edit';
-  editRow.appendChild(editLink);
-  card.appendChild(editRow);
-
-  return card;
+/**
+ * Show the skeleton and arm the "taking longer" timer. Idempotent while a loading phase is
+ * open (profile call + trips call share one 3s budget); `force` starts a fresh phase (Try again).
+ */
+function beginLoading(force = false): number {
+  const grid = tripsGrid();
+  if (!grid) return tripsSeq;
+  if (loadingOpen && !force) return tripsSeq;
+  loadingOpen = true;
+  tripsShown = false;
+  const seq = ++tripsSeq;
+  clearTimeout(slowTimer);
+  grid.removeAttribute('hidden');
+  renderSkeletonCards(grid);
+  slowTimer = setTimeout(() => {
+    if (!tripsShown && seq === tripsSeq) showSlowNotice(grid, () => { void loadTrips(true); });
+  }, SLOW_TRIPS_MS);
+  return seq;
 }
 
-function renderGrid(trips: ApiTrip[]): void {
-  const grid = document.getElementById('trips-grid');
+function endLoading(): void {
+  loadingOpen = false;
+  clearTimeout(slowTimer);
+}
+
+function showTripsLoaded(trips: ApiTrip[]): void {
+  const grid = tripsGrid();
   if (!grid) return;
+  endLoading();
+  tripsShown = true;
+  grid.removeAttribute('aria-busy');
+  if (trips.length === 0) renderEmptyState(grid, openCreateForm);
+  else renderTripGroups(grid, trips);
+}
 
-  grid.innerHTML = '';
-
-  if (trips.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'trips-empty';
-    const p1 = document.createElement('p');
-    p1.textContent = "You don't have any trips saved yet.";
-    const ctaBtn = document.createElement('button');
-    ctaBtn.id = 'empty-state-create-btn';
-    ctaBtn.className = 'btn btn-primary';
-    ctaBtn.type = 'button';
-    ctaBtn.style.marginTop = '16px';
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('viewBox', '0 0 24 24');
-    icon.setAttribute('fill', 'none');
-    icon.setAttribute('stroke', 'currentColor');
-    icon.setAttribute('stroke-width', '2.5');
-    icon.setAttribute('width', '15');
-    icon.setAttribute('height', '15');
-    icon.setAttribute('aria-hidden', 'true');
-    const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line1.setAttribute('x1', '12'); line1.setAttribute('y1', '5');
-    line1.setAttribute('x2', '12'); line1.setAttribute('y2', '19');
-    const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line2.setAttribute('x1', '5'); line2.setAttribute('y1', '12');
-    line2.setAttribute('x2', '19'); line2.setAttribute('y2', '12');
-    icon.appendChild(line1);
-    icon.appendChild(line2);
-    ctaBtn.appendChild(icon);
-    ctaBtn.appendChild(document.createTextNode('Create your first trip'));
-    ctaBtn.addEventListener('click', openCreateForm);
-    empty.appendChild(p1);
-    empty.appendChild(ctaBtn);
-    grid.appendChild(empty);
-    return;
+/**
+ * Fetch and show the user's trips. Never leaves the user on a blank or endless loading list:
+ * skeleton cards at once, a "taking longer" notice with Try again after SLOW_TRIPS_MS, and a
+ * persistent error with Try again if the request fails. A late answer still replaces the notice.
+ */
+export async function loadTrips(retry = false): Promise<void> {
+  const grid = tripsGrid();
+  if (!grid) return;
+  const seq = beginLoading(retry);
+  try {
+    const trips = await getMyTrips();
+    if (tripsShown) return; // another attempt already answered
+    showTripsLoaded(trips);
+    // Extend search index with the user's trips
+    trips.forEach((t) => extendSearchIndexWithApiTrip(t));
+  } catch {
+    if (tripsShown || seq !== tripsSeq) return; // answered meanwhile, or superseded by a retry
+    endLoading();
+    renderLoadError(grid, () => { void loadTrips(true); });
   }
-
-  trips.forEach((t) => grid.appendChild(renderTripCard(t)));
 }
 
 function renderUserGreeting(user: ApiUser | null): void {
@@ -199,7 +156,7 @@ export async function handleCreateTrip(e: Event): Promise<void> {
       end_date: (data['end_date'] as string) || null,
       is_public: false,
     });
-    window.location.href = `trip.html?tripId=${newTrip.id}`;
+    window.location.href = `trip-edit.html?tripId=${newTrip.id}`;
   } catch {
     showToast('Something went wrong. Please try again.', 'error');
     creatingTrip = false;
@@ -443,11 +400,7 @@ async function loadAuthenticated(): Promise<void> {
   webauthnCapable = typeof PublicKeyCredential !== 'undefined';
   const info = getUserInfo();
   // Load real user profile and trips
-  const grid = document.getElementById('trips-grid');
-  if (grid) {
-    grid.removeAttribute('hidden');
-    grid.innerHTML = '<div class="trips-empty">Loading trips...</div>';
-  }
+  beginLoading();
 
   let user: ApiUser | null = null;
   try {
@@ -463,6 +416,7 @@ async function loadAuthenticated(): Promise<void> {
   if (user && user.email_verified === false && info) {
     await showEmailVerification({ email: user.email || info.email || null, userKey: info.id });
     user = { ...user, email_verified: true };
+    beginLoading(true); // the 3s "slow" budget restarts after the user finished verifying
   }
 
   // The first call is handled explicitly above; any later 403 email_not_verified is handled by
@@ -470,14 +424,7 @@ async function loadAuthenticated(): Promise<void> {
   if (info) startCampaigns(info.id, user);
   renderUserGreeting(user);
 
-  try {
-    const trips = await getMyTrips();
-    renderGrid(trips);
-    // Extend search index with the user's trips
-    trips.forEach((t) => extendSearchIndexWithApiTrip(t));
-  } catch {
-    showToast('Something went wrong. Please try again.', 'error');
-  }
+  await loadTrips();
 }
 
 function init(): void {

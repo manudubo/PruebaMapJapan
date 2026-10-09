@@ -169,12 +169,12 @@ async function signInWithPasswordOnOldDevice(old: BrowserContext, email: string,
   const codes = trackCodes(page);
   await page.goto(authUrl(pkce().challenge));
   await page.locator('input[name="username"]').fill(email);
-  await submitForm(page, '#kc-login, [type="submit"]');
+  await submitForm(page, '#kc-login');
   await expect(page.locator('#jp-passkey-recovery')).toHaveClass(/jp-passkey-recovery--primary/);
   await submitForm(page, '#try-another-way');
   await submitForm(page, '#kc-select-credential-form button:not(:has-text("Passkey"))');
   await page.locator('input[name="password"]').fill(password);
-  await submitForm(page, '#kc-login, [type="submit"]');
+  await submitForm(page, '#kc-login');
   await expect.poll(() => codes.length).toBe(1);
 }
 
@@ -289,7 +289,7 @@ test.describe('Self-registration (REG-01..07)', () => {
         const login = pkce();
         await page.goto(authUrl(login.challenge));
         await page.locator('input[name="username"]').fill(email);
-        await submitForm(page, '#kc-login, [type="submit"]');
+        await submitForm(page, '#kc-login');
         expect(codes).toHaveLength(0);
         await expect(page.locator('input[name="password"]')).toHaveCount(0);
         await expect(page.locator('#registerWebAuthn')).toHaveCount(0);
@@ -383,6 +383,10 @@ test.describe('Self-registration (REG-01..07)', () => {
       const { verifier, challenge } = pkce();
       try {
         const codes = trackCodes(page);
+        // Only the code in the redirect matters here. Letting the app load would make its own
+        // dashboard request an e-mail code for the unverified user and race the explicit
+        // request below (429 cooldown), so the redirect target is never served.
+        await page.route(`${REDIRECT_URI}**`, (route) => route.abort());
         await page.goto(registrationUrl(challenge));
         await fillRegistration(page, email);
         await page.locator('#registerWebAuthn').click();
@@ -424,6 +428,9 @@ test.describe('Self-registration (REG-01..07)', () => {
         const p = await phone.newPage();
         const { cdp } = await addVirtualAuthenticator(p);
         const phoneCodes = trackCodes(p);
+        // Only the code in the redirect matters; serving the app would let its dashboard request
+        // an e-mail code and race the explicit request below (429 cooldown).
+        await p.route(`${REDIRECT_URI}**`, (route) => route.abort());
         const signup = pkce();
         await p.goto(registrationUrl(signup.challenge));
         await fillRegistration(p, email);
@@ -474,6 +481,9 @@ test.describe('Self-registration (REG-01..07)', () => {
         const p = await squatter.newPage();
         const { cdp } = await addVirtualAuthenticator(p);
         const codes = trackCodes(p);
+        // Only the code in the redirect matters; serving the app would let its dashboard request
+        // an e-mail code and race the explicit request below (429 cooldown).
+        await p.route(`${REDIRECT_URI}**`, (route) => route.abort());
         const signup = pkce();
         await p.goto(registrationUrl(signup.challenge));
         await fillRegistration(p, email);
@@ -504,9 +514,9 @@ test.describe('Self-registration (REG-01..07)', () => {
         const ownerCodes = trackCodes(page);
         await page.goto(authUrl(pkce().challenge));
         await page.locator('input[name="username"]').fill(email);
-        await submitForm(page, '#kc-login, [type="submit"]');
+        await submitForm(page, '#kc-login');
         await page.locator('input[name="password"]').fill(newPassword);
-        await submitForm(page, '#kc-login, [type="submit"]');
+        await submitForm(page, '#kc-login');
         await expect.poll(() => ownerCodes.length).toBe(1);
       } finally {
         await squatter.close();

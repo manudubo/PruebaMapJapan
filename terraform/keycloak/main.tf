@@ -15,9 +15,12 @@ locals {
 
   # Exactly the pages keycloak-js redirects back to — no wildcards (a trailing-wildcard redirect
   # URI would let any page under the origin receive authorization codes).
-  redirect_pages   = ["dashboard.html", "profile.html", "index.html", "silent-check-sso.html"]
-  redirect_uris    = flatten([for o in local.all_origins : [for p in local.redirect_pages : "${o}${local.app_base_path}${p}"]])
-  app_home_url     = "${local.production ? local.app_origins[0] : var.local_dev_origins[0]}${local.app_base_path}"
+  redirect_pages = ["dashboard.html", "profile.html", "index.html", "silent-check-sso.html"]
+  redirect_uris  = flatten([for o in local.all_origins : [for p in local.redirect_pages : "${o}${local.app_base_path}${p}"]])
+  app_home_url   = "${local.production ? local.app_origins[0] : var.local_dev_origins[0]}${local.app_base_path}"
+  # Loopback/dev hosts: never acceptable as a production client URL (the "Back to
+  # application" link of Keycloak's pages comes from the client's base URL).
+  loopback_re      = "^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\]|0\\.0\\.0\\.0)([:/]|$)"
   post_logout_uris = flatten([for o in local.all_origins : ["${o}${local.app_base_path}index.html", "${o}/"]])
 
   create_test_users    = coalesce(var.create_test_users, !local.production)
@@ -362,10 +365,20 @@ resource "keycloak_openid_client" "japan_trip_frontend" {
   valid_post_logout_redirect_uris = local.post_logout_uris
   # Explicit CORS origins for token/userinfo calls (never the plus or star shorthands).
   web_origins = local.all_origins
-  # Login-page "Return" link (theme footer.ftl): the real app, never localhost in production.
+  # Login-page "Return" link (theme footer.ftl) and the "Back to application" link of
+  # Keycloak's error pages (e.g. "Registration not allowed"). Production derives both
+  # from config/deploy-defaults.json (or app_origins/app_base_path), never localhost.
+  root_url = local.app_home_url
   base_url = local.app_home_url
 
   full_scope_allowed = true
+
+  lifecycle {
+    precondition {
+      condition     = !local.production || (!can(regex(local.loopback_re, local.app_home_url)) && !anytrue([for o in local.all_origins : can(regex(local.loopback_re, o))]))
+      error_message = "profile=production: the japan-trip-frontend root/base URL, redirect URIs and web origins must not be localhost (got ${local.app_home_url}). Set app_origins or fix config/deploy-defaults.json pagesOrigin."
+    }
+  }
 }
 
 resource "keycloak_openid_audience_protocol_mapper" "audience" {

@@ -69,7 +69,8 @@ Rows REG-01..07 in `.planning/REQUIREMENTS.md`; evidence in `.planning/phases/TR
 
 ### Active
 
-- [ ] Open a PR for the registration batch and confirm the extended `keycloak-flow.yml` is green on Actions (REG-07); keep registration closed in production until then. Earlier: PR #24 is merged (`d2dd404`); confirm the `Keycloak flow` workflow is green on Actions (QA-01)
+- [ ] v3.3 UX & Product Polish: Keycloak screens redesign, device-generated passkey labels, production "back to application" link, Home reachable when logged in, trip creation flow like the demo, trip view parity, search scope (UX-*; In progress)
+- [ ] Confirm the extended `keycloak-flow.yml` is green on Actions (REG-07); the registration batch is merged (PR #25, `41f43d4`; docs PR #26, `6d4c4f1`). Keep registration closed in production until then. Earlier: PR #24 is merged (`d2dd404`); confirm the `Keycloak flow` workflow is green on Actions (QA-01)
 - [ ] Validate the self-hosting kit on the owner's server `legion-server.tailad4a36.ts.net`: Funnel client-IP forwarding (`TRUSTED_PROXY_HOPS=2`), Gmail delivery, passkeys on the `.ts.net` rpId; then close PROD-01 and SEC-17 (owner actions in `STATE.md`)
 - [ ] Owner actions before any Cloudflare/Neon deploy: `MIGRATION_DATABASE_URL` secret, Neon smoke checklist, duplicate-email check; rotate the leaked local Keycloak secret (DEP-02)
 
@@ -82,7 +83,11 @@ Rows REG-01..07 in `.planning/REQUIREMENTS.md`; evidence in `.planning/phases/TR
 - [ ] **Passkey rename**: PUT credentials/{id}/label
 - [ ] **Prod rpId for passkeys**: `webauthn_rp_id` is a required production variable; the owner must choose the host name before any passkey is registered
 
-## Current Milestone: v3.2 Security & Code Health Hardening (merged) and the production-readiness batch (PR #24)
+## Current Milestone: v3.3 UX & Product Polish (in progress)
+
+Seven owner-reported items (UX-KC-01..03, UX-NAV-01, UX-TRIP-01, UX-TRIP-02, UX-SEARCH-01), phases 27-31, all In progress; the trip creation flow (UX-TRIP-01) is the most critical. Details: `ROADMAP.md`, `REQUIREMENTS.md` section "v3.3", `MILESTONES.md`. Previous milestone below.
+
+## Previous Milestone: v3.2 Security & Code Health Hardening (merged) and the production-readiness batch (PR #24)
 
 **Goal:** Fix the ~85 actionable findings from a 7-pass live-verified repo audit — security, deploy safety, reliability bugs, dependencies, accessibility, architecture/test debt, data layer, business-logic/demo-parity, and IdP hardening.
 
@@ -190,4 +195,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-Last updated: 2026-10-08 — v3.2 and PR #24 merged; self-registration batch consolidated
+Last updated: 2026-10-08 — v3.3 UX & Product Polish started (UX-*, In progress); v3.2, PR #24 and the registration batch (PR #25 `41f43d4`, docs PR #26 `6d4c4f1`) merged

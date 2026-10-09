@@ -99,7 +99,7 @@ describe('showAuthUnavailableState', () => {
     expect(retry.textContent).toBe('Retry');
     expect(retry.type).toBe('button');
     const home = section.querySelector('a')!;
-    expect(home.getAttribute('href')).toMatch(/index\.html$/);
+    expect(home.getAttribute('href')).toMatch(/index\.html\?home$/);
     expect(section.querySelector('[role="status"]')).not.toBeNull();
 
     const content = document.getElementById('content')!;
@@ -274,5 +274,59 @@ describe('landing', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(document.getElementById('auth-notice')).toBeNull();
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  describe('Home link (?home) keeps a signed-in visitor on the landing page', () => {
+    const at = (search: string) =>
+      window.history.replaceState(null, '', `${window.location.pathname}${search}`);
+    afterEach(() => at(''));
+
+    it('?home: no redirect, "Sign in" becomes a dashboard shortcut', async () => {
+      at('?home');
+      h.nextInit.push(() => Promise.resolve(true));
+      const { initLanding } = await import('@/pages/landing');
+      const navigate = vi.fn();
+      initLanding(navigate);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(document.getElementById('landing-login-btn')!.textContent).toBe('Go to dashboard');
+    });
+
+    it('?home with a hash and extra params still stays', async () => {
+      at('?utm=x&home=1#demo');
+      h.nextInit.push(() => Promise.resolve(true));
+      const { initLanding } = await import('@/pages/landing');
+      const navigate = vi.fn();
+      initLanding(navigate);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('without the marker a signed-in visit still goes to the dashboard', async () => {
+      at('');
+      h.nextInit.push(() => Promise.resolve(true));
+      const { initLanding } = await import('@/pages/landing');
+      const navigate = vi.fn();
+      initLanding(navigate);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('?home with Keycloak down: notice, no redirect', async () => {
+      at('?home');
+      const { initLanding } = await import('@/pages/landing');
+      const navigate = vi.fn();
+      initLanding(navigate);
+      await vi.advanceTimersByTimeAsync(auth.AUTH_INIT_TIMEOUT_MS);
+      expect(document.getElementById('auth-notice')).not.toBeNull();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('isHomeIntent / HOME_HREF', () => {
+      expect(auth.isHomeIntent('?home')).toBe(true);
+      expect(auth.isHomeIntent('?homepage=1')).toBe(false);
+      expect(auth.isHomeIntent('')).toBe(false);
+      expect(auth.HOME_HREF).toBe('index.html?home');
+    });
   });
 });

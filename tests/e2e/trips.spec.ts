@@ -66,57 +66,57 @@ test.describe('Dashboard access', () => {
 });
 
 test.describe('Trip detail page', () => {
-  test('renders title, destination subtitle, active tab and a Leaflet map', async ({ page }) => {
+  test('opens on the overview: title, dates, one city card, a Leaflet map and the owner edit link', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page);
 
     await page.goto('trip.html?tripId=1');
 
     await expect(page.locator('#trip-title')).toHaveText(mockTrip.name);
-    await expect(page.locator('#trip-subtitle')).toContainText('Tokyo');
+    await expect(page.locator('#trip-subtitle')).toContainText('2026');
     await expect(page.locator('#map.leaflet-container')).toBeVisible();
-
-    const tabs = page.locator('#dest-tabs .dest-tab');
-    await expect(tabs).toHaveCount(1);
-    await expect(tabs.first()).toHaveText('Tokyo');
-    await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
-    // Owner sees the edit link pointing at this trip.
+    await expect(page.locator('#overview-cities .city-card')).toHaveCount(1);
+    await expect(page.locator('#overview-cities .city-card').first()).toContainText('Tokyo');
     await expect(page.locator('#trip-edit-link')).toHaveAttribute('href', `trip-edit.html?tripId=${mockTrip.id}`);
   });
 
-  test('switching destination tabs updates selection, subtitle and the URL', async ({ page }) => {
+  test('a city card opens that city (no reload) and the tabs switch between cities and update the URL', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page, { trip: mockTripTwoDestinations });
 
     await page.goto('trip.html?tripId=1');
+    await page.locator('#overview-cities .city-card').first().click();
 
+    await expect(page).toHaveURL(/[?&]destIndex=0/);
+    await expect(page.locator('#trip-title')).toHaveText('Tokyo');
     const tabs = page.locator('#dest-tabs .dest-tab');
     await expect(tabs).toHaveCount(2);
-    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
-    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'false');
+    await expect(tabs.nth(0)).toHaveAttribute('aria-current', 'page');
+    await expect(tabs.nth(1)).not.toHaveAttribute('aria-current', 'page');
 
     await tabs.nth(1).click();
 
-    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
-    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'false');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-current', 'page');
     await expect(tabs.nth(1)).toHaveClass(/is-active/);
-    await expect(page.locator('#trip-subtitle')).toContainText('Kyoto');
-    await expect(page.locator('#trip-subtitle')).not.toContainText('Tokyo');
+    await expect(page.locator('#trip-title')).toHaveText('Kyoto');
     await expect(page).toHaveURL(/[?&]destIndex=1/);
     await expect(page.locator('#map.leaflet-container')).toBeVisible();
+
+    await page.goBack();
+    await expect(page.locator('#trip-title')).toHaveText('Tokyo');
   });
 
-  test('a deep link with destIndex opens that destination directly', async ({ page }) => {
+  test('a deep link with destIndex opens that city directly', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page, { trip: mockTripTwoDestinations });
 
     await page.goto('trip.html?tripId=1&destIndex=1');
 
-    await expect(page.locator('#dest-tabs .dest-tab').nth(1)).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('#trip-subtitle')).toContainText('Kyoto');
+    await expect(page.locator('#dest-tabs .dest-tab').nth(1)).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('#trip-title')).toHaveText('Kyoto');
   });
 
-  test('an out-of-range destIndex does not break the page', async ({ page }) => {
+  test('an out-of-range destIndex falls back to the overview without errors', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page, { trip: mockTripTwoDestinations });
     const errors: string[] = [];
@@ -125,30 +125,35 @@ test.describe('Trip detail page', () => {
     await page.goto('trip.html?tripId=1&destIndex=99');
 
     await expect(page.locator('#trip-title')).toHaveText(mockTrip.name);
+    await expect(page.locator('#overview-cities .city-card')).toHaveCount(2);
     await expect(page.locator('#map.leaflet-container')).toBeVisible();
     await expect(page.locator('body')).toHaveClass(/ready/);
     expect(errors).toEqual([]);
   });
 
-  test('a trip with zero destinations still shows its name (no stuck placeholder)', async ({ page }) => {
+  test('a trip with zero destinations still shows its name and an empty state (no stuck placeholder)', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page, { trip: { ...mockTrip, destinations: [] } });
 
     await page.goto('trip.html?tripId=1');
 
     await expect(page.locator('#trip-title')).toHaveText(mockTrip.name);
-    await expect(page.locator('#dest-tabs .dest-tab')).toHaveCount(0);
+    await expect(page.locator('#overview-cities .city-card')).toHaveCount(0);
+    await expect(page.locator('#trip-empty')).toContainText('no cities yet');
+    await expect(page.locator('#trip-empty a')).toHaveAttribute('href', `trip-edit.html?tripId=${mockTrip.id}`);
     await expect(page.locator('body')).toHaveClass(/ready/);
   });
 
-  test('a trip the API refuses (404) shows the no-access message, not a broken page', async ({ page }) => {
+  test('a trip the API refuses (404) says it was not found or not accessible, not a broken page', async ({ page }) => {
     await mockKeycloakLoggedIn(page);
     await mockApi(page, { tripStatus: 404 });
 
     await page.goto('trip.html?tripId=12345');
 
-    await expect(page.locator('#main-content')).toContainText("You don't have access to this trip");
+    await expect(page.locator('#main-content')).toContainText("don't have access");
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Trip not found');
     await expect(page.locator('#map.leaflet-container')).toHaveCount(0);
+    await expect(page.locator('#trip-retry-btn')).toHaveCount(0);
   });
 
   test('a missing tripId is reported instead of loading forever', async ({ page }) => {
@@ -167,6 +172,7 @@ test.describe('Trip detail page', () => {
     await page.goto('trip.html?tripId=1');
 
     await expect(page.locator('#main-content')).toContainText("You don't have access to this trip");
+    await expect(page.locator('#trip-login-btn')).toBeVisible();
     // The guest path must not even try the owner-only endpoint.
     expect(calls.filter((c) => c.path.startsWith('/trips/'))).toEqual([]);
   });
@@ -214,7 +220,7 @@ test.describe('Create trip form', () => {
     await page.locator('#trip-end').fill('2027-04-02');
     await page.locator('#create-trip-form button[type="submit"]').click();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     const post = calls.find((c) => c.method === 'POST' && c.path === '/trips');
     expect(post?.body).toEqual({
       name: 'New Test Trip',
@@ -232,7 +238,7 @@ test.describe('Create trip form', () => {
     await page.locator('#trip-name').fill('Minimal');
     await page.locator('#create-trip-form button[type="submit"]').click();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     const post = calls.find((c) => c.method === 'POST' && c.path === '/trips');
     expect(post?.body).toMatchObject({ name: 'Minimal', description: null, start_date: null, end_date: null });
   });
@@ -294,7 +300,7 @@ test.describe('Create trip form', () => {
     const submit = page.locator('#create-trip-form button[type="submit"]');
     await submit.dblclick();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     expect(calls.filter((c) => c.method === 'POST' && c.path === '/trips')).toHaveLength(1);
   });
 
@@ -306,7 +312,7 @@ test.describe('Create trip form', () => {
     await page.locator('#trip-name').fill(nasty);
     await page.locator('#create-trip-form button[type="submit"]').click();
 
-    await page.waitForURL(/trip\.html\?tripId=99$/);
+    await page.waitForURL(/trip-edit\.html\?tripId=99/);
     expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ name: nasty });
   });
 
