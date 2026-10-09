@@ -5,6 +5,10 @@
 #   └── passkey-forms                              ALTERNATIVE  (basic-flow)
 #       ├── auth-username-form                     REQUIRED     (identifies the user only)
 #       └── passkey-or-password                    REQUIRED     (basic-flow — the credential step)
+#           ├── passkey-done                       ALTERNATIVE  (basic-flow; priority 5)
+#           │   └── passkey-done-if-used           CONDITIONAL  (basic-flow)
+#           │       ├── conditional-credential               REQUIRED (condition: webauthn-passwordless used)
+#           │       └── allow-access-authenticator           REQUIRED
 #           ├── passkey                            ALTERNATIVE  (basic-flow)
 #           │   └── passkey-if-configured          CONDITIONAL  (basic-flow)
 #           │       ├── webauthn-authenticator-passwordless  REQUIRED
@@ -50,6 +54,13 @@
 #      first of its subflow; with the condition first, passkey users had no fallback.
 #   5. A user with neither a passkey nor a password fails the flow (both ALTERNATIVEs are
 #      empty) — see tests/e2e/idp-flow.spec.ts for the negative checks.
+#   6. PASSKEY-FIRST: with passkeys on for the realm, a passkey can sign the user in on the
+#      username page itself (no username typed). The username form then knows the user, and
+#      `passkey-done` closes the credential step so the passkey is not asked for twice. It is
+#      an extra ALTERNATIVE and never a CONDITIONAL requirement on the credential step (a
+#      CONDITIONAL subflow without a condition is skipped: fail-open), its condition comes
+#      before allow-access (selection resolver, see the resources below), and
+#      allow-access-authenticator is used nowhere else. docs/design/PASSKEY-FIRST-LOGIN.md.
 
 resource "keycloak_authentication_flow" "browser_passkey" {
   realm_id    = keycloak_realm.japan_trip.id
@@ -179,6 +190,79 @@ resource "keycloak_authentication_execution" "password_condition" {
   depends_on = [keycloak_authentication_execution.password_form]
 }
 
+# PASSKEY-FIRST (docs/design/PASSKEY-FIRST-LOGIN.md): a passkey can sign the user in from
+# the username page itself, before any username is typed (realm passkeys, main.tf). The
+# username form then identifies the user from the assertion's user handle, and the
+# credential step would ask for the passkey a second time (two Face ID prompts). This
+# third ALTERNATIVE branch closes the credential step when - and only when - a passkey
+# assertion (webauthn-passwordless, user verification required by the realm policy) was
+# already validated in this authentication session.
+#
+# Same shape as `passkey` / `password` above: an ALTERNATIVE subflow whose only child is
+# a CONDITIONAL subflow. When the condition is false the subflow is skipped, the branch
+# counts as empty and fails, and Keycloak tries the next branch. allow-access-authenticator
+# lives nowhere else in these flows (tests/e2e/idp-config.spec.ts pins that).
+#
+# It is deliberately an additional branch and not a CONDITIONAL requirement on the
+# credential subflow: Keycloak skips a CONDITIONAL subflow that has no condition yet, so
+# flipping `passkey-or-password` to CONDITIONAL would let a bare username through for the
+# moment between two API calls of an upgrade (reproduced on 26.6.1). A new branch is
+# fail-closed at every step of an apply.
+resource "keycloak_authentication_subflow" "passkey_done" {
+  realm_id          = keycloak_realm.japan_trip.id
+  alias             = "passkey-done"
+  description       = "Credential step already satisfied: a passkey was used on the username page"
+  parent_flow_alias = keycloak_authentication_subflow.credential.alias
+  provider_id       = "basic-flow"
+  requirement       = "ALTERNATIVE"
+  priority          = 5
+
+  depends_on = [keycloak_authentication_subflow.password]
+}
+
+resource "keycloak_authentication_subflow" "passkey_done_if_used" {
+  realm_id          = keycloak_realm.japan_trip.id
+  alias             = "passkey-done-if-used"
+  description       = "Allows the credential step only when a passkey has been validated in this session"
+  parent_flow_alias = keycloak_authentication_subflow.passkey_done.alias
+  provider_id       = "basic-flow"
+  requirement       = "CONDITIONAL"
+  priority          = 10
+}
+
+# Condition first, allow-access second: the reverse of the credential branches above, on
+# purpose. When allow-access is the FIRST execution of its subflow, Keycloak's
+# AuthenticationSelectionResolver climbs to the sibling branches and swaps it for the
+# user's preferred credential (the WebAuthn authenticator), which asks for the passkey
+# again - exactly what this branch exists to prevent (reproduced on 26.6.1).
+resource "keycloak_authentication_execution" "passkey_done_condition" {
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.passkey_done_if_used.alias
+  authenticator     = "conditional-credential"
+  requirement       = "REQUIRED"
+  priority          = 10
+}
+
+resource "keycloak_authentication_execution" "passkey_done_allow" {
+  realm_id          = keycloak_realm.japan_trip.id
+  parent_flow_alias = keycloak_authentication_subflow.passkey_done_if_used.alias
+  authenticator     = "allow-access-authenticator"
+  requirement       = "REQUIRED"
+  priority          = 20
+
+  depends_on = [keycloak_authentication_execution.passkey_done_condition]
+}
+
+resource "keycloak_authentication_execution_config" "passkey_done_condition" {
+  realm_id     = keycloak_realm.japan_trip.id
+  execution_id = keycloak_authentication_execution.passkey_done_condition.id
+  alias        = "passkey-used"
+  config = {
+    credentials = "webauthn-passwordless"
+    included    = "true"
+  }
+}
+
 # SEC-13 / ARCH-08: Terraform is the single source of truth for which flow the realm
 # uses. Bound here (not via keycloak_realm.browser_flow) so a fresh `terraform apply`
 # creates the flow before binding it — setting browser_flow on the realm resource made
@@ -193,6 +277,7 @@ resource "keycloak_authentication_bindings" "browser_flow" {
     keycloak_authentication_execution.username_form,
     keycloak_authentication_execution.webauthn_passwordless,
     keycloak_authentication_execution.password_form,
+    keycloak_authentication_execution_config.passkey_done_condition,
     keycloak_authentication_execution.registration_user_creation,
     keycloak_authentication_execution_config.registration_recaptcha,
   ]

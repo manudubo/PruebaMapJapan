@@ -141,6 +141,11 @@ resource "keycloak_realm" "japan_trip" {
     authenticator_attachment      = "platform"
     require_resident_key          = "Yes"
     user_verification_requirement = "required"
+    # Passkeys on the username form: the browser may offer a discoverable passkey
+    # before any username is typed (autofill, or the prompt the theme starts on a
+    # device that has used a passkey here; docs/design/PASSKEY-FIRST-LOGIN.md).
+    # Needs provider >= 5.8.0 and Keycloak >= 26.4.
+    passwordless_passkeys_enabled = true
   }
 
   smtp_server {
