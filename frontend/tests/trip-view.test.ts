@@ -169,12 +169,26 @@ describe('URLs', () => {
   });
 
   it('parses the location: no destIndex is the overview, junk is the overview', () => {
-    expect(parseTripLocation('?tripId=7')).toEqual({ tripId: '7', slug: null, destIndex: null });
+    expect(parseTripLocation('?tripId=7')).toEqual({
+      tripId: '7', slug: null, destIndex: null, day: null, activity: null, activityId: null,
+    });
     expect(parseTripLocation('?tripId=7&destIndex=3')).toMatchObject({ destIndex: 3 });
     expect(parseTripLocation('?slug=s&destIndex=0')).toMatchObject({ slug: 's', destIndex: 0 });
     expect(parseTripLocation('?tripId=7&destIndex=abc').destIndex).toBeNull();
     expect(parseTripLocation('?tripId=7&destIndex=-1').destIndex).toBeNull();
     expect(parseTripLocation('?tripId=7&destIndex=1.5').destIndex).toBeNull();
+  });
+
+  it('parses the search deep-link parameters; blank or absurd values count as absent', () => {
+    expect(parseTripLocation('?tripId=7&destIndex=1&day=2031-05-02&activity=Caf%C3%A9+%26+Ramen&activityId=a-1')).toMatchObject({
+      destIndex: 1,
+      day: '2031-05-02',
+      activity: 'Café & Ramen',
+      activityId: 'a-1',
+    });
+    expect(parseTripLocation('?tripId=7&day=&activity=%20&activityId=')).toMatchObject({ day: null, activity: null, activityId: null });
+    expect(parseTripLocation(`?activity=${'x'.repeat(5000)}`).activity).toBeNull();
+    expect(() => parseTripLocation('?activity=%E0%A4%A&day=%')).not.toThrow(); // malformed escapes never throw
   });
 
   it('an out-of-range city falls back to the overview', () => {

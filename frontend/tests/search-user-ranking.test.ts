@@ -36,6 +36,7 @@ describe('buildTripEntries', () => {
       destIndex: '0',
       day: '2026-04-01',
       activity: 'Fushimi Inari',
+      activityId: 't-spring-d0-day0-a0',
     });
     const day = new URL(byTitle('Temples — Kyoto').url, 'http://x/');
     expect(day.searchParams.get('day')).toBe('2026-04-01');
@@ -93,7 +94,7 @@ describe('buildTripEntries', () => {
     expect(url.hash).toBe('');
     expect(url.searchParams.get('activity')).toBe(name);
     expect(url.searchParams.get('tripId')).toBe('a&b=c');
-    expect([...url.searchParams.keys()].sort()).toEqual(['activity', 'day', 'destIndex', 'tripId']);
+    expect([...url.searchParams.keys()].sort()).toEqual(['activity', 'activityId', 'day', 'destIndex', 'tripId']);
   });
 
   it('copes with a bare list row (no destinations) and a trip without cities', () => {

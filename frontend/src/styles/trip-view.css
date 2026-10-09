@@ -771,3 +771,45 @@
     justify-content: center;
   }
 }
+
+/* ---- Weather on the city view (same card as the demo's local-information widgets) ---- */
+.trip-weather .widgets-title {
+  overflow-wrap: anywhere;
+}
+
+/* One card: as wide as a demo widget, not stretched across the page */
+.trip-weather .widgets-grid {
+  grid-template-columns: minmax(0, 420px);
+}
+
+.trip-weather .widget-card {
+  min-height: 0;
+}
+
+.trip-weather .weather-caption {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--jp-text-secondary);
+}
+
+.trip-weather .weather-headline-day {
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--jp-text);
+}
+
+.trip-weather .weather-forecast {
+  margin-top: 16px;
+}
+
+.trip-weather .weather-retry {
+  align-self: flex-start;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .trip-weather.widgets-section {
+    padding: 24px 16px;
+  }
+}

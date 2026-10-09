@@ -8,6 +8,9 @@ import { DeclutteredMarker, declutterMarkers } from './declutter';
 import { createDirectionsUrl, announceToScreenReader } from './utils';
 import DOMPurify from 'dompurify';
 import { setText, setStyle } from '@/modules/dom';
+import { selectDayAndFocusActivity } from './activityFocus';
+
+export { selectDayAndFocusActivity, legendItemFor, type FocusOptions, type FocusResult } from './activityFocus';
 
 let currentTileLayer: L.TileLayer | null = null;
 
@@ -128,56 +131,23 @@ export function initCityMap(city: string): L.Map | null {
   generateLegendByDay(data);
   moveHotelInfo();
   
-  // Check URL parameters for auto-focus and day selection
+  // Deep link (?day=...&activity=...[&activityId=...]): select the day and focus the activity.
+  // The URL is left as it is, so the link stays shareable and reload/back keep working.
   const urlParams = new URLSearchParams(window.location.search);
   const dayParam = urlParams.get('day');
   const activityParam = urlParams.get('activity');
-  
+
   if (dayParam && activityParam) {
     // Wait for map to be fully initialized
     setTimeout(() => {
-      selectDayAndFocusActivity(dayParam, activityParam, daySelector, map, data, markersByDay);
+      selectDayAndFocusActivity(dayParam, activityParam, daySelector, map, data, markersByDay, {
+        activityId: urlParams.get('activityId'),
+      });
     }, 300);
   }
-  
+
   announceToScreenReader(`Map of ${data.name} loaded with ${allMarkers.length} locations`);
   return map;
-}
-
-function selectDayAndFocusActivity(
-  dayKey: string, 
-  activityName: string, 
-  daySelector: HTMLElement | null,
-  map: L.Map,
-  data: CityData,
-  markersByDay: Record<string, L.Marker[]>
-): void {
-  if (!daySelector || !markersByDay[dayKey]) return;
-  
-  // Find and click the day button
-  const dayBtn = daySelector.querySelector(`[data-day="${dayKey}"]`) as HTMLElement;
-  if (dayBtn) {
-    dayBtn.click();
-  }
-  
-  // Find the activity marker and open its popup
-  const dayData = data.days[dayKey];
-  if (dayData) {
-    const activityIndex = dayData.activities.findIndex(a => a.name === activityName);
-    if (activityIndex >= 0 && markersByDay[dayKey][activityIndex]) {
-      const marker = markersByDay[dayKey][activityIndex];
-      
-      // Focus on the marker
-      setTimeout(() => {
-        map.setView(marker.getLatLng(), 15);
-        marker.openPopup();
-        
-        // Clean URL (remove parameters)
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, '', cleanUrl);
-      }, 500);
-    }
-  }
 }
 
 function setupDayFilter(
@@ -270,6 +240,7 @@ function createLegendItem(activity: Activity, idx: number, day: Day): HTMLElemen
   const mapsUrl = getMapsUrl(activity.name);
   const item = document.createElement('li');
   item.className = 'legend-item' + (isOptional ? ' is-optional' : '');
+  item.dataset.activityIndex = String(idx);
   const noteText = activity.notes ? (activity.notes.length > 50 ? activity.notes.substring(0, 50) + '...' : activity.notes) : '';
   const markerDiv = document.createElement('div');
   markerDiv.className = 'legend-marker';

@@ -112,6 +112,17 @@
             <div class="legend-grid" id="legend-grid"></div>
             <div class="hotel-info" id="hotel-info"></div>
           </div>
+
+          <!-- Weather for the city, same card as the demo's (filled by modules/tripWeather.ts; stays hidden without coordinates or when the API is unreachable) -->
+          <section class="widgets-section trip-weather" id="trip-weather" aria-labelledby="trip-weather-title" hidden>
+            <h3 class="widgets-title" id="trip-weather-title">Weather</h3>
+            <div class="widgets-grid">
+              <article class="widget-card" id="widget-weather" aria-labelledby="weather-title">
+                <div class="widget-header"><h4 id="weather-title">Weather &amp; Forecast</h4></div>
+                <div class="widget-content" aria-busy="true" aria-live="polite"></div>
+              </article>
+            </div>
+          </section>
         </section>
       </div>
     </main>
